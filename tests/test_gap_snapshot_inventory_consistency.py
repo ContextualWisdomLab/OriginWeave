@@ -268,6 +268,28 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
 
+    def test_current_cut_separates_browser_failure_and_unpublished_repair(self) -> None:
+        """Hosted browser failure and private source proof must stay distinct."""
+        latest = self.baseline.split("## Current live delivery state", 1)[1].split(
+            "### Prior observation cut: 2026-09-05", 1
+        )[0]
+        for marker in (
+            "9985228944",
+            "05b6d1cd6092a9e2e18a5003a5a1faeb73b8a8d9b4fd7533f7f24bc938833436",
+            "5557994915",
+            "bd29f405a6c927b2f7d1c437dccbfb8bcec424f1",
+            "1273/13311/16973/1432",
+            "unpublished checkpoint",
+            "5557964460",
+            "writer acknowledgement",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, latest)
+        self.assertNotIn(
+            "Native CI `34018588292` and MV3 `34018588298` remain queued",
+            latest,
+        )
+
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
