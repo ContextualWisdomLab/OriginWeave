@@ -8,12 +8,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResponseError,
+    WebDriverBiDiTypeTextResult, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -139,7 +138,7 @@ fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<
 {
     let text = receive_response(REMOTE_ERROR_RESPONSE)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(42)?;
+    correlation.register_command_for(42, WebDriverBiDiCommandKind::TypeText)?;
 
     let error = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)
         .err()
@@ -164,7 +163,7 @@ fn malformed_text_input_envelope_fails_before_consuming_correlation() -> Result<
 {
     let text = receive_response(MALFORMED_RESPONSE)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(42)?;
+    correlation.register_command_for(42, WebDriverBiDiCommandKind::TypeText)?;
 
     let error = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)
         .err()
@@ -182,7 +181,7 @@ fn unknown_text_input_response_id_does_not_consume_outstanding_command()
 -> Result<(), Box<dyn Error>> {
     let text = receive_response(UNKNOWN_ID_RESPONSE)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(42)?;
+    correlation.register_command_for(42, WebDriverBiDiCommandKind::TypeText)?;
 
     let error = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)
         .err()

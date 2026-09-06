@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
 };
 
@@ -27,7 +27,8 @@ impl WebDriverBiDiTypeTextResult {
     /// can be consumed. Successful responses retain only the matched command id. A correlatable
     /// protocol-error response consumes its matching id and returns a typed remote failure, while
     /// events, null-id errors, malformed envelopes, and unknown ids fail closed without consuming
-    /// unrelated outstanding state.
+    /// unrelated outstanding state. Both success and error replies must match the registered
+    /// text-input command family. This boundary does not prove received-connection provenance.
     pub fn parse_and_correlate(
         message: &WebDriverBiDiWebSocketTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
@@ -35,7 +36,7 @@ impl WebDriverBiDiTypeTextResult {
         let envelope = WebDriverBiDiJsonEnvelope::parse(message)
             .map_err(|source| WebDriverBiDiTypeTextResponseError::Envelope { source })?;
         let completed = correlation
-            .correlate_response(&envelope)
+            .correlate_response_for(&envelope, WebDriverBiDiCommandKind::TypeText)
             .map_err(|source| WebDriverBiDiTypeTextResponseError::Correlation { source })?;
 
         match completed.outcome() {
