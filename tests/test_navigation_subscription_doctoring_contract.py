@@ -21,7 +21,7 @@ class NavigationSubscriptionDoctoringContractTests(unittest.TestCase):
 
         self.assertLess(
             source.index("validate_frame_timeout(frame_timeout)"),
-            source.index(".register_command_for("),
+            source.index(".register_subscription_command("),
         )
         self.assertIn("WebDriverBiDiWebSocketFrameError::MalformedFrame", source)
         self.assertIn("correlation.retire_command_for(", source)

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, sync::Arc};
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
@@ -23,12 +23,14 @@ pub const MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS: usize = 256;
 /// The binding carries only the exact local command identifier and the already-registered
 /// OriginWeave session/context association used to serialize that command. The external BiDi
 /// context identifier is retained privately for immediate registry revalidation and is not exposed
-/// as durable OriginWeave authority.
+/// as durable OriginWeave authority. A private allocation identity binds this value to the exact
+/// command instance; matching caller-supplied numbers cannot recreate that identity.
 pub struct WebDriverBiDiNavigationCommittedSubscriptionBinding {
     command_id: u64,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
     external_context: String,
+    subscription_intent: Arc<()>,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionBinding {
@@ -49,12 +51,14 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         external_context: &str,
+        subscription_intent: Arc<()>,
     ) -> Self {
         Self {
             command_id,
             browser_session,
             browsing_context,
             external_context: external_context.to_owned(),
+            subscription_intent,
         }
     }
 
@@ -115,7 +119,8 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
 impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     /// Bind one correlated subscription receipt to the exact command-side session/context intent.
     ///
-    /// A response correlated to a different command cannot be rebound to this capability. The
+    /// A response correlated to a different command instance cannot be rebound to this capability,
+    /// even when its numeric command, session and context identifiers match. The
     /// original external BiDi context is revalidated before the capability exists, so a retired or
     /// replaced registry mapping fails closed without creating active event-admission state.
     pub fn new(
@@ -129,6 +134,14 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
                     subscription_command_id: subscription.command_id(),
                     binding_command_id: binding.command_id,
                 },
+            );
+        }
+        if !Arc::ptr_eq(
+            &subscription.subscription_intent,
+            &binding.subscription_intent,
+        ) {
+            return Err(
+                WebDriverBiDiNavigationCommittedSubscriptionAdmissionError::CommandIntentMismatch,
             );
         }
         require_current_binding(registry, &binding).map_err(|source| {
@@ -291,6 +304,8 @@ impl WebDriverBiDiNavigationCommittedSubscribedObservation {
 /// Fail-closed failures while binding a correlated subscription receipt to command-side authority.
 #[derive(Debug)]
 pub enum WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
+    /// The supplied binding was captured from a different command instance than the actual sender.
+    CommandIntentMismatch,
     /// The correlated response belongs to a different local command than the supplied binding.
     CommandIdMismatch {
         /// Exact command identifier carried by the correlated subscription receipt.
@@ -308,6 +323,9 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
 impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CommandIntentMismatch => formatter.write_str(
+                "WebDriver BiDi navigation subscription binding differs from its sent command",
+            ),
             Self::CommandIdMismatch { .. } => formatter.write_str(
                 "WebDriver BiDi navigation subscription response does not match its command binding",
             ),
@@ -321,7 +339,7 @@ impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError
 impl Error for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::CommandIdMismatch { .. } => None,
+            Self::CommandIdMismatch { .. } | Self::CommandIntentMismatch => None,
             Self::ContextBinding { source } => Some(source),
         }
     }

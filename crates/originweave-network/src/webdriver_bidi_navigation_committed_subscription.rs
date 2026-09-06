@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, time::Duration};
+use std::{error::Error, fmt, sync::Arc, time::Duration};
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
@@ -29,6 +29,7 @@ pub struct WebDriverBiDiNavigationCommittedSubscriptionCommand {
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
     external_context: String,
+    subscription_intent: Arc<()>,
 }
 
 impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
@@ -62,6 +63,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             browser_session,
             browsing_context,
             external_context: external_context.to_owned(),
+            subscription_intent: Arc::new(()),
         })
     }
 
@@ -101,6 +103,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             self.browser_session,
             self.browsing_context,
             &self.external_context,
+            Arc::clone(&self.subscription_intent),
         )
     }
 
@@ -134,10 +137,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
         })?;
         correlation
-            .register_command_for(
-                self.command_id,
-                WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-            )
+            .register_subscription_command(self.command_id, Arc::clone(&self.subscription_intent))
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;

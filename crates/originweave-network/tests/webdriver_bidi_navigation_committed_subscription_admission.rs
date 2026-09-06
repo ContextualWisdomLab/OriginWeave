@@ -374,26 +374,90 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
 }
 
 #[test]
-fn sent_subscription_cannot_be_rebound_to_an_unsent_same_id_context()
--> Result<(), Box<dyn Error>> {
+fn sent_subscription_cannot_be_rebound_to_an_unsent_same_id_context() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
     let other_context = registry.register_context(session, "context-b")?;
     let (subscription, _) = receive_subscription_result(&registry, session, context, 7)?;
     let unsent_binding = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
-        7, &registry, session, other_context, "context-b",
+        7,
+        &registry,
+        session,
+        other_context,
+        "context-b",
     )?
     .admission_binding();
     let rejected = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
-        subscription, unsent_binding, &registry,
+        subscription,
+        unsent_binding,
+        &registry,
     )
     .err()
-    .ok_or_else(|| io::Error::other("sent context-a receipt admitted an unsent context-b binding"))?;
+    .ok_or_else(|| {
+        io::Error::other("sent context-a receipt admitted an unsent context-b binding")
+    })?;
     assert!(rejected.source().is_none());
     assert_eq!(
         rejected.to_string(),
-        "WebDriver BiDi navigation subscription binding differs from its sent context"
+        "WebDriver BiDi navigation subscription binding differs from its sent command"
+    );
+    Ok(())
+}
+
+#[test]
+fn identical_unsent_command_fields_do_not_recreate_sent_command_identity()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+    let (subscription, _) = receive_subscription_result(&registry, session, context, 7)?;
+    let unsent_binding = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        7, &registry, session, context, CONTEXT_ID,
+    )?
+    .admission_binding();
+    assert!(
+        WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+            subscription,
+            unsent_binding,
+            &registry,
+        )
+        .is_err(),
+        "identical fields must not recreate the original command instance"
+    );
+    Ok(())
+}
+
+#[test]
+fn subscription_identity_does_not_collide_across_registries() -> Result<(), Box<dyn Error>> {
+    let mut original_registry = BrowserAuthorityRegistry::new();
+    let original_session = original_registry.register_session(SESSION_ID)?;
+    let original_context = original_registry.register_context(original_session, CONTEXT_ID)?;
+    let (subscription, _) =
+        receive_subscription_result(&original_registry, original_session, original_context, 7)?;
+    let mut replacement_registry = BrowserAuthorityRegistry::new();
+    let replacement_session = replacement_registry.register_session("replacement-session")?;
+    let replacement_context =
+        replacement_registry.register_context(replacement_session, "context-b")?;
+    assert_eq!(original_session, replacement_session);
+    assert_eq!(original_context, replacement_context);
+    let unsent_binding = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        7,
+        &replacement_registry,
+        replacement_session,
+        replacement_context,
+        "context-b",
+    )?
+    .admission_binding();
+    assert!(
+        WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+            subscription,
+            unsent_binding,
+            &replacement_registry,
+        )
+        .is_err(),
+        "registry-local identifiers must not substitute for the actual sent command"
     );
     Ok(())
 }

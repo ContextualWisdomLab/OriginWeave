@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Prevent an unsent navigation subscription from borrowing another request's successful response, including when separate sessions reuse the same local numbers. Re-registering a completed request number without sending a new request cannot recreate its consumed subscription.
 - Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.
 - Retire only the exact committed-navigation subscription correlation when frame preparation fails locally as `MalformedFrame` before any command bytes can be emitted, while preserving unrelated requests and retaining correlation after ambiguous frame-write failures.
 - Integrated current origin-binding prerequisites into context-scoped navigation subscriptions, preserving typed command isolation, response bounds, and the original subscription tests while restoring the inherited executable release contract.
