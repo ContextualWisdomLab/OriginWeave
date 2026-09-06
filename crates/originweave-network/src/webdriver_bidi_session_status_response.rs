@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Maximum decoded byte length retained from WebDriver BiDi `session.status` implementation text.
@@ -37,27 +37,33 @@ impl fmt::Debug for WebDriverBiDiSessionStatusResult {
 }
 
 impl WebDriverBiDiSessionStatusResult {
-    /// Parse one bounded local-end message and consume its exact outstanding command on success.
+    /// Parse one bounded received message and consume its exact outstanding command on success.
     ///
     /// Common WebDriver BiDi envelope validation runs first. A successful envelope then undergoes
     /// command-specific projection of `result.ready` and `result.message`; correlation is consumed
     /// only after that result is valid, so malformed success bodies cannot silently retire an id.
     /// A correlatable protocol-error response consumes its matching id and returns a typed remote
     /// protocol failure retaining the protocol error code but not the implementation-defined remote
-    /// message or stacktrace. Events, null-id errors, and unknown ids fail closed through the
-    /// existing correlation boundary.
+    /// message or stacktrace. Both success and error responses must have arrived on the exact
+    /// connection generation that registered the command; replacement-connection responses leave
+    /// the original pending command untouched. Events, null-id errors, and unknown ids fail closed
+    /// through the existing correlation boundary.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiSessionStatusResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message)
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message())
             .map_err(|source| WebDriverBiDiSessionStatusResponseError::Envelope { source })?;
 
         match envelope.kind() {
             WebDriverBiDiJsonEnvelopeKind::Success => {
-                let projected = StatusProjection::parse(message.as_str())?;
+                let projected = StatusProjection::parse(message.message().as_str())?;
                 let completed = correlation
-                    .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionStatus)
+                    .correlate_response_for_connection(
+                        &envelope,
+                        WebDriverBiDiCommandKind::SessionStatus,
+                        message.connection_generation(),
+                    )
                     .map_err(
                         |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
                     )?;
@@ -70,7 +76,11 @@ impl WebDriverBiDiSessionStatusResult {
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
                     let completed = correlation
-                        .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionStatus)
+                        .correlate_response_for_connection(
+                            &envelope,
+                            WebDriverBiDiCommandKind::SessionStatus,
+                            message.connection_generation(),
+                        )
                         .map_err(
                             |source| WebDriverBiDiSessionStatusResponseError::Correlation {
                                 source,
