@@ -219,8 +219,9 @@ fn establish_connection(
 
 fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<dyn Error>> {
     for first_payload in [
+        br#"{"type":"error","id":7,"error":"invalid argument","message":"old rejection"}"#
+            .as_slice(),
         SUBSCRIBE_RESPONSE,
-        br#"{"type":"error","id":7,"error":"invalid argument","message":"old rejection"}"#,
     ] {
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
         let local_addr = listener.local_addr()?;

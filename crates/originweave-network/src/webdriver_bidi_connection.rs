@@ -208,6 +208,13 @@ impl WebDriverBiDiSocketConnector for SystemWebDriverBiDiConnector {
 /// transport to the expected browser process/session, and pass separate action-policy checks. A
 /// private process-local connection generation follows this exact stream so later evidence cannot
 /// be mixed with another connection that happens to use the same session or command identifier.
+/// Raw socket aliases cannot coexist with this upgradeable connection owner:
+///
+/// ```compile_fail
+/// fn retain_alias(connection: &originweave_network::WebDriverBiDiTcpConnection) {
+///     let _alias = connection.stream().try_clone();
+/// }
+/// ```
 #[derive(Debug)]
 pub struct WebDriverBiDiTcpConnection {
     stream: TcpStream,
