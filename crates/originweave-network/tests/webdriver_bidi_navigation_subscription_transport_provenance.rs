@@ -8,13 +8,15 @@ use std::{
 
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
-    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiNavigationCommittedSubscriptionEventError,
+    WebDriverBiDiNavigationCommittedSubscriptionResponseError,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -111,13 +113,13 @@ fn establish(local_addr: SocketAddr) -> Result<WebDriverBiDiWebSocketEstablished
 
 fn next_text(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => Ok(message),
         other => Err(io::Error::other(format!(
-            "expected a complete WebDriver BiDi text message, got {other:?}"
+            "expected a complete connection-bound WebDriver BiDi text message, got {other:?}"
         ))
         .into()),
     }
@@ -187,14 +189,20 @@ fn subscription_receipt_from_another_verified_connection_is_rejected()
     let foreign_addr = foreign_listener.local_addr()?;
     let foreign_server = spawn_unsolicited_message_sender(foreign_listener, SUBSCRIBE_RESPONSE);
     let response = next_text(establish(foreign_addr)?)?;
-    let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+    let error = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
-    );
-    assert!(
-        result.is_err(),
-        "a session.subscribe receipt read on another verified connection must not consume the sent command"
-    );
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("crossed-connection receipt unexpectedly correlated"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                command_id: 7
+            }
+        }
+    ));
     assert_eq!(correlation.outstanding_count(), 1);
     foreign_server
         .join()
@@ -242,11 +250,14 @@ fn subscription_event_from_another_verified_connection_is_rejected()
     let foreign_addr = foreign_listener.local_addr()?;
     let foreign_server = spawn_unsolicited_message_sender(foreign_listener, NAVIGATION_EVENT);
     let event = next_text(establish(foreign_addr)?)?;
-    let result = admission.admit(&event, &registry, EXPECTED_URL);
-    assert!(
-        result.is_err(),
-        "a navigation event read on another verified connection must not become subscription-backed evidence"
-    );
+    let error = admission
+        .admit(&event, &registry, EXPECTED_URL)
+        .err()
+        .ok_or_else(|| io::Error::other("crossed-connection event unexpectedly admitted"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiNavigationCommittedSubscriptionEventError::EventConnectionMismatch
+    ));
     foreign_server
         .join()
         .map_err(|_| io::Error::other("foreign-event fixture server panicked"))??;
