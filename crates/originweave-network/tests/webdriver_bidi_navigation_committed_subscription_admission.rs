@@ -226,6 +226,7 @@ fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
         let local_addr = listener.local_addr()?;
         let (release_sender, release_receiver) = std::sync::mpsc::channel();
+        let (response_sender, response_receiver) = std::sync::mpsc::channel();
         let server = thread::spawn(move || -> io::Result<bool> {
             let (mut stream, _) = listener.accept()?;
             read_opening_request(&mut stream)?;
@@ -233,6 +234,7 @@ fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<
             let expected = br#"{"id":7,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-a"]}}"#;
             assert_eq!(read_masked_text_frame(&mut stream)?, expected);
             write_text_frame(&mut stream, first_payload)?;
+            response_sender.send(()).map_err(io::Error::other)?;
             match read_masked_text_frame(&mut stream) {
                 Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
                 Err(error) => Err(error),
@@ -262,6 +264,7 @@ fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<
             Duration::from_millis(500),
         )?;
         let mut old_message = None;
+        response_receiver.recv_timeout(Duration::from_secs(2))?;
         if lifecycle != "buffered" {
             let (next_stream, message) = next_text(established)?;
             established = next_stream;
