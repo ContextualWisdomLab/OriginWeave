@@ -11,11 +11,11 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickResponseError,
-    WebDriverBiDiPointerClickResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
     send_webdriver_bidi_pointer_click,
 };
 
@@ -101,7 +101,7 @@ fn send_click_and_read_response(
     response: &'static [u8],
 ) -> Result<
     (
-        WebDriverBiDiWebSocketTextMessage,
+        WebDriverBiDiReceivedTextMessage,
         WebDriverBiDiCommandCorrelation,
     ),
     Box<dyn Error>,
@@ -155,10 +155,10 @@ fn send_click_and_read_response(
         Duration::from_millis(500),
     )?;
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "pointer-click response produced unexpected assembly state: {other:?}"
