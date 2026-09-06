@@ -304,6 +304,14 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "34026519878",
             "owner destruction",
             "registry-to-transport association",
+            "805051527cf95e14ba126c9dd3159db86d190224",
+            "1279/13409/17087/1436",
+            "64a62b1e03ee3ed3d62654a3227495e82b7ff93357038ae146d8584c581ac060",
+            "34029687813",
+            "34029687816",
+            "terminal-success predecessor evidence",
+            "actual Edge visual inspection",
+            "GraphQL access recovered",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
