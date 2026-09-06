@@ -193,6 +193,30 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 self.test_descendant_checkpoint_records_exact_receipt_adoptions()
 
+    def test_subscription_checkpoint_records_verified_repair_and_visual_gap(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "##### Subscription response repair: 16:37 UTC",
+            "#### Session repair and child adoption: 13:35 UTC",
+        )
+        for marker in (
+            "46ae62aa31e35c702cd61c16322d05c7a9c35da1", "122ca139", "8b1508c8",
+            "0/2", "14 focused", "144 Python", "1222/12824/16453/1418",
+            "34045953423", "queued", "Mac is locked", "visual inspection remains pending",
+            "outbound session binding", "protected-main asset", "not product-browser acceptance",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_text_cannot_supply_missing_subscription_repair_head(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        marker = "46ae62aa31e35c702cd61c16322d05c7a9c35da1"
+        mutated = text.replace(marker, "subscription repair head removed", 1)
+        self.assertNotEqual(mutated, text)
+        mutated += "\nHistorical evidence: " + marker
+        with patch.object(pathlib.Path, "read_text", return_value=mutated):
+            with self.assertRaises(AssertionError):
+                self.test_subscription_checkpoint_records_verified_repair_and_visual_gap()
+
     def test_historical_prose_cannot_hide_latest_root_or_lineage_removal(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         cases = (
