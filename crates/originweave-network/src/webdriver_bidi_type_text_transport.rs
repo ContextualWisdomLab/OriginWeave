@@ -134,6 +134,17 @@ pub fn send_webdriver_bidi_type_text(
     )
     .map_err(|source| WebDriverBiDiTypeTextSendError::Authority { source })?;
 
+    registry
+        .require_registered_session_external_identifier(
+            handle.browser_session(),
+            established
+                .transport_evidence()
+                .verified_peer()
+                .session_id(),
+        )
+        .map_err(|source| WebDriverBiDiTypeTextSendError::Authority {
+            source: WebDriverBiDiTypeTextAuthorityError::BrowserAuthority(source),
+        })?;
     crate::webdriver_bidi_websocket_frame::validate_frame_timeout(frame_timeout)
         .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })?;
     correlation
