@@ -43,6 +43,9 @@ class CurrentDeliveryCheckpointContractTests(unittest.TestCase):
     def test_visual_and_review_boundaries_remain_open(self) -> None:
         for marker in (
             "Mac remains locked",
+            "Browser access recovered",
+            "published body and Checks page",
+            "incorporated into the volatile baseline",
             "no stale screenshot substitution",
             "#147",
             "`PRRT_kwDOTulPlM6coZwc`",
