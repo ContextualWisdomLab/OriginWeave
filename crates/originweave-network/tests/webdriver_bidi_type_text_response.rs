@@ -16,11 +16,11 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResponseError,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResponseError,
     WebDriverBiDiTypeTextResult, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
     send_webdriver_bidi_type_text,
 };
 
@@ -62,10 +62,11 @@ fn establish_response_connection(
 
 fn read_response_text(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    match WebDriverBiDiWebSocketMessageAssembler::new().push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => Ok(message),
         _ => Err(io::Error::other("fixture expected a complete text response").into()),
     }
 }
@@ -325,17 +326,7 @@ fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(),
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
-        other => {
-            return Err(io::Error::other(format!(
-                "text-input response produced unexpected assembly state: {other:?}"
-            ))
-            .into());
-        }
-    };
+    let text = read_response_text(established)?;
     let result = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)?;
     assert_eq!(result.command_id(), 42);
     assert_eq!(correlation.outstanding_count(), 0);

@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `input.performActions`
@@ -28,15 +28,20 @@ impl WebDriverBiDiTypeTextResult {
     /// protocol-error response consumes its matching id and returns a typed remote failure, while
     /// events, null-id errors, malformed envelopes, and unknown ids fail closed without consuming
     /// unrelated outstanding state. Both success and error replies must match the registered
-    /// text-input command family. This boundary does not prove received-connection provenance.
+    /// text-input command family and the sender's exact connection generation. Missing or
+    /// mismatched receipt provenance leaves the pending command untouched.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiTypeTextResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message)
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message())
             .map_err(|source| WebDriverBiDiTypeTextResponseError::Envelope { source })?;
         let completed = correlation
-            .correlate_response_for(&envelope, WebDriverBiDiCommandKind::TypeText)
+            .correlate_response_for_connection(
+                &envelope,
+                WebDriverBiDiCommandKind::TypeText,
+                message.connection_generation(),
+            )
             .map_err(|source| WebDriverBiDiTypeTextResponseError::Correlation { source })?;
 
         match completed.outcome() {
