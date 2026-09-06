@@ -25,7 +25,7 @@ fn trust_bundle_identifier_is_bounded_and_ascii() {
         TrustBundleIdentifier::parse("enterprise_roots:v1").expect("valid trust bundle identifier");
     assert_eq!(identifier.as_str(), "enterprise_roots:v1");
 
-    for invalid in ["", "contains space", "한글", "slash/value"] {
+    for invalid in ["", "contains space", "한글", "slash/value", "---"] {
         assert!(matches!(
             TrustBundleIdentifier::parse(invalid),
             Err(TlsError::InvalidTrustBundleIdentifier)

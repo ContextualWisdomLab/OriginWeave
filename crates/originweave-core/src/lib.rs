@@ -31,6 +31,10 @@ mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
 mod contracts;
+/// Stateless MCP routing validation that maps only explicit tools to typed actions.
+pub mod mcp;
+/// Deterministic fail-closed release benchmark acceptance aggregation.
+pub mod release_acceptance;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
 mod webdriver_bidi_response_document;

@@ -9,6 +9,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use std::fmt;
+
 /// A validation error in a resource budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BudgetError {
@@ -17,6 +19,19 @@ pub enum BudgetError {
     /// A soft memory limit exceeded its corresponding hard limit.
     SoftExceedsHard,
 }
+
+impl fmt::Display for BudgetError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroLimit => formatter.write_str("resource budget limits must be nonzero"),
+            Self::SoftExceedsHard => {
+                formatter.write_str("resource budget soft limits must not exceed hard limits")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BudgetError {}
 
 /// Validated resource limits for one agent task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

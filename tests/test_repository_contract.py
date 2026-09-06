@@ -20,6 +20,7 @@ class RepositoryContractTests(unittest.TestCase):
             set(data["workspace"]["members"]),
             {
                 "crates/originweave-core",
+                "crates/originweave-bap",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",
@@ -59,6 +60,7 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0005-direct-socket-binding.md",
             "docs/adr/0006-tls-server-identity.md",
             "docs/adr/0009-hourly-agent-credential-boundary.md",
+            "docs/adr/0016-bap-task-lifecycle-authority.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
             "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
             "docs/superpowers/specs/2026-08-06-tls-server-identity-design.md",
@@ -118,6 +120,15 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn(f"exact-coverage-{exact_head}", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("contents: write", workflow)
+        self.assertIn("${{ github.workflow }}-${{ github.repository }}", workflow)
+        self.assertIn("${{ github.event.pull_request.number || github.run_id }}", workflow)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        self.assertIn(
+            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]",
+            workflow,
+        )
+        self.assertEqual(workflow.count("github.event.pull_request.draft == false"), 2)
+        self.assertNotIn("cargo check --locked --workspace --all-targets", workflow)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
         """The product loop must use OpenCode/NIM without review or merge credentials."""

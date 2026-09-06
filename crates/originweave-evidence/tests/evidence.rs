@@ -80,6 +80,9 @@ fn network_evidence_rejects_non_path_inputs() {
         "/bad\npath",
         "/bad path",
         "/windows\\path",
+        "/[segment]",
+        "/raw|pipe",
+        "/raw-한글",
     ] {
         assert_eq!(
             NetworkEvidence::capture(
@@ -128,6 +131,7 @@ fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
         "https://example.com/bad\\path",
         "https://example.com/\n",
         "https://example.com/a/%2f/b",
+        "https://example.com/[segment]",
     ] {
         assert_eq!(
             ProvenanceRecord::new(
