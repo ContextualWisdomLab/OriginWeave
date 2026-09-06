@@ -36,10 +36,14 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
         )
 
     def test_real_failure_path_distinguishes_observed_exit_from_observation_error(self) -> None:
-        """Exercise both owning helpers without launching a browser or trusting fake success."""
+        """Exercise the shared teardown observer without launching a browser or trusting fake success."""
 
-        for exit_observation in (True, False, PermissionError("controlled read failure")):
-            with self.subTest(exit_observation=type(exit_observation).__name__):
+        for teardown_observation in (
+            (True, True),
+            (False, False),
+            PermissionError("controlled read failure"),
+        ):
+            with self.subTest(teardown_observation=repr(teardown_observation)):
                 namespace = self._namespace("agent_task_failure_observation_boundary")
                 browser_pass = namespace["_run_agent_task_browser_pass"]
                 run_trial = namespace["_run_agent_task_trial"]
@@ -60,15 +64,15 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
                         raise RuntimeError("private controlled browser failure")
                     return {}
 
-                exit_wait = mock.Mock(return_value=exit_observation)
-                if isinstance(exit_observation, Exception):
-                    exit_wait.side_effect = exit_observation
+                teardown_wait = mock.Mock(return_value=teardown_observation)
+                if isinstance(teardown_observation, Exception):
+                    teardown_wait.side_effect = teardown_observation
                 replacements = {
                     "_free_loopback_port": lambda: 12345,
                     "_wait_for_driver": lambda _port: None,
                     "_json_request": request,
                     "_read_linux_proc_stat_process_identity": lambda _pid: (321, 654),
-                    "_wait_for_linux_process_identity_exit": exit_wait,
+                    "_wait_for_linux_process_teardown": teardown_wait,
                 }
                 with mock.patch.dict(browser_pass.__globals__, replacements), mock.patch.object(
                     namespace["subprocess"], "Popen", return_value=driver
@@ -82,16 +86,19 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
 
                 driver.terminate.assert_called_once_with()
                 driver.wait.assert_called_once_with(timeout=5)
-                exit_wait.assert_called_once_with(321, 654)
+                teardown_wait.assert_called_once_with(321, 654, ((321, 654),))
                 self.assertIs(result["passed"], False)
                 self.assertIs(result["profile_cleaned"], True)
                 self.assertNotIn("private controlled browser failure", repr(result))
-                if isinstance(exit_observation, Exception):
+                if isinstance(teardown_observation, Exception):
                     self.assertEqual(result["failure_type"], "PermissionError")
                     self.assertNotIn("browser_process_terminated", result)
                 else:
                     self.assertEqual(result["failure_type"], "RuntimeError")
-                    self.assertIs(result["browser_process_terminated"], exit_observation)
+                    self.assertIs(
+                        result["browser_process_terminated"], teardown_observation[0]
+                    )
+                    self.assertNotIn("chromium_process_set_terminated", result)
 
     def test_browser_pass_retains_failure_process_termination_evidence(self) -> None:
         """A browser-pass failure after identity capture must survive teardown as evidence."""
