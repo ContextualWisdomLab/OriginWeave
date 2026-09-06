@@ -4,7 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Integrated the sandbox-preserving browser-crash parent into ordinary shared-deadline teardown; all four controlled browser lanes retain the sandbox requirement and the existing cleanup-evidence checks. Real pinned-browser startup remains unaccepted until the workflow prerequisite is repaired and verified.
 - Integrated the current cleanup-evidence prerequisites into ordinary shared-deadline teardown and kept inherited failure tests on the actual observation path; incomplete process sampling still cannot become complete cleanup evidence.
+- Browser-crash trials no longer disable Chromium's sandbox. Rejected session startup remains one failed attempt with driver and temporary-profile cleanup, without an unsandboxed retry; live pinned-browser acceptance is still required.
+- Browser-crash failure evidence now preserves the first causal browser failure when session cleanup or ChromeDriver teardown also fails, retains secondary cleanup only as bounded exception-type fields, and excludes raw exception text from the emitted artifact. Cleanup-only failures remain fail-closed as primary failures.
 
 ### Added
 
@@ -46,6 +49,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Controlled browser-crash compatibility evidence now credits a crash only after the exact PID/start-time identity is signalled through a revalidated Linux pidfd and that same pidfd becomes readable within the bounded deadline; generic WebDriver transport failures no longer substitute for process-termination proof, while sampled Chromium process-set teardown remains a separate recovery boundary and the pidfd runtime contract remains mandatory on Linux CI.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
