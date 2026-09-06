@@ -257,10 +257,7 @@ mod tests {
         let mut correlation = WebDriverBiDiCommandCorrelation::new();
         assert!(
             correlation
-                .register_command_for(
-                    1,
-                    WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-                )
+                .register_command_for(1, WebDriverBiDiCommandKind::NavigationCommittedSubscription,)
                 .is_ok()
         );
         let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
@@ -271,10 +268,7 @@ mod tests {
 
         assert!(
             correlation
-                .register_command_for(
-                    2,
-                    WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-                )
+                .register_command_for(2, WebDriverBiDiCommandKind::NavigationCommittedSubscription,)
                 .is_ok()
         );
         let ambiguous = WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
