@@ -10,7 +10,7 @@ use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint}
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
     WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
-    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
     WebDriverBiDiNavigationCommittedUnsubscribeCommand,
     WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
@@ -19,7 +19,8 @@ use originweave_network::{
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketMessageReader,
+    WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -210,10 +211,13 @@ fn obtain_subscription_receipt()
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     )?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let (_established, text) = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => (established, message),
         other => {
             return Err(io::Error::other(format!(
                 "session.subscribe response produced unexpected assembly state: {other:?}"
