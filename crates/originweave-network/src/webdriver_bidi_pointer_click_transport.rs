@@ -80,7 +80,9 @@ impl Error for WebDriverBiDiPointerClickSendError {
 /// check rejects stale document epochs, cross-registry handles, changed origins, mismatched external
 /// contexts, and unadmitted wire node identifiers before any command identifier is registered or
 /// any action frame is written. A previously constructed command therefore cannot outlive its node
-/// authority and later bypass revalidation at transport time.
+/// authority and later bypass revalidation at transport time. The established transport's verified
+/// protocol session must also match the registry's canonical external session mapping before
+/// correlation or I/O; this comparison does not authenticate the browser process.
 ///
 /// Invalid local frame deadlines fail before registration. Correlation then occurs before the first
 /// possible remote side effect. A frame preflight rejection that proves no write began retires the
@@ -134,6 +136,14 @@ pub fn send_webdriver_bidi_pointer_click(
     if frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
         return Err(invalid_frame_timeout(frame_timeout));
     }
+    registry
+        .require_registered_session_external_identifier(
+            handle.browser_session(),
+            established.transport_evidence().verified_peer().session_id(),
+        )
+        .map_err(|source| WebDriverBiDiPointerClickSendError::Authority {
+            source: WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(source),
+        })?;
     match correlation
         .register_command_for(command.command_id(), WebDriverBiDiCommandKind::PointerClick)
     {
