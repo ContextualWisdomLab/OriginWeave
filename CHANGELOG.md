@@ -4,7 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Recorded the published subscription descendants and completed visual inspection, correcting the stale unresolved-review count while keeping queued checks, required approval and unreleased browser acceptance distinct.
+- Recorded the published subscription descendants and completed source visual inspection, correcting the stale unresolved-review count while keeping queued checks, required approval and unreleased browser acceptance distinct. Compact linked revisions keep the new evidence table readable without hiding coverage off-screen.
 - Recorded the verified subscription-reply connection repair, preserving queued hosted checks, the locked-screen visual-inspection gap and remaining authority and delivery work.
 - Recorded verified navigation and subscription adoption of the click-reply repair, distinguishing local checks and rendered evidence from queued hosted acceptance and remaining provenance gaps.
 - Recorded the verified pointer-reply connection repair and recovery tests, keeping pending hosted checks, remaining authority gaps and browser acceptance separate.

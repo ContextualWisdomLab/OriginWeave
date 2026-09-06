@@ -18,10 +18,12 @@ still requires one counted approval and seven required workflows; only one repos
 collaborator is available, so independent reviewer provisioning remains unresolved.
 Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; there are no tags or releases.
 
-| Owner | Publication | Exact head | Parent | Local functions/lines/regions/branches, all 100% |
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
 | --- | --- | --- | --- | --- |
-| #263 | Published; Draft | `4868d3e9f19133ac3382ee8532878aef27468893` | #277 `46ae62aa` | 1244/13053/16729/1422 |
-| #264 | Published; Draft | `433957117ad9e29b26715b062f5adcc9789744ba` | #263 `4868d3e9` | 1282/13461/17140/1440 |
+| #263 | Published; Draft | [`4868d3e9`](https://github.com/ContextualWisdomLab/OriginWeave/commit/4868d3e9f19133ac3382ee8532878aef27468893) | #277 `46ae62aa` | 1244/13053/16729/1422 |
+| #264 | Published; Draft | [`43395711`](https://github.com/ContextualWisdomLab/OriginWeave/commit/433957117ad9e29b26715b062f5adcc9789744ba) | #263 `4868d3e9` | 1282/13461/17140/1440 |
+
+F/L/R/B denotes functions, lines, regions and branches; every metric is 100% covered.
 
 Both owners adopted their parents by ordinary merges after actual replacement-reply
 regressions failed. #263 replay `90395f81` failed 0/2, followed by merge `9e85cadc`
