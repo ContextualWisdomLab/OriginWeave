@@ -70,7 +70,23 @@ PR #259 predecessor `e1105ddf86f6c79443af8b4d306b9d34cb703c17` collected zero in
 
 Fresh verification passed ten navigation tests, five received-connection/teardown tests, all 142 Python contracts, compileall and complete Rust 1.97.1 quality gates. Pinned coverage measured 1140 functions, 11841 lines, 15129 regions and 1332 branches at 100%, with its unstable branch-option warning retained. Local event projection, context binding and URL admission remain distinct from hosted security acceptance, origin rebinding, document advancement and a released Chromium workflow.
 
-## References
+### Navigation owner adopts the pointer receipt repair
+
+On #259 `91d95423cf31947f691db5ebbd3072c481d86542`, canonical regression replay
+`6999252e` reproduced the replacement-connection failure (zero passed, one failed).
+Ordinary merge `6cb911f2` retains parent #258
+`5417ce32ed957aa166807f1023647caccc2920cb` and both release-note histories.
+The parent's stronger receipt test replaces only the replayed older test form.
+The merged fixture then failed compilation because it still passed bare text to
+the click-response consumer. `d1fd06bf` reads that acknowledgment with the sealed
+reader and keeps its returned connection for the following navigation event.
+No child navigation assertion or production logic was removed or weakened.
+
+All sixteen focused navigation and pointer-response tests pass locally after this
+integration. The event path still does not establish received-event provenance,
+click causality, browser ownership, document advancement, or released browser
+behavior. Those remain separately owned acceptance gaps; parent or focused success
+does not replace this child's full exact-head checks and coverage.
 
 ### Pointer-response receipt repair evidence
 
@@ -83,6 +99,8 @@ Consumer-only `588fe731` failed with missing sender provenance; ordinary parent
 merge `0234b587d1bca9286eb5b597f9dab33be47ff518` includes #257 `9451fd8a` and
 passes all six focused response tests. These are local implementation findings,
 not new standards claims, browser authentication, page effects, or release proof.
+
+## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
 

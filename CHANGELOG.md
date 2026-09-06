@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried replacement-connection click-reply rejection into the navigation-observation stack while preserving its context and URL checks; observing a navigation still does not prove that a click caused it.
 - Integrated current click-response prerequisites into bounded navigation observation, preserving exact registered-context and URL admission and keeping event evidence separate from causal action or document advancement.
 - Rejected pointer-click replies received on replacement connections without losing the original pending click; a later reply on the originating connection can still complete that protocol exchange, without claiming that the page changed.
 - Integrated the current click-transport prerequisites into typed click-response handling, preserving the response contracts and bounded socket-observation test adjustment without claiming a browser post-condition.
