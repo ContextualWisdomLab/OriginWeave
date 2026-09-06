@@ -74,19 +74,13 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
     def test_protocol_faults_keep_real_browser_cleanup_evidence(self) -> None:
         """Mid-pass protocol faults stay terminal and preserve observed root cleanup."""
 
-        for lane, waiter_name, observed_exit, expected_args in (
-            ("agent_task", "_wait_for_linux_process_identity_exit", False, (321, 654)),
-            (
-                "agent_task_forced_close", "_wait_for_linux_process_teardown",
-                (False, False), (321, 654, ((321, 654),)),
-            ),
-        ):
+        for lane in ("agent_task", "agent_task_forced_close"):
             for error in (http.client.BadStatusLine("private marker"), http.client.IncompleteRead(b"private marker")):
                 with self.subTest(lane=lane, error=type(error).__name__):
                     namespace = runpy.run_path(str(RUNNER))
                     trial = namespace[f"_run_{lane}_trial"]
                     driver = mock.Mock()
-                    exit_wait = mock.Mock(return_value=observed_exit)
+                    teardown_wait = mock.Mock(return_value=(False, False))
 
                     def request(_port, method, target, *_args):
                         if target == "/session":
@@ -101,7 +95,7 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
                         "_free_loopback_port": lambda: 12345, "_wait_for_driver": lambda *_: None,
                         "_json_request": request,
                         "_read_linux_proc_stat_process_identity": lambda *_: (321, 654),
-                        waiter_name: exit_wait,
+                        "_wait_for_linux_process_teardown": teardown_wait,
                     }
                     with mock.patch.dict(trial.__globals__, replacements), mock.patch.object(namespace["subprocess"], "Popen", return_value=driver):
                         result = trial(pathlib.Path("unused-chrome"), pathlib.Path("unused-driver"), "http://127.0.0.1/fixture", 3)
@@ -111,7 +105,7 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
                     self.assertIs(result["driver_process_terminated"], True)
                     self.assertEqual(result["failure_type"], type(error).__name__)
                     self.assertNotIn("private marker", repr(result))
-                    exit_wait.assert_called_once_with(*expected_args)
+                    teardown_wait.assert_called_once_with(321, 654, ((321, 654),))
                     driver.terminate.assert_called_once_with()
 
     def test_all_trial_boundaries_redact_protocol_failures_before_identity_capture(self) -> None:
