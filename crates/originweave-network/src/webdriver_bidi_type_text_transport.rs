@@ -82,7 +82,8 @@ impl Error for WebDriverBiDiTypeTextSendError {
 /// command therefore cannot outlive its node authority and later bypass revalidation at transport
 /// time.
 ///
-/// Registration occurs before the first possible remote side effect. A correlation failure writes
+/// Invalid local deadlines fail before registration. Registration occurs before the first possible
+/// remote side effect. A correlation failure writes
 /// nothing. Once registration succeeds, a frame-write failure leaves the identifier outstanding
 /// because a partial or complete remote side effect is ambiguous and the identifier must not be
 /// silently reused.
@@ -133,6 +134,8 @@ pub fn send_webdriver_bidi_type_text(
     )
     .map_err(|source| WebDriverBiDiTypeTextSendError::Authority { source })?;
 
+    crate::webdriver_bidi_websocket_frame::validate_frame_timeout(frame_timeout)
+        .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })?;
     correlation
         .register_command(command.command_id())
         .map_err(|source| WebDriverBiDiTypeTextSendError::Correlation { source })?;
