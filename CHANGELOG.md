@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded verified navigation and subscription adoption of the click-reply repair, distinguishing local checks and rendered evidence from queued hosted acceptance and remaining provenance gaps.
 - Recorded the verified pointer-reply connection repair and recovery tests, keeping pending hosted checks, remaining authority gaps and browser acceptance separate.
 - Recorded the published text-entry connection safeguards and their test evidence, separating queued hosted checks and remaining pointer/status repairs from released browser behavior.
 - Separate the current maintenance queue and source lineage from preserved historical observations, and record the text-entry session and pending-request safeguards without claiming released browser behavior.

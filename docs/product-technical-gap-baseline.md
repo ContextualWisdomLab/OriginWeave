@@ -95,6 +95,48 @@ Status projection must remain validated before state consumption. Browser owners
 policy approval, same-connection freshness and observed page effects remain unproven;
 protected-main approval, central workflows and release gates still apply.
 
+##### Receipt descendant adoption: 16:17 UTC
+
+This checkpoint supersedes the earlier descendant-adoption next action for the
+following four owners. They now include the pointer receipt repair by ordinary
+parent merges; no history was rewritten and no protected merge occurred.
+
+| Owner | Published exact head | Parent | Fresh CI |
+| --- | --- | --- | --- |
+| #259 | `180c168ecbdcd5eb7a4ad14ab4a53e8670646bf7` | #258 `5417ce32` | `34043222194` queued |
+| #260 | `3807aabeb22f9622610c3c8d504d1c686d25d896` | #259 `180c168e` | `34043664230` queued |
+| #261 | `ba100fbc39e1ac4f10ee4faade38418551bb8298` | #260 `3807aabe` | `34044193429` queued |
+| #277 | `121578a43adda12221a9ca9ab8ada0a4fd03efef` | #261 `ba100fbc` | `34044857929` queued |
+
+Canonical regression replays `6999252e`, `8f6b5a0c`, `c03e0dcc` and `3734a874`
+each reproduced a replacement connection consuming an original pending pointer
+command. #259's merge also exposed a raw-response fixture compile failure;
+`d1fd06bf` adopted the existing sealed reader and retained its returned connection
+for the subsequent event. Descendants preserve that repair and the stronger
+foreign-success/error rejection with original-response recovery. Their respective
+focused suites passed 16, 18, 21 and 23 tests; full local Rust 1.97.1 gates passed.
+#259–#261 passed 142 Python contracts each; #277 passed 144 Python contracts.
+
+Exact numerical function/line/region/branch coverage is
+1140/11847/15133/1332, 1154/11975/15318/1334, 1173/12110/15515/1334 and
+1222/12821/16447/1418 respectively, each 100%. The unstable branch-instrumentation
+warning remains visible. #259's Manifest V3 run `34043222184` is also queued.
+Independent read-only reviews found no actionable preservation findings; they are
+not counted GitHub approvals. Actual Edge screenshots verified the published PR
+evidence, not product-browser acceptance. All four source writers are released.
+
+Document-epoch, origin-validation and subscription-specific production/tests remain
+unchanged. Subscription deadlines still fail before registration; proven no-byte
+failures retire only that request, while uncertain writes preserve pending state.
+The next bounded source work is subscription response provenance in #277, followed
+by content-aware descendant integration. Preserve result projection before state
+consumption. Status receipt prerequisites and pointer outbound session authority
+remain separate gaps. The protected-main asset-preservation finding also remains:
+the active source stack lacks this baseline file, so pairwise CI cannot prove safe
+main integration. Browser ownership, event provenance, causality and release gates
+remain unfulfilled. This documentation update requires its own checks and visual
+inspection; source coverage does not validate the documentation revision.
+
 #### Session repair and child adoption: 13:35 UTC
 
 This update supersedes the 12:28 source/adoption and visual-boundary claims below.
