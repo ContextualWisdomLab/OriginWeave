@@ -882,6 +882,7 @@ mod tests {
             replacement_errors[0],
             BrowserRegistryError::InvalidExternalIdentifier,
             BrowserRegistryError::UnknownBrowserSession,
+            BrowserRegistryError::SessionExternalIdentifierMismatch,
             BrowserRegistryError::UnknownBrowsingContext,
             BrowserRegistryError::ContextSessionMismatch {
                 expected: expected_values[0],
