@@ -146,6 +146,39 @@ fn handshake_errors_render_actionable_fail_closed_messages() {
 }
 
 #[test]
+fn opening_request_cannot_outlive_a_one_nanosecond_deadline()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{self, Read};
+
+    use originweave_network::WebDriverBiDiWebSocketOpeningWriteError;
+
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<Vec<u8>> {
+        let (mut stream, _) = listener.accept()?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut received = Vec::new();
+        stream.read_to_end(&mut received)?;
+        Ok(received)
+    });
+    let connection = connect(&format!("ws://{local_addr}/session/{SESSION_ID}"));
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?;
+    let request = plan.request_bytes().to_vec();
+    let error = plan.write_opening_request(Duration::from_nanos(1)).err();
+    let received = server
+        .join()
+        .map_err(|_| io::Error::other("opening deadline server panicked"))??;
+
+    assert!(matches!(
+        error,
+        Some(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { .. })
+    ));
+    assert!(request.starts_with(&received));
+    Ok(())
+}
+
+#[test]
 fn handshake_plan_rejects_tls_required_stream_and_noncanonical_client_keys() {
     let invalid_length = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ=");
     assert!(matches!(
