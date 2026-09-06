@@ -26,6 +26,23 @@ The generic value primitives are **IMPLEMENTED_ON_PROTECTED_MAIN**. The complete
 
 ## 3. Active executable evidence
 
+### Pointer-click originating-connection prerequisite
+
+PR #258 test-only head `8193fcd50125d9e9a43b4755e0f7626801b74374`, on
+PR #257 `8f1507346f65798a6bf4eaf370d65a2d406a6f44`, reproduced a replacement
+connection consuming the original connection's pointer command. The Rust 1.97.1
+loopback regression failed at its rejection assertion (zero passed, one failed);
+the four predecessor response tests passed separately.
+
+The #257 sender now registers the existing private transport generation before
+writing, reusing the shared correlation owner without changing local deadline
+rejection, preflight retirement, or ambiguous-write retention. This prerequisite
+alone does not reject foreign responses: #258 must consume the existing sealed
+received-message type and require connection-bound correlation. Its regression
+must also retain unrelated requests and allow the original connection's response.
+Outbound session authority, browser authentication, observed click effects,
+protected-main acceptance, and release evidence remain separate and unproven.
+
 ### PR #64 — verified, temporally ordered post-condition becomes typed action-outcome evidence
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
