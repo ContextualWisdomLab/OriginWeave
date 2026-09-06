@@ -351,6 +351,23 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertIn("new documentation head still requires its own visual inspection", latest)
         self.assertIn("5559140277", latest)
 
+    def test_session_adoption_cut_records_executed_and_visual_evidence(self) -> None:
+        """Current source evidence must not inherit earlier pending-adoption claims."""
+        latest = self.baseline.split("### Latest verified cut: 2026-09-06", 1)[1].split(
+            "#### Prior observation: 12:28 UTC", 1
+        )[0]
+        for marker in (
+            "7147893c96ca95c9b5b275d8011c5bfe99aab065",
+            "6f331a5b220349a1aaa1b1841d5e8ec027b9ad49",
+            "98621adf", "1296/13601/17303/1442",
+            "480d6d3ca492565e8a04bfce4b0c135dffbff276532d129c410674838e8fec2f",
+            "34036335342", "34036335505", "queued",
+            "actual Edge visual inspection", "not product-browser acceptance",
+            "5559497861", "not protected-main delivery",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, latest)
+
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
