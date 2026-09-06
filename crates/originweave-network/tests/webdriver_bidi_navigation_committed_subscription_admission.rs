@@ -217,6 +217,166 @@ fn establish_connection(
     .read_opening_response(Duration::from_millis(500))?)
 }
 
+fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<dyn Error>> {
+    for first_payload in [
+        SUBSCRIBE_RESPONSE,
+        br#"{"type":"error","id":7,"error":"invalid argument","message":"old rejection"}"#,
+    ] {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let (release_sender, release_receiver) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || -> io::Result<bool> {
+            let (mut stream, _) = listener.accept()?;
+            read_opening_request(&mut stream)?;
+            stream.write_all(OPENING_RESPONSE)?;
+            let expected = br#"{"id":7,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-a"]}}"#;
+            assert_eq!(read_masked_text_frame(&mut stream)?, expected);
+            write_text_frame(&mut stream, first_payload)?;
+            match read_masked_text_frame(&mut stream) {
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
+                Err(error) => Err(error),
+                Ok(second_command) => {
+                    assert_eq!(second_command, expected);
+                    release_receiver
+                        .recv_timeout(Duration::from_secs(2))
+                        .map_err(io::Error::other)?;
+                    write_text_frame(&mut stream,
+                        br#"{"type":"success","id":7,"result":{"subscription":"subscription-new"}}"#)?;
+                    Ok(true)
+                }
+            }
+        });
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session(SESSION_ID)?;
+        let context = registry.register_context(session, CONTEXT_ID)?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+            7, &registry, session, context, CONTEXT_ID,
+        )?;
+        let mut established = command.send(
+            &registry,
+            establish_connection(local_addr)?,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+            Duration::from_millis(500),
+        )?;
+        let mut old_message = None;
+        if lifecycle != "buffered" {
+            let (next_stream, message) = next_text(established)?;
+            established = next_stream;
+            old_message = Some(message);
+        }
+        if lifecycle == "completed" {
+            if let Some(message) = &old_message {
+                let first_result =
+                    WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+                        message,
+                        &mut correlation,
+                    );
+                assert_eq!(first_result.is_ok(), first_payload == SUBSCRIBE_RESPONSE);
+                assert_eq!(correlation.outstanding_count(), 0);
+            }
+        } else {
+            correlation.retire_command_for(
+                7,
+                originweave_network::WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            )?;
+        }
+        if lifecycle == "replacement" {
+            correlation = WebDriverBiDiCommandCorrelation::new();
+        }
+        let second_command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+            7, &registry, session, context, CONTEXT_ID,
+        )?;
+        let second_binding = second_command.admission_binding();
+        let second_send = second_command.send(
+            &registry,
+            established,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+            Duration::from_millis(500),
+        );
+        match second_send {
+            Err(error) => {
+                drop(release_sender);
+                let emitted = server
+                    .join()
+                    .map_err(|_| io::Error::other("resend server panicked"))??;
+                assert!(!emitted, "preflight rejection must emit no second command");
+                assert!(matches!(error,
+                    originweave_network::WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite {
+                        source: originweave_network::WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+                    }));
+                assert_eq!(correlation.outstanding_count(), 0);
+            }
+            Ok(mut next_stream) => {
+                if old_message.is_none() {
+                    let (read_stream, message) = next_text(next_stream)?;
+                    next_stream = read_stream;
+                    old_message = Some(message);
+                }
+                let message =
+                    old_message.ok_or_else(|| io::Error::other("old response missing"))?;
+                let old_result =
+                    WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+                        &message,
+                        &mut correlation,
+                    );
+                let pending_after_old = correlation.outstanding_count();
+                let old_admission = old_result.ok().map(|result| {
+                    WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+                        result,
+                        second_binding,
+                        &registry,
+                    )
+                    .is_ok()
+                });
+                release_sender.send(())?;
+                let (final_stream, fresh_message) = next_text(next_stream)?;
+                let fresh_result =
+                    WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+                        &fresh_message,
+                        &mut correlation,
+                    );
+                drop(final_stream);
+                assert!(
+                    server
+                        .join()
+                        .map_err(|_| io::Error::other("resend server panicked"))??
+                );
+                assert_eq!(
+                    pending_after_old, 1,
+                    "old response consumed the actual second command; old admission={old_admission:?}"
+                );
+                assert_eq!(fresh_result?.subscription_id(), "subscription-new");
+                assert_eq!(correlation.outstanding_count(), 0);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn completed_response_cannot_complete_an_actual_resend() -> Result<(), Box<dyn Error>> {
+    reject_stale_response_after_actual_resend("completed")
+}
+
+#[test]
+fn unparsed_retired_response_cannot_complete_an_actual_resend() -> Result<(), Box<dyn Error>> {
+    reject_stale_response_after_actual_resend("retired")
+}
+
+#[test]
+fn replacement_correlation_cannot_accept_a_response_from_before_actual_resend()
+-> Result<(), Box<dyn Error>> {
+    reject_stale_response_after_actual_resend("replacement")
+}
+
+#[test]
+fn buffered_response_cannot_complete_an_actual_resend() -> Result<(), Box<dyn Error>> {
+    reject_stale_response_after_actual_resend("buffered")
+}
+
 #[test]
 fn foreign_connection_cannot_complete_a_subscription_command() -> Result<(), Box<dyn Error>> {
     for foreign_payload in [
