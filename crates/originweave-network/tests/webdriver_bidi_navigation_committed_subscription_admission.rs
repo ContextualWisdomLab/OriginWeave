@@ -235,10 +235,13 @@ fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<
             assert_eq!(read_masked_text_frame(&mut stream)?, expected);
             write_text_frame(&mut stream, first_payload)?;
             response_sender.send(()).map_err(io::Error::other)?;
-            match read_masked_text_frame(&mut stream) {
-                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
+            let mut next_byte = [0_u8; 1];
+            match stream.peek(&mut next_byte) {
+                Ok(0) => Ok(false),
+                Err(error) if error.kind() == io::ErrorKind::ConnectionReset => Ok(false),
                 Err(error) => Err(error),
-                Ok(second_command) => {
+                Ok(_) => {
+                    let second_command = read_masked_text_frame(&mut stream)?;
                     assert_eq!(second_command, expected);
                     release_receiver
                         .recv_timeout(Duration::from_secs(2))
