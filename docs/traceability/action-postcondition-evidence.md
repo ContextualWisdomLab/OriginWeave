@@ -152,3 +152,20 @@ This dossier does **not** close issue #28. Material remaining work includes:
 ## 7. Documentation fitness consequence
 
 The ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PR #64 narrows a typed evidence gap already governed by existing provenance/action-success decisions, while PR #65 supplies controlled test infrastructure for the eventual real-browser proof. Neither introduces a new trust domain, deployed component, persistence owner, database schema, or independent architecture decision, so a new ADR or physical ERD entity would overstate the implementation. Detailed real-Chromium dispatch/post-condition sequence diagrams should be reconciled when the executable adapter chain stabilizes rather than manufacturing as-built detail before that runtime exists.
+
+## 8. Pointer descendant reply integration
+
+The #265 integration at `d847b530` preserves current-node and outbound-session checks
+from `ddce7248`, then adopts parent #264 `43395711` reply provenance. The real socket
+regression `e7fb1527` first reproduced replacement success and error consuming the
+original click request. Both now reject the foreign connection while retaining the
+original request and unrelated work; the genuine original reply still completes.
+
+All 14 focused tests pass, including stale-node rejection, foreign-session rejection
+before pending state or command bytes, and the preserved navigation-postcondition
+cases. Full exact-head local/hosted gates and visual inspection remain independently
+required. No inherited checkpoint establishes acceptance for this combined tree.
+
+A matching response is still only protocol acknowledgment. Policy approval, browser
+authentication, trusted event provenance and causal page effects remain separate.
+This active Draft does not close issue #28 or establish protected-main delivery.

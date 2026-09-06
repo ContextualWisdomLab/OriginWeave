@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Keep current-node and browser-session click checks when rejecting replies from replacement connections; the original request remains recoverable without consuming unrelated work.
 - Recheck that a click still targets the admitted node in the current document before sending it. Invalid deadlines send nothing and reserve no pending request; uncertain writes remain pending instead of being treated as safe to retry.
 - Reject replacement-connection click replies while retaining increasing request numbers, original subscription ownership and same-connection shutdown checks.
 
