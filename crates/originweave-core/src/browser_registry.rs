@@ -841,11 +841,24 @@ mod tests {
 
     #[test]
     fn browser_registry_errors_have_non_sensitive_deterministic_text() {
+        let original_registry = crate::BrowserAuthorityRegistry::new();
+        let retained_identity = original_registry.registry_identity().clone();
+        assert!(
+            original_registry
+                .require_identity(&retained_identity)
+                .is_ok()
+        );
+        drop(original_registry);
+        let replacement_registry = crate::BrowserAuthorityRegistry::with_identifier_limit(8);
+        let replacement_error = replacement_registry
+            .require_identity(&retained_identity)
+            .expect_err("retained identity must not authorize a replacement registry");
         let expected_values = values(BrowserSessionId::new(1));
         let actual_values = values(BrowserSessionId::new(2));
         assert_eq!(expected_values.len(), 1);
         assert_eq!(actual_values.len(), 1);
         let errors = [
+            replacement_error,
             BrowserRegistryError::InvalidExternalIdentifier,
             BrowserRegistryError::UnknownBrowserSession,
             BrowserRegistryError::UnknownBrowsingContext,

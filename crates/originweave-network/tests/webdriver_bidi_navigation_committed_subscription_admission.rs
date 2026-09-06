@@ -585,6 +585,7 @@ fn original_binding_rejects_replacement_registry_at_receipt_admission() -> Resul
     let session = original.register_session(SESSION_ID)?;
     let context = original.register_context(session, CONTEXT_ID)?;
     let (receipt, binding, _) = receive_subscription_result(&original, session, context, 7)?;
+    drop(original);
     let mut replacement = BrowserAuthorityRegistry::with_identifier_limit(8);
     let replacement_session = replacement.register_session(SESSION_ID)?;
     let replacement_context = replacement.register_context(replacement_session, CONTEXT_ID)?;

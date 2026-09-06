@@ -21,6 +21,11 @@ correlation or I/O, event admission checks before replay insertion, and the shar
 sink checks before mutation. Origin binding already delegates to that sink. Existing connection
 and command-instance identities remain independent requirements. A rejected foreign event leaves
 replay state available for the original event; moving the original registry preserves its identity.
+The receipt regression also drops the original registry before constructing its replacement. The
+core diagnostic contract verifies that a cloned witness matches its live owner but not a new registry
+after the owner is dropped. Initial `e686b3a0` coverage passed all functions and branches but missed
+one line and three regions in the core unit-crate diagnostic copy; exercising this real failure in
+the existing diagnostic test closes that test gap without exclusions or production changes.
 No new transport, registry implementation, global counter, dependency, exclusion or quality gate is introduced.
 
 Rust's standard-library documentation defines `Arc::ptr_eq` as allocation identity rather than

@@ -99,8 +99,8 @@ fn advance_registered_document_if_expected(
 /// post-condition is being evaluated. The subscribed observation is consumed so one admitted event
 /// cannot be reused to rotate the registry twice, and raw protocol observations cannot cross this
 /// state-changing boundary without first being bound to an active exact `session.subscribe`
-/// command/receipt. The original registry instance, exact session/context pair and caller-captured epoch are revalidated
-/// immediately before mutation, and stale state fails closed without mutation.
+/// command/receipt. The original registry instance, exact session/context pair and caller-captured
+/// epoch are revalidated immediately before mutation, and stale state fails closed without mutation.
 ///
 /// A successful advance delegates to [`BrowserAuthorityRegistry::advance_document`], which clears
 /// the previous canonical-origin binding and all node bindings owned by the context. The new

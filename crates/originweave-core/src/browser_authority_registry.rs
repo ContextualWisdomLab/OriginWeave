@@ -65,9 +65,9 @@ impl BrowserAuthorityRegistry {
     /// document epoch, origin and operation-specific authority at their actual use boundary.
     pub fn require_identity(
         &self,
-        identity: &BrowserRegistryIdentity,
+        expected_identity: &BrowserRegistryIdentity,
     ) -> Result<(), BrowserRegistryError> {
-        if !Arc::ptr_eq(&self.registry_identity, &identity.0) {
+        if !Arc::ptr_eq(&self.registry_identity, &expected_identity.0) {
             return Err(BrowserRegistryError::RegistryInstanceMismatch);
         }
         Ok(())

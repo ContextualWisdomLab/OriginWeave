@@ -91,7 +91,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
 /// Construction requires both the correlated remote subscription receipt and the immutable binding
 /// captured from the exact command that requested it. The command identifiers and private command
 /// allocation identity must match, and the original external context mapping must still resolve to
-/// the exact OriginWeave session/context in the original registry. Event admission additionally requires the event message to
+/// the exact OriginWeave session/context in the original registry. Event admission requires the message to
 /// have been assembled on the same verified connection generation that carried the subscription
 /// command and receipt. Holding this value is therefore narrower than holding an opaque protocol
 /// subscription string. It grants only admission of the matching committed-navigation event through
@@ -277,7 +277,7 @@ fn require_current_binding(
 /// Unlike the lower-level protocol observation, this value proves that local admission was bound to
 /// the exact typed `session.subscribe` command/receipt pair and the same verified transport
 /// generation for the registered context at the time the event was admitted. It retains the original
-/// registry witness for revalidation at the eventual document-mutation boundary. It still does not prove
+/// registry witness for revalidation at the eventual document-mutation boundary. It does not prove
 /// action causality or grant destination, origin, policy, node, secret, process, profile, or reusable
 /// Agent authority.
 pub struct WebDriverBiDiNavigationCommittedSubscribedObservation(
