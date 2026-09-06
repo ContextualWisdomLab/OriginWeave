@@ -14,14 +14,14 @@ PR #265 is Draft at exact head `35555d0f8491d4ee95c2e61d1a2aaa2c02a0635c`. Its o
 
 #265 exact-head CI `34032661775` and MV3 `34032661781` remain **queued**; no predecessor result transfers. The #264 RED-only CI `34031977586` is also queued after the runner-admission incident. No rerun/no-op churn or gate weakening is used to manufacture progress.
 
-Fresh visual inspection is still unavailable because the actual Mac remains locked. There is **no stale screenshot substitution** for #264, #265, or this documentation checkpoint. GitHub presentation evidence would not itself establish OriginWeave product-browser acceptance.
+The contributing writer's earlier observation was "Mac remains locked". Browser access recovered for the integrating writer: fresh actual Edge inspection of #265's published body and Checks page showed readable wrapping, no observed clipping or overlap, exact head `35555d0f` and three queued checks. The new documentation head still requires its own visual inspection. There is **no stale screenshot substitution** for #264, #265, or this documentation checkpoint. GitHub presentation evidence does not establish OriginWeave product-browser acceptance.
 
 ## Review and queue boundary
 
-The sole known unresolved review thread remains #147 `PRRT_kwDOTulPlM6coZwc`. Fresh thread inspection confirms it is a **valid unresolved finding**, not stale review noise: the ordinary Agent Task pass still has two sequential `PROCESS_EXIT_TIMEOUT_SECONDS` budgets, while #147 intentionally repaired only the forced-close path. The next causal source slice should reuse the combined teardown observer with a focused fake-clock RED rather than resolving the thread administratively.
+The sole known unresolved review thread remains #147 `PRRT_kwDOTulPlM6coZwc`. The contributing writer reported a **valid unresolved finding**: the ordinary Agent Task pass on #147 still has two sequential `PROCESS_EXIT_TIMEOUT_SECONDS` budgets, while #147 intentionally repaired only the forced-close path. #150 already contains a combined ordinary teardown waiter; fresh source comparison and verified integration must precede any additional repair. Do not duplicate that implementation or resolve the thread administratively without acceptance evidence.
 
 Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`. The last complete queue sweep recorded 125 open PRs, 12 Ready roots all BLOCKED, 113 Draft PRs, 13 non-PR issues, and no releases or tags. These counts are freshness evidence, not merge authorization.
 
 ## Documentation integration boundary
 
-`docs/product-technical-gap-baseline.md` still contains the preceding `88447b7d` volatile cut. This supplement records the newer #264/#265 facts without rewriting the large dated baseline through an unsafe partial-content replacement path. The next safe full-file documentation refresh must incorporate this checkpoint into the volatile baseline and Unreleased CHANGELOG while preserving the dated historical suffix byte-for-byte. Until then, the baseline's older volatile #264/#265 wording must not be treated as current exact-head evidence.
+This supplement originally accompanied the preceding `88447b7d` volatile cut. Its two contribution commits were preserved by an ordinary merge after the contributing writer released in comment 5559241313. The newer #264/#265 facts are now incorporated into the volatile baseline and Unreleased CHANGELOG, with the dated historical suffix preserved byte-for-byte. Historical observations remain dated evidence rather than current acceptance claims.

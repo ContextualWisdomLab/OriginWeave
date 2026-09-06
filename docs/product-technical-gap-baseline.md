@@ -125,9 +125,11 @@ CI `34032661775`, Rust `101484986934` and coverage `101484987071`, and MV3 `3403
 
 The live parent #264 subsequently advanced to test-only `b4702cd503fa3f721e0d1f44b355563753dac0a2`.
 Its 129-line socket regression targets registry-session A dispatch over transport-session B;
-active writer [5559076006](https://github.com/ContextualWisdomLab/OriginWeave/pull/264#issuecomment-5559076006)
-owns that repair. Parent CI `34031977586` and MV3 `34031977597` remain queued. Adoption is deferred
-until the parent repair and writer release: #265's local GREEN is **not latest-parent acceptance**.
+writer [5559076006](https://github.com/ContextualWisdomLab/OriginWeave/pull/264#issuecomment-5559076006)
+released in [5559140277](https://github.com/ContextualWisdomLab/OriginWeave/pull/264#issuecomment-5559140277)
+without executing the regression or implementing a production repair. Parent CI `34031977586`
+and MV3 `34031977597` remain queued. The available local backend can now execute that regression
+under a new source lease. Adoption waits for verified repair: #265's local GREEN is **not latest-parent acceptance**.
 The PR base snapshot still names `7fb93e77`, so it must not replace the fetched live parent as
 dependency evidence. No parent source was changed during this documentation slice.
 
@@ -141,7 +143,7 @@ OriginWeave product-browser acceptance, browser-process authentication or naviga
 The #238 predecessor `88447b7d43e4a87b48fb8fde33f93b2e3ce8cbc5` still has pending native CI
 `34031539064` and central review/security work. Its 172 local Python passes and #265's source
 coverage do not transfer to this documentation commit. The next executable items are this dated
-evidence update, then verified parent adoption after the separate writer releases; #195/#279,
+evidence update, then an executed parent regression and verified repair under a new writer lease; #195/#279,
 #212 and protected-main/release gates remain prerequisite work.
 
 #### Scheduling and central-owner follow-up
