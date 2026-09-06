@@ -8,6 +8,52 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-06
 
+#### Connection-bound text responses: 14:54 UTC
+
+This checkpoint supersedes the source status and executable actions in the earlier
+timed checkpoints below, which remain historical evidence. The fresh complete
+five-page inventory still contains 125 open PRs (12 Ready, 113 Draft) and 13 open
+non-PR issues. All Ready candidates remain BLOCKED; only #147 retains unresolved
+thread `PRRT_kwDOTulPlM6coZwc`. Protected main is unchanged at
+`87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are empty.
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+Published sender #267 `3346d8ecc72932b98ec495d9cc52d6e5727c3064` remains on #266
+`eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3`. Published response owner
+#268 `e567af9e678fd4791776df795e89ed666975e6c2` adopts it by ordinary merge
+`e1188c86`. Actual socket RED `4632f2df` accepted a reply from a replacement
+connection using the same listener/session. Sealed consumer `d6889c80` exposed
+missing sender provenance; the parent now records its private connection generation
+before I/O and the consumer checks the sealed receipt before consuming pending work.
+Foreign success/error replies retain both pending entries; the original reply still
+completes its request and leaves unrelated work pending. Seven focused response tests
+preserve real remote-error consumption, extensible success, malformed/unknown
+retention, family isolation and missing-provenance rejection.
+
+Both exact source heads pass full local Rust1.97.1 gates, 145 Python contracts,
+compileall, CodeGraph and diff checks. Their function/line/region/branch coverage is
+1317/13835/17598/1456 for #267 and 1324/13890/17670/1456 for #268, each 100%.
+Coverage SHA-256 values are respectively
+`8d7a3687557d067ee99fd512936077c0c9662d40d9d6544232bb5a377dc88e23` and
+`5865d6e69dc5584bad8ef4e866970eb6aa845ad692aa5421a0ffb6f6f01e1540`.
+CI `34040202356` and `34040306372` remain queued; formal reviews are empty.
+Actual Edge screenshots verified the published source PRs' exact heads, Draft state
+and readable evidence without observed clipping or overlap. This is GitHub
+presentation evidence, not product-browser acceptance or protected-main delivery.
+Writers `5559965531` and `5559948553` are released. This documentation revision
+requires its own publication, visual inspection and exact-head checks.
+
+Next source work must address pointer and status receipt provenance in their existing
+owners, plus the separate pointer outbound session-binding gap, before promoting
+their evidence. Reuse the sealed reader and canonical connection checks; status
+projection must still validate before correlation consumption. Browser ownership,
+policy approval and observed field/DOM postconditions remain unfinished. Current
+foundation #195 `63997bcf555e2c5c8e91ba287734ffba3837a1b7` remains on
+`6922dd98779e8f8aad132a3b1f563d7ba6e6d070`; #279 workflow generation and #212
+sandbox boundaries remain prerequisites. Counted approval and central workflow
+requirements must not be bypassed. Source and documentation writers stay separate.
+
 #### Session repair and child adoption: 13:35 UTC
 
 This update supersedes the 12:28 source/adoption and visual-boundary claims below.
@@ -81,7 +127,7 @@ needs its own post-publication visual inspection and exact-head hosted checks.
 
 #### Current executable queue and lineage: 14:18 UTC
 
-Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+Historical Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
 
 The fresh complete inventory confirms the canonical counts above. These are Ready
 review candidates, not merge-ready approvals: all remain BLOCKED. Re-fetch each

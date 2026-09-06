@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded the published text-entry connection safeguards and their test evidence, separating queued hosted checks and remaining pointer/status repairs from released browser behavior.
 - Separate the current maintenance queue and source lineage from preserved historical observations, and record the text-entry session and pending-request safeguards without claiming released browser behavior.
 - Current delivery inventory: 125 open pull requests (12 ready, 113 draft); 13 open non-PR issues. Observed 2026-09-06; source acceptance remains revision-specific.
 - Corrected historical checkpoint labels and made the current inventory check reject stale counts; recorded verified text-input parent adoption without claiming browser execution.
