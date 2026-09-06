@@ -26,7 +26,7 @@ class ProductGapDiscoverabilityContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         index = (ROOT / "docs" / "adr" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("- Status: Proposed", adr)
+        self.assertIn("- **Status:** Proposed", adr)
         self.assertIn("0016-bap-task-lifecycle-authority.md", index)
         self.assertIn("| Proposed |", index)
 
