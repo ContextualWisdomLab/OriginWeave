@@ -6,15 +6,16 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::WebDriverBiDiWebSocketEndpoint;
+use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResponseError,
-    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -69,15 +70,59 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Res
     stream.write_all(document)
 }
 
+fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+    let mut header = [0_u8; 2];
+    stream.read_exact(&mut header)?;
+    if header[0] != 0x81 || header[1] & 0x80 == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected one final masked client text frame",
+        ));
+    }
+    let length = match header[1] & 0x7f {
+        length @ 0..=125 => usize::from(length),
+        126 => {
+            let mut extended = [0_u8; 2];
+            stream.read_exact(&mut extended)?;
+            usize::from(u16::from_be_bytes(extended))
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test command unexpectedly required 64-bit framing",
+            ));
+        }
+    };
+    let mut mask = [0_u8; 4];
+    stream.read_exact(&mut mask)?;
+    let mut payload = vec![0_u8; length];
+    stream.read_exact(&mut payload)?;
+    for (index, byte) in payload.iter_mut().enumerate() {
+        *byte ^= mask[index % mask.len()];
+    }
+    Ok(payload)
+}
+
 fn read_text_over_loopback(
     document: &'static [u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    read_response_over_loopback(document, None)
+}
+
+fn read_response_over_loopback(
+    document: &'static [u8],
+    correlation: Option<&mut WebDriverBiDiCommandCorrelation>,
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    let send_command = correlation.is_some();
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
+        if send_command {
+            assert_eq!(read_masked_text_frame(&mut stream)?, br#"{"id":7,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-a"]}}"#);
+        }
         write_unmasked_text_frame(&mut stream, document)
     });
 
@@ -91,11 +136,31 @@ fn read_text_over_loopback(
     let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let established = if let Some(correlation) = correlation {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session(SESSION_ID)?;
+        let context = registry.register_context(session, "context-a")?;
+        WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+            7,
+            &registry,
+            session,
+            context,
+            "context-a",
+        )?
+        .send(
+            &registry,
+            established,
+            correlation,
+            WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+            Duration::from_millis(500),
+        )?
+    } else {
+        established
+    };
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "subscription response produced unexpected assembly state: {other:?}"
@@ -160,8 +225,7 @@ fn malformed_and_invalid_success_responses_preserve_outstanding_correlation()
 #[test]
 fn protocol_error_consumes_only_its_exact_outstanding_command() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation
-        .register_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+    correlation.register_command_for(43, WebDriverBiDiCommandKind::SessionStatus)?;
 
     let unknown = read_text_over_loopback(UNKNOWN_ERROR_RESPONSE)?;
     assert_eq!(
@@ -177,7 +241,8 @@ fn protocol_error_consumes_only_its_exact_outstanding_command() -> Result<(), Bo
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let matched = read_text_over_loopback(MATCHED_ERROR_RESPONSE)?;
+    let matched = read_response_over_loopback(MATCHED_ERROR_RESPONSE, Some(&mut correlation))?;
+    assert_eq!(correlation.outstanding_count(), 2);
     assert_eq!(
         WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
             &matched,
@@ -190,7 +255,7 @@ fn protocol_error_consumes_only_its_exact_outstanding_command() -> Result<(), Bo
             }
         )
     );
-    assert_eq!(correlation.outstanding_count(), 0);
+    assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
 
@@ -238,5 +303,32 @@ fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<
         )
     );
     assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
+fn manually_registered_subscription_cannot_supply_sender_provenance() -> Result<(), Box<dyn Error>>
+{
+    for document in [MATCHED_SUCCESS_RESPONSE, MATCHED_ERROR_RESPONSE] {
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        correlation
+            .register_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+        let message = read_text_over_loopback(document)?;
+        assert_eq!(
+            WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+                &message,
+                &mut correlation
+            ),
+            Err(
+                WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                    source:
+                        WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                            command_id: 7
+                        },
+                }
+            )
+        );
+        assert_eq!(correlation.outstanding_count(), 1);
+    }
     Ok(())
 }

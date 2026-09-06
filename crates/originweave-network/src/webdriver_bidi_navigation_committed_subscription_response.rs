@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Maximum decoded UTF-8 bytes retained from a WebDriver BiDi `session.Subscription` identifier.
@@ -35,7 +35,10 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionResult {
 }
 
 impl WebDriverBiDiNavigationCommittedSubscriptionResult {
-    /// Parse one bounded local-end message and consume its exact outstanding command on success.
+    /// Parse one sealed receiving-connection receipt and consume its exact outstanding command.
+    ///
+    /// Successes and protocol errors require the sender-registered connection generation. Raw
+    /// messages, missing sender provenance, and replacement connections cannot retire the command.
     ///
     /// Common WebDriver BiDi envelope validation runs first. A successful envelope then undergoes
     /// command-specific projection of the required `result.subscription` text before correlation is
@@ -44,20 +47,21 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
     /// failure retaining only the protocol error code. Events, null-id errors, malformed envelopes,
     /// and unknown ids fail closed without consuming unrelated outstanding correlation state.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiNavigationCommittedSubscriptionResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message).map_err(|source| {
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message()).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionResponseError::Envelope { source }
         })?;
 
         match envelope.kind() {
             WebDriverBiDiJsonEnvelopeKind::Success => {
-                let projected = SubscriptionProjection::parse(message.as_str())?;
+                let projected = SubscriptionProjection::parse(message.message().as_str())?;
                 let completed = correlation
-                    .correlate_response_for(
+                    .correlate_response_for_connection(
                         &envelope,
                         WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                        message.connection_generation(),
                     )
                     .map_err(|source| {
                         WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
@@ -72,9 +76,10 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
                     let completed = correlation
-                        .correlate_response_for(
+                        .correlate_response_for_connection(
                             &envelope,
                             WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                        message.connection_generation(),
                         )
                         .map_err(|source| {
                             WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {

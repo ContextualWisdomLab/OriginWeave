@@ -118,9 +118,10 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
         })?;
         correlation
-            .register_command_for(
+            .register_command_for_connection(
                 self.command_id,
                 WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                established.transport_evidence().connection_generation(),
             )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }

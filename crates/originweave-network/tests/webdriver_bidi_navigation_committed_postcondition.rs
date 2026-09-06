@@ -12,13 +12,14 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedObservation,
-    WebDriverBiDiNavigationCommittedObservationError,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiNavigationCommittedObservationError,
     WebDriverBiDiNavigationCommittedProjectionError, WebDriverBiDiPointerClickResult,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage, send_webdriver_bidi_pointer_click,
+    WebDriverBiDiWebSocketMessageReader, WebDriverBiDiWebSocketTextMessage,
+    send_webdriver_bidi_pointer_click,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -174,9 +175,14 @@ fn click_then_observe_navigation_with_event(
         Duration::from_millis(500),
     )?;
 
-    let (established, response_frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let response_text = assemble_text(&mut assembler, response_frame)?;
+    let WebDriverBiDiConnectionMessageRead::Text {
+        established,
+        message: response_text,
+    } = WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    else {
+        return Err(io::Error::other("expected a complete connection-bound click reply").into());
+    };
     let response =
         WebDriverBiDiPointerClickResult::parse_and_correlate(&response_text, &mut correlation)?;
     if response.command_id() != 42 || correlation.outstanding_count() != 0 {
@@ -186,6 +192,7 @@ fn click_then_observe_navigation_with_event(
     }
 
     let (_established, event_frame) = established.read_frame(Duration::from_millis(500))?;
+    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
     let event_text = assemble_text(&mut assembler, event_frame)?;
     server
         .join()
