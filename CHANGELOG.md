@@ -8,6 +8,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Reject replacement-connection click replies while retaining increasing request numbers, original subscription ownership and same-connection shutdown checks.
+
 - Reject a navigation subscription aimed at a different browser session before sending it, without creating or replacing browser state.
 - Keep connection-failure checks focused on the requested action by completing fixture setup before the simulated peer disconnects.
 

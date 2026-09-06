@@ -59,7 +59,16 @@ construction. Already admitted observations remain unchanged; this is not retroa
 
 ## Authority and follow-up
 
-### Subscription receipt parent adoption
+### Historical parent-only subscription receipt adoption
+
+The following checkpoint describes #263, not the current #264 tree. This child retains
+consuming unsubscribe receipt ownership, original-connection dispatch and sealed reply
+admission, plus registry-session and monotonic command-ID guards. Its adoption of
+#263 at `92e576c8` additionally binds pointer replies to their sending connection.
+Regression `637fd97d` first reproduced both replacement pointer success and error
+consuming the original request (0/2 passing). The integration combines the parent's
+connection registration with the child's existing typed dispatch, rather than replacing
+either safeguard. Current-head verification is required for this combined tree.
 
 Ordinary merge `9e85cadc` adopts #277 `46ae62aa31e35c702cd61c16322d05c7a9c35da1`
 without changing either unsubscribe production module. Canonical regression replay

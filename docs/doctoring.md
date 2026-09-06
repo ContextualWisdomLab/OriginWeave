@@ -172,6 +172,14 @@ Fresh combined-tree verification passes nine focused reconnect/admission/documen
 
 ### Browser automation and interoperability
 
+The subscription repair paragraph below records the historical #277 parent-only cut.
+Current #264 already retains registry-to-transport session validation and consuming,
+connection-bound subscription teardown described above. Ordinary parent adoption
+`92e576c8` preserves those stronger child contracts and adds the parent's sealed pointer
+responses while retaining monotonic typed dispatch. Actual replacement-pointer success
+and error both failed at `637fd97d` before adoption. This combined source still requires
+its own complete verification and does not establish protected-main or browser acceptance.
+
 The subscription response repair reuses the existing sender-owned connection generation and sealed receiving-message capability. On regression head `122ca139`, two real connections to the same listener and session reproduced replacement success and protocol-error responses consuming the original subscription. Source repair `8b1508c8` rejects both with an exact connection mismatch, preserves two outstanding requests, and accepts the original connection's response while leaving the unrelated request outstanding. Manually registered commands lack sender provenance and cannot bypass that check. Required subscription projection still precedes correlation consumption; invalid deadlines precede registration, proven no-write failures retire only their exact request, and ambiguous writes retain correlation. The 14 focused subscription tests pass. This closes response-connection substitution only: outbound registry-to-endpoint session binding, authenticated later navigation events, protected-main asset preservation, hosted checks and browser-runtime acceptance remain separate work.
 
 Fresh deadline-repair verification passed 11 focused subscription loopback tests and all 142 Python contracts, plus the complete locked Rust workspace checks/tests, formatting, all-feature Clippy, warning-denying rustdoc, compileall, and diff checks. Numeric production coverage is 100% for 1,221 functions, 12,781 lines, 16,404 regions, and 1,418 branches; the unstable branch-measurement warning remains. The 1,220-function result below belongs to the earlier parent-adoption tree, not this subsequent source change.
