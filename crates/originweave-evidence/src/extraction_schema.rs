@@ -1,0 +1,297 @@
+//! Versioned schema contracts for typed evidence extraction.
+//!
+//! These value objects describe what may be extracted and which reviewed
+//! evidence channels may support each field. They do not read browser data,
+//! disclose protected values, persist artifacts, execute models, or grant any
+//! browser, network, secret, approval, or storage authority.
+
+use std::{collections::BTreeSet, fmt};
+
+/// Maximum encoded byte length for an extraction schema or field identifier.
+pub const MAX_EXTRACTION_IDENTIFIER_BYTES: usize = 128;
+/// Maximum number of fields admitted by one extraction schema.
+pub const MAX_EXTRACTION_FIELD_COUNT: usize = 256;
+
+/// The typed value contract for one extracted field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtractionValueType {
+    /// Bounded textual data.
+    Text,
+    /// A whole-number value.
+    Integer,
+    /// A decimal numeric value.
+    Decimal,
+    /// A boolean value.
+    Boolean,
+    /// A timestamp value whose concrete normalization is defined by the schema version.
+    Timestamp,
+}
+
+/// The number of values admitted for one extracted field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtractionCardinality {
+    /// Exactly one value is admitted.
+    One,
+    /// Zero or one value is admitted.
+    ZeroOrOne,
+    /// A bounded collection may be admitted by a later extraction runtime.
+    Many,
+}
+
+/// A reviewed evidence channel that may support an extracted value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtractionSourceChannel {
+    /// A semantic browser node with an independently validated identity.
+    SemanticNode,
+    /// Embedded structured metadata such as JSON-LD, RDFa, or Microdata.
+    StructuredData,
+    /// A bounded table-cell observation.
+    TableCell,
+    /// A bounded network response whose origin and response identity are independently verified.
+    NetworkResponse,
+    /// A separately approved model interpretation backed by explicit evidence identifiers.
+    ModelInterpretation,
+}
+
+/// A deterministic normalization rule declared for one extracted field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtractionNormalizationRule {
+    /// Preserve the typed source value without text normalization.
+    Verbatim,
+    /// Trim surrounding whitespace from a textual value.
+    TrimTextWhitespace,
+    /// Normalize a timestamp into an RFC 3339 UTC representation.
+    Rfc3339Utc,
+}
+
+/// A validation failure while constructing an extraction schema contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtractionSchemaError {
+    /// A schema or field identifier was empty or outside the accepted identifier grammar.
+    InvalidIdentifier,
+    /// An identifier or field collection exceeded its bounded limit.
+    LimitExceeded,
+    /// A field's required flag contradicted its declared cardinality.
+    InvalidCardinalityRequirement,
+    /// A field did not declare any reviewed source channel.
+    MissingSourceChannel,
+    /// A field declared the same source channel more than once.
+    DuplicateSourceChannel,
+    /// The declared normalization rule was incompatible with the field value type.
+    InvalidNormalizationRule,
+    /// A schema did not contain any field definitions.
+    MissingField,
+    /// A schema declared the same field identifier more than once.
+    DuplicateField,
+}
+
+impl fmt::Display for ExtractionSchemaError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidIdentifier => "invalid extraction schema or field identifier",
+            Self::LimitExceeded => "extraction schema limit exceeded",
+            Self::InvalidCardinalityRequirement => {
+                "extraction field required flag is incompatible with the declared cardinality"
+            }
+            Self::MissingSourceChannel => "extraction field requires at least one source channel",
+            Self::DuplicateSourceChannel => "extraction field contains a duplicate source channel",
+            Self::InvalidNormalizationRule => {
+                "extraction normalization rule is incompatible with the field value type"
+            }
+            Self::MissingField => "extraction schema requires at least one field",
+            Self::DuplicateField => "extraction schema contains a duplicate field identifier",
+        })
+    }
+}
+
+impl std::error::Error for ExtractionSchemaError {}
+
+/// One typed field declared by a versioned extraction schema.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtractionField {
+    identifier: String,
+    value_type: ExtractionValueType,
+    cardinality: ExtractionCardinality,
+    required: bool,
+    normalization_rule: ExtractionNormalizationRule,
+    source_channels: Vec<ExtractionSourceChannel>,
+}
+
+impl ExtractionField {
+    /// Validate and construct one extraction field contract with verbatim normalization.
+    pub fn new(
+        identifier: &str,
+        value_type: ExtractionValueType,
+        cardinality: ExtractionCardinality,
+        required: bool,
+        source_channels: &[ExtractionSourceChannel],
+    ) -> Result<Self, ExtractionSchemaError> {
+        Self::new_with_normalization(
+            identifier,
+            value_type,
+            cardinality,
+            required,
+            ExtractionNormalizationRule::Verbatim,
+            source_channels,
+        )
+    }
+
+    /// Validate and construct one extraction field with an explicit normalization rule.
+    pub fn new_with_normalization(
+        identifier: &str,
+        value_type: ExtractionValueType,
+        cardinality: ExtractionCardinality,
+        required: bool,
+        normalization_rule: ExtractionNormalizationRule,
+        source_channels: &[ExtractionSourceChannel],
+    ) -> Result<Self, ExtractionSchemaError> {
+        validate_identifier(identifier)?;
+
+        let cardinality_requirement_is_compatible = match cardinality {
+            ExtractionCardinality::One => required,
+            ExtractionCardinality::ZeroOrOne => !required,
+            ExtractionCardinality::Many => true,
+        };
+        if !cardinality_requirement_is_compatible {
+            return Err(ExtractionSchemaError::InvalidCardinalityRequirement);
+        }
+
+        if source_channels.is_empty() {
+            return Err(ExtractionSchemaError::MissingSourceChannel);
+        }
+
+        let normalization_is_compatible = match normalization_rule {
+            ExtractionNormalizationRule::Verbatim => true,
+            ExtractionNormalizationRule::TrimTextWhitespace => {
+                value_type == ExtractionValueType::Text
+            }
+            ExtractionNormalizationRule::Rfc3339Utc => value_type == ExtractionValueType::Timestamp,
+        };
+        if !normalization_is_compatible {
+            return Err(ExtractionSchemaError::InvalidNormalizationRule);
+        }
+
+        let mut seen_channels = BTreeSet::new();
+        for source_channel in source_channels {
+            if !seen_channels.insert(*source_channel) {
+                return Err(ExtractionSchemaError::DuplicateSourceChannel);
+            }
+        }
+
+        Ok(Self {
+            identifier: identifier.to_owned(),
+            value_type,
+            cardinality,
+            required,
+            normalization_rule,
+            source_channels: seen_channels.into_iter().collect(),
+        })
+    }
+
+    /// Return the stable field identifier.
+    #[must_use]
+    pub fn identifier(&self) -> &str {
+        &self.identifier
+    }
+
+    /// Return the declared value type.
+    #[must_use]
+    pub const fn value_type(&self) -> ExtractionValueType {
+        self.value_type
+    }
+
+    /// Return the declared cardinality.
+    #[must_use]
+    pub const fn cardinality(&self) -> ExtractionCardinality {
+        self.cardinality
+    }
+
+    /// Return whether the field must be present in a conforming extraction result.
+    #[must_use]
+    pub const fn required(&self) -> bool {
+        self.required
+    }
+
+    /// Return the deterministic normalization rule declared for this field.
+    #[must_use]
+    pub const fn normalization_rule(&self) -> ExtractionNormalizationRule {
+        self.normalization_rule
+    }
+
+    /// Return the reviewed source channels that may support this field.
+    #[must_use]
+    pub fn source_channels(&self) -> &[ExtractionSourceChannel] {
+        &self.source_channels
+    }
+}
+
+/// A bounded versioned collection of typed extraction-field contracts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtractionSchema {
+    version: String,
+    fields: Vec<ExtractionField>,
+}
+
+impl ExtractionSchema {
+    /// Validate and construct one versioned extraction schema.
+    pub fn new(version: &str, fields: Vec<ExtractionField>) -> Result<Self, ExtractionSchemaError> {
+        validate_identifier(version)?;
+        if fields.is_empty() {
+            return Err(ExtractionSchemaError::MissingField);
+        }
+        if fields.len() > MAX_EXTRACTION_FIELD_COUNT {
+            return Err(ExtractionSchemaError::LimitExceeded);
+        }
+
+        let mut field_identifiers = BTreeSet::new();
+        for field in &fields {
+            if !field_identifiers.insert(field.identifier()) {
+                return Err(ExtractionSchemaError::DuplicateField);
+            }
+        }
+
+        Ok(Self {
+            version: version.to_owned(),
+            fields,
+        })
+    }
+
+    /// Return the immutable schema version identifier.
+    #[must_use]
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    /// Return the schema's ordered field definitions.
+    #[must_use]
+    pub fn fields(&self) -> &[ExtractionField] {
+        &self.fields
+    }
+
+    /// Find one field by its stable identifier.
+    #[must_use]
+    pub fn field(&self, identifier: &str) -> Option<&ExtractionField> {
+        self.fields
+            .iter()
+            .find(|field| field.identifier() == identifier)
+    }
+}
+
+fn validate_identifier(identifier: &str) -> Result<(), ExtractionSchemaError> {
+    if identifier.len() > MAX_EXTRACTION_IDENTIFIER_BYTES {
+        return Err(ExtractionSchemaError::LimitExceeded);
+    }
+
+    let mut bytes = identifier.bytes();
+    let Some(first_byte) = bytes.next() else {
+        return Err(ExtractionSchemaError::InvalidIdentifier);
+    };
+    if !first_byte.is_ascii_lowercase() {
+        return Err(ExtractionSchemaError::InvalidIdentifier);
+    }
+    if bytes.any(|byte| !matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-')) {
+        return Err(ExtractionSchemaError::InvalidIdentifier);
+    }
+
+    Ok(())
+}
