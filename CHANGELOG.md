@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried replacement-connection subscription-reply rejection into unsubscribe preparation, preserving opaque identifiers and existing teardown checks without claiming that pending events have drained.
 - Reject navigation-subscription replies received on replacement connections while keeping the original request available for its own reply; a successful subscription still does not prove that a navigation occurred.
 - Carried replacement-connection click-reply rejection into the navigation-subscription stack while preserving deadline rejection, unrelated pending requests and conservative handling of uncertain writes.
 - Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.

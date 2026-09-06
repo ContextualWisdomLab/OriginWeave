@@ -11,16 +11,18 @@
 //! complete local-end JSON envelopes, tracks bounded command-response correlation,
 //! transports a narrowly typed pointer click, admits its typed correlated protocol
 //! response, sends a context-bound committed-navigation subscription and retains
-//! its typed bounded correlated identifier, admits a bounded navigation observation for
-//! one exact registered context and URL, rotates that context's document epoch
-//! only from an exact caller-captured pre-action epoch, derives and binds the
-//! committed HTTP(S) URL's canonical origin to the new document, sends narrowly typed
-//! `session.status` and `session.end` commands, admits typed
-//! correlated status and end responses, binds `session.end` ACK and closure evidence
-//! to one private process-local connection generation, observes bounded peer Close
-//! or clean-EOF transport cessation, and keeps protocol/transport evidence separate
-//! from explicit operational teardown observations without exposing generic JSON
-//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
+//! its typed bounded correlated identifier, explicitly unsubscribes that exact
+//! retained identifier, admits its typed correlated unsubscribe response, admits a
+//! bounded navigation observation for one exact registered context and URL, rotates
+//! that context's document epoch only from an exact caller-captured pre-action
+//! epoch, derives and binds the committed HTTP(S) URL's canonical origin to the new
+//! document, sends narrowly typed `session.status` and `session.end` commands,
+//! admits typed correlated status and end responses, binds `session.end` ACK and
+//! closure evidence to one private process-local connection generation, observes
+//! bounded peer Close or clean-EOF transport cessation, and keeps protocol/transport
+//! evidence separate from explicit operational teardown observations without
+//! exposing generic JSON bodies or granting browser, TLS, policy, secret, process,
+//! profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -32,6 +34,8 @@ mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_navigation_committed_postcondition;
 mod webdriver_bidi_navigation_committed_subscription;
 mod webdriver_bidi_navigation_committed_subscription_response;
+mod webdriver_bidi_navigation_committed_unsubscribe;
+mod webdriver_bidi_navigation_committed_unsubscribe_response;
 mod webdriver_bidi_navigation_document_advance;
 mod webdriver_bidi_navigation_document_origin;
 mod webdriver_bidi_pointer_click_response;
@@ -83,6 +87,14 @@ pub use webdriver_bidi_navigation_committed_subscription_response::{
     MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES,
     WebDriverBiDiNavigationCommittedSubscriptionResponseError,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
+};
+pub use webdriver_bidi_navigation_committed_unsubscribe::{
+    WebDriverBiDiNavigationCommittedUnsubscribeCommand,
+    WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
+};
+pub use webdriver_bidi_navigation_committed_unsubscribe_response::{
+    WebDriverBiDiNavigationCommittedUnsubscribeResponseError,
+    WebDriverBiDiNavigationCommittedUnsubscribeResult,
 };
 pub use webdriver_bidi_navigation_document_advance::{
     WebDriverBiDiNavigationCommittedDocumentAdvance,

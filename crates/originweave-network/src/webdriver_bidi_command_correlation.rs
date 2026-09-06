@@ -28,6 +28,8 @@ pub enum WebDriverBiDiCommandKind {
     PointerClick,
     /// Context-scoped WebDriver BiDi `session.subscribe` for committed navigation.
     NavigationCommittedSubscription,
+    /// WebDriver BiDi `session.unsubscribe` for one retained committed-navigation subscription.
+    NavigationCommittedUnsubscribe,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
