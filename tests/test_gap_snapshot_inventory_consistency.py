@@ -312,6 +312,13 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "terminal-success predecessor evidence",
             "actual Edge visual inspection",
             "GraphQL access recovered",
+            "7fb93e77b800f27187a5c02333298cc31a025bd6",
+            "1279/13421/17106/1438",
+            "277c5bc0a17f16966a8eb388d54e4e172be36356d7dead5bbead9ed53ad8cff6",
+            "34031281825",
+            "34031281812",
+            "new-head visual inspection remains incomplete",
+            "Mac is locked",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
