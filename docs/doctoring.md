@@ -4,6 +4,23 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Subscription registry-to-transport session provenance
+
+The real-loopback test at `b4702cd5`, executed locally before repair, dispatched a subscription
+bound to registry session A over a transport correlated to session B. The repaired sender checks
+the existing canonical external-session mapping before correlation registration or command bytes.
+The regression now requires a typed mismatch, zero pending commands and zero command bytes;
+registry tests also cover matching, unknown, malformed, retired and re-registered identities.
+
+The current W3C Editor's Draft associates each WebSocket connection with at most one BiDi session.
+Its connection acceptance algorithm maps the resource's session ID to an active session. OriginWeave's
+read-only registry comparison is a local fail-closed policy connecting that transport evidence to
+existing authority. It does not authenticate a browser process, authorize an action, or create a
+session from transport text. Proposed ADR 0107 records the boundary and alternatives.
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi: Transport* [Editor's Draft].
+Retrieved September 6, 2026, from https://w3c.github.io/webdriver-bidi/#transport
+
 ### Subscription teardown ownership and connection provenance
 
 The actual-socket regression at `2c45cea8` shows that constructing teardown from a borrowed receipt

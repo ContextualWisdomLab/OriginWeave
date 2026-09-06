@@ -8,6 +8,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Reject a navigation subscription aimed at a different browser session before sending it, without creating or replacing browser state.
+
 - Keep subscription shutdown on its original connection and reject replies from another connection without losing the pending request. Beginning shutdown ends local event admission; a failed shutdown requires a new subscription before admission resumes.
 
 - Prevent an earlier browser reply from completing a later request that reuses its number. Typed browser requests now use increasing numbers on each connection, and low-level protocol traffic uses a separate connection.
