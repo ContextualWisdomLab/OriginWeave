@@ -6,26 +6,24 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::{
-    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
-    WebDriverBiDiWebSocketEndpoint,
-};
+use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
-    WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
-    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageReader, send_webdriver_bidi_pointer_click,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiNavigationCommittedSubscriptionResponseError,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const CLICK_SUCCESS_RESPONSE: &[u8] =
-    br#"{"type":"success","id":42,"result":{"vendorExtension":{"observed":false}}}"#;
-const CLICK_ERROR_RESPONSE: &[u8] =
+const SUBSCRIBE_SUCCESS_RESPONSE: &[u8] =
+    br#"{"type":"success","id":42,"result":{"subscription":"subscription-a"}}"#;
+const SUBSCRIBE_ERROR_RESPONSE: &[u8] =
     br#"{"type":"error","id":42,"error":"invalid argument","message":"blocked","stacktrace":"remote"}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
@@ -69,7 +67,7 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
             usize::try_from(length).map_err(|_| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "pointer frame length exceeds usize",
+                    "subscription frame length exceeds usize",
                 )
             })?
         }
@@ -109,7 +107,7 @@ fn read_response(
         WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "replacement pointer connection produced unexpected assembly state: {other:?}"
+                "replacement subscription connection produced unexpected assembly state: {other:?}"
             ))
             .into());
         }
@@ -120,12 +118,7 @@ fn read_response(
 fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Box<dyn Error>> {
     let original_listener = TcpListener::bind(("127.0.0.1", 0))?;
     let original_addr = original_listener.local_addr()?;
-    let expected = WebDriverBiDiPointerClickCommand::new(
-        42,
-        "context-a",
-        &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?,
-    )?;
-    let expected_json = expected.as_json().as_bytes().to_vec();
+    let expected_json = br#"{"id":42,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-a"]}}"#.to_vec();
     let original_server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = original_listener.accept()?;
         read_opening_request(&mut stream)?;
@@ -134,7 +127,7 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
         if command != expected_json {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "unexpected pointer command on original connection",
+                "unexpected subscription command on original connection",
             ));
         }
         let (mut replacement, _) = original_listener.accept()?;
@@ -142,20 +135,25 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
         replacement.write_all(OPENING_RESPONSE)?;
         replacement.write_all(&[0x81, foreign_response.len() as u8])?;
         replacement.write_all(foreign_response)?;
-        stream.write_all(&[0x81, CLICK_SUCCESS_RESPONSE.len() as u8])?;
-        stream.write_all(CLICK_SUCCESS_RESPONSE)
+        stream.write_all(&[0x81, SUBSCRIBE_SUCCESS_RESPONSE.len() as u8])?;
+        stream.write_all(SUBSCRIBE_SUCCESS_RESPONSE)
     });
 
     let original = establish(original_addr)?;
-    let command = WebDriverBiDiPointerClickCommand::new(
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "context-a")?;
+    let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
         42,
+        &registry,
+        session,
+        context,
         "context-a",
-        &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(43, WebDriverBiDiCommandKind::SessionStatus)?;
-    let original = send_webdriver_bidi_pointer_click(
-        &command,
+    let original = command.send(
+        &registry,
         original,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
@@ -164,7 +162,7 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
     assert_eq!(correlation.outstanding_count(), 2);
 
     let replacement_response = read_response(establish(original_addr)?)?;
-    let parsed = WebDriverBiDiPointerClickResult::parse_and_correlate(
+    let parsed = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &replacement_response,
         &mut correlation,
     );
@@ -172,32 +170,38 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
     let original_response = read_response(original)?;
     original_server
         .join()
-        .map_err(|_| io::Error::other("original pointer server panicked"))??;
+        .map_err(|_| io::Error::other("original subscription server panicked"))??;
     assert!(
         matches!(
             parsed,
-            Err(WebDriverBiDiPointerClickResponseError::Correlation {
-                source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
-                    command_id: 42
+            Err(
+                WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                    source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                        command_id: 42
+                    }
                 }
-            })
+            )
         ),
         "replacement response must fail for exact connection mismatch: {parsed:?}"
     );
     assert_eq!(correlation.outstanding_count(), 2);
-    let accepted =
-        WebDriverBiDiPointerClickResult::parse_and_correlate(&original_response, &mut correlation)?;
+    let accepted = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+        &original_response,
+        &mut correlation,
+    )?;
     assert_eq!(accepted.command_id(), 42);
+    assert_eq!(accepted.subscription_id(), "subscription-a");
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
 
 #[test]
-fn replacement_success_cannot_consume_original_pointer_command() -> Result<(), Box<dyn Error>> {
-    assert_replacement_rejected(CLICK_SUCCESS_RESPONSE)
+fn replacement_success_cannot_consume_original_subscription_command() -> Result<(), Box<dyn Error>>
+{
+    assert_replacement_rejected(SUBSCRIBE_SUCCESS_RESPONSE)
 }
 
 #[test]
-fn replacement_error_cannot_consume_original_pointer_command() -> Result<(), Box<dyn Error>> {
-    assert_replacement_rejected(CLICK_ERROR_RESPONSE)
+fn replacement_error_cannot_consume_original_subscription_command() -> Result<(), Box<dyn Error>> {
+    assert_replacement_rejected(SUBSCRIBE_ERROR_RESPONSE)
 }
