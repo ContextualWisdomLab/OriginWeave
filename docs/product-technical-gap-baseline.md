@@ -8,9 +8,9 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-06
 
-Observed through (UTC): `2026-09-06T11:49:46Z`. This cut supersedes volatile claims in the prior observation section below; those earlier exact-head measurements remain historical rather than transferable acceptance evidence. The complete queue read finished at `11:47:46 UTC`; #264 publication and writer release were verified afterward at the stated head.
+Observed through (UTC): `2026-09-06T12:28:16Z`. This cut supersedes volatile claims in the prior observation section below; those earlier exact-head measurements remain historical rather than transferable acceptance evidence. The complete queue read finished at `12:28:16 UTC`, after #265 publication and writer release. The new parent #264 regression is independently owned and is not yet adopted by #265.
 
-The inventory remains **125 open pull requests: 12 Ready/non-draft and 113 Draft; 13 open non-PR issues**. Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are both empty. Ready-root source heads other than this document's moving branch are unchanged. GraphQL access recovered after the earlier rate-limit failure. GraphQL thread resolution was refreshed for all 125 open PRs alongside exact heads, bases, check rollups and formal reviews in five pages, finishing at `11:47:46 UTC`; all nested histories fit their 100-item pages, with no remaining pagination flags. #147 retains the sole unresolved thread `PRRT_kwDOTulPlM6coZwc`. #166/#220 retain `CHANGES_REQUESTED`, and the other Ready roots retain `REVIEW_REQUIRED`; all twelve are `BLOCKED`. The earlier successful GraphQL cut at `10:00:47 UTC`, subsequent failed inventory/minimal probe and complete 375-read REST fallback at `10:12:37 UTC` remain historical diagnostics, not the current freshness boundary. Active ruleset `18156473` still requires a counted approval and seven central workflows, while the collaborator inventory still contains only the author. #219 has a same-head formal bot approval, but its freshly verified GitHub decision remains `REVIEW_REQUIRED`; an uncounted review does not satisfy the gate. None of this authorizes a bypass or substitutes for an eligible counted approval.
+The inventory remains **125 open pull requests: 12 Ready/non-draft and 113 Draft; 13 open non-PR issues**. Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are both empty. Ready-root source heads other than this document's moving branch are unchanged. GraphQL access recovered after the earlier rate-limit failure. GraphQL thread resolution was refreshed for all 125 open PRs alongside exact heads, bases, check rollups and formal reviews in five pages, finishing at `12:28:16 UTC`; all nested histories fit their 100-item pages, with no remaining pagination flags. #147 retains the sole unresolved thread `PRRT_kwDOTulPlM6coZwc`. #166/#220 retain `CHANGES_REQUESTED`, and the other Ready roots retain `REVIEW_REQUIRED`; all twelve are `BLOCKED`. The earlier successful GraphQL cut at `10:00:47 UTC`, subsequent failed inventory/minimal probe and complete 375-read REST fallback at `10:12:37 UTC` remain historical diagnostics, not the current freshness boundary. Active ruleset `18156473` still requires a counted approval and seven central workflows, while the collaborator inventory still contains only the author. #219 has a same-head formal bot approval, but its freshly verified GitHub decision remains `REVIEW_REQUIRED`; an uncounted review does not satisfy the gate. None of this authorizes a bypass or substitutes for an eligible counted approval.
 
 The restored foundation changes the next executable queue. #195 is Draft at `63997bcf555e2c5c8e91ba287734ffba3837a1b7`, on `6922dd98779e8f8aad132a3b1f563d7ba6e6d070`. Its owner restored product/evidence assets lost by historical whole-tree repair `5c111d0db6c363f9d1786c21cc01c5c7398007bd`; this is a content-recovery boundary, not permission to copy an old tree over later work. Fresh hosted CI `34013251657` fails in repository contracts while exact production coverage and MV3 `34013251651` succeed. The exercised failures compare inherited workflow concurrency and `nightly-2026-08-01` against the protected repository-scoped identity and `nightly-2026-08-18`. #279 owns current-workflow reconstruction; weakening the restored tests does not repair the generation mismatch. #242 remains at `2d0e9f69df9ade21d8e8e3d807c3ff644d83b310`, with a stale pre-recovery #195 base `48eb2d23009c1c804520dd5efcd0d4d072aacef1`. Its old CI success is not recovered-foundation acceptance. After the owner prerequisite, adopt the verified foundation content-aware and non-destructively before regenerating descendant checks.
 
@@ -66,9 +66,9 @@ All 22 focused admission/frame tests and the added real public opening-deadline 
 
 Fresh exact-head CI `34029687813`, Rust `101476824185` and coverage `101476824305`, and MV3 `34029687816` / `101476824298` are queued. Post-publication actual Edge visual inspection covered the new PR body and Checks page: exact head/base, Draft state and three queued checks matched the API; desktop screenshots showed readable wrapping with no observed clipping or overlap. GitHub presentation evidence is not OriginWeave product-browser acceptance. Both contributor histories remain ancestors, ordinary publication was verified, and the #264 writer was explicitly released before this documentation-only slice. Registry-to-transport authentication, unsubscribe lifetime/transport provenance, action causality, real browser acceptance, #195/#279 integration, protected delivery and release gates remain open.
 
-#### Current subscription teardown ownership and provenance
+#### Subscription teardown ownership and provenance predecessor
 
-Published #264 is now `7fb93e77b800f27187a5c02333298cc31a025bd6`, Draft on unchanged #263
+At the preceding cut, published #264 was `7fb93e77b800f27187a5c02333298cc31a025bd6`, Draft on unchanged #263
 `3f22de94b63da83eaa8b5b1270912b21a3ecd006`. Lifetime RED `2c45cea8` reproduced event admission
 after borrowed teardown construction. Transport RED `ce6f6fd4` reproduced 91 actual masked bytes
 on a foreign connection and foreign success/error consuming the original pending command. Genuine
@@ -102,6 +102,47 @@ these new heads. Registry-to-browser authentication, action causality, real Chro
 At this read, #238 predecessor `81e334aff063290bde3298671cfd20e77c7c1fff` still has queued native
 CI `34030165220` plus central review/security work. This documentation commit needs its own checks;
 neither its earlier 172 local Python passes nor #264's source coverage transfers to the new head.
+
+#### Current pointer integration and independently owned parent repair
+
+Published #265 is `35555d0f8491d4ee95c2e61d1a2aaa2c02a0635c`, still Draft. Ordinary two-parent
+integration `7535d8af` preserves original child `ffa70ee0f499b86ff51837fb95733fd5cf57ff89` and
+parent `7fb93e77b800f27187a5c02333298cc31a025bd6`. Real-socket RED `3f9cdc1a` observed no command
+bytes but one outstanding command after a zero deadline. The repair retains the child's immediate
+admitted-node revalidation and the parent's typed dispatch, local no-write retirement and ambiguous
+write retention. Both use the existing registry identity allocation. Independent review identified
+four silently deleted parent postcondition tests and two obsolete sender calls; all were restored
+or migrated without dropping assertions. The final review found no remaining actionable finding,
+which is not a counted GitHub approval.
+
+All 19 focused tests, complete Rust 1.97.1 formatting/check/tests/strict Clippy/rustdoc, all 145
+Python contracts, compileall, CodeGraph and diff checks pass. The exact-head pinned-nightly rerun
+passes unchanged production coverage at **1293/13567/17273/1440** functions/lines/regions/branches,
+each 100%; artifact SHA-256 is
+`b1374f65538fb6557b4e5d877aa067e183202ed1f56c75be047b3ff2dfdc92a0`. This is local source evidence.
+CI `34032661775`, Rust `101484986934` and coverage `101484987071`, and MV3 `34032661781` /
+`101484986948` remain queued. Normal publication was verified; writer `5559058158` released.
+
+The live parent #264 subsequently advanced to test-only `b4702cd503fa3f721e0d1f44b355563753dac0a2`.
+Its 129-line socket regression targets registry-session A dispatch over transport-session B;
+active writer [5559076006](https://github.com/ContextualWisdomLab/OriginWeave/pull/264#issuecomment-5559076006)
+owns that repair. Parent CI `34031977586` and MV3 `34031977597` remain queued. Adoption is deferred
+until the parent repair and writer release: #265's local GREEN is **not latest-parent acceptance**.
+The PR base snapshot still names `7fb93e77`, so it must not replace the fetched live parent as
+dependency evidence. No parent source was changed during this documentation slice.
+
+Browser access recovered after the earlier locked-screen failures. Fresh actual Edge visual
+inspection of #265's published body and Checks page verified head `35555d0f`, Draft state and the
+three queued checks. The inspected desktop screenshots show readable wrapping with no observed
+clipping or overlap. This replaces the earlier lock blocker only for that inspected presentation;
+the new documentation head still requires its own visual inspection. GitHub presentation is not
+OriginWeave product-browser acceptance, browser-process authentication or navigation causality.
+
+The #238 predecessor `88447b7d43e4a87b48fb8fde33f93b2e3ce8cbc5` still has pending native CI
+`34031539064` and central review/security work. Its 172 local Python passes and #265's source
+coverage do not transfer to this documentation commit. The next executable items are this dated
+evidence update, then verified parent adoption after the separate writer releases; #195/#279,
+#212 and protected-main/release gates remain prerequisite work.
 
 #### Scheduling and central-owner follow-up
 
