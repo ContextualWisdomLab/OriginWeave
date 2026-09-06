@@ -12,6 +12,11 @@ OriginWeave needs one stable authority model even though different deployments m
 
 This is a contract baseline, not a claim that the complete network service or SDK is implemented on protected `main`.
 
+The active #264 source proposal ends local navigation-event admission when shutdown begins and
+keeps shutdown requests and replies on the original connection. Failure requires a new subscription
+before admission resumes. This proposal is not shipped browser behavior; its scope and alternatives
+are recorded in [ADR 0107](adr/0107-browser-protocol-adapter-strategy.md).
+
 ## 2. Protocol design goals
 
 - transport-neutral;
@@ -363,6 +368,12 @@ Protocol transport authentication proves the calling human/workload identity. Au
 ### WebDriver BiDi
 
 Maps session/user-context/browsing-context capabilities into scoped OriginWeave identities. BiDi element/context identifiers remain adapter-local.
+
+Non-shipped #264 source requires typed request identifiers to increase across a connection's entire
+lifetime, including after completion, retirement or replacement of local correlation state. Raw text
+uses a separate connection; Pong and reading responses do not reset this rule. Callers migrating from
+the earlier draft must stop reusing request numbers and use the consuming handoff for raw sockets.
+This local correlation policy does not authenticate the browser or prove an action's visible result.
 
 ### Chrome DevTools Protocol
 

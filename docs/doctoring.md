@@ -4,19 +4,180 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Subscription teardown ownership and connection provenance
+
+The actual-socket regression at `2c45cea8` shows that constructing teardown from a borrowed receipt
+still permits event admission. Three more failures at `ce6f6fd4` show 91 masked unsubscribe bytes
+emitted on another connection, and foreign success/error replies consuming the original pending
+command. Genuine original replies then fail as no longer outstanding. Both fixture servers are
+joined before assertions; these failures are not timeouts or setup errors.
+
+The repair consumes the existing non-cloneable subscription receipt, stores its existing connection
+identity in the teardown command, and reuses connection-aware registration and received-message
+correlation. The lifetime regression becomes an `E0382` compile-fail example proving that the moved
+receipt cannot create admission; its original failing runtime test remains in history. Existing
+admission-to-teardown and exact-wire escaping checks retain runtime coverage. Invalid construction
+also consumes local admission authority, and no failure restores it. Already admitted observations
+are not revoked. Proposed ADR 0107 records why shared revocation flags add unnecessary state.
+
+W3C's current Editor's Draft defines by-ID removal against the session's known subscriptions and an
+`EmptyResult` return type. Same-connection use and consuming local admission are stricter OriginWeave
+policy, not additional requirements attributed to W3C. A protocol acknowledgment is not event-drain
+or process-cleanup evidence. Browser authentication, navigation causality, hosted exact-head checks,
+protected integration and release acceptance remain separate. Full repair verification is pending.
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi: The session.unsubscribe command*
+[Editor's Draft]. Retrieved September 6, 2026, from https://w3c.github.io/webdriver-bidi/#command-session-unsubscribe
+
+### Successive command responses and exclusive stream ownership
+
+Actual-socket regressions at `92fd0b07` send the same subscription command ID twice on one connection.
+An old successful response consumes the second pending command and creates admission against its
+new binding. At `15aea15e`, the same four lifecycles show an old error retiring the new command:
+completed response reuse, unparsed response after explicit retirement, replacement correlation, and
+an old response buffered until after the second send. The server validates both emitted commands,
+withholds the new reply until old-response parsing, and is joined before assertions. These failures
+are separate from the earlier original-registry repair and its coverage evidence.
+
+Independent review also traced public raw text writes and a pre-upgrade TCP stream borrow. A
+compile-fail test at `15aea15e` unexpectedly compiles because callers can retain a socket clone
+before handing the original connection to the WebSocket owner. The Rust documentation states that
+cloned handles share the same stream and socket options. Removing the nonconsuming borrow closes
+that bypass; consuming raw handoff remains, without any public reconstruction path. The original
+real locally-revoked socket test is preserved inside the connection owner rather than deleted.
+
+The bounded repair uses the existing frame owner, one private text-lane state and the last typed
+command ID. IDs must strictly increase across all five typed senders on a connection. Raw and typed
+text cannot mix in either order; Pong and received messages preserve dispatch history. Three further
+real-socket regressions failed on forbidden wire bytes before this repair and now exercise both lane
+directions and cross-kind reuse after out-of-order replies, Pong, reader moves and a new correlation
+table. Masking-key fixtures now seed Pong; the ambiguous pointer-write probe uses increasing IDs so
+a local freshness rejection cannot masquerade as a socket failure. Existing preflight retirement and
+ambiguous-write retention are unchanged. No new dependency, parser, unbounded ledger or gate is added.
+
+W3C's current Editor's Draft permits command IDs to recur; it does not require recurrence. The stricter
+local policy trades caller flexibility for unambiguous replies to previous local dispatches. A receive
+counter cannot identify old replies first read after resend; a by-value wrapper cannot cover retirement
+before parsing; a replaceable correlation table cannot own connection-lifetime history. See Proposed
+ADR 0107 for consequences and alternatives. Neither local socket checks nor GitHub page inspection
+prove browser authentication, unsolicited-peer response truth, navigation causality, unsubscribe
+lifetime, protected integration or release readiness. Rust 1.97.1 remains the build baseline; the online
+standard-library reference currently describes 1.98.1.
+
+Rust Project Developers. (2026). *TcpStream::try_clone*. Rust standard library documentation.
+Retrieved September 6, 2026, from https://doc.rust-lang.org/std/net/struct.TcpStream.html#method.try_clone
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi: Commands* [Editor's Draft].
+Retrieved September 6, 2026, from https://w3c.github.io/webdriver-bidi/#commands
+
+### Original registry ownership through subscribed navigation
+
+Four real-socket regressions at `b3ffeac9` on published #264 `2a9fdc54` fail at distinct
+use boundaries: a command created in registry A can send using registry B; its original receipt and
+binding can create admission in B; a genuine original-connection event can enter B's admission;
+and an observation correctly admitted in A can advance B's document. Separate real registries
+legitimately allocate the same local numeric IDs. The last case does not even require matching wire
+context text. Earlier unsent-binding tests covered command-instance identity, not this owner swap.
+The initial fixture compile error at `c41e737b` was corrected before claiming these behavioral failures.
+
+The repair gives the canonical core registry one opaque process-local allocation identity and
+retains its witness through the existing command, binding and subscribed observation. The existing
+context validator checks ownership before numeric/text liveness checks; the sender checks before
+correlation or I/O, event admission checks before replay insertion, and the shared document-advance
+sink checks before mutation. Origin binding already delegates to that sink. Existing connection
+and command-instance identities remain independent requirements. A rejected foreign event leaves
+replay state available for the original event; moving the original registry preserves its identity.
+The receipt regression also drops the original registry before constructing its replacement. The
+core diagnostic contract verifies that a cloned witness matches its live owner but not a new registry
+after the owner is dropped. Initial `e686b3a0` coverage passed all functions and branches but missed
+one line and three regions in the core unit-crate diagnostic copy; exercising this real failure in
+the existing diagnostic test closes that test gap without exclusions or production changes.
+No new transport, registry implementation, global counter, dependency, exclusion or quality gate is introduced.
+
+Rust's standard-library documentation defines `Arc::ptr_eq` as allocation identity rather than
+value equality; clones retain the same allocation. A retained witness keeps only that identity
+alive, not mutable registry state, preventing a later allocation from impersonating a dropped owner.
+The API uses no raw address or unsafe operation and is compiled against Rust 1.97.1. The online
+reference currently describes Rust 1.98.1; it is not substituted for the pinned build evidence.
+The small per-registry allocation and reference-count cost are accepted in the Proposed refinement
+of ADR 0107. Numeric/text matching and constructor-only checks miss the reproduced sink swap;
+global identifier renumbering would affect unrelated consumers without expressing this ownership invariant.
+
+This slice pins the registry that constructed the command; it does not prove that its registered
+browser session is authenticated by the transport. Same-connection resend freshness, action causality,
+unsubscribe lifetime/transport provenance and broader adapter ownership remain separate unfinished
+boundaries. A document change alone must not retire a context-wide subscription. #264 stays Draft
+behind #195/#279; local tests and numerical coverage do not prove hosted, protected-main or browser acceptance.
+
+### Subscription response and event receive-connection integrity
+
+On September 6, 2026, two real-loopback regressions against #264 `43d3b5a3a2b5ce4f51a93d1152a0ee82620f4f3e` exposed the remaining inbound transport gap. A successful response received on a second connection completed the first connection's pending subscription when session and command identifiers matched. A matching navigation event on another connection also became a state-changing observation. Test-first commit `918c4ebeb27e1eb7e03567eb52e6e547dfd499df` records both failures.
+
+The repair reuses the already implemented connection-owned message reader and private process-local connection generation. The typed subscription sender stores its established connection generation beside the existing private command identity. Successful response admission requires both identities; protocol-error retirement requires the same sent connection. Foreign success and error messages preserve the original pending command. The successful receipt retains that generation, and active event admission compares it before context validation, parsing or replay-history mutation. Raw assembled text remains usable for inert parsing but cannot enter these state-changing admission paths. No socket is reconnected, no caller-provided generation is accepted, and no parser, registry, dependency or transport implementation is copied.
+
+The real-socket tests send the same success/error payload on the foreign and original connections: foreign data is rejected, then the original success completes or original protocol error retires exactly its pending command. The event regression rejects foreign data without changing the document epoch, then admits the same event on the original connection and advances the document. Existing malformed, wrong-kind, stale-context, replay, capacity, no-write and ambiguous-write tests remain required. Fixtures that previously combined a subscription and event from separate sockets now retain the actual original socket instead of weakening those checks.
+
+This is an implementation repair of the existing exact-connection provenance boundary, not a new accepted architectural decision or process-authentication claim. Retaining one existing generation adds fixed receipt metadata and requires consumers to keep the connection-owned receive proof. Caller-supplied session/context strings are insufficient because distinct connections can reuse them; a second transport or registry abstraction would duplicate the current owner. The original-command identity repair below remains necessary because connection identity alone cannot distinguish separate command instances.
+
+Unresolved boundaries remain explicit: this slice does not bind a caller-supplied authority registry to its transport, prove freshness after a real resend reuses an id on the same connection, establish action causality, or complete unsubscribe lifecycle provenance. The current unsubscribe constructor borrows a receipt and retains its opaque identifier; its send/response path and detached admission lifetime need a separate test-first lifecycle repair. #264 stays Draft behind its unprotected prerequisite stack and #195/#279. Local socket evidence does not prove real Chromium acceptance, hosted exact-head checks, protected-main integration or release readiness.
+
+Private checkpoint `bd29f405a6c927b2f7d1c437dccbfb8bcec424f1` passed seven admission tests, 23 focused subscription/unsubscribe tests, all 144 Python contracts, locked Rust 1.97.1 workspace checks/tests, strict all-feature Clippy, warning-denying rustdoc, formatting and compileall. Its coverage was exactly 1273/1273 functions, 13311/13311 lines, 16973/16973 regions and 1432/1432 branches with the pinned nightly's unstable branch-instrumentation warning retained. The debug-redaction assertion exercises a genuinely received receipt in the existing socket test rather than constructing private receipt fields in a separate unit fixture. Independent read-only review found no actionable defect; it is not a counted GitHub approval.
+
+The separate published checkpoint `8ebcc6131a5dd6bf0b4720c2f1ff8d40d1cc39f8` also binds subscription responses and events to the sent connection. Its actual typed-send malformed, unknown and matched-error fixtures, stronger transport diagnostics and boundary documentation remain valid. An unchanged local reproduction passed all 145 Python contracts and the coverage test run, but formatting failed in five test/support files and exact coverage failed at 13327/13330 lines and 17004/17008 regions; functions were 1274/1274 and branches 1434/1434. The diagnostic artifact SHA-256 is `f352e3f04bdc3ed1912be7c452c5c426d9caaec7dd1a613b7d3ab9c6486ab69e`.
+
+The local integration candidate preserves both commit histories and both sets of socket regressions. It retains the published event-error variant and typed-send fixtures, carries the private original-connection recovery and document-state checks, and uses the existing shared connection-generation validator for both completion paths. A successful subscription receipt always retains a generation; an optional missing-generation state used only by a private debug fixture is removed, while the same redaction/accessor assertions run against a real receipt. No shared-branch push or combined-candidate verification is claimed by either checkpoint's earlier results.
+
+Follow-up local integration `bc7a51666250f08e0e2b090e63b9417a71eee0c5` ordinarily incorporates both checkpoints and the intervening remote lineage through `f87f09524b8741109c8c80c13065030b4333408f`, including `da4a11f0` shared-validation intent and `701fcaad` direct event-error diagnostics. One shared presence-and-equality validator retains the earlier command-instance diagnostic precedence without duplicating validation. Actual Rust 1.97.1 formatting reconciles the inherited style-only changes without changing any test body. Fresh locked all-target/all-feature workspace check and tests, strict Clippy, warning-denying rustdoc, formatting, all 145 Python contracts and compileall pass. Pinned coverage and its unchanged verifier pass at 1273/1273 functions, 13317/13317 lines, 16984/16984 regions and 1432/1432 branches; coverage artifact SHA-256 is `7e6f2d1450814f1c52ff36a85c62ba7918fe7bff365cb2e73d62ef6b55601082`. Independent read-only comparison found no actionable loss of valid contributor changes or authority regression. At that observation this local candidate was unpublished and excluded later remote commits; it did not inherit shared-writer authority, hosted acceptance, protected-main status or release eligibility from those results.
+
+After explicit shared-writer release [5558261278](https://github.com/ContextualWisdomLab/OriginWeave/pull/264#issuecomment-5558261278), ordinary merge `ad14ce1f` also incorporates the final shared checkpoint `52cff96954c3fec7b8cda5409e4560e970bfcbdf`. Its Rust and test tree is identical to verified `bc7a5166` after running the pinned formatter, while all contributor histories remain ancestors. This lineage comparison is not a substitute for fresh pre-publication gates or subsequent exact-head hosted acceptance.
+
+### Subscription receipt and command-instance integrity
+
+The following records the preceding command-identity-only repair at `43d3b5a3a2b5ce4f51a93d1152a0ee82620f4f3e`; its then-unresolved receive-connection boundary is addressed by the separate repair above.
+
+On September 6, 2026, real-loopback regressions against #264 `cf0f2452ea0612106f1076dcb2df58c7d6428943` reproduced two existing admission defects. A genuinely sent context-A subscription receipt accepted an unsent same-id context-B binding. After one completed subscription was consumed into unsubscribe, public typed correlation re-registration also allowed the retained response text to create another receipt without another send. Test-first commit `73f11de2232060ac7680e188db88ef7609123296` records both failures; these were not parent-adoption regressions.
+
+The first candidate retained numeric session/context identifiers in the existing correlation entry. A second realistic regression rejected that candidate: independent registries allocate the same local numbers, so an unsent binding in another registry still matched. The final repair instead retains one private standard-library allocation identity from command construction through its captured binding, typed sender registration and successful receipt. Admission requires the exact same command instance before the existing current-context check. Generic registration cannot provide the private identity. Successful receipt parsing validates command kind and private provenance before consuming correlation; malformed, unknown, wrong-kind and missing-provenance responses leave outstanding state untouched. Remote protocol-error retirement, local no-write retirement and ambiguous-write retention retain their previous semantics. There is no second registry, dependency or global counter.
+
+This is an implementation repair of the existing exact-command admission invariant, not a new browser authority or accepted architectural decision. The retained identity has a small allocation/reference-count cost and lives only as long as its command, captured bindings, outstanding entry or consumed receipt. It does not authenticate a received response or event connection, prevent a stale response being matched after an actual new send reuses the same protocol id, establish click causality, or bind a caller-supplied registry instance to a transport. Those broader provenance requirements remain unreleased work. #264 remains Draft behind #195/#279; local regressions do not prove protected-main or real-browser acceptance.
+
+Fresh final-tree verification passes five admission loopback tests, all 144 Python contracts without skips, the complete locked Rust 1.97.1 workspace checks/tests, strict all-feature Clippy, warning-denying rustdoc, formatting, compileall and CodeGraph sync. Pinned nightly coverage is exactly 1273/1273 functions, 13294/13294 lines, 16963/16963 regions and 1430/1430 branches; the unstable branch-instrumentation warning is retained. Independent read-only review found no production defect in the bounded identity repair and requested the now-added identical-fields/different-command regression. This review is not a counted GitHub approval.
+
+### Active-subscription admission parent adoption
+
+On September 6, 2026, #264 predecessor `9c4116b23e5b35e50bb66fff9f72d52bba3adbd0` still inherited #263's older `24fc763f0c4ae4e0dd2c62b9dca4b5bc0d23a94b` tree. Replaying the unchanged current-parent reconnect regression produced compiler RED: the connection-bound received-message reader types and `TransportConnectionMismatch` rejection variant were absent. Test-first commit `44c44b46` records that missing contract before ordinary adoption of #263 `3f22de94b63da83eaa8b5b1270912b21a3ecd006`.
+
+The ordinary merge preserves the complete parent production tree and the existing child admission delta. The two textual conflicts are resolved by retaining both public-contract descriptions and both required imports, not by selecting one whole side. The child still requires an exact subscription command identifier and current registry mapping, rejects null or replayed navigation identifiers, fails closed at replay-history capacity, consumes admission before unsubscribe, and admits only the subscribed observation type at document/epoch/origin mutation boundaries. Parent command-family correlation, local no-write retirement, ambiguous-write retention, and connection-bound session-end acknowledgment/closure checks remain intact.
+
+These are separate authority guarantees: the parent's received-response connection provenance protects session-end acknowledgment and teardown. The existing subscription/event admission still uses command identity and registry mapping; this merge does not add connection-authenticated event provenance or prove action causality. Neither a local loopback pass nor the parent CI `34009256997` proves this child's hosted acceptance. #264 remains Draft, and the earlier #195 protected-asset/workflow-generation repair and #279 protected workflow prerequisite remain unresolved. This change does not modify workflows, dependencies, protocol pins, deadline limits or acceptance gates, and does not claim protected-main delivery or browser-runtime completion.
+
+Fresh combined-tree verification passes nine focused reconnect/admission/document-transition loopback tests and all 144 Python repository contracts without skips. Full Rust `1.97.1` formatting, locked workspace check/tests, all-feature strict Clippy and warning-denying rustdoc pass, along with compileall, CodeGraph sync and diff checks. Pinned `nightly-2026-08-01` coverage is exactly 1271/1271 functions, 13244/13244 lines, 16919/16919 regions and 1428/1428 branches; the unstable `--branch` measurement warning remains separate. An independent read-only merge review found no changed parent transport/correlation/teardown bodies or changed child admission/document-transition bodies. Current REST formal reviews and inline comments are empty; a GraphQL rate-limit rejection prevents a new thread-resolution claim, and absence of a review is not approval.
+
 ### Browser automation and interoperability
 
-The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+Fresh deadline-repair verification passed 11 focused subscription loopback tests and all 142 Python contracts, plus the complete locked Rust workspace checks/tests, formatting, all-feature Clippy, warning-denying rustdoc, compileall, and diff checks. Numeric production coverage is 100% for 1,221 functions, 12,781 lines, 16,404 regions, and 1,418 branches; the unstable branch-measurement warning remains. The 1,220-function result below belongs to the earlier parent-adoption tree, not this subsequent source change.
 
-The same Working Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control, whitespace, or reviewed Unicode format characters. Requiring `sharedId` and rejecting control, whitespace, and format characters is a local fail-closed policy, not a claim that the Working Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity. The same-call QueryNodes admission boundary first obtains a non-cloneable SemanticObservation protocol-use proof and transfers that proof by ownership into `bind_current_nodes`, which refuses Navigation and TypedInput proofs before translating each admitted `sharedId` through the session-scoped registry into an `ObservedNodeHandle` only after the exact current session, browsing context, canonical origin, and document epoch are revalidated and the returned item count still fits the reviewed query budget. That composition still performs no browser I/O and does not authorize typed input.
+The subsequent subscription deadline repair reuses the frame owner's existing local timeout validator before command registration. A loopback regression on parent-adoption head `3c0484174eeda0703492ba76b530be125e3e99dd` observed no subscription bytes but two outstanding commands where only the pre-existing command should remain. Zero and over-limit deadlines now leave that command untouched and the rejected identifier reusable. Provably local no-write failures retire only the exact typed subscription correlation; adjacent masking-key reuse is one such `MalformedFrame` preflight rejection. A separate loopback regression preserves unrelated correlation, proves the rejected subscription identifier reusable, and observes no subscription command bytes. Failures after frame emission may have begun remain ambiguous; ambiguous frame-write failures retain correlation. No deadline bound, wire format, response parser, connection authority, or external API changes.
+
+Fresh verification of that current-parent subscription composition passed 16 focused loopback tests, all 142 Python contracts, format, locked workspace check/tests, all-feature Clippy, warning-denying rustdoc, compileall, and diff checks. Production coverage is numerically 100% for 1,220 functions, 12,774 lines, 16,397 regions, and 1,418 branches. The `--branch option is unstable` measurement warning remains; hosted acceptance, protected-main integration, and real-browser completion still need their own evidence.
+
+The committed-navigation subscription child adopts origin-binding parent `934eb7d37568b439c442ffe1d1f6a9c8f8ed58a0` while preserving the two subscription production modules, three loopback test files, and Proposed ADR text from contributor head `01038ba71fb276426cc67f90a91a3c431e194db5`. Its existing `NavigationCommittedSubscription` command family remains distinct; malformed success data and wrong command kinds cannot consume unrelated correlation. The response parser remains protocol-correlation evidence, not connection authentication or proof that an event occurred. Invalid frame deadlines are rejected before correlation registration; after registration, a `MalformedFrame` that proves no write began retires only the exact typed subscription identifier, while ambiguous frame-write failures retain correlation. Native discovery reproduced zero inherited release-contract tests before adoption and one passing test after reusing the parent fix.
+
+The 3 September 2026 W3C Working Draft is the current published WebDriver BiDi technical report. The W3C technical-report cover page and publication history identify that dated draft as the latest published version; the Editor's Draft remains a separate living document. Because WebDriver BiDi remains a draft protocol, OriginWeave keeps it behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+
+The same Editor's Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control, whitespace, or reviewed Unicode format characters. Requiring `sharedId` and rejecting control, whitespace, and format characters is a local fail-closed policy, not a claim that the Editor's Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity. The same-call QueryNodes admission boundary first obtains a non-cloneable SemanticObservation protocol-use proof and transfers that proof by ownership into `bind_current_nodes`, which refuses Navigation and TypedInput proofs before translating each admitted `sharedId` through the session-scoped registry into an `ObservedNodeHandle` only after the exact current session, browsing context, canonical origin, and document epoch are revalidated and the returned item count still fits the reviewed query budget. That composition still performs no browser I/O and does not authorize typed input.
+
+The current Editor's Draft defines `session.status` as a static command whose command type is the exact method `session.status` with `EmptyParams`; the result contains `ready` as a boolean and `message` as text. It also defines `session.end` with `EmptyParams` to terminate the session. OriginWeave's typed outbound command slices serialize only those standards-defined methods and empty parameter objects. A successful WebSocket frame write is transport progress, not command completion: the command remains outstanding until a later admitted WebDriver BiDi response is parsed and correlated to the exact command id. Local validation failures that prove no command bytes could have been emitted may release only the corresponding just-registered correlation; partial or ambiguous write failures retain correlation because remote receipt cannot be disproved. Regression coverage verifies that distinction from the resulting correlation count rather than from an internal error wrapper.
 
 WAI-ARIA 1.2 defines host-language `role` values as a token list: user agents split on whitespace and use the first matching non-abstract role. OriginWeave's first `locateNodes` accessibility query asks for one exact role, so a role containing whitespace, a control character, or a Unicode format character is rejected rather than interpreted as a fallback-role list. Accessible Name and Description Computation 1.2, a W3C Working Draft as of 5 August 2026, treats accessible names as ordinary strings that may contain spaces and treats whitespace-only `aria-roledescription` values as absent. OriginWeave therefore keeps ordinary spaces in accessible-name locators, rejects control and reviewed format characters that would become protocol-text injection or bidirectional spoofing, and rejects whitespace-only names as non-selectors.
 
 UTS #39 Revision 32 is the current Unicode security-mechanisms standard and marks Default_Ignorable and bidirectional format characters as restricted in identifier profiles. UAX #9 defines the bidirectional format controls that can reorder displayed protocol text. UTR #36 Revision 15 remains a stabilized historical security-considerations report; its identifier recommendations are superseded by UTS #39 rather than cited as current normative profile rules. OriginWeave therefore rejects the reviewed format-character set in roles, shared identifiers, and registry external identifiers, and rejects those same characters inside accessible names while still allowing ordinary U+0020 spaces.
 
-RFC 6455 carries the WebSocket opening handshake over HTTP/1.1, and RFC 9110 permits `obs-text` octets (`%x80-FF`) in field values while retaining ASCII field-name and delimiter syntax. RFC 6455 also specifies that unknown opening-handshake header fields are ignored. OriginWeave therefore treats unknown extension-field values as opaque compatibility data rather than requiring the entire opening response to be UTF-8, while keeping the authority-bearing `Upgrade`, `Connection`, and `Sec-WebSocket-Accept` checks fail closed: opaque replacement material cannot satisfy the reviewed ASCII token or exact accept-value contracts. Ignoring an unknown field never grants browser, network, secret, approval, or Agent authority.
+RFC 6455 carries the WebSocket opening handshake over HTTP/1.1, and RFC 9110 permits `obs-text` octets (`%x80-FF`) in field values while retaining ASCII field-name and delimiter syntax. RFC 6455 also specifies that unknown opening-handshake header fields are ignored. OriginWeave therefore treats unknown extension-field values as opaque compatibility data rather than requiring the entire opening response to be UTF-8, while keeping the authority-bearing `Upgrade`, `Connection`, and `Sec-WebSocket-Accept` checks fail closed: opaque replacement material cannot satisfy the reviewed ASCII token or exact accept-value contracts. Ignoring an unknown field never grants browser, network, secret, approval, or Agent authority. RFC 6455 section 5.3 additionally requires every client-to-server frame to use a fresh unpredictable 32-bit masking key derived from strong entropy. OriginWeave's frame owner enforces that normative masking requirement and also rejects immediate reuse of the preceding key as a local fail-closed stuck-randomness defense; the adjacent-reuse rule is stronger local policy, not an RFC 6455 requirement.
 
 ### Browser origin equivalence
+
+The committed-navigation origin-binding child adopts current document-advance parent `2c5049aff97a90958e8262b1d403bdcbd64a1e8b` without changing its origin derivation or authority checks. The accepted URL must enter the existing canonical origin policy before document mutation; the expected pre-action epoch must still match before advancement, and only the newly advanced document receives the derived origin. This is immediate-use registry evidence, not browser-adapter authentication, action causality, or destination authorization. The child's implementation and loopback tests remain byte-identical to contributor head `323ac9e147691e9f6572711f5a748e13f1036624`. Before adoption, native discovery found zero inherited command-correlation release-contract tests; the same check discovers and passes one after adopting the existing parent fix. Fresh verification passed 18 focused loopback tests, all 142 Python contracts, format, locked workspace check/tests, all-feature Clippy, warning-denying rustdoc, and compileall. Production coverage is numerically 100% for 1,173 functions, 12,104 lines, 15,511 regions, and 1,334 branches. The measurement still reports `--branch option is unstable`; these local results do not prove hosted acceptance, protected-main integration, or browser-runtime completion.
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
 
@@ -98,7 +259,52 @@ TRINITY uses a compact learned coordinator to select models and assign Thinker, 
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, destinations, approvals, secrets, or deterministic policy.
 
+### Loopback fixture lifetime and dependency propagation
+
+On 5 September 2026, the complete Rust run at PR #255 head `e7bfec4488b7cb4776df7b546cacb46c8c9eb13e` failed before its invalid response-deadline assertion: the fixture accepted and immediately dropped the peer socket, and opening-write timeout cleanup returned macOS `EINVAL` after 198 bytes. The focused retry and complete unchanged-tree retry passed, so those retries demonstrate intermittency rather than repair. PR #243 head `673d99affaed4d16402f23202bc846348b5a7e74` contains the identical fixture blob `9d688cd2f89ca40d28c8333725809ae80f7713e3`.
+
+The owning opening-response PR #242 already repaired that fixture at `17754d717bbd7ae2e2a824e900d9fa9493b4189c`; its then-current head `55fef0c3fae1724eddada53e52c4a0311f509aa3` also retained the related opening-write and revoked-stream fixture repairs. PR #243 first adopted that parent, then incorporates the remaining shared-fixture repair at #242 head `2d0e9f69df9ade21d8e8e3d807c3ff644d83b310` by ordinary merge. Each repaired server retains its accepted stream until the client signals that the assertion or timeout cleanup has completed. This preserves the tested fail-closed behavior without a timing sleep. Descendants must integrate the corrected parent in dependency order and rerun their own complete gates; parent tests and retry success are not descendant acceptance or protected-main delivery.
+
+### Opening-exchange fixture lifetime
+
+PR #249 adopts correlation parent `b386f17c4826adabebda084bff2fba35aee94dd0` by ordinary merge into predecessor `017d6e816f5a86544a63821b3ceaba94d5f17f44`. The only merge conflict was adjacent CHANGELOG additions; both release records are retained. Before integration, the inherited release-record module collected zero native unittest checks and the required parent was absent from ancestry. Parent adoption carries the existing TestCase and peer-lifetime fixes without copying implementations; the session-status production, exports and Rust test blobs remain unchanged. The sender still retires only proven local preflight failures and retains correlation after ambiguous writes; no received-response provenance, browser post-condition or protected-main acceptance follows from this integration.
+
+PR #248 adopts message parent `585791f3641fbe757c3bd9fd36d5316adcc78d63` by ordinary merge, replacing the obsolete base on the already merged #247 branch. Its correlation production and Rust test blobs remain identical to predecessor `7d6db16b2ead201fcec320854923f90d3ad0d8bc`. Review also reproduced a separate enforcement gap: native CI runs `python3 -m unittest discover`, but the correlation release-record contract was a free function and the exact loader collected zero tests. Converting that existing check to the repository's `unittest.TestCase` format preserves every assertion, collects one executable test and adds no dependency or workflow change. Earlier Python suite counts did not exercise that contract; they are not evidence that it was enforced. The bounded correlation state still does not authenticate the received connection or grant browser authority.
+
+PR #246 adopts frame-transport parent `97fab641ed9d76e6c515eadcef0629edfc8064a3` by ordinary merge. Its message-assembly and JSON-envelope implementation/test blobs remain identical to predecessor `b87191bcb6a95dfd7e0ed234e600639a1093c43a`, while the inherited opening-exchange fixtures match the corrected parent. Fifty pre-integration fixture-suite runs passed in this invocation, so no fresh failure rate or new reproduction is claimed; the missing parent ancestry and earlier recorded failures establish why the existing repair must propagate. The raw assembler remains a bounded protocol-data boundary, not received-connection provenance or browser authority.
+
+On 5 September 2026, a complete Rust run after integrating PR #242 head `55fef0c3fae1724eddada53e52c4a0311f509aa3` into #243 reproduced `WriteTimeoutCleanupFailed` with macOS `EINVAL` after 198 request bytes in `opening_response_rejects_a_mismatched_accept_value`. That fixture returned its invalid response and closed immediately, before the client could finish opening-write cleanup. The successful-handshake fixture's one-byte close probe could consume the first request byte rather than observe closure, and the request-only fixture also closed immediately after reading the request. All three paths therefore shared a premature peer-lifetime assumption; the previously repaired invalid-deadline fixture did not cover them.
+
+The test-only `serve_opening_exchange` helper reuses the bounded request reader, reads the complete request before sending the configured response, and retains the accepted stream until the client explicitly releases it after its assertions. Successful, mismatched-accept, and request-only tests all use that helper. No sleep, retry-based acceptance, production timeout change, ignored cleanup error, dependency, or coverage exclusion is introduced. Existing real-socket assertions remain the regression checks, including the requirement that an invalid accept value reaches `AcceptMismatch` rather than an earlier fixture-induced transport failure. Descendant stacks must adopt the owner fix and rerun their own gates; the reproduced failure and this fixture repair do not imply protected-main or browser-runtime delivery.
+
+### Status-response parent integration evidence
+
+The #250 integration preserves all five child-owned production and Rust-test blobs from `0eab23d5e388c5c8b984c0021a58316680c9ba8b` and ordinarily adopts #249 `84b9407978ae0f6c115f01170b6069c601b21104`. The pre-integration branch lacked that parent, and native unittest discovery collected zero correlation release checks instead of one. Parent adoption brings the canonical synchronized opening-exchange fixture and the discoverable release TestCase into this response stack without copying either implementation. Command-specific projection still validates the common envelope, required readiness/message fields and bounded status text before consuming the exact typed outstanding correlation; status text is untrusted and is omitted from Debug output. This does not add a connection-bound received-message capability, browser policy authority, runtime process/profile teardown proof or real Chromium acceptance. The connection-provenance repair remains separately owned by its later stack. Local integrated tests and exact-head hosted gates must be evaluated independently; predecessor results do not transfer.
+
+### Session-end command parent integration evidence
+
+The #251 integration adopts #250 `ec433b844a121f8554c062f92267991af9cacb6f` by ordinary merge and retains both release records. Native discovery on predecessor `86e8ad76838f2a64aa7e0cd56ba1f931c8d0c3dc` collected zero command-correlation release tests; the current parent supplies the existing discoverable TestCase and synchronized opening-exchange fixtures. The session-end sender, its public exports and both child-owned Rust integration tests remain unchanged. The sender still registers only the exact typed command, retires correlation only after proven preflight rejection, and leaves ambiguous writes outstanding. A successful frame write does not prove session termination, browser-process exit, profile deletion, authenticated connection provenance or real Chromium acceptance. Local verification and current-head hosted checks remain separate prerequisites; earlier stack results do not transfer.
+
+### Session-end response parent integration evidence
+
+PR #252 ordinarily adopts current command parent `f02af6d0dd01708d495cc08dec785675f3d58898` while preserving the response implementation, public exports and four real-loopback response tests from `2015259529ada99af836989079cc85a15779a2d8`. The pre-integration native loader again collected zero correlation release-record checks; adopting the existing parent TestCase makes that contract executable without a new framework or copied owner fix. Both sides of the changelog-only conflict are retained. The response boundary still validates the entire bounded envelope before consuming exact typed correlation, retains remote errors as failures and leaves malformed or mismatched responses unable to consume another command. The acknowledgment remains unbound to received-connection provenance in this layer and does not prove process exit, profile removal or operational teardown. Later connection-bound evidence belongs to its own owner stack; local quality results, hosted checks and protected delivery remain separate.
+
+### Teardown-assessment parent integration and acceptance limit
+
+PR #253 ordinarily adopts response parent `6569bf40b6595ac74c2f0a997d202137f07ba1db` and preserves its assessment implementation, public exports and existing loopback tests from `0d72082e595c0e1fcc03d609ba337896ed14e2fc`. Native release-record discovery first failed with zero collected checks; the canonical parent provides the existing executable TestCase and synchronized opening fixtures. Both changelog records remain. No new assessment API or runtime-evidence producer is introduced by this integration.
+
+The retained assessment still accepts three caller-supplied booleans and can label them `OperationallyComplete`; that calculation authenticates none of the observations and is not trusted operational-completion evidence. This known product gap remains open despite passing local structural tests or numerical coverage. The later #255 owner removes raw process/profile completion claims and binds received-response and closure provenance. That owner repair must remain intact when this dependency chain is integrated and independently reverified. No release or protected-main acceptance of caller claims is justified by this intermediate parent adoption.
+
+### Transport-closure parent integration and provenance limit
+
+PR #254 ordinarily adopts teardown parent `afb623e4449b7cbf926fdcef7225ceaca822cfcf` while retaining the closure implementation, exports and six loopback tests from `cbaf50dcc97753cc73135497ea8225e8b18de190`. The native correlation release-record contract first collected zero checks; the existing parent TestCase makes it execute. Both conflicting release records remain, and the synchronized opening fixtures are inherited without duplicating their repair.
+
+Review `5120077272` remains actionable: this intermediate closure value retains kind/status but no connection-generation identity, so it cannot prove that a particular acknowledged connection closed. The existing #255 owner carries and compares received-response and closure provenance and removes raw process/profile completion claims. Preserve that repair during subsequent integration; no local test or coverage result for this parent adoption establishes that the known provenance gap is fixed. The two-read closure envelope, rejection behavior and lack of reciprocal-handshake, process-exit or profile-removal proof are unchanged.
+
 ## References
+
+The Rust Project Developers. (n.d.). *Arc in std::sync*. Rust standard library documentation.
+Retrieved September 6, 2026, from https://doc.rust-lang.org/std/sync/struct.Arc.html#method.ptr_eq
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
 
@@ -110,7 +316,7 @@ Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chro
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
-Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
+Cooper, D., Santesson, S., Farrell, S., Boeyen, R., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
@@ -172,7 +378,9 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 
 World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
 
-World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Editor's Draft]. https://w3c.github.io/webdriver-bidi/
 
 World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 

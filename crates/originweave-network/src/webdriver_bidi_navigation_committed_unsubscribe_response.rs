@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `session.unsubscribe` command.
@@ -19,21 +19,26 @@ pub struct WebDriverBiDiNavigationCommittedUnsubscribeResult {
 }
 
 impl WebDriverBiDiNavigationCommittedUnsubscribeResult {
-    /// Parse one bounded local-end message and consume its exact outstanding command on response.
+    /// Parse one bounded local-end message and consume its exact typed unsubscribe correlation.
     ///
     /// Complete JSON and common WebDriver BiDi envelope validation occur before correlation state
-    /// can be consumed. A correlatable protocol-error response consumes its matching identifier and
-    /// returns a typed remote failure. Events, null-id errors, malformed envelopes, and unknown ids
-    /// fail closed without consuming unrelated outstanding command state.
+    /// can be consumed. A correlatable protocol-error response consumes only a matching unsubscribe
+    /// command and returns a typed remote failure. Events, null-id errors, malformed envelopes,
+    /// unknown ids, and responses for another command family fail closed without consuming the
+    /// outstanding command.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiNavigationCommittedUnsubscribeResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message).map_err(|source| {
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message()).map_err(|source| {
             WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Envelope { source }
         })?;
         let completed = correlation
-            .correlate_response(&envelope)
+            .correlate_response_for_connection(
+                &envelope,
+                WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+                message.connection_generation(),
+            )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Correlation { source }
             })?;

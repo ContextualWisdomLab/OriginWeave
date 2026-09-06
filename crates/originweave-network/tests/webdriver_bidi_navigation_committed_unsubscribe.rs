@@ -8,13 +8,13 @@ use std::{
 
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
     WebDriverBiDiNavigationCommittedUnsubscribeCommand,
     WebDriverBiDiNavigationCommittedUnsubscribeResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -153,24 +153,27 @@ fn validated_subscription_can_be_unsubscribed_without_losing_opaque_text()
         Duration::from_millis(500),
     )?;
 
-    let (established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let (established, received) = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => (established, message),
         other => {
             return Err(io::Error::other(format!(
-                "session.subscribe response produced unexpected assembly state: {other:?}"
+                "session.subscribe response produced unexpected connection-bound state: {other:?}"
             ))
             .into());
         }
     };
     let subscription = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
-        &text,
+        &received,
         &mut correlation,
     )?;
     assert_eq!(subscription.subscription_id(), "sub-\"\\\n\u{0001}-구독");
 
-    let unsubscribe = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &subscription)?;
+    let unsubscribe = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, subscription)?;
     assert_eq!(unsubscribe.command_id(), 8);
     let established = unsubscribe.send(
         established,
@@ -180,9 +183,10 @@ fn validated_subscription_can_be_unsubscribed_without_losing_opaque_text()
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "session.unsubscribe response produced unexpected assembly state: {other:?}"

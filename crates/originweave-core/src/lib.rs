@@ -55,7 +55,9 @@ mod webdriver_bidi_result;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
 
-pub use browser_authority_registry::{AdmittedNodeHandle, BrowserAuthorityRegistry};
+pub use browser_authority_registry::{
+    AdmittedNodeHandle, BrowserAuthorityRegistry, BrowserRegistryIdentity,
+};
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,

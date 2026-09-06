@@ -15,10 +15,11 @@ use originweave_core::{
     WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickSendError,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_pointer_click,
+    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiPointerClickSendError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    send_webdriver_bidi_pointer_click,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -254,7 +255,7 @@ fn pointer_click_rejects_non_webdriver_bidi_proof_before_correlation_or_frame_wr
 fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::PointerClick)?;
     let (registry, handle, remote) = pointer_click_fixture()?;
 
     let error = send_webdriver_bidi_pointer_click(
@@ -322,5 +323,45 @@ fn pointer_click_invalid_timeout_leaves_no_correlation_or_wire_bytes() -> Result
         .join()
         .map_err(|_| io::Error::other("invalid-timeout pointer server panicked"))??;
     assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn pointer_click_rejects_invalid_frame_timeout_before_correlation_registration()
+-> Result<(), Box<dyn Error>> {
+    for (command_id, frame_timeout) in [
+        (11, Duration::ZERO),
+        (12, MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_millis(1)),
+    ] {
+        let (established, server) = establish_with_handshake_only_server()?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        let (registry, handle, remote) = pointer_click_fixture()?;
+
+        let error = send_webdriver_bidi_pointer_click(
+            typed_input_proof()?,
+            command_id,
+            "context-a",
+            &handle,
+            &remote,
+            &registry,
+            established,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+            frame_timeout,
+        )
+        .err()
+        .ok_or_else(|| {
+            io::Error::other("invalid frame timeout unexpectedly sent a pointer click")
+        })?;
+        assert!(matches!(
+            error,
+            WebDriverBiDiPointerClickSendError::FrameWrite { .. }
+        ));
+        assert_eq!(correlation.outstanding_count(), 0);
+
+        server
+            .join()
+            .map_err(|_| io::Error::other("invalid-timeout pointer server panicked"))??;
+    }
     Ok(())
 }

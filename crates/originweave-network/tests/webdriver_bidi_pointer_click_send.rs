@@ -2,6 +2,7 @@ use std::{
     error::Error,
     io::{self, Read, Write},
     net::{TcpListener, TcpStream},
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -16,7 +17,7 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_pointer_click,
 };
@@ -126,10 +127,10 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+fn read_masked_client_frame(stream: &mut TcpStream, expected_header: u8) -> io::Result<Vec<u8>> {
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
-    if header[0] != 0x81 || header[1] & 0x80 == 0 {
+    if header[0] != expected_header || header[1] & 0x80 == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "expected one final masked client text frame",
@@ -197,7 +198,7 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        let command = read_masked_text_frame(&mut stream)?;
+        let command = read_masked_client_frame(&mut stream, 0x81)?;
         if command != expected_json {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -236,5 +237,138 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
     server
         .join()
         .map_err(|_| io::Error::other("pointer-click transport test server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn pointer_click_reused_mask_key_rejection_retires_correlation() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let seed = read_masked_client_frame(&mut stream, 0x8a)?;
+        if seed != b"{}" {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unexpected seed frame before reused-key regression",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?;
+    let repeated_key = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
+    let established =
+        established.write_pong_frame(b"{}", repeated_key, Duration::from_millis(500))?;
+
+    let (registry, handle, remote) = admitted_pointer_click_fixture()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let error = send_webdriver_bidi_pointer_click(
+        typed_input_proof()?,
+        43,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        repeated_key,
+        Duration::from_millis(500),
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("reused masking key unexpectedly sent a pointer click"))?;
+    assert_eq!(correlation.outstanding_count(), 0);
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click command frame write failed"
+    );
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("reused-mask-key pointer test server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn pointer_click_ambiguous_socket_write_keeps_correlation() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let (closed_sender, closed_receiver) = mpsc::channel();
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let mut first_frame_byte = [0_u8; 1];
+        stream.read_exact(&mut first_frame_byte)?;
+        drop(stream);
+        closed_sender
+            .send(())
+            .map_err(|_| io::Error::other("pointer-click close signal receiver disappeared"))
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?
+        .write_pong_frame(
+            b"seed-frame",
+            WebDriverBiDiWebSocketMaskKey::new([13, 14, 15, 16]),
+            Duration::from_millis(500),
+        )?;
+    closed_receiver.recv_timeout(Duration::from_secs(1))?;
+
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let mut established = established;
+    let mut observed_ambiguous_failure = false;
+    let (registry, handle, remote) = admitted_pointer_click_fixture()?;
+    for attempt in 0_u8..64 {
+        let command_id = 44 + u64::from(attempt);
+        match send_webdriver_bidi_pointer_click(
+            typed_input_proof()?,
+            command_id,
+            "context-a",
+            &handle,
+            &remote,
+            &registry,
+            established,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([17, 18, 19, attempt]),
+            Duration::from_millis(500),
+        ) {
+            Ok(next) => {
+                correlation
+                    .retire_command_for(command_id, WebDriverBiDiCommandKind::PointerClick)?;
+                established = next;
+            }
+            Err(error) => {
+                assert!(error.source().is_some());
+                assert_eq!(correlation.outstanding_count(), 1);
+                observed_ambiguous_failure = true;
+                break;
+            }
+        }
+    }
+    assert!(observed_ambiguous_failure);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("ambiguous-write pointer test server panicked"))??;
     Ok(())
 }
