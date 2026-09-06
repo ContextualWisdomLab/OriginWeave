@@ -9,16 +9,17 @@ use std::{
 
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
-    WebDriverBiDiConnectionMessageRead, WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
     WebDriverBiDiNavigationCommittedUnsubscribeCommand,
+    WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
     WebDriverBiDiNavigationCommittedUnsubscribeResponseError,
-    WebDriverBiDiNavigationCommittedUnsubscribeResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketMessageReader, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiNavigationCommittedUnsubscribeResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -83,7 +84,9 @@ fn receive_exact_command(
 
 fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     if payload.len() > 125 {
-        return Err(io::Error::other("fixture reply exceeded short-frame encoding"));
+        return Err(io::Error::other(
+            "fixture reply exceeded short-frame encoding",
+        ));
     }
     stream.write_all(&[0x81, payload.len() as u8])?;
     stream.write_all(payload)
@@ -158,11 +161,13 @@ fn read_unsubscribe_text(
     established: WebDriverBiDiWebSocketEstablished,
 ) -> TestResult<(
     WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiReceivedTextMessage,
 )> {
-    let (established, frame) = established.read_frame(FRAME_TIMEOUT)?;
-    match WebDriverBiDiWebSocketMessageAssembler::new().push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(message) => Ok((established, message)),
+    match WebDriverBiDiWebSocketMessageReader::new(established).read_next(FRAME_TIMEOUT)? {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => Ok((established, message)),
         other => Err(io::Error::other(format!(
             "expected actual unsubscribe response text frame, got {other:?}"
         ))
@@ -182,19 +187,24 @@ fn subscription_receipt_cannot_dispatch_unsubscribe_on_another_connection() -> T
     });
     let foreign_listener = TcpListener::bind(("127.0.0.1", 0))?;
     let foreign_addr = foreign_listener.local_addr()?;
-    let foreign_server = thread::spawn(move || read_until_closed(accept_websocket(foreign_listener)?));
+    let foreign_server =
+        thread::spawn(move || read_until_closed(accept_websocket(foreign_listener)?));
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(99, WebDriverBiDiCommandKind::SessionStatus)?;
     let (sent_established, subscription) = subscribe(establish(sent_addr)?, &mut correlation)?;
     let before_send = correlation.outstanding_count();
-    let result = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &subscription)?.send(
+    let result = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, subscription)?.send(
         establish(foreign_addr)?,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new(UNSUBSCRIBE_MASK),
         FRAME_TIMEOUT,
     );
-    let rejected = result.is_err();
+    let rejected =
+        matches!(
+        &result,
+        Err(WebDriverBiDiNavigationCommittedUnsubscribeCommandError::SubscriptionConnectionMismatch)
+    );
     let after_send = correlation.outstanding_count();
     drop(result);
     drop(sent_established);
@@ -212,14 +222,19 @@ fn subscription_receipt_cannot_dispatch_unsubscribe_on_another_connection() -> T
         foreign_bytes.is_empty(),
         "foreign connection emitted unsubscribe wire bytes: {foreign_bytes:?}"
     );
-    assert!(rejected, "a receipt from A must not authorize dispatch on B");
+    assert!(
+        rejected,
+        "a receipt from A must not authorize dispatch on B"
+    );
     assert_eq!((before_send, after_send), (1, 1));
     assert!(unrelated_retained);
     assert!(!unsubscribe_registered);
     Ok(())
 }
 
-fn foreign_unsubscribe_reply_preserves_original_command(foreign_reply: &'static [u8]) -> TestResult<()> {
+fn foreign_unsubscribe_reply_preserves_original_command(
+    foreign_reply: &'static [u8],
+) -> TestResult<()> {
     let sent_listener = TcpListener::bind(("127.0.0.1", 0))?;
     let sent_addr = sent_listener.local_addr()?;
     let (release_sender, release_receiver) = mpsc::sync_channel::<()>(0);
@@ -230,7 +245,9 @@ fn foreign_unsubscribe_reply_preserves_original_command(foreign_reply: &'static 
         receive_exact_command(&mut stream, UNSUBSCRIBE_COMMAND, UNSUBSCRIBE_MASK)?;
         release_receiver
             .recv_timeout(Duration::from_secs(2))
-            .map_err(|error| io::Error::other(format!("original response barrier failed: {error}")))?;
+            .map_err(|error| {
+                io::Error::other(format!("original response barrier failed: {error}"))
+            })?;
         write_text_frame(&mut stream, UNSUBSCRIBE_SUCCESS)?;
         read_until_closed(stream)
     });
@@ -245,8 +262,8 @@ fn foreign_unsubscribe_reply_preserves_original_command(foreign_reply: &'static 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(99, WebDriverBiDiCommandKind::SessionStatus)?;
     let (sent_established, subscription) = subscribe(establish(sent_addr)?, &mut correlation)?;
-    let sent_established = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &subscription)?
-        .send(
+    let sent_established =
+        WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, subscription)?.send(
             sent_established,
             &mut correlation,
             WebDriverBiDiWebSocketMaskKey::new(UNSUBSCRIBE_MASK),
@@ -276,7 +293,10 @@ fn foreign_unsubscribe_reply_preserves_original_command(foreign_reply: &'static 
         .is_ok();
 
     assert!(sent_extra.is_empty(), "unexpected A bytes: {sent_extra:?}");
-    assert!(foreign_bytes.is_empty(), "unexpected B bytes: {foreign_bytes:?}");
+    assert!(
+        foreign_bytes.is_empty(),
+        "unexpected B bytes: {foreign_bytes:?}"
+    );
     assert_eq!(
         (before_foreign, after_foreign, after_original),
         (2, 2, 1),
@@ -284,7 +304,13 @@ fn foreign_unsubscribe_reply_preserves_original_command(foreign_reply: &'static 
     );
     assert!(matches!(
         foreign_result,
-        Err(WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Correlation { .. })
+        Err(
+            WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                    command_id: 8
+                }
+            }
+        )
     ));
     assert_eq!(original_result?.command_id(), 8);
     assert!(unrelated_retained);
