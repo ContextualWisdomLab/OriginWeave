@@ -12,8 +12,8 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 This checkpoint supersedes the source status and executable actions in the earlier
 timed checkpoints below, which remain historical evidence. The fresh complete
-five-page inventory still contains 125 open PRs (12 Ready, 113 Draft) and 13 open
-non-PR issues. All Ready candidates remain BLOCKED; only #147 retains unresolved
+five-page inventory still contains **125 open pull requests: 12 Ready/non-draft and
+113 Draft; 13 open non-PR issues**. All Ready candidates remain BLOCKED; only #147 retains unresolved
 thread `PRRT_kwDOTulPlM6coZwc`. Protected main is unchanged at
 `87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are empty.
 
