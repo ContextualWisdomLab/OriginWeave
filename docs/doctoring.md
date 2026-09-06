@@ -4,6 +4,47 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Successive command responses and exclusive stream ownership
+
+Actual-socket regressions at `92fd0b07` send the same subscription command ID twice on one connection.
+An old successful response consumes the second pending command and creates admission against its
+new binding. At `15aea15e`, the same four lifecycles show an old error retiring the new command:
+completed response reuse, unparsed response after explicit retirement, replacement correlation, and
+an old response buffered until after the second send. The server validates both emitted commands,
+withholds the new reply until old-response parsing, and is joined before assertions. These failures
+are separate from the earlier original-registry repair and its coverage evidence.
+
+Independent review also traced public raw text writes and a pre-upgrade TCP stream borrow. A
+compile-fail test at `15aea15e` unexpectedly compiles because callers can retain a socket clone
+before handing the original connection to the WebSocket owner. The Rust documentation states that
+cloned handles share the same stream and socket options. Removing the nonconsuming borrow closes
+that bypass; consuming raw handoff remains, without any public reconstruction path. The original
+real locally-revoked socket test is preserved inside the connection owner rather than deleted.
+
+The bounded repair uses the existing frame owner, one private text-lane state and the last typed
+command ID. IDs must strictly increase across all five typed senders on a connection. Raw and typed
+text cannot mix in either order; Pong and received messages preserve dispatch history. Three further
+real-socket regressions failed on forbidden wire bytes before this repair and now exercise both lane
+directions and cross-kind reuse after out-of-order replies, Pong, reader moves and a new correlation
+table. Masking-key fixtures now seed Pong; the ambiguous pointer-write probe uses increasing IDs so
+a local freshness rejection cannot masquerade as a socket failure. Existing preflight retirement and
+ambiguous-write retention are unchanged. No new dependency, parser, unbounded ledger or gate is added.
+
+W3C's current Editor's Draft permits command IDs to recur; it does not require recurrence. The stricter
+local policy trades caller flexibility for unambiguous replies to previous local dispatches. A receive
+counter cannot identify old replies first read after resend; a by-value wrapper cannot cover retirement
+before parsing; a replaceable correlation table cannot own connection-lifetime history. See Proposed
+ADR 0107 for consequences and alternatives. Neither local socket checks nor GitHub page inspection
+prove browser authentication, unsolicited-peer response truth, navigation causality, unsubscribe
+lifetime, protected integration or release readiness. Rust 1.97.1 remains the build baseline; the online
+standard-library reference currently describes 1.98.1.
+
+Rust Project Developers. (2026). *TcpStream::try_clone*. Rust standard library documentation.
+Retrieved September 6, 2026, from https://doc.rust-lang.org/std/net/struct.TcpStream.html#method.try_clone
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi: Commands* [Editor's Draft].
+Retrieved September 6, 2026, from https://w3c.github.io/webdriver-bidi/#commands
+
 ### Original registry ownership through subscribed navigation
 
 Four real-socket regressions at `b3ffeac9` on published #264 `2a9fdc54` fail at distinct

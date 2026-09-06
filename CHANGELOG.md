@@ -8,6 +8,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Prevent an earlier browser reply from completing a later request that reuses its number. Typed browser requests now use increasing numbers on each connection, and low-level protocol traffic uses a separate connection.
+
 - Keep navigation subscriptions and accepted navigation events attached to their original browser state, so a replacement state with matching local identifiers cannot send a request or change another document.
 - Reject navigation-subscription replies and events received on a different connection, even when their session and request details match. Rejected messages leave the original request and document unchanged, so the original connection can still complete its work.
 - Prevent an unsent navigation subscription from borrowing another request's successful response, including when separate sessions reuse the same local numbers. Re-registering a completed request number without sending a new request cannot recreate its consumed subscription.

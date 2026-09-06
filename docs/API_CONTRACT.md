@@ -364,6 +364,12 @@ Protocol transport authentication proves the calling human/workload identity. Au
 
 Maps session/user-context/browsing-context capabilities into scoped OriginWeave identities. BiDi element/context identifiers remain adapter-local.
 
+Non-shipped #264 source requires typed request identifiers to increase across a connection's entire
+lifetime, including after completion, retirement or replacement of local correlation state. Raw text
+uses a separate connection; Pong and reading responses do not reset this rule. Callers migrating from
+the earlier draft must stop reusing request numbers and use the consuming handoff for raw sockets.
+This local correlation policy does not authenticate the browser or prove an action's visible result.
+
 ### Chrome DevTools Protocol
 
 Maps selected versioned Network/DOMSnapshot/Accessibility/Tracing and other explicitly reviewed domains. `Runtime.evaluate` is not automatically mapped to standard `browser.act`.

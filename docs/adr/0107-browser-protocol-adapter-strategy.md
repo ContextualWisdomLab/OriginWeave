@@ -36,6 +36,32 @@ MCP version negotiation is independent of the OriginWeave Protocol version. As o
 
 ## Consequences
 
+### Proposed refinement: sealed command dispatch history (2026-09-06)
+
+In the context of successive browser commands on one verified connection, facing retained or
+buffered replies completing a later command with the same wire identifier, we decided for one
+connection-owned strictly increasing typed-command namespace and mutually exclusive raw-text and
+typed-command lanes, and against receive-order counters, consuming response wrappers alone, or a
+resettable correlation-table ledger, to prevent ambiguity between local dispatches with constant
+memory, accepting that callers must choose increasing IDs and use separate connections for raw text.
+
+WebDriver BiDi permits identifier reuse; this is an OriginWeave local policy, not a protocol mandate.
+The first typed ID may be zero and the JavaScript-safe maximum is usable once; exhaustion requires
+an explicit new connection rather than wraparound. Pong frames and message reads preserve the mode
+and last ID. All typed senders use the shared frame owner. Raw text cannot precede typed dispatch or
+be inserted while typed responses are pending. The nonconsuming TCP stream borrow is removed because
+a cloned handle could write outside that owner; the consuming raw-stream handoff remains available
+but cannot reconstruct an upgradeable connection. No generic HTTP/TLS stream contract changes.
+
+The real locally-revoked opening-write test moves into the connection owner's unit module so it can
+retain its OS-socket failure checks without publishing a cloneable socket. Preflight failures still
+retire only the newly registered command; ambiguous I/O failures retain pending correlation. A
+bounded tombstone set would eventually force arbitrary eviction or reconnection, while an unbounded
+set creates lifetime memory growth. Receive ordering cannot distinguish a buffered old reply first
+read after resend, and consuming wrappers misses retirement before parsing. This proposal does not
+authenticate the remote browser, reject invented peer replies, or prove navigation causality.
+The adapter remains non-shipped, and this refinement remains Proposed pending governance and gates.
+
 ### Proposed refinement: original registry identity (2026-09-06)
 
 In the context of a connection-bound navigation subscription whose local session/context numbers
