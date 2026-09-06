@@ -239,6 +239,17 @@ fn type_text_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
+    assert!(matches!(
+        correlation.retire_command_for(42, WebDriverBiDiCommandKind::SessionStatus),
+        Err(
+            originweave_network::WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+                expected: WebDriverBiDiCommandKind::SessionStatus,
+                actual: WebDriverBiDiCommandKind::TypeText,
+            }
+        )
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
     server
         .join()
         .map_err(|_| io::Error::other("text-input transport test server panicked"))??;

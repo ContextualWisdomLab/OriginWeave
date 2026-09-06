@@ -134,7 +134,21 @@ fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
-        stream.write_all(OPENING_RESPONSE)
+        stream.write_all(OPENING_RESPONSE)?;
+        let mut byte = [0_u8; 1];
+        match stream.read(&mut byte) {
+            Ok(0) => Ok(()),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) =>
+            {
+                Ok(())
+            }
+            Ok(_) => Err(io::Error::other("rejected text command emitted wire bytes")),
+            Err(error) => Err(error),
+        }
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
