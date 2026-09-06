@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Integrated the current click-transport prerequisites into typed click-response handling, preserving the response contracts and bounded socket-observation test adjustment without claiming a browser post-condition.
+- Retained the originating connection when sending a pointer click so later response validation can reject acknowledgments received through a replacement connection; sending still does not prove that the click completed.
 - Integrated the current connection-provenance and pointer-click prerequisites into bounded click transport, retaining both public adapters and keeping frame-write evidence separate from browser-action completion.
 - Integrated the current connection-provenance prerequisite into bounded pointer-click serialization, preserving its command validation and inert authority boundary while restoring the inherited executable release contract.
 - Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
