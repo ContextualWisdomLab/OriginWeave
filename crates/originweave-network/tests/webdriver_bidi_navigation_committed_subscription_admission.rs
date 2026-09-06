@@ -192,8 +192,7 @@ fn receive_subscription_result(
 }
 
 #[test]
-fn committed_navigation_requires_the_exact_active_subscription_before_document_mutation()
--> Result<(), Box<dyn Error>> {
+fn committed_navigation_requires_the_exact_active_subscription_before_document_mutation() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -371,8 +370,7 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
 }
 
 #[test]
-fn sent_subscription_cannot_be_rebound_to_an_unsent_same_id_context() -> Result<(), Box<dyn Error>>
-{
+fn sent_subscription_cannot_be_rebound_to_an_unsent_same_id_context() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
@@ -404,8 +402,7 @@ fn sent_subscription_cannot_be_rebound_to_an_unsent_same_id_context() -> Result<
 }
 
 #[test]
-fn identical_unsent_command_fields_do_not_recreate_sent_command_identity()
--> Result<(), Box<dyn Error>> {
+fn identical_unsent_command_fields_do_not_recreate_sent_command_identity() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
@@ -460,8 +457,7 @@ fn subscription_identity_does_not_collide_across_registries() -> Result<(), Box<
 }
 
 #[test]
-fn subscription_admission_rejects_mismatched_command_and_retired_context()
--> Result<(), Box<dyn Error>> {
+fn subscription_admission_rejects_mismatched_command_and_retired_context() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
