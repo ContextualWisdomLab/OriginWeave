@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Text-entry replies cannot complete another kind of pending browser request. Malformed and unrelated replies preserve pending work; acknowledgment alone still does not prove the field changed or authenticate the reply's connection.
 - Text entry rejects a connection for a different browser session and invalid deadlines before reserving a pending request. Rejected writes that provably sent nothing release that request; uncertain writes remain pending and are not silently retried. Real-browser outcome verification remains unfinished.
 - Retained text-input privacy and validation while adopting the latest click and subscription safeguards; text dispatch and browser outcome verification remain unfinished.
 - Integrated the current navigation-subscription safeguards while preserving active-subscription admission, replay rejection and stale-document checks. A response from a replacement connection still cannot complete an earlier session shutdown; this source integration is not real-browser or release acceptance.

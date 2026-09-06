@@ -1,5 +1,23 @@
 # Action Post-Condition Evidence Traceability
 
+## Text-response integration checkpoint — 2026-09-06
+
+#268 adopts #267 `4435ce5f561ca069c1844a1a5bd9b603505e25f7` by ordinary merge,
+preserving the original response validation and transport safeguards. Test-first
+commit `a9446fbc` requires success and error replies to reject every other registered
+command family without consuming its pending request. Parent adoption exposed the
+removed generic correlation call; `cd93d9fc` reuses the existing `TypeText` family
+guard. Five focused response tests pass, including ten wrong-family cases, the real
+send/receive round trip, extensible success results, typed remote failure, malformed
+envelopes and unknown identifiers. Complete combined-head verification remains pending.
+
+The consumer still receives an assembled message without authenticated receipt
+provenance. Family isolation does not prove that the reply arrived on the command's
+connection, that text appeared in the field, or that an action was authorized.
+Connection-bound receipt admission remains a separate required repair before runtime
+acceptance. Earlier checkpoint evidence below is revision-specific, not current-head
+CI, protected-main delivery or release acceptance.
+
 ## Text-transport integration checkpoint — 2026-09-06
 
 #267 adopts #266 `eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` through ordinary merge
