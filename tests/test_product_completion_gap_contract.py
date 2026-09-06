@@ -112,11 +112,19 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         """Only the latest cut may establish current foundation and transport heads."""
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),
-            "### Latest verified cut: 2026-09-06",
-            "#### Prior observation: 12:28 UTC",
+            "#### Connection-bound text responses: 14:54 UTC",
+            "#### Session repair and child adoption: 13:35 UTC",
         )
         self.assertIn("#195 `63997bcf555e2c5c8e91ba287734ffba3837a1b7`", current)
-        self.assertIn("#267 `4435ce5f561ca069c1844a1a5bd9b603505e25f7`", current)
+        self.assertIn("#267 `3346d8ecc72932b98ec495d9cc52d6e5727c3064`", current)
+        self.assertIn("#268 `e567af9e678fd4791776df795e89ed666975e6c2`", current)
+        for marker in (
+            "4632f2df", "d6889c80", "e1188c86",
+            "34040202356", "34040306372", "queued",
+            "pointer and status", "not product-browser acceptance",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
 
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
