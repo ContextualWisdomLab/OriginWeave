@@ -220,6 +220,10 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             row = active_pr_row(current, owner)
             for marker in ("Published; Draft", head, parent, coverage):
                 self.assertIn(marker, row)
+            self.assertIn(
+                f"[`{head[:8]}`](https://github.com/ContextualWisdomLab/OriginWeave/commit/{head})",
+                row,
+            )
         for marker in (
             "zero unresolved review threads", "supersedes the older sole-#147",
             "12 Ready candidates remain BLOCKED", "one counted approval", "seven required workflows",
