@@ -978,7 +978,7 @@ fn write_request_with_clock(
 #[allow(clippy::expect_used)]
 mod opening_write_tests {
     use super::*;
-    use std::{collections::VecDeque, net::TcpListener, thread};
+    use std::{collections::VecDeque, net::TcpListener, sync::mpsc, thread};
 
     #[derive(Debug)]
     enum WriteAction {
@@ -1298,7 +1298,11 @@ mod opening_write_tests {
         let address = listener
             .local_addr()
             .expect("test listener address must be available");
-        let server = thread::spawn(move || listener.accept().map(|_| ()));
+        let (release_server, await_release) = mpsc::sync_channel(0);
+        let server = thread::spawn(move || {
+            let (_stream, _peer) = listener.accept().expect("test server must accept client");
+            await_release.recv().map_err(io::Error::other)
+        });
         let mut stream = TcpStream::connect(address).expect("test client must connect");
         let start = Instant::now();
         let mut now = || start;
@@ -1314,6 +1318,9 @@ mod opening_write_tests {
                 .expect("the socket timeout must be inspectable"),
             None
         );
+        release_server
+            .send(())
+            .expect("the loopback server must remain available through timeout cleanup");
         assert!(!join_loopback_server(server));
     }
 

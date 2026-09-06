@@ -4,11 +4,13 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
 };
 
+use crate::webdriver_bidi_websocket_frame::validate_frame_timeout;
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD,
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiNavigationCommittedSubscriptionBinding, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandKind, WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_SUBSCRIBE_METHOD: &str = "session.subscribe";
@@ -106,10 +108,11 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
     ///
     /// Context binding is revalidated immediately before command correlation and network I/O so a
     /// command retained across registry retirement cannot subscribe a stale or replacement context.
-    /// Correlation registration then occurs before the first possible remote side effect. A binding
-    /// or correlation failure therefore writes nothing. After successful registration, a frame-write
-    /// failure consumes the transport and intentionally leaves the identifier outstanding because a
-    /// partial or fully emitted frame has ambiguous remote effect.
+    /// Invalid frame deadlines fail before correlation registration. Registration then occurs before
+    /// the first possible remote side effect. A frame-owner preflight rejection that proves no write
+    /// began retires this exact subscription again; currently that covers adjacent client masking-key
+    /// reuse. Once frame emission can have begun, later failures conservatively leave the identifier
+    /// outstanding because partial or full emission is ambiguous.
     pub fn send(
         self,
         registry: &BrowserAuthorityRegistry,
@@ -127,17 +130,22 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             self.browsing_context,
             &self.external_context,
         )?;
+        validate_frame_timeout(frame_timeout).map_err(|source| {
+            WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
+        })?;
         correlation
-            .register_command(self.command_id)
+            .register_command_for(
+                self.command_id,
+                WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;
         let message = self.serialized();
-        established
-            .write_text_frame(&message, masking_key, frame_timeout)
-            .map_err(|source| {
-                WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
-            })
+        match established.write_text_frame(&message, masking_key, frame_timeout) {
+            Ok(established) => Ok(established),
+            Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
+        }
     }
 
     fn serialized(&self) -> String {
@@ -149,6 +157,23 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
         message.push_str("]}}");
         message
     }
+}
+
+fn map_frame_failure(
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+    command_id: u64,
+    source: WebDriverBiDiWebSocketFrameError,
+) -> WebDriverBiDiNavigationCommittedSubscriptionCommandError {
+    if matches!(
+        source,
+        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+    ) {
+        let _retirement = correlation.retire_command_for(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        );
+    }
+    WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
 }
 
 fn require_registered_context(
@@ -200,7 +225,7 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionCommandError {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
     },
-    /// Writing the already-registered command frame failed and the transport is not reusable.
+    /// Preparing or writing the command frame failed and the transport is not reusable.
     FrameWrite {
         /// Exact typed bounded WebSocket frame-write failure.
         source: WebDriverBiDiWebSocketFrameError,
@@ -234,5 +259,39 @@ impl Error for WebDriverBiDiNavigationCommittedSubscriptionCommandError {
             Self::Correlation { source } => Some(source),
             Self::FrameWrite { source } => Some(source),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use super::*;
+
+    #[test]
+    fn only_provably_local_frame_failures_retire_subscription_correlation() {
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        assert!(
+            correlation
+                .register_command_for(1, WebDriverBiDiCommandKind::NavigationCommittedSubscription,)
+                .is_ok()
+        );
+        let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: "test preflight rejection",
+        };
+        map_frame_failure(&mut correlation, 1, preflight);
+        assert_eq!(correlation.outstanding_count(), 0);
+
+        assert!(
+            correlation
+                .register_command_for(2, WebDriverBiDiCommandKind::NavigationCommittedSubscription,)
+                .is_ok()
+        );
+        let ambiguous = WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+            bytes_written: 1,
+            source: io::Error::other("test ambiguous write failure"),
+        };
+        map_frame_failure(&mut correlation, 2, ambiguous);
+        assert_eq!(correlation.outstanding_count(), 1);
     }
 }

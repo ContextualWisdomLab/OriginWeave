@@ -1,10 +1,11 @@
 use std::{error::Error, fmt, time::Duration};
 
+use crate::webdriver_bidi_websocket_frame::validate_frame_timeout;
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiNavigationCommittedSubscriptionResult,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_UNSUBSCRIBE_METHOD: &str = "session.unsubscribe";
@@ -59,10 +60,12 @@ impl WebDriverBiDiNavigationCommittedUnsubscribeCommand {
 
     /// Register and write this exact unsubscribe command on an established verified BiDi stream.
     ///
-    /// Correlation registration occurs before the first possible remote side effect. A local
-    /// registration failure therefore writes nothing. Once registered, a frame-write failure keeps
-    /// the identifier outstanding because the peer may have received a partial or complete command;
-    /// silently retiring the id would make later response correlation or identifier reuse unsafe.
+    /// Invalid frame deadlines fail before correlation registration. Registration then occurs
+    /// before the first possible remote side effect and records the exact unsubscribe command
+    /// family. A frame-owner preflight rejection that proves no write began retires this exact
+    /// correlation; currently that covers adjacent client masking-key reuse. Once frame emission can
+    /// have begun, later failures conservatively leave the identifier outstanding because partial or
+    /// full emission is ambiguous.
     pub fn send(
         self,
         established: WebDriverBiDiWebSocketEstablished,
@@ -73,24 +76,44 @@ impl WebDriverBiDiNavigationCommittedUnsubscribeCommand {
         WebDriverBiDiWebSocketEstablished,
         WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
     > {
+        validate_frame_timeout(frame_timeout).map_err(|source| {
+            WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite { source }
+        })?;
         correlation
-            .register_command(self.command_id)
+            .register_command_for(
+                self.command_id,
+                WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+            )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedUnsubscribeCommandError::Correlation { source }
             })?;
         let message = self.serialized();
-        established
-            .write_text_frame(&message, masking_key, frame_timeout)
-            .map_err(
-                |source| WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite {
-                    source,
-                },
-            )
+        match established.write_text_frame(&message, masking_key, frame_timeout) {
+            Ok(established) => Ok(established),
+            Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
+        }
     }
 
     fn serialized(&self) -> String {
         serialize_unsubscribe_command(self.command_id, &self.subscription_id)
     }
+}
+
+fn map_frame_failure(
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+    command_id: u64,
+    source: WebDriverBiDiWebSocketFrameError,
+) -> WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
+    if matches!(
+        source,
+        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+    ) {
+        let _retirement = correlation.retire_command_for(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+        );
+    }
+    WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite { source }
 }
 
 /// Fail-closed errors while constructing or sending one typed `session.unsubscribe` command.
@@ -108,7 +131,7 @@ pub enum WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
     },
-    /// Writing the already-registered command frame failed and the transport is not reusable.
+    /// Preparing or writing the command frame failed and the transport is not reusable.
     FrameWrite {
         /// Exact typed bounded WebSocket frame-write failure.
         source: WebDriverBiDiWebSocketFrameError,
@@ -184,6 +207,33 @@ mod tests {
             serialize_unsubscribe_command(42, input),
             r#"{"id":42,"method":"session.unsubscribe","params":{"subscriptions":["quote\" slash\\ back\b form\f line\n return\r tab\t nul\u0000 unit\u0001 구독"]}}"#
         );
+    }
+
+    #[test]
+    fn only_provably_local_frame_failures_retire_unsubscribe_correlation() {
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        assert!(
+            correlation
+                .register_command_for(1, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)
+                .is_ok()
+        );
+        let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: "test preflight rejection",
+        };
+        let _ = map_frame_failure(&mut correlation, 1, preflight);
+        assert_eq!(correlation.outstanding_count(), 0);
+
+        assert!(
+            correlation
+                .register_command_for(2, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)
+                .is_ok()
+        );
+        let ambiguous = WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+            bytes_written: 1,
+            source: io::Error::other("test ambiguous write failure"),
+        };
+        let _ = map_frame_failure(&mut correlation, 2, ambiguous);
+        assert_eq!(correlation.outstanding_count(), 1);
     }
 
     #[test]

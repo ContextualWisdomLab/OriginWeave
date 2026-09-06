@@ -1,5 +1,6 @@
 use std::{
     net::{Shutdown, TcpListener},
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -150,7 +151,13 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || listener.accept().map(|_| ()));
+    let (release_server, await_release) = mpsc::sync_channel(0);
+    let server = thread::spawn(move || {
+        let accepted = listener.accept()?;
+        await_release.recv().map_err(std::io::Error::other)?;
+        drop(accepted);
+        Ok::<(), std::io::Error>(())
+    });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let connection = connect(&endpoint);
@@ -180,6 +187,7 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
         _ => false,
     };
     assert!(failed_closed_without_writing);
+    assert!(release_server.send(()).is_ok());
 
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
