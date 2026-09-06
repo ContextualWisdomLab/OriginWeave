@@ -95,7 +95,13 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 fn next_text(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<(WebDriverBiDiWebSocketEstablished, WebDriverBiDiReceivedTextMessage), Box<dyn Error>> {
+) -> Result<
+    (
+        WebDriverBiDiWebSocketEstablished,
+        WebDriverBiDiReceivedTextMessage,
+    ),
+    Box<dyn Error>,
+> {
     match WebDriverBiDiWebSocketMessageReader::new(established)
         .read_next(Duration::from_millis(500))?
     {

@@ -25,7 +25,7 @@ pub struct WebDriverBiDiNavigationCommittedSubscriptionResult {
     command_id: u64,
     subscription_id: String,
     pub(crate) subscription_intent: Arc<()>,
-    connection_generation: Option<WebDriverBiDiConnectionGeneration>,
+    pub(crate) connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionResult {
@@ -34,7 +34,7 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionResult {
             .debug_struct("WebDriverBiDiNavigationCommittedSubscriptionResult")
             .field("command_id", &self.command_id)
             .field("subscription_id_len", &self.subscription_id.len())
-            .field("connection_bound", &self.connection_generation.is_some())
+            .field("connection_bound", &true)
             .finish()
     }
 }
@@ -77,7 +77,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
                     command_id,
                     subscription_id: projected.subscription_id,
                     subscription_intent,
-                    connection_generation: Some(connection_generation),
+                    connection_generation,
                 })
             }
             WebDriverBiDiJsonEnvelopeRouting::CommandError { .. } => {
@@ -119,10 +119,6 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
     #[must_use]
     pub fn subscription_id(&self) -> &str {
         &self.subscription_id
-    }
-
-    pub(crate) const fn connection_generation(&self) -> Option<WebDriverBiDiConnectionGeneration> {
-        self.connection_generation
     }
 }
 
@@ -753,24 +749,6 @@ mod tests {
             assert!(!error.to_string().is_empty());
             assert!(error.source().is_none());
         }
-    }
-
-    #[test]
-    fn result_debug_redacts_opaque_subscription_identifier() {
-        let result = WebDriverBiDiNavigationCommittedSubscriptionResult {
-            command_id: 7,
-            subscription_id: "sensitive-subscription".to_owned(),
-            subscription_intent: std::sync::Arc::new(()),
-            connection_generation: None,
-        };
-        let debug = format!("{result:?}");
-        assert!(debug.contains("command_id"));
-        assert!(debug.contains("subscription_id_len"));
-        assert!(debug.contains("connection_bound"));
-        assert!(!debug.contains("sensitive-subscription"));
-        assert_eq!(result.command_id(), 7);
-        assert_eq!(result.subscription_id(), "sensitive-subscription");
-        assert!(result.connection_generation().is_none());
     }
 
     #[test]

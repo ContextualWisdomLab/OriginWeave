@@ -159,8 +159,8 @@ fn spawn_unsolicited_message_sender(
 }
 
 #[test]
-fn subscription_receipt_from_another_verified_connection_is_rejected()
--> Result<(), Box<dyn Error>> {
+fn subscription_receipt_from_another_verified_connection_is_rejected() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
@@ -211,8 +211,7 @@ fn subscription_receipt_from_another_verified_connection_is_rejected()
 }
 
 #[test]
-fn subscription_event_from_another_verified_connection_is_rejected()
--> Result<(), Box<dyn Error>> {
+fn subscription_event_from_another_verified_connection_is_rejected() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;

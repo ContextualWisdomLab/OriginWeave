@@ -111,10 +111,7 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
                 "subscription_id_bytes",
                 &self.subscription.subscription_id().len(),
             )
-            .field(
-                "connection_bound",
-                &self.subscription.connection_generation().is_some(),
-            )
+            .field("connection_bound", &true)
             .field(
                 "admitted_navigation_count",
                 &self.admitted_navigation_ids.len(),
@@ -197,7 +194,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
         WebDriverBiDiNavigationCommittedSubscribedObservation,
         WebDriverBiDiNavigationCommittedSubscriptionEventError,
     > {
-        if self.subscription.connection_generation() != Some(received.connection_generation()) {
+        if self.subscription.connection_generation != received.connection_generation() {
             return Err(
                 WebDriverBiDiNavigationCommittedSubscriptionEventError::EventConnectionMismatch,
             );

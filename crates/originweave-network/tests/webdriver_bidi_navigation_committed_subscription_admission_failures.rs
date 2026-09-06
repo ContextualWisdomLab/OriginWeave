@@ -97,7 +97,13 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 fn next_text(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<(WebDriverBiDiWebSocketEstablished, WebDriverBiDiReceivedTextMessage), Box<dyn Error>> {
+) -> Result<
+    (
+        WebDriverBiDiWebSocketEstablished,
+        WebDriverBiDiReceivedTextMessage,
+    ),
+    Box<dyn Error>,
+> {
     match WebDriverBiDiWebSocketMessageReader::new(established)
         .read_next(Duration::from_millis(500))?
     {
@@ -182,7 +188,6 @@ fn receive_subscription_result_and_event(
         &mut correlation,
     )?;
     let (_established, event) = next_text(established)?;
-
     server
         .join()
         .map_err(|_| io::Error::other("subscription failure-contract server panicked"))??;

@@ -104,7 +104,9 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Res
     stream.write_all(document)
 }
 
-fn establish(local_addr: std::net::SocketAddr) -> Result<WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+fn establish(
+    local_addr: std::net::SocketAddr,
+) -> Result<WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
         .correlate_session_id(SESSION_ID)?
@@ -153,7 +155,13 @@ fn read_text_over_loopback(
 
 fn sent_subscription_response(
     document: &'static [u8],
-) -> Result<(WebDriverBiDiReceivedTextMessage, WebDriverBiDiCommandCorrelation), Box<dyn Error>> {
+) -> Result<
+    (
+        WebDriverBiDiReceivedTextMessage,
+        WebDriverBiDiCommandCorrelation,
+    ),
+    Box<dyn Error>,
+> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -263,6 +271,45 @@ fn protocol_error_consumes_only_its_exact_sent_command() -> Result<(), Box<dyn E
         )
     );
     assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn protocol_error_without_sent_connection_provenance_preserves_command()
+-> Result<(), Box<dyn Error>> {
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation
+        .register_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+
+    let unknown = read_text_over_loopback(UNKNOWN_ERROR_RESPONSE)?;
+    assert_eq!(
+        WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+            &unknown,
+            &mut correlation,
+        ),
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
+            }
+        )
+    );
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let matched = read_text_over_loopback(MATCHED_ERROR_RESPONSE)?;
+    assert_eq!(
+        WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+            &matched,
+            &mut correlation,
+        ),
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                    command_id: 7
+                },
+            }
+        )
+    );
+    assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
 
