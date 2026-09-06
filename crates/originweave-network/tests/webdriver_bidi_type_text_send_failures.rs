@@ -319,7 +319,7 @@ fn type_text_rejects_duplicate_correlation_before_frame_write() -> Result<(), Bo
 }
 
 #[test]
-fn type_text_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>> {
+fn type_text_rejects_invalid_frame_timeout_without_registration() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let (registry, handle, remote) = type_text_fixture()?;
@@ -348,7 +348,7 @@ fn type_text_preserves_registration_when_frame_timeout_is_invalid() -> Result<()
         "WebDriver BiDi text-input command frame write failed"
     );
     assert!(error.source().is_some());
-    assert_eq!(correlation.outstanding_count(), 1);
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()
