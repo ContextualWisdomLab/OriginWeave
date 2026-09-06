@@ -129,7 +129,7 @@ fn establish(
     .read_opening_response(Duration::from_millis(500))?)
 }
 
-fn receive_subscription_result(
+fn receive_subscription_result_and_event(
     registry: &BrowserAuthorityRegistry,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
@@ -137,6 +137,7 @@ fn receive_subscription_result(
     (
         WebDriverBiDiNavigationCommittedSubscriptionResult,
         WebDriverBiDiNavigationCommittedSubscriptionBinding,
+        WebDriverBiDiReceivedTextMessage,
     ),
     Box<dyn Error>,
 > {
@@ -155,10 +156,10 @@ fn receive_subscription_result(
         write_text_frame(
             &mut stream,
             br#"{"type":"success","id":7,"result":{"subscription":"subscription-a"}}"#,
-        )
+        )?;
+        write_text_frame(&mut stream, MISSING_NAVIGATION_EVENT)
     });
 
-    let established = establish(local_addr)?;
     let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
         7,
         registry,
@@ -170,38 +171,22 @@ fn receive_subscription_result(
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let established = command.send(
         registry,
-        established,
+        establish(local_addr)?,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     )?;
-    let (_established, response) = next_text(established)?;
+    let (established, response) = next_text(established)?;
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
     )?;
+    let (_established, event) = next_text(established)?;
 
     server
         .join()
         .map_err(|_| io::Error::other("subscription failure-contract server panicked"))??;
-    Ok((result, binding))
-}
-
-fn receive_event(payload: &'static [u8]) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))?;
-    let local_addr = listener.local_addr()?;
-    let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
-        read_opening_request(&mut stream)?;
-        stream.write_all(OPENING_RESPONSE)?;
-        write_text_frame(&mut stream, payload)
-    });
-
-    let (_established, event) = next_text(establish(local_addr)?)?;
-    server
-        .join()
-        .map_err(|_| io::Error::other("event failure-contract server panicked"))??;
-    Ok(event)
+    Ok((result, binding, event))
 }
 
 #[test]
@@ -209,23 +194,23 @@ fn subscription_event_failures_keep_specific_public_diagnostics() -> Result<(), 
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
-    let (subscription, binding) = receive_subscription_result(&registry, session, context)?;
+    let (subscription, binding, missing_navigation_event) =
+        receive_subscription_result_and_event(&registry, session, context)?;
     let mut admission = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
         subscription,
         binding,
         &registry,
     )?;
-    let missing_navigation_event = receive_event(MISSING_NAVIGATION_EVENT)?;
 
-    let crossed_connection = admission
+    let missing_navigation = admission
         .admit(&missing_navigation_event, &registry, EXPECTED_URL)
         .err()
-        .ok_or_else(|| io::Error::other("foreign connection unexpectedly admitted an event"))?;
+        .ok_or_else(|| io::Error::other("null navigation identity unexpectedly admitted"))?;
     assert_eq!(
-        crossed_connection.to_string(),
-        "WebDriver BiDi navigation event arrived on a different subscription connection"
+        missing_navigation.to_string(),
+        "WebDriver BiDi navigation-committed event has no reusable-safe navigation identity"
     );
-    assert!(crossed_connection.source().is_none());
+    assert!(missing_navigation.source().is_none());
 
     registry.remove_context(context)?;
     let stale_context = admission
@@ -234,9 +219,9 @@ fn subscription_event_failures_keep_specific_public_diagnostics() -> Result<(), 
         .ok_or_else(|| io::Error::other("retired context unexpectedly admitted an event"))?;
     assert_eq!(
         stale_context.to_string(),
-        "WebDriver BiDi navigation event arrived on a different subscription connection"
+        "WebDriver BiDi navigation subscription context is no longer registered authority"
     );
-    assert!(stale_context.source().is_none());
+    assert!(stale_context.source().is_some());
 
     Ok(())
 }
