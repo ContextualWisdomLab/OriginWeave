@@ -647,7 +647,8 @@ fn admitted_observation_rejects_replacement_registry_at_document_mutation()
         (session, context),
         (replacement_session, replacement_context)
     );
-    let origin = originweave_core::Origin::parse("https://unrelated.test")?;
+    let origin = originweave_core::Origin::parse("https://unrelated.test")
+        .map_err(|error| io::Error::other(format!("{error:?}")))?;
     let before =
         replacement.bind_context_origin(replacement_session, replacement_context, &origin)?;
     assert!(
