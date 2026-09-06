@@ -1,122 +1,72 @@
-"""Regression contract for the dated commercial-completion gap baseline."""
+"""Regression contract for the code-current commercial gap baseline."""
 
 from __future__ import annotations
 
-import pathlib
+from pathlib import Path
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
+ROOT = Path(__file__).resolve().parents[1]
+BASELINE = ROOT / "docs" / "product-technical-gap-baseline.md"
 
 
 class ProductCompletionGapContractTests(unittest.TestCase):
-    """Keep the exact repository snapshot and completion tracks reviewable."""
+    """Keep buyer gaps tied to the current repository snapshot and authority model."""
 
-    def test_baseline_records_current_inventory_and_completion_issues(self) -> None:
-        """The dated baseline must not retain superseded queue counts or omit buyer tracks."""
-        text = BASELINE.read_text(encoding="utf-8")
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.text = BASELINE.read_text(encoding="utf-8")
 
+    def test_baseline_records_current_inventory_and_protected_head(self) -> None:
+        """The current snapshot must not retain the superseded August inventory as current."""
         for phrase in (
-            "126 open pull requests",
-            "54 non-draft",
-            "72 draft",
-            "2026-08-24 158-PR snapshot",
-            "#198",
-            "#199",
-            "#200",
-            "#201",
-            "#202",
-            "#203",
-            "durable WARC/PROV replay",
-            "stable BAP/MCP runtime API",
-            "signed cross-platform Chromium distribution",
-            "enterprise control and experience plane",
-            "commercial acceptance gate",
+            "## Observed snapshot: 2026-09-06",
+            "87c4daa1830bac5a5228b6036752ad5633232085",
+            "125 open pull requests",
+            "12 non-draft",
+            "113 draft",
+            "13 open non-PR issues",
+            "0 GitHub Releases",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, text)
+                self.assertIn(phrase, self.text)
 
         for stale_phrase in (
-            "100 open pull requests",
-            "22 non-draft",
-            "78 draft",
-            "148 open pull requests",
-            "79 draft PRs",
-            "40 non-draft",
-            "110 draft",
-            "150 open pull requests",
-            "prior 150-PR snapshot",
-            "128 open pull requests",
-            "74 draft",
+            "126 open pull requests",
+            "54 non-draft and 72 draft",
+            "Protected `main` is at `b05d5acca82b9d916ada2c8e82f59f92a89817e1`",
         ):
             with self.subTest(stale_phrase=stale_phrase):
-                self.assertNotIn(stale_phrase, text)
+                self.assertNotIn(stale_phrase, self.text)
 
-    def test_active_github_approval_rule_is_not_documented_as_bypassable(self) -> None:
-        """An active counted-approval rule must stop merge without an eligible approver."""
-        text = BASELINE.read_text(encoding="utf-8")
-
-        self.assertIn("eligible non-author", text)
-        self.assertIn("reviewer-provisioning gap", text)
-        self.assertNotIn("owner-directed administrative merge", text)
-
-    def test_evidence_commands_reproduce_inventory_checks_and_review_state(self) -> None:
-        """The evidence procedure must paginate the queue and inspect each exact PR head."""
-        text = BASELINE.read_text(encoding="utf-8")
-        evidence = text.split("## Evidence commands", 1)[1].split("\n## ", 1)[0]
-        shell = evidence.split("```bash", 1)[1].split("```", 1)[0]
-
+    def test_current_blockers_and_owner_paths_are_explicit(self) -> None:
+        """Commercial completion must retain the exercised browser and control-plane gaps."""
         for phrase in (
-            "--paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100'",
-            "set -euo pipefail",
-            'EVIDENCE_DIR="$(mktemp -d /tmp/originweave-evidence.XXXXXX)"',
-            '"$EVIDENCE_DIR/open-pr-pages.json"',
-            "jq '[.[][]]' \"$EVIDENCE_DIR/open-pr-pages.json\"",
-            '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR"',
-            '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100"',
-            '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100"',
-            '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
-            '"repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
-            "check_runs: [$checks[][].check_runs[]?],",
-            "legacy_statuses: [$statuses[][][]?]",
-            "workflow_runs: [$workflow_runs[][].workflow_runs[]?],",
-            "reviewThreads(first: 100, after: $endCursor)",
-            "rules/branches/main?per_page=100",
-            '"$EVIDENCE_DIR/main-branch-rule-pages.json"',
-            '"$EVIDENCE_DIR/collaborator-pages.json"',
-            '"$EVIDENCE_DIR/collaborators.json"',
-            '"$EVIDENCE_DIR/pr-${PR}-merge-verdict.json.tmp"',
-            '.state == "APPROVED"',
-            ".submitted_at != null",
-            ".commit_id == $head",
-            "group_by(.reviewer)",
-            "required_approving_review_count",
-            "require_last_push_approval",
-            "last_push_approval_authority",
-            '"github_rule_evaluation_required"',
-            "if $pull_request_parameters.require_last_push_approval == true then false",
-            "$pr[0].user.login",
-            '.type == "workflows"',
-            ".parameters.workflows",
-            "required_status_checks",
-            '"$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"',
-            "for ATTEMPT in 1 2 3; do",
-            "RECHECKED_HEAD_SHA=",
-            "RECHECKED_BASE_SHA=",
-            'if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]; then',
+            "89708cf5e474f7701513b84a1356a8ce1699bef5",
+            "#242",
+            "0135984f1bc1f68d89d7777f49c4999474105a12",
+            "failure_stage=session_create",
+            "Issue #212",
+            "Issue #279",
+            "ContextualWisdomLab/.github#712",
+            "No predecessor GREEN transfers",
+            "Command ACK is never sufficient",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, shell)
+                self.assertIn(phrase, self.text)
 
-        self.assertNotIn("while :; do", shell)
-        self.assertNotIn("/tmp/originweave-open-pr", shell)
-        self.assertNotIn("check_runs: [$checks[]?.check_runs[]?],", shell)
-        self.assertNotIn("legacy_statuses: [$statuses[][]?]", shell)
-        self.assertNotIn("workflow_runs: [$workflow_runs[]?.workflow_runs[]?],", shell)
-        self.assertNotIn("$reviews[][]?\n          | select(.state", shell)
-        self.assertNotIn("head-commit.json", shell)
-        self.assertNotIn("$head_commit[0].committer.login", shell)
-        self.assertNotIn("$head_commit[0].author.login", shell)
+    def test_release_and_dependency_boundaries_remain_fail_closed(self) -> None:
+        """The baseline must require an immutable release and versioned owner contracts."""
+        for phrase in (
+            "signed cross-platform artifacts",
+            "SBOM/provenance",
+            "reproducibility",
+            "rollback",
+            "released/versioned contracts or ACLs",
+            "cross-service SQL",
+            "mutable sibling heads",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.text)
 
 
 if __name__ == "__main__":

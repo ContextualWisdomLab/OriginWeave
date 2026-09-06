@@ -1,346 +1,91 @@
 # Product and Technical Gap Baseline
 
-This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
+This file is the current delivery baseline for OriginWeave. It records buyer-visible gaps and exact repository evidence; it does not replace the PRD, TRD, architecture, ADRs, threat model, test strategy, or live GitHub state. Protected `main` is the shipped implementation boundary. Open PRs, successful predecessor checks, synthetic mergeability, and command acknowledgements are not shipped behavior.
 
-## Observed snapshot: 2026-08-26
+## Observed snapshot: 2026-09-06
 
 ### Protected-main truth
 
-- Protected `main` is at `b05d5acca82b9d916ada2c8e82f59f92a89817e1` for this snapshot. Since the 2026-08-24 observation (`0841d2ab`), protected `main` absorbed #196 (dated gap baseline publication), #216 (RFC 3986 evidence-path syntax enforcement), #194 (branch-coverage nightly and toolchain tracking refresh), #168 (typed MCP stateless tool-routing foundations), and #151 (exact crash-root termination before crash credit).
-- Phase 0 remains complete as a reusable safety-kernel foundation: typed policy contracts, destination classification, direct TCP peer verification, TLS service identity, evidence bounds, resource mitigation, document-node authority, and protected-main tests.
-- Phase 1 is **in progress**, not shipped. The first real Chromium vertical slice still needs the active WebDriver BiDi transport stack to reach protected `main`, then compose isolated Chromium launch, session/context identity, semantic observation, typed action authorization, native browser input, post-condition proof, evidence, cancellation, crash recovery, and profile/process teardown.
-- HTTP/1.1 bounds, downloads/MIME, proxy/PAC consumption, full browser-network integration, the sensitive-data broker runtime, durable WARC/PROV capture, persistent task/API surfaces, signed cross-platform distribution, enterprise administration, and release-grade buyer acceptance remain open.
-- Active pull requests remain evidence, not shipped behavior. Successful checks on a feature or stacked branch do not prove that protected `main` contains the capability or that a child can merge before its prerequisite.
+- Protected `main` is exact `87c4daa1830bac5a5228b6036752ad5633232085`. GitHub reports the commit signature as verified/valid.
+- The repository currently has **125 open pull requests: 12 non-draft and 113 draft**.
+- The repository currently has **13 open non-PR issues**.
+- The GitHub Releases API currently returns an empty collection: **0 GitHub Releases**. No release-ready claim is valid until a protected exact head is integrated and an immutable release artifact, SBOM, provenance, rollback evidence, tag/package, and release are all verified.
+- Protected-main code and tests remain authority for shipped behavior. A feature branch can be useful evidence without being a production capability.
 
-### Open pull requests
+### Foundation and stack integrity
 
-The live repository contained **126 open pull requests: 54 non-draft and 72 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-24 158-PR snapshot**, the current inventory is 32 PRs smaller. Intervening queue consolidation includes #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 being merged into their immediate stacked prerequisites, while PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review. Those transitions are queue consolidation, not protected-main delivery; protected `main` remains `b05d5acca82b9d916ada2c8e82f59f92a89817e1`, with 13 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The active WebDriver BiDi stack inherited a historical whole-tree replacement, `5c111d0db6c363f9d1786c21cc01c5c7398007bd` (`fix(stack): restore opening-write prerequisite tree`), that restored its transport prerequisite but also removed unrelated valid product/source/test/documentation assets. That deletion is a repair finding rather than grounds to close dependent PRs.
 
-#### 2026-08-26 maintenance-loop record
+PR #195 is the earliest active owner point currently repairing that foundation. Its exact head is `89708cf5e474f7701513b84a1356a8ce1699bef5` on retained prerequisite #193 `6922dd98779e8f8aad132a3b1f563d7ba6e6d070`. Two ordinary forward commits restore protected product contracts while preserving later browser work:
 
-The interactive maintenance loop performed the following verified state changes on exact heads; none of them is protected-main behavior until merged:
+- `29dd314501299a3ad8276e5d73189591ff6327a0` restores the BAP workspace member, MCP and release-acceptance contracts/tests, destination freshness/revalidation, policy MCP binding, resource error contracts, TLS revocation/trust, the Agent Task fixture, and this product/technical gap baseline without replacing the modular WebDriver BiDi core.
+- `89708cf5e474f7701513b84a1356a8ce1699bef5` restores extraction schema, sensitive-handle lifecycle, RFC 3986 evidence-path admission, and their tests while retaining `BrowserProtocolValidationEvidence` and its browser-protocol regression.
 
-| Action | Exact evidence |
-|---|---|
-| Supersession closure | #153 closed with replacement evidence: base-stack tip (`4da223ac`) already implements `_terminate_owned_process_bounded` exit-race tolerance that supersedes the branch delta |
-| Conflict reconciliation | Merge commits pushed to #37 (`27f6acd6`, ci.yml aligned to reviewed `nightly-2026-08-18` pin), #149 (`7852a540` + rustfmt fix `54f96008`), #152 (`65b0c705`), #173 (`ecc9574a`), #175 (`765c88f6`, keeps `crate_root.rs` naming) |
-| Governance remediation (#212) | #43 reconciled with main in `04e262d5`; the `chrome_sandbox` workflow mutation was first removed, then restored under recorded independent authorization (issue #212 option (b)) because the PR's own contract test fails closed without it; fresh exact-head checks re-ran on the restored head |
-| Security finding fix (#124) | Strix vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated in `30cc458b`: audited workflow paths now restricted to a canonical ASCII alphabet with homoglyph/fraction-slash/fullwidth regression contract tests; CHANGELOG updated |
-| Fail-closed provider re-dispatch | ~21 failed Strix required-check runs re-dispatched on unchanged exact heads; completed reruns returned success on #46, #48, #156, #157, #159, #218, and #219 heads at snapshot time; cancellations only where newer heads superseded the run |
-| Current-head review re-dispatch | Central merge-scheduler dispatches sent for #47, #62, #63, #65, #74, #166, #173, #175, and #220 because their stale `CHANGES_REQUESTED` verdicts cited coverage-evidence results that are green on the same heads today |
+The child PR #242 still points at the pre-repair #195 generation and is currently non-mergeable after the base branch advanced. Descendants must therefore adopt the repaired foundation content-aware and non-destructively; preserving an old child tree in a topology-only merge would reintroduce the deleted product assets. Each reconstructed exact head needs fresh checks. No predecessor GREEN transfers.
 
-#### Organization review-pipeline congestion record
+### Browser sandbox and realistic Chromium acceptance
 
-Between 2026-08-26T02:44Z and 2026-08-26T03:35Z the organization-wide Actions queue exhibited a systemic backlog: scheduler, OpenCode-review-dispatch, Noema, and Strix runs across `.github`, `naruon`, `pg-erd-cloud`, and OriginWeave sat `queued`/`pending` while only single-digit runs were `in_progress`. This delays every current-head AI review and therefore every ruleset-gated merge. It is an infrastructure-capacity signal, not a code defect, and it does not authorize merging without current-head review evidence.
+PR #148 is exact `0135984f1bc1f68d89d7777f49c4999474105a12`. Its repository CI `33990522263` is terminal success with exact 100% reported production coverage (415 functions, 3,555 lines, 4,444 regions, 476 branches). Its real Manifest V3 Compatibility run `33990522248`, job `101371812631`, is terminal failure on pinned Chrome `150.0.7871.129` after all inherited `--no-sandbox` launch overrides were removed. Artifact `9977680352` reports 0/3 for ordinary MV3, ordinary Agent Task, forced-close Agent Task, and browser-crash Agent Task; the crash lane localizes to `failure_stage=session_create`, `failure_type=RuntimeError`, `reason_code=runtime_error`. Cleanup completion is not browser success.
 
-Representative active workstreams at this snapshot were:
+Issue #212 is the canonical workflow-owner boundary for the missing sandbox-helper integration. PR #43 previously proved that root-owned mode-`4755` `chrome_sandbox` plus `CHROME_DEVEL_SANDBOX` can run the same Chrome generation sandboxed on that leaf generation, but its GREEN does not transfer to #148 or to the current protected workflow. The authorized owner must reconstruct the validated helper mechanics against the current protected MV3 workflow, preserve harden-runner/egress, immutable pins, Draft/closed lifecycle and evidence retention, then consumers must adopt it non-destructively and regenerate exact-head Linux browser evidence. Restoring `--no-sandbox`, reducing trials, or treating cleanup as success is not an acceptable repair.
 
-| Workstream | Representative active PR evidence | Delivery boundary |
+### CI, review, and evidence control plane
+
+Issue #279 remains the protected-main owner for exact-head documentation verification and the Ready-transition execution gap. Its current record shows workflow-free classifier PR #287 succeeding in native CI/Security/Semgrep while required CodeQL fails only after current-head scan dispatch at the central verdict handoff. That repeated CodeQL dispatch-to-verdict defect is owned by `ContextualWisdomLab/.github#712`; leaf branches must not duplicate CodeQL, weaken required checks, or convert queued/skipped/provider-incomplete evidence into GREEN.
+
+Protected review/ruleset requirements remain independent from tests. Passing automation is not approval. Stale review state after a push is not current approval, and a Draft, conflicted, or stack-incomplete PR is not merge-ready merely because one repository workflow passed.
+
+### Product and buyer gaps that remain open
+
+The following capabilities are not treated as protected-main commercial completion merely because foundations or active PRs exist:
+
+| Track | Current boundary | Completion evidence required |
 |---|---|---|
-| Product baseline | (merged: #196 on 2026-08-24) | Baseline publication reached protected `main`; this document is its successor snapshot |
-| Presentation identity | #229 at `585a7d5545b13f18d76f79100ff4d47ac423e861` onto `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | Ready/non-draft local privacy kernel; all observed exact-head checks except Strix passed, but the PR remains blocked and review-required, and no Chromium adapter or protected-main shipment is claimed |
-| Enterprise approval authority | #220 | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; all current-head checks green at snapshot, awaiting current-head review evidence |
-| Release artifact identity | #218 and #219 | Ready/non-draft fail-closed benchmark release decision and canonical release manifest binding; Strix provider-failure reruns completed green on both heads |
-| Schema-bound extraction and BAP lifecycle | #209 and #208 | Ready/non-draft schema-bound extraction contract and resumable task-lifecycle kernel; #209 Strix rerun green, #208 rerun re-dispatched after a further provider failure |
-| WebDriver BiDi transport | #188 through #205 | Active stack whose top #205 merged into its prerequisite branch, not protected `main`; it exercises framed `locateNodes` exchange over a bounded WebSocket opening path, but authenticated browser-process provenance, semantic task execution, and protected-main shipment remain unproven |
-| MCP adapter | (#168 merged) and #170 | Typed MCP routing foundations are protected-main behavior since 2026-08-24; conservative `tools/list` cache metadata remains active-PR evidence with a Strix rerun in flight |
-| Workflow-registry audit | #124 | Real Strix finding vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated on head `30cc458b` with regression contract tests; fresh exact-head checks and review re-running |
-| Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#152 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
-| Durable WARC/PROV evidence | #210, #217 | Bounded WARC resource records and PROV JSON-LD binding are draft active-PR foundations; durable ownership, replay, retention/deletion, and browser side-effect reconciliation remain open |
-| Manifest V3 and native messaging | #27, #43 governance remediation, and the extension/native-host stack including #154 and #169 | Compatibility and Agent-authority isolation remain incomplete until exact release artifacts and platform matrices are proven; #43's sandbox workflow mutation is now owner-authorized under issue #212 option (b) |
-| Sensitive-data and model route policy | #10 and its active policy stacks | Deterministic policy values exist, but trusted broker execution, retention/deletion, runtime isolation, and auditable product workflows remain open |
-| VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority reconciled with main (`54f96008`); it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
+| Governed browser vertical slice | WebDriver BiDi contracts and transport work are active; current stack requires foundation repair/restack | Real pinned Chromium session/navigation/semantic observation/policy-authorized interaction/post-condition/evidence/cleanup GREEN on the same exact head, then protected integration |
+| Chromium sandbox | #148 fails closed at session creation without sandbox bypass; #212 owns workflow integration | Current-generation least-privilege helper adoption plus exact-head sandboxed Linux replay |
+| Evidence/provenance | Redacted network/provenance, extraction schema, sensitive lifecycle, and browser-protocol validation contracts exist | Durable replay/retention/deletion and buyer-facing evidence lifecycle proven end-to-end |
+| MCP/agent boundary | Typed stateless MCP/core authority contracts exist; MCP remains an adapter | Released API/adapter behavior that cannot become policy authority or bypass browser post-condition verification |
+| Persistent task/API surface | Foundations exist | Tenant-scoped persistence, recovery, idempotency, operability, and API acceptance on protected code |
+| Enterprise administration | Governance primitives exist | Buyer-visible policy/approval/audit administration with purpose-bound sensitive-data handling and accessibility verification |
+| Distribution and release | No GitHub Release exists | Signed cross-platform artifacts, SBOM/provenance, reproducibility, rollback, package/tag and immutable release verification |
+| CI evidence throughput | Exact-head verification exists but central verdict/queue issues remain | Reliable exact-head required workflows without gate weakening, skipped-result promotion, or stale evidence transfer |
 
-PR #205 head `f427aa69151987d7e3369bd96d5739ea38d0f7ad` merged as `6c5ef5e2079d54c617183ecfa757e406f48f0aea` into stacked prerequisite branch `feat/webdriver-bidi-websocket-frame-transport` at base `c1bc7e78f3a9debf4f517fb6b5f11dd67be4ad92`. Its successful exact-head checks are stacked-branch integration evidence only; protected `main` remains `b05d5acca82b9d916ada2c8e82f59f92a89817e1`.
+### Bounded-context and ownership constraints
 
-#### Current exact-head active PR evidence
+OriginWeave owns governed browser-domain truth: Browser Session, Navigation, Observation, Interaction Policy integration, Evidence, Extension/native-host boundary, and browser adapters. WebDriver BiDi, CDP and MCP are adapters, not policy authority. Wardnet, EgressWeave, Keyverse, contextual-orchestrator and Context Fabric remain canonical owners of their own domains; OriginWeave consumes only released/versioned contracts or ACLs and must not copy their source, use cross-service SQL, or depend on mutable sibling heads.
 
-The following newest slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
+Deterministic browser policy/security decisions remain deterministic. Model-backed workflows must not substitute LLM judgement for browser authority. Command ACK is never sufficient for task success; the expected post-condition and evidence must be observed.
 
-| PR | State | Exact base head | Exact head |
-|---|---|---|---|
-| #220 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e0740a6f3a41067a4460249378e0266815018a74` |
-| #219 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |
-| #218 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `911ea33d8a5aca7673307bb6fdcad4b450f5c111` |
-| #209 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `b35d739017aa5d361b605be48045be50b5a35f6f` |
-| #208 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |
-| #124 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `296ad25bb541023dbc869ae07ae1d853820f83a4` |
+### Current repair order
 
-These rows are delivery evidence only. None has counted independent approval in the current collaborator inventory, and predecessor rows from earlier snapshots are retained below as regression anchors that must never be promoted to current-head evidence.
-
-#### Regression-anchor exact-head evidence: superseded 2026-08-24 rows
-
-The following rows were current on 2026-08-24 and are retained only as regression anchors; every listed head has since been superseded or merged and must never be promoted to current-head evidence:
-
-| PR | State | Exact base head | Exact head |
-|---|---|---|---|
-| #222 | Draft | `56fcfa56525e4f2e980e0ee05b6776d621bcddc5` | `1e2ce3d4071a1a75ee891bdcd71c506b3b50d4bc` |
-| #221 | Draft | `8145d40f1b028a8f4dc7e7da47ac89bb9e5bb2c7` | `6f339df1e5b3ddb265f4ddd7b262d4de1e0b5e1f` |
-| #220 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `ed4cab16cf88c76ce1c145a22d0a274ef2d57263` |
-| #219 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `8145d40f1b028a8f4dc7e7da47ac89bb9e5bb2c7` |
-| #218 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `49e98fba6974219b3bb0336c822b12667f1e1c03` |
-| #217 | Draft | `529d11a3571f6b1834b9baa49ef67eb08f043978` | `56fcfa56525e4f2e980e0ee05b6776d621bcddc5` |
-| #216 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `75130851a0f7ce528a7a36382eb026ac7942a0aa` |
-| #214 | Draft | `40d642d5470a7753b8211907c190367f742f2f12` | `f79999681866ecf0e5fe17d895170f3f6cae7361` |
-| #211 | Draft | `85cc477688246900697f4cfb91c0c8f1f692934a` | `40d642d5470a7753b8211907c190367f742f2f12` |
-| #210 | Draft | `c38b9665774d6b3754e572bed527737b5e179833` | `529d11a3571f6b1834b9baa49ef67eb08f043978` |
-| #209 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `c38b9665774d6b3754e572bed527737b5e179833` |
-| #208 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `85cc477688246900697f4cfb91c0c8f1f692934a` |
-
-The stack topology shows #209 → #210 → #217 → #222 (WARC/PROV chain), #208 → #211 → #214 (BAP chain), #218 → #221 → #220 (release/enterprise chain) at this snapshot. Every row above remains active-PR evidence; none is protected-main behavior.
-
-### Required-check provider failure record
-
-On 2026-08-23 the required Strix security scan failed closed on exact heads of #220 (`ed4cab16…`), #218 (`49e98fba…`), and #208 (`85cc4776…`) because its LLM provider/backend was unavailable (rate limit, token cap, connection, warm-up, or model-behavior failure); no vulnerability report artifact was produced, so the workflow correctly refused to convert an incomplete scan into passing security evidence. Failed jobs were re-dispatched on the unchanged exact heads on 2026-08-24 and again on 2026-08-26. This is a provider-infrastructure failure record, not a weakening of the fail-closed gate or a substitute for a completed authoritative scan.
-
-On 2026-08-26 rerun outcomes were verified per run: completed reruns returned `success` on the heads of #46, #48, #156, #157, #159, #218, and #219; several earlier runs for #37, #43, and #149 were cancelled only because conflict-reconciliation pushes created newer heads with fresh scans; remaining reruns were still in flight at snapshot time. One rerun (#124) produced a real MEDIUM finding (vuln-0001) instead of provider noise; that finding was remediated on the branch head rather than suppressed, preserving the fail-closed contract.
-
-#### #195/#198 WebDriver BiDi opening path status
-
-Phase 1 is **in progress**, not shipped. #195 and #198 provide bounded WebSocket opening-path evidence on active branches; framed BiDi commands, authenticated browser-process provenance, semantic task execution, and protected-main integration remain open.
-
-#### #149 VPN/profile intent status
-
-PR #149 is a ready (non-draft) pull request whose conflict reconciliation and rustfmt correction landed on head `54f96008` on 2026-08-26; it still only describes bounded WireGuard/IKEv2 profile authority and does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof.
-
-The current queue must be processed in dependency order. A green child branch cannot substitute for current checks and review on its prerequisite, synthetic merge, or eventual protected-main commit. PRs that only duplicate, supersede, or preserve stale branch topology should be closed with explicit replacement evidence rather than retained indefinitely; this loop exercised that policy by closing superseded #153 with replacement evidence.
-
-### Review and merge authority
-
-The active `CWL Central required workflows` ruleset (re-fetched for this snapshot) requires one approving review, resolved review threads, no last-push approval requirement, `merge`/`squash` merge methods, and seven configured required workflows (`close-empty-pr`, `opencode-review`, `pr-review-merge-scheduler`, `security-scan`, `strix`, `sast-semgrep`, `noema-review`). The current collaborator inventory contains only `seonghobae` with administration and push permissions, creating a **reviewer-provisioning gap** for counted non-author approval.
-
-This gap does not authorize self-approval, stale-head merges, administrative bypass, or weaker checks. Because the current GitHub ruleset independently requires a counted approval, the solo-maintainer hold does not satisfy the live merge gate: an eligible non-author collaborator must submit a formal `APPROVED` review on the current head. Until that reviewer-provisioning gap is repaired, protected-main merges stop even when exact-head checks, security gates, complete coverage, rustdoc/Clippy, threads, and AI-review evidence are otherwise complete. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
-
-### Open issues and operational signals
-
-| Issue | Current gap or signal |
-|---|---|
-| #28 | First real Chromium Agent Task vertical slice; highest immediate Phase 1 buyer-visible gap |
-| #27 | Complete Manifest V3 compatibility and extension-authority isolation matrix |
-| #9 | Bounded HTTP/1.1 semantics over the authenticated TLS stream |
-| #10 | Purpose-bound operational PII disclosure and trusted broker/storage lifecycle |
-| #123 | Fleet incident: disable orphaned TLS, HTTP, and one-shot workflow identities |
-| #187 | Manual-authority review of the coverage-diagnostics workflow delta |
-| #212 | Governance: remove or independently authorize the PR #43 MV3 workflow mutation — **option (b) executed 2026-08-26** with owner-directed authorization recorded on the issue and the mutation restored on the reconciled branch; re-evaluate if the authorization record is contested |
-| #215 | Governance: restore an enforceable protected-main policy that does not create a routine admin bypass |
-| #199 | Schema-bound extraction with durable WARC/PROV replay, retention, deletion, and offline verification |
-| #200 | Stable BAP/MCP runtime API with authenticated, idempotent, cancellable, resumable task lifecycle |
-| #201 | Signed cross-platform Chromium distribution, installer/updater, patch SLA, rollback, SBOM, and provenance |
-| #202 | Enterprise control and experience plane: operator UI, Keyverse-compatible identity, tenancy, approval, audit, SLO, Figma, and Storybook |
-| #203 | Release-grade web-agent benchmark and commercial acceptance gate bound to exact signed artifacts |
-
-Issue #206 (harden-runner custom detection initialization failure) was closed after its remediation landed on protected `main` between snapshots.
-
-The five newly separated product-completion tracks are **durable WARC/PROV replay**, **stable BAP/MCP runtime API**, **signed cross-platform Chromium distribution**, **enterprise control and experience plane**, and the **commercial acceptance gate**. They are separate issues because each has a distinct authority, data, release, and buyer-acceptance boundary.
-
-The hourly product-development loop is operational infrastructure, not proof that a browser product, issue, pull request, or release meets buyer acceptance.
-
-## Buyer-visible and technical gap matrix
-
-| Priority | Buyer-visible outcome | Protected-main status | Completion issue and acceptance evidence |
-|---|---|---|---|
-| P0 | A bounded task observes a real Chromium page, performs one typed action, verifies the post-condition, and emits provenance | **Open / Phase 1** | #28; repeated real Chromium E2E with isolated context, exact session/node authority, typed dispatch, post-condition, crash cleanup, and protected-main checks |
-| P0 | Navigation consumes approved origin, resolution, route, TCP peer, TLS identity, bounded HTTP, redirect, MIME, and download policy | **Partial foundation** | #9 plus #28; real browser-network adapter proves the governed path is consumed end to end |
-| P1 | Existing Chromium extensions remain compatible while Agent authority stays separate | **Partial active-PR evidence** | #27; exact supported-build/platform compatibility matrix, managed allow-list, native-host isolation, repeatability, and release binding |
-| P1 | Authorized work can use necessary PII without ambient exposure | **Policy foundation; runtime open** | #10; opaque broker, exact field/purpose/destination/model policy, atomic use/revocation, retention/deletion, and value-free telemetry |
-| P1 | Every released structured field is traceable to replayable source evidence | **Foundations only** | #199; durable WARC/PROV replay, integrity, retention, deletion, offline verification, extraction precision/recall, and 100% provenance completeness |
-| P1 | External Agents integrate through a stable, authenticated product contract | **Partial active-PR MCP primitives** | #200; BAP 1.0, MCP 2026-07-28 adapter, idempotency, task cancellation/resume, checkpoint/reconciliation, and SDK conformance |
-| P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
-| P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
-| P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 126-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
-
-## Commercial completion definition
-
-OriginWeave is not complete merely because every low-level primitive exists in some open branch. A release candidate is commercially complete only when all of the following are true for the declared support profile:
-
-1. #9, #10, #27, and #28 are integrated on protected `main` as a complete browser/network/action/evidence chain.
-2. #199 provides replayable, retention-governed evidence for every released structured result.
-3. #200 exposes a stable authenticated runtime API and task lifecycle without raw Chromium authority leakage.
-4. #201 produces signed, updateable, rollback-capable release artifacts bound to Chromium, SBOM, and provenance.
-5. #202 supplies tenant-safe enterprise administration, approvals, audit, SLOs, incident recovery, accessible Figma/Storybook-backed UX, and control evidence.
-6. #203 accepts the exact signed artifacts through a reproducible benchmark; missing or inconclusive evidence cannot be promoted to success.
-7. Production function, line, region, and branch coverage and public API documentation remain exactly complete for OriginWeave-owned code.
-8. CHANGELOG, version, supported-platform matrix, security policy, runbooks, licensing, release notes, upgrade/rollback guidance, and procurement evidence match the exact release.
-9. No required check, browser/platform lane, security case, benchmark case, or independent review is skipped, stale, inherited, or represented by status-only evidence.
-10. The open PR queue is reduced to bounded active work rather than being the only place where the product exists.
-
-## Next executable queue
-
-1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #170, #173, #175, #208, #209, #218, and #219 as their re-dispatched checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
-2. Keep the organization review pipeline healthy: monitor the central Actions backlog recorded above; if OpenCode reviews stop landing on OriginWeave heads while the queue is idle, repair `ContextualWisdomLab/.github` dispatch/concurrency configuration rather than weakening any gate.
-3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #181–#205 WebSocket opening path and framed BiDi command/response stack, then semantic observation, policy, action, post-condition, and recovery boundaries on protected `main`.
-4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.
-5. Implement #199, then #200, so durable evidence and stable task authority precede broad enterprise integrations.
-6. Implement #201 before making release/support claims; exact CI browser evidence must be bound to the actual signed artifact.
-7. Design #202 in Figma, record the Figma File ID in the ADR, implement reusable design tokens and Storybook components, then add identity/tenant/approval/audit/operations integration.
-8. Make #203 the final release gate across the exact signed distribution, not a source branch or model narrative.
-9. Only after the commercial acceptance gate passes, increment the version, finalize CHANGELOG/release notes, publish signed artifacts, and verify upgrade/rollback from the prior supported release.
+1. Finish #195 exact-head repository verification and repair any new RED at that exact head.
+2. Reconcile the remaining inherited documentation differences content-aware; do not overwrite later WebDriver deltas with an older whole tree.
+3. Reconstruct #242 and descendants from the repaired #195 foundation using ordinary forward/non-force adoption, then regenerate exact-head checks on every claimed integration point.
+4. Complete #212's authorized current-generation Chromium sandbox-helper integration and rerun realistic pinned-Chromium evidence on the exact consumer head.
+5. Resolve central required-verdict failures through their canonical owner (`ContextualWisdomLab/.github#712`) rather than leaf duplication or gate weakening.
+6. Integrate dependency-first through normal protected-branch review/ruleset gates.
+7. Produce and verify the first immutable OriginWeave release with signed artifacts, SBOM, provenance, reproducibility and rollback evidence.
 
 ## Evidence commands
 
-The volatile counts above are reproducible by paginating the complete open-PR inventory, flattening every page, and then inspecting each PR's exact head, checks, reviews, and review threads:
+The snapshot is reproducible from GitHub without treating local branch state as authority. Paginate list endpoints before deriving counts or per-PR evidence.
 
 ```bash
 set -euo pipefail
-EVIDENCE_DIR="$(mktemp -d /tmp/originweave-evidence.XXXXXX)"
-printf 'Evidence directory: %s\n' "$EVIDENCE_DIR" >&2
+repo=ContextualWisdomLab/OriginWeave
 
-gh api --paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100' \
-  > "$EVIDENCE_DIR/open-pr-pages.json"
-jq '[.[][]]' "$EVIDENCE_DIR/open-pr-pages.json" \
-  > "$EVIDENCE_DIR/open-prs.json"
-jq '{
-  open_pull_requests: length,
-  non_draft: (map(select(.draft == false)) | length),
-  draft: (map(select(.draft == true)) | length)
-}' "$EVIDENCE_DIR/open-prs.json"
+gh api "repos/$repo/branches/main"
+gh api --paginate "repos/$repo/pulls?state=open&per_page=100" --slurp
+gh api --paginate "repos/$repo/issues?state=open&per_page=100" --slurp
+gh api "repos/$repo/releases?per_page=100"
 
-gh api 'repos/ContextualWisdomLab/OriginWeave/branches/main' \
-  > "$EVIDENCE_DIR/main-branch.json"
-gh api --paginate --slurp \
-  'repos/ContextualWisdomLab/OriginWeave/rules/branches/main?per_page=100' \
-  > "$EVIDENCE_DIR/main-branch-rule-pages.json"
-jq '[.[][]]' "$EVIDENCE_DIR/main-branch-rule-pages.json" \
-  > "$EVIDENCE_DIR/main-branch-rules.json"
-gh api --paginate --slurp \
-  'repos/ContextualWisdomLab/OriginWeave/collaborators?affiliation=all&per_page=100' \
-  > "$EVIDENCE_DIR/collaborator-pages.json"
-jq '[.[][]]' "$EVIDENCE_DIR/collaborator-pages.json" \
-  > "$EVIDENCE_DIR/collaborators.json"
+gh api "repos/$repo/pulls/195"
+gh api "repos/$repo/commits/89708cf5e474f7701513b84a1356a8ce1699bef5/check-runs?per_page=100"
+gh api "repos/$repo/actions/runs?head_sha=89708cf5e474f7701513b84a1356a8ce1699bef5&per_page=100"
 
-jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
-  STABLE_HEAD=false
-  for ATTEMPT in 1 2 3; do
-    VERDICT_PATH="$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"
-    VERDICT_TMP="$EVIDENCE_DIR/pr-${PR}-merge-verdict.json.tmp"
-    rm -f "$VERDICT_PATH" "$VERDICT_TMP" "$EVIDENCE_DIR/pr-${PR}-rechecked.json"
-    PR_JSON="$EVIDENCE_DIR/pr-${PR}.json"
-    gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" > "$PR_JSON"
-    HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
-    BASE_SHA=$(jq -r '.base.sha' "$PR_JSON")
-
-    gh api --paginate --slurp \
-      "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
-      > "$EVIDENCE_DIR/pr-${PR}-check-runs.json"
-    gh api --paginate --slurp \
-      "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100" \
-      > "$EVIDENCE_DIR/pr-${PR}-statuses.json"
-    gh api --paginate --slurp \
-      "repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100" \
-      > "$EVIDENCE_DIR/pr-${PR}-reviews.json"
-    gh api --paginate --slurp \
-      "repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
-      > "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json"
-    gh api graphql --paginate --slurp \
-      -F owner=ContextualWisdomLab \
-      -F name=OriginWeave \
-      -F number="$PR" \
-      -f query='
-query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      reviewThreads(first: 100, after: $endCursor) {
-        nodes { id isResolved isOutdated }
-        pageInfo { hasNextPage endCursor }
-      }
-    }
-  }
-}' > "$EVIDENCE_DIR/pr-${PR}-review-threads.json"
-
-    jq -n \
-      --arg head "$HEAD_SHA" \
-      --slurpfile pr "$PR_JSON" \
-      --slurpfile checks "$EVIDENCE_DIR/pr-${PR}-check-runs.json" \
-      --slurpfile statuses "$EVIDENCE_DIR/pr-${PR}-statuses.json" \
-      --slurpfile reviews "$EVIDENCE_DIR/pr-${PR}-reviews.json" \
-      --slurpfile workflow_runs "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json" \
-      --slurpfile rules "$EVIDENCE_DIR/main-branch-rules.json" \
-      --slurpfile collaborators "$EVIDENCE_DIR/collaborators.json" \
-      --slurpfile threads "$EVIDENCE_DIR/pr-${PR}-review-threads.json" \
-      --arg base "$BASE_SHA" \
-      '(
-        [
-          $rules[][]?
-          | select(.type == "pull_request")
-          | .parameters
-        ] | first // {}
-      ) as $pull_request_parameters
-      | (
-          [
-            $reviews[][][]?
-            | {reviewer: .user.login, state, submitted_at, commit_id}
-            | select(.submitted_at != null)
-            | select(.reviewer != $pr[0].user.login)
-            | select(.reviewer as $reviewer |
-                any($collaborators[][]?;
-                  .login == $reviewer and
-                  (.permissions.push == true or
-                   .permissions.maintain == true or
-                   .permissions.admin == true)))
-          ]
-          | group_by(.reviewer)
-          | map(sort_by(.submitted_at) | last)
-          | map(select(.state == "APPROVED" and .commit_id == $head))
-        ) as $current_approvals
-      | ($pull_request_parameters.required_approving_review_count // 0) as $required_review_count
-      | ($pull_request_parameters.require_last_push_approval // false) as $require_last_push_approval
-      | {
-          head_sha: $head,
-          base_sha: $base,
-          required_status_checks: {
-            check_runs: [$checks[][].check_runs[]?],
-            legacy_statuses: [$statuses[][][]?]
-          },
-          workflow_runs: [$workflow_runs[][].workflow_runs[]?],
-          counted_approvals: ($current_approvals | length),
-          required_approving_review_count: $required_review_count,
-          require_last_push_approval: $require_last_push_approval,
-          last_push_approval_authority: (
-            if $require_last_push_approval == true
-            then "github_rule_evaluation_required"
-            else "not_required"
-            end
-          ),
-          approval_gate_satisfied: (
-            if $pull_request_parameters.require_last_push_approval == true then false
-            else (($current_approvals | length) >= $required_review_count)
-            end
-          ),
-          required_workflows: [
-            $rules[][]?
-            | select(.type == "workflows")
-            | .parameters.workflows[]
-          ],
-          unresolved_threads: [
-            $threads[][].data.repository.pullRequest.reviewThreads.nodes[]?
-            | select(.isResolved == false and .isOutdated == false)
-          ]
-        }' > "$VERDICT_TMP"
-
-    RECHECKED_PR_JSON="$EVIDENCE_DIR/pr-${PR}-rechecked.json"
-    RECHECKED_HEAD_SHA=$(gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" \
-      | tee "$RECHECKED_PR_JSON" \
-      | jq -r '.head.sha')
-    RECHECKED_BASE_SHA=$(jq -r '.base.sha' "$RECHECKED_PR_JSON")
-    if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]; then
-      mv "$VERDICT_TMP" "$VERDICT_PATH"
-      mv "$RECHECKED_PR_JSON" "$PR_JSON"
-      STABLE_HEAD=true
-      break
-    fi
-    rm -f "$VERDICT_TMP" "$RECHECKED_PR_JSON"
-    printf 'Discarding moving head/base evidence for PR #%s (head %s -> %s, base %s -> %s) and retrying.\n' \
-      "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" "$BASE_SHA" "$RECHECKED_BASE_SHA" >&2
-  done
-  if [[ "$STABLE_HEAD" != true ]]; then
-    rm -f "$EVIDENCE_DIR"/pr-${PR}-*.json
-    printf 'Unable to collect stable exact-head/base evidence for PR #%s after 3 attempts.\n' "$PR" >&2
-    exit 1
-  fi
-done
+gh api "repos/$repo/pulls/148"
+gh api "repos/$repo/issues/212"
+gh api "repos/$repo/issues/279"
 ```
 
-The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, legacy statuses, workflow runs, reviews, and unresolved threads are current. The saved merge verdict binds counted approvals to the latest review per eligible collaborator, excludes the PR author, and requires `APPROVED` on the exact head. It deliberately does **not** infer GitHub's actual last-push actor from commit author or committer metadata: when `require_last_push_approval` is active, this portable evidence procedure records `github_rule_evaluation_required` and keeps `approval_gate_satisfied` false until GitHub's authoritative rule evaluation is consulted. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when both `RECHECKED_HEAD_SHA` and `RECHECKED_BASE_SHA` match the collected values; a moving head or base discards the temporary verdict, and three failed attempts leave no unstable merge verdict.
-
-For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and linked ADR/UML/ERD/traceability records. Issues #199-#203 contain their own APA 7th standards and research traceability. This baseline intentionally records delivery state and never promotes planned adapters or active pull-request code to implemented behavior.
+Re-fetch the head and base immediately before any merge/readiness decision. If either moved, previous check/review evidence becomes lineage only until the new exact head is verified.
