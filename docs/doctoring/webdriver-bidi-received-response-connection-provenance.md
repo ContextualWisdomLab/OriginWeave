@@ -76,6 +76,53 @@ PR #260 predecessor `3a651967c421f77088fe25e86a63faae295390b3` failed the expect
 
 Fresh verification passed 17 document-epoch/navigation/received-connection/teardown tests, 142 Python contracts, compileall and complete Rust 1.97.1 format/check/workspace-test/strict-Clippy/rustdoc gates. Pinned coverage measured 1154 functions, 11969 lines, 15314 regions and 1334 branches at 100%; the unstable branch-option warning remains. Hosted exact-head checks, counted approval when required, source promotion and released browser behavior remain separate acceptance gates.
 
+### Navigation owner adopts the pointer receipt repair
+
+On #259 `91d95423cf31947f691db5ebbd3072c481d86542`, canonical regression replay
+`6999252e` reproduced the replacement-connection failure (zero passed, one failed).
+Ordinary merge `6cb911f2` retains parent #258
+`5417ce32ed957aa166807f1023647caccc2920cb` and both release-note histories.
+The parent's stronger receipt test replaces only the replayed older test form.
+The merged fixture then failed compilation because it still passed bare text to
+the click-response consumer. `d1fd06bf` reads that acknowledgment with the sealed
+reader and keeps its returned connection for the following navigation event.
+No child navigation assertion or production logic was removed or weakened.
+
+All sixteen focused navigation and pointer-response tests pass locally after this
+integration. The event path still does not establish received-event provenance,
+click causality, browser ownership, document advancement, or released browser
+behavior. Those remain separately owned acceptance gaps; parent or focused success
+does not replace this child's full exact-head checks and coverage.
+
+### Pointer-response receipt repair evidence
+
+The later #258 repair reuses the selected received-message boundary above.
+Published regression `8193fcd5` failed locally when a replacement socket consumed
+the original click. Stronger test `d9396f05` holds listener address and session
+constant and rejects both foreign success and error with exact mismatch while
+requiring original-connection recovery and unrelated-request retention.
+Consumer-only `588fe731` failed with missing sender provenance; ordinary parent
+merge `0234b587d1bca9286eb5b597f9dab33be47ff518` includes #257 `9451fd8a` and
+passes all six focused response tests. These are local implementation findings,
+not new standards claims, browser authentication, page effects, or release proof.
+
+### Document-epoch owner adopts the pointer receipt repair
+
+On #260 `e5228396be8d9faade44a30aed704cacbeb91b46`, canonical regression
+replay `8f6b5a0c` failed locally: a replacement connection consumed the original
+pending pointer command (zero passed, one failed). Ordinary merge `962ecbe4`
+adopts #259 `180c168ecbdcd5eb7a4ad14ab4a53e8670646bf7`, retaining its sealed
+click receipt, stronger two-connection regressions and navigation fixture repair.
+Both documentation histories are preserved. The document-advance production
+module, its two integration tests and Proposed ADR 0103 are byte-identical to
+the child predecessor; no new epoch or observation authority is introduced.
+
+All eighteen focused document-advance, navigation and pointer-response tests pass
+locally on the integrated tree. Full exact-head gates and coverage remain separate
+measurements. A connection-bound click acknowledgment does not authenticate the
+later navigation event, prove causation, bind a new origin or establish a released
+browser workflow. Those acceptance gaps are not closed by this parent adoption.
+
 ## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455

@@ -11,12 +11,13 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickResult,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
-    send_webdriver_bidi_pointer_click,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketMessageReader, send_webdriver_bidi_pointer_click,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -24,6 +25,8 @@ const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const CLICK_SUCCESS_RESPONSE: &[u8] =
     br#"{"type":"success","id":42,"result":{"vendorExtension":{"observed":false}}}"#;
+const CLICK_ERROR_RESPONSE: &[u8] =
+    br#"{"type":"error","id":42,"error":"invalid argument","message":"blocked","stacktrace":"remote"}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -64,7 +67,10 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
             stream.read_exact(&mut extended)?;
             let length = u64::from_be_bytes(extended);
             usize::try_from(length).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "pointer frame length exceeds usize")
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "pointer frame length exceeds usize",
+                )
             })?
         }
         _ => unreachable!(),
@@ -94,23 +100,13 @@ fn establish(local_addr: SocketAddr) -> Result<WebDriverBiDiWebSocketEstablished
     .read_opening_response(Duration::from_millis(500))?)
 }
 
-fn receive_replacement_response(
-    listener: TcpListener,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let local_addr = listener.local_addr()?;
-    let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
-        read_opening_request(&mut stream)?;
-        stream.write_all(OPENING_RESPONSE)?;
-        stream.write_all(&[0x81, CLICK_SUCCESS_RESPONSE.len() as u8])?;
-        stream.write_all(CLICK_SUCCESS_RESPONSE)
-    });
-
-    let established = establish(local_addr)?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+fn read_response(
+    established: WebDriverBiDiWebSocketEstablished,
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "replacement pointer connection produced unexpected assembly state: {other:?}"
@@ -118,15 +114,10 @@ fn receive_replacement_response(
             .into());
         }
     };
-    server
-        .join()
-        .map_err(|_| io::Error::other("replacement pointer server panicked"))??;
     Ok(text)
 }
 
-#[test]
-fn pointer_response_from_same_session_replacement_connection_cannot_consume_original_pending_command(
-) -> Result<(), Box<dyn Error>> {
+fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Box<dyn Error>> {
     let original_listener = TcpListener::bind(("127.0.0.1", 0))?;
     let original_addr = original_listener.local_addr()?;
     let expected = WebDriverBiDiPointerClickCommand::new(
@@ -146,7 +137,13 @@ fn pointer_response_from_same_session_replacement_connection_cannot_consume_orig
                 "unexpected pointer command on original connection",
             ));
         }
-        Ok(())
+        let (mut replacement, _) = original_listener.accept()?;
+        read_opening_request(&mut replacement)?;
+        replacement.write_all(OPENING_RESPONSE)?;
+        replacement.write_all(&[0x81, foreign_response.len() as u8])?;
+        replacement.write_all(foreign_response)?;
+        stream.write_all(&[0x81, CLICK_SUCCESS_RESPONSE.len() as u8])?;
+        stream.write_all(CLICK_SUCCESS_RESPONSE)
     });
 
     let original = establish(original_addr)?;
@@ -156,33 +153,51 @@ fn pointer_response_from_same_session_replacement_connection_cannot_consume_orig
         &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let _original = send_webdriver_bidi_pointer_click(
+    correlation.register_command_for(43, WebDriverBiDiCommandKind::SessionStatus)?;
+    let original = send_webdriver_bidi_pointer_click(
         &command,
         original,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     )?;
-    original_server
-        .join()
-        .map_err(|_| io::Error::other("original pointer server panicked"))??;
-    assert_eq!(correlation.outstanding_count(), 1);
+    assert_eq!(correlation.outstanding_count(), 2);
 
-    let replacement_listener = TcpListener::bind(("127.0.0.1", 0))?;
-    let replacement_response = receive_replacement_response(replacement_listener)?;
+    let replacement_response = read_response(establish(original_addr)?)?;
     let parsed = WebDriverBiDiPointerClickResult::parse_and_correlate(
         &replacement_response,
         &mut correlation,
     );
 
+    let original_response = read_response(original)?;
+    original_server
+        .join()
+        .map_err(|_| io::Error::other("original pointer server panicked"))??;
     assert!(
-        parsed.is_err(),
-        "same-session replacement connection unexpectedly consumed the original pointer command"
+        matches!(
+            parsed,
+            Err(WebDriverBiDiPointerClickResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                    command_id: 42
+                }
+            })
+        ),
+        "replacement response must fail for exact connection mismatch: {parsed:?}"
     );
-    assert_eq!(
-        correlation.outstanding_count(),
-        1,
-        "foreign-connection rejection must leave the original pointer command pending"
-    );
+    assert_eq!(correlation.outstanding_count(), 2);
+    let accepted =
+        WebDriverBiDiPointerClickResult::parse_and_correlate(&original_response, &mut correlation)?;
+    assert_eq!(accepted.command_id(), 42);
+    assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
+}
+
+#[test]
+fn replacement_success_cannot_consume_original_pointer_command() -> Result<(), Box<dyn Error>> {
+    assert_replacement_rejected(CLICK_SUCCESS_RESPONSE)
+}
+
+#[test]
+fn replacement_error_cannot_consume_original_pointer_command() -> Result<(), Box<dyn Error>> {
+    assert_replacement_rejected(CLICK_ERROR_RESPONSE)
 }
