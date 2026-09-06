@@ -13,7 +13,7 @@ use crate::webdriver_bidi_result::{
     ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
 };
 use crate::{
-    BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget, ObservedNodeHandle,
+    AdmittedNodeHandle, BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget,
     ValidatedBrowserProtocolUse, WebDriverBiDiErrorCode, WebDriverBiDiLocateNodesAdmissionError,
 };
 
@@ -210,16 +210,16 @@ impl WebDriverBiDiLocateNodesCommand {
     /// `SemanticObservation` proof and exact current session/context/origin/document epoch are
     /// revalidated by [`ValidatedWebDriverBiDiLocateNodesResult::bind_current_nodes`].
     ///
-    /// Success mints only [`ObservedNodeHandle`] values. It still does not authenticate Chromium,
-    /// ChromeDriver, WebSocket/TLS provenance, or the adapter process; authorize policy or typed
-    /// input; execute browser I/O; or prove an action post-condition.
+    /// Success mints only registry-issued [`AdmittedNodeHandle`] values. It still does not
+    /// authenticate Chromium, ChromeDriver, WebSocket/TLS provenance, or the adapter process;
+    /// authorize policy or typed input; execute browser I/O; or prove an action post-condition.
     pub fn bind_response_document_nodes(
         self,
         document: BoundedWebDriverBiDiResponseDocument,
         validated: ValidatedBrowserProtocolUse,
         authority_registry: &mut BrowserAuthorityRegistry,
         target: BrowserContextOriginEpochDispatchTarget<'_>,
-    ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesResponseDocumentError> {
+    ) -> Result<Vec<AdmittedNodeHandle>, WebDriverBiDiLocateNodesResponseDocumentError> {
         self.admit_response_document_nodes(document)?
             .bind_current_nodes(validated, authority_registry, target)
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding)

@@ -169,15 +169,17 @@ fn correlated_result_rejects_cross_context_rebinding() -> Result<(), Box<dyn Err
     let target = current_target(&mut registry, &origin, "context-b")?;
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
-    let error = result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target);
+    let error = result
+        .bind_current_nodes(semantic_observation_proof()?, &mut registry, target)
+        .err()
+        .ok_or("expected context mismatch")?;
 
     assert_eq!(
         error,
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+        WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
             BrowserRegistryError::ContextExternalIdentifierMismatch,
-        ))
+        )
     );
-    let error = error.err().ok_or("expected context mismatch")?;
     assert!(error.to_string().contains("external identifier"));
     Ok(())
 }
@@ -190,15 +192,17 @@ fn correlated_result_rejects_non_bidi_protocol_proof() -> Result<(), Box<dyn Err
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
     assert_eq!(
-        result.bind_current_nodes(
-            protocol_proof(
-                BrowserProtocolKind::ChromeDevToolsProtocol,
-                BrowserProtocolCapability::SemanticObservation,
-            )?,
-            &mut registry,
-            target,
-        ),
-        Err(
+        result
+            .bind_current_nodes(
+                protocol_proof(
+                    BrowserProtocolKind::ChromeDevToolsProtocol,
+                    BrowserProtocolCapability::SemanticObservation,
+                )?,
+                &mut registry,
+                target,
+            )
+            .err(),
+        Some(
             WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
                 BrowserProtocolKind::ChromeDevToolsProtocol,
             )
@@ -215,15 +219,17 @@ fn correlated_result_rejects_non_observation_protocol_proof() -> Result<(), Box<
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
     assert_eq!(
-        result.bind_current_nodes(
-            protocol_proof(
-                BrowserProtocolKind::WebDriverBiDi,
-                BrowserProtocolCapability::TypedInput,
-            )?,
-            &mut registry,
-            target,
-        ),
-        Err(
+        result
+            .bind_current_nodes(
+                protocol_proof(
+                    BrowserProtocolKind::WebDriverBiDi,
+                    BrowserProtocolCapability::TypedInput,
+                )?,
+                &mut registry,
+                target,
+            )
+            .err(),
+        Some(
             WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
                 BrowserProtocolCapability::TypedInput,
             )
@@ -242,8 +248,10 @@ fn correlated_result_rejects_missing_current_origin_binding() -> Result<(), Box<
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
     assert_eq!(
-        result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+        result
+            .bind_current_nodes(semantic_observation_proof()?, &mut registry, target)
+            .err(),
+        Some(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
             BrowserRegistryError::ContextOriginNotBound,
         ))
     );
@@ -265,8 +273,10 @@ fn correlated_result_rejects_stale_document_epoch() -> Result<(), Box<dyn Error>
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
     assert_eq!(
-        result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target),
-        Err(
+        result
+            .bind_current_nodes(semantic_observation_proof()?, &mut registry, target)
+            .err(),
+        Some(
             WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
                 expected: target.expected_epoch(),
                 current: current_epoch,
@@ -288,8 +298,10 @@ fn correlated_result_keeps_node_binding_transactional_on_identifier_exhaustion()
     ])?;
 
     assert_eq!(
-        result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+        result
+            .bind_current_nodes(semantic_observation_proof()?, &mut registry, target)
+            .err(),
+        Some(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
             BrowserRegistryError::IdentifierSpaceExhausted,
         ))
     );

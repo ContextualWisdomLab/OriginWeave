@@ -112,8 +112,8 @@ fn wire_response_binding_preserves_wire_correlation_failure_before_authority()
     );
 
     assert_eq!(
-        error,
-        Err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(
+        error.err(),
+        Some(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(
             WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation(
                 WebDriverBiDiLocateNodesResponseCorrelationError::ResponseIdMismatch {
                     expected: 42,
@@ -139,17 +139,17 @@ fn wire_response_binding_preserves_current_context_authority_failure() -> Result
         target,
     );
 
-    assert_eq!(
-        error,
-        Err(WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(
-            WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
-                BrowserRegistryError::ContextExternalIdentifierMismatch,
-            ),
-        ))
-    );
     let error = error
         .err()
         .ok_or("expected exact current context failure")?;
+    assert_eq!(
+        error,
+        WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(
+            WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+                BrowserRegistryError::ContextExternalIdentifierMismatch,
+            ),
+        )
+    );
     assert!(error.source().is_some());
     assert!(!error.to_string().is_empty());
     Ok(())

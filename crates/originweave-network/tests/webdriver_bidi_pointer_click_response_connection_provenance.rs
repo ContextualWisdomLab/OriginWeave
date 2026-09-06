@@ -7,6 +7,11 @@ use std::{
 };
 
 use originweave_core::{
+    AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
     WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
     WebDriverBiDiWebSocketEndpoint,
 };
@@ -28,6 +33,89 @@ const CLICK_SUCCESS_RESPONSE: &[u8] =
 const CLICK_ERROR_RESPONSE: &[u8] =
     br#"{"type":"error","id":42,"error":"invalid argument","message":"blocked","stacktrace":"remote"}"#;
 
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
+
+type AdmittedPointerClickFixture = (
+    BrowserAuthorityRegistry,
+    AdmittedNodeHandle,
+    WebDriverBiDiRemoteNodeReference,
+);
+
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::SemanticObservation],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::SemanticObservation,
+    )?)
+}
+
+fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::TypedInput],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::TypedInput,
+    )?)
+}
+
+fn admitted_pointer_click_fixture() -> Result<AdmittedPointerClickFixture, Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let browser_session = registry.register_session(SESSION_ID)?;
+    let browsing_context = registry.register_context(browser_session, "context-a")?;
+    let origin = Origin::parse("https://app.example").map_err(|error| {
+        io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
+    })?;
+    let epoch = registry.bind_context_origin(browser_session, browsing_context, &origin)?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(browser_session, browsing_context),
+            &origin,
+        ),
+        epoch,
+    );
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), 1)?;
+    let locate = WebDriverBiDiLocateNodesCommand::new(41, "context-a", &query)?;
+    let document = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":41,"result":{"nodes":[{"type":"node","sharedId":"shared-node-42"}]}}"#,
+    )?;
+    let handle = locate
+        .bind_response_document_nodes(
+            document,
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| io::Error::other("locateNodes fixture did not bind its node"))?;
+    let remote = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
+    Ok((registry, handle, remote))
+}
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
@@ -120,10 +208,13 @@ fn read_response(
 fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Box<dyn Error>> {
     let original_listener = TcpListener::bind(("127.0.0.1", 0))?;
     let original_addr = original_listener.local_addr()?;
-    let expected = WebDriverBiDiPointerClickCommand::new(
+    let (registry, handle, remote) = admitted_pointer_click_fixture()?;
+    let expected = WebDriverBiDiPointerClickCommand::new_for_current_node(
         42,
         "context-a",
-        &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?,
+        &handle,
+        &remote,
+        &registry,
     )?;
     let expected_json = expected.as_json().as_bytes().to_vec();
     let original_server = thread::spawn(move || -> io::Result<()> {
@@ -147,15 +238,15 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
     });
 
     let original = establish(original_addr)?;
-    let command = WebDriverBiDiPointerClickCommand::new(
-        42,
-        "context-a",
-        &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?,
-    )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(43, WebDriverBiDiCommandKind::SessionStatus)?;
     let original = send_webdriver_bidi_pointer_click(
-        &command,
+        typed_input_proof()?,
+        42,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         original,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),

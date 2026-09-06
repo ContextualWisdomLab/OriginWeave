@@ -2,8 +2,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use crate::{
-    BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget, BrowserProtocolCapability,
-    BrowserProtocolKind, ObservedNodeHandle, ValidatedBrowserProtocolUse,
+    AdmittedNodeHandle, BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget,
+    BrowserProtocolCapability, BrowserProtocolKind, ValidatedBrowserProtocolUse,
     ValidatedWebDriverBiDiLocateNodesResponse, WebDriverBiDiAccessibilityQueryError,
     WebDriverBiDiLocateNodesAdmissionError, WebDriverBiDiRemoteNodeReference,
     WebDriverBiDiRemoteNodeReferenceError,
@@ -52,7 +52,7 @@ impl Error for WebDriverBiDiLocateNodesResultAdmissionError {
 ///
 /// This is still transport evidence, not OriginWeave node authority. It does not parse raw JSON,
 /// authenticate Chromium or its adapter, prove current session/context/origin/document authority,
-/// mint [`crate::ObservedNodeHandle`] values, authorize policy or typed input, or establish an Agent
+/// mint [`crate::AdmittedNodeHandle`] values, authorize policy or typed input, or establish an Agent
 /// action. A later reviewed current-authority boundary must consume these normalized references.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatedWebDriverBiDiLocateNodesResult {
@@ -93,15 +93,16 @@ impl ValidatedWebDriverBiDiLocateNodesResult {
     /// different context. The registry then revalidates the exact session, canonical origin, and
     /// document epoch before all normalized `sharedId` values are bound transactionally.
     ///
-    /// Success mints only [`ObservedNodeHandle`] values. It does not authenticate Chromium or an
-    /// adapter process, perform browser I/O, authorize policy or typed input, or turn descriptive
-    /// protocol evidence into an Agent capability.
+    /// Success mints only [`AdmittedNodeHandle`] values carrying opaque provenance for this exact
+    /// registry instance. It does not authenticate Chromium or an adapter process, perform browser
+    /// I/O, authorize policy or typed input, or turn descriptive protocol evidence into an Agent
+    /// capability.
     pub fn bind_current_nodes(
         self,
         validated: ValidatedBrowserProtocolUse,
         authority_registry: &mut BrowserAuthorityRegistry,
         target: BrowserContextOriginEpochDispatchTarget<'_>,
-    ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesAdmissionError> {
+    ) -> Result<Vec<AdmittedNodeHandle>, WebDriverBiDiLocateNodesAdmissionError> {
         if validated.kind() != BrowserProtocolKind::WebDriverBiDi {
             return Err(
                 WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(validated.kind()),
@@ -146,7 +147,7 @@ impl ValidatedWebDriverBiDiLocateNodesResult {
             .map(WebDriverBiDiRemoteNodeReference::shared_id)
             .collect::<Vec<_>>();
         authority_registry
-            .bind_nodes(
+            .bind_admitted_nodes(
                 context.browser_session(),
                 context.browsing_context(),
                 context_origin.expected_origin(),

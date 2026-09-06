@@ -7,8 +7,12 @@ use std::{
 };
 
 use originweave_core::{
-    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
-    WebDriverBiDiWebSocketEndpoint,
+    AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
     MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
@@ -21,10 +25,91 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
+
 type HandshakeOnlyServer = (
     WebDriverBiDiWebSocketEstablished,
     thread::JoinHandle<io::Result<()>>,
 );
+type PointerClickFixture = (
+    BrowserAuthorityRegistry,
+    AdmittedNodeHandle,
+    WebDriverBiDiRemoteNodeReference,
+);
+
+fn protocol_proof(
+    kind: BrowserProtocolKind,
+    capability: BrowserProtocolCapability,
+) -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        kind,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[capability],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        kind,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        capability,
+    )?)
+}
+
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    protocol_proof(
+        BrowserProtocolKind::WebDriverBiDi,
+        BrowserProtocolCapability::SemanticObservation,
+    )
+}
+
+fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    protocol_proof(
+        BrowserProtocolKind::WebDriverBiDi,
+        BrowserProtocolCapability::TypedInput,
+    )
+}
+
+fn pointer_click_fixture() -> Result<PointerClickFixture, Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let browser_session = registry.register_session(SESSION_ID)?;
+    let browsing_context = registry.register_context(browser_session, "context-a")?;
+    let origin = Origin::parse("https://app.example").map_err(|error| {
+        io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
+    })?;
+    let epoch = registry.bind_context_origin(browser_session, browsing_context, &origin)?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(browser_session, browsing_context),
+            &origin,
+        ),
+        epoch,
+    );
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), 1)?;
+    let locate = WebDriverBiDiLocateNodesCommand::new(41, "context-a", &query)?;
+    let document = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":41,"result":{"nodes":[{"type":"node","sharedId":"shared-node-42"}]}}"#,
+    )?;
+    let handle = locate
+        .bind_response_document_nodes(
+            document,
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| io::Error::other("locateNodes fixture did not bind its node"))?;
+    let remote = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
+    Ok((registry, handle, remote))
+}
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -49,7 +134,23 @@ fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
-        stream.write_all(OPENING_RESPONSE)
+        stream.write_all(OPENING_RESPONSE)?;
+        let mut byte = [0_u8; 1];
+        match stream.read(&mut byte) {
+            Ok(0) => Ok(()),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) =>
+            {
+                Ok(())
+            }
+            Ok(_) => Err(io::Error::other(
+                "rejected pointer command emitted wire bytes",
+            )),
+            Err(error) => Err(error),
+        }
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -65,13 +166,89 @@ fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn
     Ok((established, server))
 }
 
-fn pointer_click(command_id: u64) -> Result<WebDriverBiDiPointerClickCommand, Box<dyn Error>> {
-    let node = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
-    Ok(WebDriverBiDiPointerClickCommand::new(
-        command_id,
+#[test]
+fn pointer_click_rejects_non_typed_input_proof_before_correlation_or_frame_write()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_handshake_only_server()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let (registry, handle, remote) = pointer_click_fixture()?;
+
+    let error = send_webdriver_bidi_pointer_click(
+        semantic_observation_proof()?,
+        5,
         "context-a",
-        &node,
-    )?)
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    )
+    .err()
+    .ok_or_else(|| {
+        io::Error::other("semantic-observation proof unexpectedly sent a pointer click")
+    })?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::UnsupportedCapability(
+            BrowserProtocolCapability::SemanticObservation
+        )
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click send requires typed-input capability"
+    );
+    assert!(error.source().is_none());
+    assert_eq!(correlation.outstanding_count(), 0);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("typed-input capability rejection server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn pointer_click_rejects_non_webdriver_bidi_proof_before_correlation_or_frame_write()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_handshake_only_server()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let (registry, handle, remote) = pointer_click_fixture()?;
+
+    let error = send_webdriver_bidi_pointer_click(
+        protocol_proof(
+            BrowserProtocolKind::ChromeDevToolsProtocol,
+            BrowserProtocolCapability::TypedInput,
+        )?,
+        6,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("CDP typed-input proof unexpectedly sent a pointer click"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::UnsupportedProtocolKind(
+            BrowserProtocolKind::ChromeDevToolsProtocol
+        )
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click send requires a WebDriver BiDi proof"
+    );
+    assert!(error.source().is_none());
+    assert_eq!(correlation.outstanding_count(), 0);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("WebDriver BiDi proof rejection server panicked"))??;
+    Ok(())
 }
 
 #[test]
@@ -79,10 +256,15 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<()
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(7, WebDriverBiDiCommandKind::PointerClick)?;
-    let command = pointer_click(7)?;
+    let (registry, handle, remote) = pointer_click_fixture()?;
 
     let error = send_webdriver_bidi_pointer_click(
-        &command,
+        typed_input_proof()?,
+        7,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
@@ -108,6 +290,43 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<()
 }
 
 #[test]
+fn pointer_click_invalid_timeout_leaves_no_correlation_or_wire_bytes() -> Result<(), Box<dyn Error>>
+{
+    let (established, server) = establish_with_handshake_only_server()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let (registry, handle, remote) = pointer_click_fixture()?;
+
+    let error = send_webdriver_bidi_pointer_click(
+        typed_input_proof()?,
+        11,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+        Duration::ZERO,
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("zero frame timeout unexpectedly sent a pointer click"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::FrameWrite { .. }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click command frame write failed"
+    );
+    assert!(error.source().is_some());
+    server
+        .join()
+        .map_err(|_| io::Error::other("invalid-timeout pointer server panicked"))??;
+    assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
 fn pointer_click_rejects_invalid_frame_timeout_before_correlation_registration()
 -> Result<(), Box<dyn Error>> {
     for (command_id, frame_timeout) in [
@@ -116,10 +335,15 @@ fn pointer_click_rejects_invalid_frame_timeout_before_correlation_registration()
     ] {
         let (established, server) = establish_with_handshake_only_server()?;
         let mut correlation = WebDriverBiDiCommandCorrelation::new();
-        let command = pointer_click(command_id)?;
+        let (registry, handle, remote) = pointer_click_fixture()?;
 
         let error = send_webdriver_bidi_pointer_click(
-            &command,
+            typed_input_proof()?,
+            command_id,
+            "context-a",
+            &handle,
+            &remote,
+            &registry,
             established,
             &mut correlation,
             WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),

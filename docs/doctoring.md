@@ -4,6 +4,28 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Pointer outbound authority and received-reply integration
+
+Child #265 at `ddce7248` already checked the admitted node and canonical registry session
+before pointer dispatch. Regression `e7fb1527` nevertheless reproduced both replacement
+success and error replies consuming its original pending request (0/2 passing), using
+the same listener and external session. The original server was joined before the
+decisive mismatch assertion; unrelated pending work and genuine-reply recovery remain
+part of each case.
+
+Ordinary parent adoption `d847b530` retains that child authority guard and typed monotonic
+dispatch while adding #264 `43395711` connection registration and sealed reply consumption.
+It reuses the existing connection identity and message reader, with no new dependency,
+raw-response fallback or duplicate authority owner. The 14 focused pointer, outbound
+session and navigation-postcondition tests pass. Full combined-head verification remains
+required; predecessor coverage and screenshots are not transferable.
+
+This implements the existing reply-provenance invariant, not a new accepted architectural
+decision. Node/session matching and a correctly correlated reply still do not authenticate
+Chromium, authorize policy, prove that an observed navigation was caused by the click,
+or establish protected-main and release acceptance. Parent-only historical deferrals below
+do not remove the stronger safeguards already present in this child.
+
 ### Subscription registry-to-transport session provenance
 
 The real-loopback test at `b4702cd5`, executed locally before repair, dispatched a subscription
