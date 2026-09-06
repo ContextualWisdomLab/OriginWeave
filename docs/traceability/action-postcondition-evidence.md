@@ -1,6 +1,23 @@
 # Action Post-Condition Evidence Traceability
 
-## Parent-adoption checkpoint — 2026-09-06
+## Text-transport integration checkpoint — 2026-09-06
+
+#267 adopts #266 `eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` through ordinary merge
+`d903cf6b`, preserving original transport `46a05d7f`. Text dispatch reconstructs the
+command from current node authority and now uses the parent's sealed typed-write lane
+with a distinct `TypeText` correlation family. The shared frame-deadline validator
+runs before registration. Actual RED `2b960002` exposed a zero deadline retaining an
+unsent command; RED `e2b49e68` exposed the same retention after reused-mask preflight.
+The repair retires only malformed-frame rejections that prove no write began and
+retains correlation after ambiguous socket failure. Nine focused transport tests pass
+at source `3056b892`; complete exact-head acceptance is still pending.
+
+The transport is not policy approval, browser authentication, a typed response consumer,
+an observed text-value post-condition, protected-main delivery, or release evidence.
+Those boundaries remain separate #28 work. The predecessor dossier below is historical;
+its counts, source heads and hosted results are not current combined-head acceptance.
+
+## Historical parent-adoption checkpoint — 2026-09-06
 
 Ordinary integration `5a722867` preserves the text-input and diagnostic-privacy delta
 from `cc9980c0` while adopting pointer parent `7147893c96ca95c9b5b275d8011c5bfe99aab065`.
