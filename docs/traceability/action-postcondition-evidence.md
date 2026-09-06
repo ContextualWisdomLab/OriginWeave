@@ -1,5 +1,22 @@
 # Action Post-Condition Evidence Traceability
 
+## Text sender receipt-provenance prerequisite — 2026-09-06
+
+Child #268 regression `4632f2df` opens two connections to the same listener and
+session, sends text input on the first and observes a successful acknowledgment
+from the second being accepted. Sealed-consumer candidate `d6889c80` rejects both
+connections because the sender has not retained connection provenance. This owner
+repair reuses `register_command_for_connection` before frame I/O and records the
+established transport's private generation. It preserves session/current-node
+validation, deadlines, no-write retirement and ambiguous-write retention.
+
+This prerequisite alone does not make generic consumers connection-sensitive.
+#268 must adopt it and finish sealed-reader migration, foreign success/error
+rejection, original-connection recovery and complete verification. The regression
+and consumer commits are local integration evidence until their publication is
+verified. Browser authentication, policy approval and observed text-value success
+remain unproven. Earlier checkpoint evidence below remains revision-specific.
+
 ## Text-transport integration checkpoint — 2026-09-06
 
 #267 adopts #266 `eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` through ordinary merge
