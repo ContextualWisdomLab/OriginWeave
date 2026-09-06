@@ -579,6 +579,91 @@ fn identical_unsent_command_fields_do_not_recreate_sent_command_identity()
 }
 
 #[test]
+fn original_binding_rejects_replacement_registry_at_receipt_admission() -> Result<(), Box<dyn Error>>
+{
+    let mut original = BrowserAuthorityRegistry::new();
+    let session = original.register_session(SESSION_ID)?;
+    let context = original.register_context(session, CONTEXT_ID)?;
+    let (receipt, binding, _) = receive_subscription_result(&original, session, context, 7)?;
+    let mut replacement = BrowserAuthorityRegistry::with_identifier_limit(8);
+    let replacement_session = replacement.register_session(SESSION_ID)?;
+    let replacement_context = replacement.register_context(replacement_session, CONTEXT_ID)?;
+    assert_eq!(
+        (session, context),
+        (replacement_session, replacement_context)
+    );
+    assert!(
+        WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(receipt, binding, &replacement)
+            .is_err(),
+        "an original receipt and binding must not authorize a replacement registry"
+    );
+    Ok(())
+}
+
+#[test]
+fn original_event_rejects_replacement_registry_without_consuming_replay_state()
+-> Result<(), Box<dyn Error>> {
+    let mut original = BrowserAuthorityRegistry::new();
+    let session = original.register_session(SESSION_ID)?;
+    let context = original.register_context(session, CONTEXT_ID)?;
+    let (receipt, binding, event) = receive_subscription_result(&original, session, context, 7)?;
+    let mut admission =
+        WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(receipt, binding, &original)?;
+    let mut replacement = BrowserAuthorityRegistry::new();
+    let replacement_session = replacement.register_session(SESSION_ID)?;
+    let replacement_context = replacement.register_context(replacement_session, CONTEXT_ID)?;
+    assert_eq!(
+        (session, context),
+        (replacement_session, replacement_context)
+    );
+    let before = original.current_epoch(context)?;
+    assert!(
+        admission.admit(&event, &replacement, EXPECTED_URL).is_err(),
+        "a valid original-connection event must reject another registry with colliding IDs"
+    );
+    assert_eq!(replacement.current_epoch(replacement_context)?, before);
+    let admitted = admission.admit(&event, &original, EXPECTED_URL)?;
+    let advanced =
+        advance_webdriver_bidi_navigation_document_epoch(admitted, &mut original, before)?;
+    assert_eq!(advanced.current_epoch().value(), before.value() + 1);
+    assert_eq!(replacement.current_epoch(replacement_context)?, before);
+    Ok(())
+}
+
+#[test]
+fn admitted_observation_rejects_replacement_registry_at_document_mutation()
+-> Result<(), Box<dyn Error>> {
+    let mut original = BrowserAuthorityRegistry::new();
+    let session = original.register_session(SESSION_ID)?;
+    let context = original.register_context(session, CONTEXT_ID)?;
+    let (receipt, binding, event) = receive_subscription_result(&original, session, context, 7)?;
+    let mut admission =
+        WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(receipt, binding, &original)?;
+    let admitted = admission.admit(&event, &original, EXPECTED_URL)?;
+    let mut replacement = BrowserAuthorityRegistry::new();
+    let replacement_session = replacement.register_session("unrelated-session")?;
+    let replacement_context = replacement.register_context(replacement_session, "unrelated-tab")?;
+    assert_eq!(
+        (session, context),
+        (replacement_session, replacement_context)
+    );
+    let origin = originweave_core::Origin::parse("https://unrelated.test")?;
+    let before =
+        replacement.bind_context_origin(replacement_session, replacement_context, &origin)?;
+    assert!(
+        advance_webdriver_bidi_navigation_document_epoch(admitted, &mut replacement, before)
+            .is_err(),
+        "an observation admitted in one registry must not mutate another registry"
+    );
+    assert_eq!(original.current_epoch(context)?, before);
+    assert_eq!(
+        replacement.require_context_origin(replacement_session, replacement_context, &origin)?,
+        before
+    );
+    Ok(())
+}
+
+#[test]
 fn subscription_identity_does_not_collide_across_registries() -> Result<(), Box<dyn Error>> {
     let mut original_registry = BrowserAuthorityRegistry::new();
     let original_session = original_registry.register_session(SESSION_ID)?;
