@@ -24,6 +24,8 @@ PR #195 is the earliest active owner point for the foundation recovery. The bran
 
 The baseline deliberately does not embed PR #195's mutable live head as its own current identity. Any commit that updates this file would immediately make such a literal stale. Evidence commands therefore re-resolve the PR head from GitHub before fetching checks. `tests/test_gap_snapshot_inventory_consistency.py` enforces that rule instead of pinning a self-invalidating head SHA.
 
+Exact predecessor `7b2f30941ba2a2b17870f31a835a3ed0217be17c` exercised the next recovery RED. CI `34010603105` failed in Python repository contracts while Production coverage succeeded; MV3 `34010603003` also succeeded. Three leaf/content defects were repaired without changing workflow source: `6e5aeb583738aa3b3c3433d7f63265fac8aef8c3` restores protected `.github/dependabot.yml`, `c8f850707474726eb580ec2652c254e79d37bb9b` aligns the Proposed ADR lifecycle assertion with the canonical bold metadata, and `7dbdf0364768f049286bc5cb59e85e9978d533ca` restores the required fail-closed release wording. The remaining two REDs are both workflow-contract mismatches: this historical branch still carries an older CI concurrency/lifecycle generation and `nightly-2026-08-01`, while protected main carries repository-scoped concurrency, PR-only cancellation, explicit Draft/closed lifecycle guards, and `nightly-2026-08-18`. Issue #279 now contains the exact owner-path evidence. Scheduled product ownership does not weaken those tests or edit `.github/workflows/**` to make the stale generation pass.
+
 PR #242 still targets the pre-recovery #195 generation `48eb2d23009c1c804520dd5efcd0d4d072aacef1` and GitHub currently reports it non-mergeable. Descendants must adopt the repaired foundation content-aware and non-destructively; preserving an old child tree in a topology-only merge would reintroduce the deleted product assets. Each reconstructed exact head needs fresh checks. No predecessor GREEN transfers.
 
 ### Browser sandbox and realistic Chromium acceptance
@@ -36,11 +38,11 @@ Issue #212 is the canonical workflow-owner boundary for the missing sandbox-help
 
 The repaired teardown/navigation chain #255 → #256 → #257 → #258 → #259 → #260 → #261 → #277 has terminal repository-native success on the already-restacked exact heads. That evidence validates those exact trees only; it does not cure foundation lineage, transfer central review/security evidence, or establish real-browser acceptance.
 
-PR #263 adds a typed `session.unsubscribe` path for the exact opaque committed-navigation subscription receipt. Predecessor `37ae698c4a9e12d2fabf821ae5b910ea8a35ab8a` failed hosted CI because canonical rustfmt was not applied and one real `send()` frame-error arm was uncovered. Repair `3f22de94b63da83eaa8b5b1270912b21a3ecd006` changes only the unsubscribe failure integration test: it applies canonical formatting and exercises the real loopback RFC 6455 no-write `MalformedFrame` path caused by adjacent client masking-key reuse, proving no unsubscribe bytes reach the peer and only that unsubscribe correlation retires. Its fresh CI `34009256997` is queued at this snapshot; predecessor or partial evidence is not promoted.
+PR #263 adds a typed `session.unsubscribe` path for the exact opaque committed-navigation subscription receipt. Predecessor `37ae698c4a9e12d2fabf821ae5b910ea8a35ab8a` failed hosted CI because canonical rustfmt was not applied and one real `send()` frame-error arm was uncovered. Repair `3f22de94b63da83eaa8b5b1270912b21a3ecd006` applies canonical formatting and adds the realistic loopback RFC 6455 no-write `MalformedFrame` path caused by adjacent client masking-key reuse, proving no unsubscribe bytes reach the peer and only that unsubscribe correlation retires. Exact CI `34009256997` is terminal success: Rust contracts job `101422055630` passed Python contracts, formatting, locked workspace checks, tests, Clippy and rustdoc; Production coverage job `101422055538` passed exact coverage enforcement. This GREEN applies only to that exact tree and does not cure the separate foundation or browser-runtime prerequisites.
 
 ### CI, review, and evidence control plane
 
-Issue #279 remains the protected-main owner for exact-head documentation verification and the Ready-transition execution gap. The repeated CodeQL dispatch-to-verdict defect observed after successful current-head central scan dispatch is owned by `ContextualWisdomLab/.github#712`; leaf branches must not duplicate CodeQL, weaken required checks, or convert queued/skipped/provider-incomplete evidence into GREEN.
+Issue #279 remains the protected-main owner for exact-head documentation verification, Ready-transition execution, and the protected workflow generation that historical product stacks must preserve rather than weakening repository contracts. The repeated CodeQL dispatch-to-verdict defect observed after successful current-head central scan dispatch is owned by `ContextualWisdomLab/.github#712`; leaf branches must not duplicate CodeQL, weaken required checks, or convert queued/skipped/provider-incomplete evidence into GREEN.
 
 Protected review/ruleset requirements remain independent from tests. Passing automation is not approval. Stale review state after a push is not current approval, and a Draft, conflicted, or stack-incomplete PR is not merge-ready merely because one repository workflow passed.
 
@@ -55,7 +57,7 @@ Protected review/ruleset requirements remain independent from tests. Passing aut
 | Persistent task/API surface | Foundations exist | Tenant-scoped persistence, recovery, idempotency, operability, and API acceptance on protected code |
 | Enterprise administration | Governance primitives exist | Buyer-visible policy/approval/audit administration with purpose-bound sensitive-data handling and accessibility verification |
 | Distribution and release | No GitHub Release exists | signed cross-platform artifacts, SBOM/provenance, reproducibility, rollback, package/tag and immutable release verification |
-| CI evidence throughput | Exact-head verification exists but central verdict/queue issues remain | Reliable exact-head required workflows without gate weakening, skipped-result promotion, or stale evidence transfer |
+| CI evidence throughput | Exact-head verification exists but central verdict/queue issues and stale inherited workflow generations remain | Reliable exact-head required workflows without gate weakening, skipped-result promotion, stale workflow adoption, or stale evidence transfer |
 
 ### Bounded-context and ownership constraints
 
@@ -65,7 +67,7 @@ Deterministic browser policy/security decisions remain deterministic. Model-back
 
 ### Current repair order
 
-1. Resolve PR #195's live head immediately before interpreting its CI/MV3 results; repair any new RED at that exact head and keep the content-aware recovery lineage intact.
+1. Resolve PR #195's live head immediately before interpreting its CI/MV3 results. Preserve the three completed content repairs and have the authorized workflow owner adopt the protected current CI generation rather than weakening the restored repository contracts.
 2. Reconcile any remaining inherited documentation differences content-aware; do not overwrite later WebDriver deltas with an older whole tree.
 3. Reconstruct #242 and descendants from the repaired #195 foundation using ordinary forward/non-force adoption, then regenerate exact-head checks on every claimed integration point.
 4. Complete #212's authorized current-generation Chromium sandbox-helper integration and rerun realistic pinned-Chromium evidence on the exact consumer head.
