@@ -38,10 +38,10 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+fn read_masked_client_frame(stream: &mut TcpStream, expected_header: u8) -> io::Result<Vec<u8>> {
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
-    if header[0] != 0x81 || header[1] & 0x80 == 0 {
+    if header[0] != expected_header || header[1] & 0x80 == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "expected one final masked client text frame",
@@ -104,7 +104,7 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        let command = read_masked_text_frame(&mut stream)?;
+        let command = read_masked_client_frame(&mut stream, 0x81)?;
         if command != expected_json {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -154,7 +154,7 @@ fn pointer_click_reused_mask_key_rejection_retires_correlation() -> Result<(), B
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        let seed = read_masked_text_frame(&mut stream)?;
+        let seed = read_masked_client_frame(&mut stream, 0x8a)?;
         if seed != b"{}" {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -176,7 +176,7 @@ fn pointer_click_reused_mask_key_rejection_retires_correlation() -> Result<(), B
         .read_opening_response(Duration::from_millis(500))?;
     let repeated_key = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
     let established =
-        established.write_text_frame("{}", repeated_key, Duration::from_millis(500))?;
+        established.write_pong_frame(b"{}", repeated_key, Duration::from_millis(500))?;
 
     let command = WebDriverBiDiPointerClickCommand::new(
         43,
@@ -232,22 +232,23 @@ fn pointer_click_ambiguous_socket_write_keeps_correlation() -> Result<(), Box<dy
     let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?
-        .write_text_frame(
-            "seed-frame",
+        .write_pong_frame(
+            b"seed-frame",
             WebDriverBiDiWebSocketMaskKey::new([13, 14, 15, 16]),
             Duration::from_millis(500),
         )?;
     closed_receiver.recv_timeout(Duration::from_secs(1))?;
 
-    let command = WebDriverBiDiPointerClickCommand::new(
-        44,
-        "context-a",
-        &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-44"))?,
-    )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let mut established = established;
     let mut observed_ambiguous_failure = false;
     for attempt in 0_u8..64 {
+        let command_id = 44 + u64::from(attempt);
+        let command = WebDriverBiDiPointerClickCommand::new(
+            command_id,
+            "context-a",
+            &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-44"))?,
+        )?;
         match send_webdriver_bidi_pointer_click(
             &command,
             established,
@@ -256,7 +257,8 @@ fn pointer_click_ambiguous_socket_write_keeps_correlation() -> Result<(), Box<dy
             Duration::from_millis(500),
         ) {
             Ok(next) => {
-                correlation.retire_command_for(44, WebDriverBiDiCommandKind::PointerClick)?;
+                correlation
+                    .retire_command_for(command_id, WebDriverBiDiCommandKind::PointerClick)?;
                 established = next;
             }
             Err(error) => {

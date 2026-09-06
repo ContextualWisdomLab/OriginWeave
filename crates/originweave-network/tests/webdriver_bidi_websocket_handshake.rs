@@ -1,8 +1,4 @@
-use std::{
-    net::TcpListener,
-    thread,
-    time::Duration,
-};
+use std::{net::TcpListener, thread, time::Duration};
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{

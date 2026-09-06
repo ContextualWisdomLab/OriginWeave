@@ -63,7 +63,9 @@ enum CommandWriteState {
     #[default]
     NoCommands,
     RawText,
-    TypedCommand { command_id: u64 },
+    TypedCommand {
+        command_id: u64,
+    },
 }
 
 impl ClientMaskKeyHistory {
@@ -261,7 +263,10 @@ impl WebDriverBiDiWebSocketEstablished {
         masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
-        if matches!(self.command_write_state, CommandWriteState::TypedCommand { .. }) {
+        if matches!(
+            self.command_write_state,
+            CommandWriteState::TypedCommand { .. }
+        ) {
             return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
                 reason: "raw text and typed commands cannot share an established WebSocket",
             });
@@ -283,7 +288,9 @@ impl WebDriverBiDiWebSocketEstablished {
                     reason: "raw text and typed commands cannot share an established WebSocket",
                 });
             }
-            CommandWriteState::TypedCommand { command_id: previous_id } if command_id <= previous_id => {
+            CommandWriteState::TypedCommand {
+                command_id: previous_id,
+            } if command_id <= previous_id => {
                 return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
                     reason: "typed command identifiers must increase on an established WebSocket",
                 });
