@@ -194,6 +194,128 @@ fn receive_subscription_result(
     Ok((result, binding))
 }
 
+fn establish_connection(
+    local_addr: std::net::SocketAddr,
+) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    Ok(WebDriverBiDiWebSocketHandshakePlan::new(
+        connection,
+        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+    )?
+    .write_opening_request(Duration::from_millis(500))?
+    .read_opening_response(Duration::from_millis(500))?)
+}
+
+#[test]
+fn foreign_connection_cannot_complete_a_subscription_command() -> Result<(), Box<dyn Error>> {
+    for foreign_payload in [
+        SUBSCRIBE_RESPONSE,
+        br#"{"type":"error","id":7,"error":"invalid argument","message":"rejected"}"#,
+    ] {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> {
+            let (mut original, _) = listener.accept()?;
+            read_opening_request(&mut original)?;
+            original.write_all(OPENING_RESPONSE)?;
+            assert_eq!(read_masked_text_frame(&mut original)?,
+                br#"{"id":7,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-a"]}}"#);
+            let (mut foreign, _) = listener.accept()?;
+            read_opening_request(&mut foreign)?;
+            foreign.write_all(OPENING_RESPONSE)?;
+            write_text_frame(&mut foreign, foreign_payload)?;
+            write_text_frame(&mut original, SUBSCRIBE_RESPONSE)
+        });
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session(SESSION_ID)?;
+        let context = registry.register_context(session, CONTEXT_ID)?;
+        let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+            7, &registry, session, context, CONTEXT_ID,
+        )?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        let original = command.send(
+            &registry,
+            establish_connection(local_addr)?,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+            Duration::from_millis(500),
+        )?;
+        let foreign = establish_connection(local_addr)?;
+        let (_, foreign_message) =
+            next_text(foreign, &mut WebDriverBiDiWebSocketMessageAssembler::new())?;
+        let foreign_result =
+            WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+                &foreign_message,
+                &mut correlation,
+            );
+        server
+            .join()
+            .map_err(|_| io::Error::other("crossed response server panicked"))??;
+        assert!(
+            foreign_result.is_err(),
+            "foreign success must not mint a subscription receipt"
+        );
+        assert_eq!(
+            correlation.outstanding_count(),
+            1,
+            "foreign success or error must not consume the original command"
+        );
+        let (_, original_message) =
+            next_text(original, &mut WebDriverBiDiWebSocketMessageAssembler::new())?;
+        WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+            &original_message,
+            &mut correlation,
+        )?;
+        assert_eq!(correlation.outstanding_count(), 0);
+    }
+    Ok(())
+}
+
+#[test]
+fn foreign_connection_event_cannot_mutate_a_subscribed_document() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+    let original_epoch = registry.current_context_epoch(session, context)?;
+    let (subscription, binding) = receive_subscription_result(&registry, session, context, 7)?;
+    let mut admission = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+        subscription,
+        binding,
+        &registry,
+    )?;
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut foreign, _) = listener.accept()?;
+        read_opening_request(&mut foreign)?;
+        foreign.write_all(OPENING_RESPONSE)?;
+        write_text_frame(&mut foreign, NAVIGATION_EVENT)
+    });
+    let (_, foreign_event) = next_text(
+        establish_connection(local_addr)?,
+        &mut WebDriverBiDiWebSocketMessageAssembler::new(),
+    )?;
+    server
+        .join()
+        .map_err(|_| io::Error::other("crossed event server panicked"))??;
+    assert!(
+        admission
+            .admit(&foreign_event, &registry, EXPECTED_URL)
+            .is_err(),
+        "same session/context text on another connection must not create a state-changing observation"
+    );
+    assert_eq!(
+        registry.current_context_epoch(session, context)?,
+        original_epoch
+    );
+    Ok(())
+}
+
 #[test]
 fn committed_navigation_requires_the_exact_active_subscription_before_document_mutation()
 -> Result<(), Box<dyn Error>> {
