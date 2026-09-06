@@ -64,7 +64,9 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn establish(local_addr: std::net::SocketAddr) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+fn establish(
+    local_addr: std::net::SocketAddr,
+) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
         .correlate_session_id(SESSION_ID)?
@@ -110,8 +112,8 @@ fn receive_foreign_status_response(
 }
 
 #[test]
-fn session_status_response_from_same_session_replacement_connection_cannot_consume_original_pending_command(
-) -> Result<(), Box<dyn Error>> {
+fn session_status_response_from_same_session_replacement_connection_cannot_consume_original_pending_command()
+-> Result<(), Box<dyn Error>> {
     let original_listener = TcpListener::bind(("127.0.0.1", 0))?;
     let original_addr = original_listener.local_addr()?;
     let original_server = thread::spawn(move || -> io::Result<()> {
