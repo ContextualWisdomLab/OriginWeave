@@ -79,6 +79,43 @@ proves that a changed latest count cannot be hidden by unchanged historical coun
 Thread resolution requires published repair evidence; this documentation revision still
 needs its own post-publication visual inspection and exact-head hosted checks.
 
+#### Current executable queue and lineage: 14:18 UTC
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+The fresh complete inventory confirms the canonical counts above. These are Ready
+review candidates, not merge-ready approvals: all remain BLOCKED. Re-fetch each
+head, base, checks, findings and counted approval before acting; do not substitute
+the historical root list below. #238's moving head remains live metadata rather than
+a self-referential SHA in this document.
+
+Current foundation #195 `63997bcf555e2c5c8e91ba287734ffba3837a1b7` remains Draft on
+`6922dd98779e8f8aad132a3b1f563d7ba6e6d070`. The earlier `48eb2d` observations are
+historical, not current lineage. #279's workflow-generation prerequisite and #212's
+sandbox-helper boundary still require their own evidence and must not be bypassed.
+
+Published transport #267 `4435ce5f561ca069c1844a1a5bd9b603505e25f7` adopts #266
+`eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` through ordinary merge `d903cf6b`, preserving
+both histories. Actual REDs `2b960002`, `e2b49e68` and `10131eb7` preceded repairs for
+invalid deadlines, no-write preflight retention and foreign-session dispatch. The
+implementation reuses canonical timeout/session checks and sealed typed dispatch;
+ambiguous writes remain pending. Ten focused socket tests, full Rust 1.97.1 gates,
+145 Python contracts and exact production coverage 1317/13832/17596/1456 each at 100%
+pass. Coverage SHA-256 is
+`065e535fd49c34699b35d53b4cc6b09f22b3dff506f07eb5549c21b73074bdc8`.
+Actual Edge inspection verified its published body and Checks page at that head,
+with readable wrapping and no observed clipping or overlap. CI `34038399969` remains
+queued; this is not hosted acceptance, counted approval or product-browser evidence.
+Source writer `5559716889` is released.
+
+Execute the verified #238 root/lineage review repairs first, then adopt #267 into
+existing response owner #268 `8d4027e40b790d28d866051ba741db12927ec22c`. That consumer
+still uses removed generic correlation; migrate to the parent's distinct text family
+without restoring generic routing, weakening malformed-response retention, or treating
+response admission as observed action success. Received-message provenance remains a
+separate unproven boundary. Keep source and documentation writers separate. This
+documentation revision needs its own publication, visual inspection and hosted checks.
+
 #### Prior observation: 12:28 UTC
 
 All current-state wording in this prior observation is scoped to its recorded time.
@@ -557,7 +594,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 9. No required check, browser/platform lane, security case, benchmark case, or independent review is skipped, stale, inherited, or represented by status-only evidence.
 10. The open PR queue is reduced to bounded active work rather than being the only place where the product exists.
 
-## Next executable queue
+## Historical next executable queue
 
 1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #173, #175, #208, #209, #211, #218, #219, #229, #237, #238, and #239 as their current checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
 2. Keep the organization review pipeline healthy: monitor the central Actions backlog recorded above; if OpenCode reviews stop landing on OriginWeave heads while the queue is idle, repair `ContextualWisdomLab/.github` dispatch/concurrency configuration rather than weakening any gate.
