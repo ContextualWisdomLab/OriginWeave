@@ -16,6 +16,10 @@ class CurrentDeliveryCheckpointContractTests(unittest.TestCase):
         cls.checkpoint = CHECKPOINT.read_text(encoding="utf-8")
 
     def test_current_source_heads_and_parent_boundary_are_exact(self) -> None:
+        self.assertIn("Historical checkpoint: 2026-09-06 12:28 UTC", self.checkpoint)
+        self.assertIn("## Historical source and dependency state", self.checkpoint)
+        self.assertIn("## Historical hosted and browser boundaries", self.checkpoint)
+        self.assertIn("## Historical review and queue boundary", self.checkpoint)
         for marker in (
             "`b4702cd503fa3f721e0d1f44b355563753dac0a2`",
             "`35555d0f8491d4ee95c2e61d1a2aaa2c02a0635c`",

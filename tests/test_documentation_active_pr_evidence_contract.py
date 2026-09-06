@@ -119,6 +119,17 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", refresh_line)
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", refresh_line)
 
+    def test_latest_inventory_drift_cannot_be_hidden_by_historical_counts(self) -> None:
+        """Changing only the newest count must invalidate an unchanged changelog."""
+        probe = ActivePullRequestDocumentationContractTests(
+            "test_baseline_refresh_changelog_matches_the_live_snapshot"
+        )
+        probe.baseline = self.baseline.replace("125 open", "126 open", 1)
+        self.assertNotEqual(self.baseline, probe.baseline)
+        probe.changelog = self.changelog
+        with self.assertRaises(AssertionError):
+            probe.test_baseline_refresh_changelog_matches_the_live_snapshot()
+
     def test_current_warc_provider_failures_are_bound_to_current_head(self) -> None:
         """WARC evidence must describe the current parent head after stack merge."""
         for marker in (
