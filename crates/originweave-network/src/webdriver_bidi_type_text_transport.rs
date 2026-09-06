@@ -84,9 +84,9 @@ impl Error for WebDriverBiDiTypeTextSendError {
 ///
 /// Invalid local deadlines fail before registration. Registration occurs before the first possible
 /// remote side effect. A correlation failure writes
-/// nothing. Once registration succeeds, a frame-write failure leaves the identifier outstanding
-/// because a partial or complete remote side effect is ambiguous and the identifier must not be
-/// silently reused.
+/// nothing. A malformed-frame preflight rejection retires this exact typed identifier because no
+/// write began. Other frame-write failures leave the identifier outstanding because a partial or
+/// complete remote side effect is ambiguous and the identifier must not be silently reused.
 ///
 /// The text value is intentionally non-secret and is never retained by this transport's error
 /// variants. Secret material must use the separately governed broker/fill boundary. Typed-input
@@ -146,5 +146,14 @@ pub fn send_webdriver_bidi_type_text(
             masking_key,
             frame_timeout,
         )
-        .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })
+        .map_err(|source| {
+            if matches!(
+                source,
+                WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+            ) {
+                let _retirement = correlation
+                    .retire_command_for(command.command_id(), WebDriverBiDiCommandKind::TypeText);
+            }
+            WebDriverBiDiTypeTextSendError::FrameWrite { source }
+        })
 }
