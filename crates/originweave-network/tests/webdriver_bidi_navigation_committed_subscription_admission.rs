@@ -11,13 +11,14 @@ use originweave_core::{
 };
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionBinding,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
-    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, advance_webdriver_bidi_navigation_document_epoch,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
+    advance_webdriver_bidi_navigation_document_epoch,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -98,20 +99,17 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 }
 
 fn next_text(
-    established: originweave_network::WebDriverBiDiWebSocketEstablished,
-    assembler: &mut WebDriverBiDiWebSocketMessageAssembler,
-) -> Result<
-    (
-        originweave_network::WebDriverBiDiWebSocketEstablished,
-        originweave_network::WebDriverBiDiWebSocketTextMessage,
-    ),
-    Box<dyn Error>,
-> {
-    let (established, frame) = established.read_frame(Duration::from_millis(500))?;
-    match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok((established, text)),
+    established: WebDriverBiDiWebSocketEstablished,
+) -> Result<(WebDriverBiDiWebSocketEstablished, WebDriverBiDiReceivedTextMessage), Box<dyn Error>> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => Ok((established, message)),
         other => Err(io::Error::other(format!(
-            "expected a complete WebDriver BiDi text message, got {other:?}"
+            "expected a complete connection-bound WebDriver BiDi text message, got {other:?}"
         ))
         .into()),
     }
@@ -181,8 +179,7 @@ fn receive_subscription_result(
         WebDriverBiDiWebSocketMaskKey::new([9, 8, 7, 6]),
         Duration::from_millis(500),
     )?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let (_established, response) = next_text(established, &mut assembler)?;
+    let (_established, response) = next_text(established)?;
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
@@ -262,8 +259,7 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
         Duration::from_millis(500),
     )?;
 
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let (established, response) = next_text(established, &mut assembler)?;
+    let (established, response) = next_text(established)?;
     let subscription = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
@@ -277,9 +273,10 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     assert_eq!(admission.browsing_context(), context);
     let admission_debug = format!("{admission:?}");
     assert!(admission_debug.contains("command_id: 7"));
+    assert!(admission_debug.contains("connection_bound: true"));
     assert!(!admission_debug.contains("subscription-a"));
 
-    let (mut established, event) = next_text(established, &mut assembler)?;
+    let (mut established, event) = next_text(established)?;
     let observation_error = admission
         .admit(&event, &registry, "https://example.test/unexpected")
         .err()
@@ -323,11 +320,11 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     );
 
     for _ in 1..MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS {
-        let (next_established, fill_event) = next_text(established, &mut assembler)?;
+        let (next_established, fill_event) = next_text(established)?;
         established = next_established;
         admission.admit(&fill_event, &registry, EXPECTED_URL)?;
     }
-    let (_established, overflow_event) = next_text(established, &mut assembler)?;
+    let (_established, overflow_event) = next_text(established)?;
     let exhausted = admission
         .admit(&overflow_event, &registry, EXPECTED_URL)
         .err()
