@@ -191,8 +191,7 @@ fn sent_subscription_response(
 }
 
 #[test]
-fn malformed_and_invalid_success_responses_preserve_outstanding_correlation()
--> Result<(), Box<dyn Error>> {
+fn malformed_and_invalid_success_responses_preserve_outstanding_correlation() -> Result<(), Box<dyn Error>> {
     let (malformed, mut correlation) = sent_subscription_response(MALFORMED_SUCCESS_RESPONSE)?;
     assert_eq!(
         WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
@@ -291,8 +290,7 @@ fn subscription_response_cannot_consume_another_command_kind() -> Result<(), Box
 }
 
 #[test]
-fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<(), Box<dyn Error>>
-{
+fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation
         .register_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
