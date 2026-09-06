@@ -18,8 +18,7 @@ fn fixture_origin(value: &str) -> Result<Origin, Box<dyn Error>> {
 }
 
 #[test]
-fn committed_navigation_rotates_document_and_binds_canonical_observed_origin()
--> Result<(), Box<dyn Error>> {
+fn committed_navigation_rotates_document_and_binds_canonical_observed_origin() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
@@ -56,8 +55,7 @@ fn committed_navigation_rotates_document_and_binds_canonical_observed_origin()
 }
 
 #[test]
-fn invalid_observed_origin_fails_before_document_authority_is_rotated() -> Result<(), Box<dyn Error>>
-{
+fn invalid_observed_origin_fails_before_document_authority_is_rotated() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
