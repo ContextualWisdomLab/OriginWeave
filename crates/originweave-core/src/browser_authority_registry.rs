@@ -17,7 +17,7 @@ use crate::{
 /// before atomically minting handles.
 pub struct BrowserAuthorityRegistry {
     inner: RawBrowserAuthorityRegistry,
-    identity: Arc<()>,
+    registry_identity: Arc<()>,
 }
 
 /// Opaque process-local identity of one browser-authority registry allocation.
@@ -34,7 +34,7 @@ impl BrowserAuthorityRegistry {
     pub fn new() -> Self {
         Self {
             inner: RawBrowserAuthorityRegistry::new(),
-            identity: Arc::new(()),
+            registry_identity: Arc::new(()),
         }
     }
 
@@ -46,7 +46,7 @@ impl BrowserAuthorityRegistry {
     pub fn with_identifier_limit(maximum_identifier: u64) -> Self {
         Self {
             inner: RawBrowserAuthorityRegistry::with_identifier_limit(maximum_identifier),
-            identity: Arc::new(()),
+            registry_identity: Arc::new(()),
         }
     }
 
@@ -55,8 +55,8 @@ impl BrowserAuthorityRegistry {
     /// The identity survives moves of this registry but cannot match a replacement registry,
     /// including one whose local session and context identifiers have identical numeric values.
     #[must_use]
-    pub fn identity(&self) -> BrowserRegistryIdentity {
-        BrowserRegistryIdentity(Arc::clone(&self.identity))
+    pub fn registry_identity(&self) -> BrowserRegistryIdentity {
+        BrowserRegistryIdentity(Arc::clone(&self.registry_identity))
     }
 
     /// Reject a witness issued by any other registry before consulting registry-local identifiers.
@@ -67,7 +67,7 @@ impl BrowserAuthorityRegistry {
         &self,
         identity: &BrowserRegistryIdentity,
     ) -> Result<(), BrowserRegistryError> {
-        if !Arc::ptr_eq(&self.identity, &identity.0) {
+        if !Arc::ptr_eq(&self.registry_identity, &identity.0) {
             return Err(BrowserRegistryError::RegistryInstanceMismatch);
         }
         Ok(())

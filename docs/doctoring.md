@@ -4,6 +4,40 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Original registry ownership through subscribed navigation
+
+Four real-socket regressions at `b3ffeac9` on published #264 `2a9fdc54` fail at distinct
+use boundaries: a command created in registry A can send using registry B; its original receipt and
+binding can create admission in B; a genuine original-connection event can enter B's admission;
+and an observation correctly admitted in A can advance B's document. Separate real registries
+legitimately allocate the same local numeric IDs. The last case does not even require matching wire
+context text. Earlier unsent-binding tests covered command-instance identity, not this owner swap.
+The initial fixture compile error at `c41e737b` was corrected before claiming these behavioral failures.
+
+The repair gives the canonical core registry one opaque process-local allocation identity and
+retains its witness through the existing command, binding and subscribed observation. The existing
+context validator checks ownership before numeric/text liveness checks; the sender checks before
+correlation or I/O, event admission checks before replay insertion, and the shared document-advance
+sink checks before mutation. Origin binding already delegates to that sink. Existing connection
+and command-instance identities remain independent requirements. A rejected foreign event leaves
+replay state available for the original event; moving the original registry preserves its identity.
+No new transport, registry implementation, global counter, dependency, exclusion or quality gate is introduced.
+
+Rust's standard-library documentation defines `Arc::ptr_eq` as allocation identity rather than
+value equality; clones retain the same allocation. A retained witness keeps only that identity
+alive, not mutable registry state, preventing a later allocation from impersonating a dropped owner.
+The API uses no raw address or unsafe operation and is compiled against Rust 1.97.1. The online
+reference currently describes Rust 1.98.1; it is not substituted for the pinned build evidence.
+The small per-registry allocation and reference-count cost are accepted in the Proposed refinement
+of ADR 0107. Numeric/text matching and constructor-only checks miss the reproduced sink swap;
+global identifier renumbering would affect unrelated consumers without expressing this ownership invariant.
+
+This slice pins the registry that constructed the command; it does not prove that its registered
+browser session is authenticated by the transport. Same-connection resend freshness, action causality,
+unsubscribe lifetime/transport provenance and broader adapter ownership remain separate unfinished
+boundaries. A document change alone must not retire a context-wide subscription. #264 stays Draft
+behind #195/#279; local tests and numerical coverage do not prove hosted, protected-main or browser acceptance.
+
 ### Subscription response and event receive-connection integrity
 
 On September 6, 2026, two real-loopback regressions against #264 `43d3b5a3a2b5ce4f51a93d1152a0ee82620f4f3e` exposed the remaining inbound transport gap. A successful response received on a second connection completed the first connection's pending subscription when session and command identifiers matched. A matching navigation event on another connection also became a state-changing observation. Test-first commit `918c4ebeb27e1eb7e03567eb52e6e547dfd499df` records both failures.
@@ -197,6 +231,9 @@ PR #254 ordinarily adopts teardown parent `afb623e4449b7cbf926fdcef7225ceaca822c
 Review `5120077272` remains actionable: this intermediate closure value retains kind/status but no connection-generation identity, so it cannot prove that a particular acknowledged connection closed. The existing #255 owner carries and compares received-response and closure provenance and removes raw process/profile completion claims. Preserve that repair during subsequent integration; no local test or coverage result for this parent adoption establishes that the known provenance gap is fixed. The two-read closure envelope, rejection behavior and lack of reciprocal-handshake, process-exit or profile-removal proof are unchanged.
 
 ## References
+
+The Rust Project Developers. (n.d.). *Arc in std::sync*. Rust standard library documentation.
+Retrieved September 6, 2026, from https://doc.rust-lang.org/std/sync/struct.Arc.html#method.ptr_eq
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
 

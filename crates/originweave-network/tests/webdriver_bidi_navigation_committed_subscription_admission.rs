@@ -592,10 +592,24 @@ fn original_binding_rejects_replacement_registry_at_receipt_admission() -> Resul
         (session, context),
         (replacement_session, replacement_context)
     );
-    assert!(
+    let error =
         WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(receipt, binding, &replacement)
-            .is_err(),
-        "an original receipt and binding must not authorize a replacement registry"
+            .err()
+            .ok_or_else(|| {
+                io::Error::other(
+                    "an original receipt and binding must not authorize a replacement registry",
+                )
+            })?;
+    let source = error
+        .source()
+        .ok_or_else(|| io::Error::other("missing registry failure"))?;
+    assert_eq!(
+        source.downcast_ref::<originweave_core::BrowserRegistryError>(),
+        Some(&originweave_core::BrowserRegistryError::RegistryInstanceMismatch),
+    );
+    assert_eq!(
+        source.to_string(),
+        "browser authority belongs to another registry instance"
     );
     Ok(())
 }
@@ -622,6 +636,7 @@ fn original_event_rejects_replacement_registry_without_consuming_replay_state()
         "a valid original-connection event must reject another registry with colliding IDs"
     );
     assert_eq!(replacement.current_epoch(replacement_context)?, before);
+    let mut original = Box::new(original);
     let admitted = admission.admit(&event, &original, EXPECTED_URL)?;
     let advanced =
         advance_webdriver_bidi_navigation_document_epoch(admitted, &mut original, before)?;

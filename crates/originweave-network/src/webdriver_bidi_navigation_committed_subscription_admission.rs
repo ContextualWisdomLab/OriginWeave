@@ -26,6 +26,7 @@ pub const MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS: usize = 256;
 /// context identifier is retained privately for immediate registry revalidation and is not exposed
 /// as durable OriginWeave authority. A private allocation identity binds this value to the exact
 /// command instance; matching caller-supplied numbers cannot recreate that identity.
+/// A separate core-issued witness preserves the original registry instance across later use.
 pub struct WebDriverBiDiNavigationCommittedSubscriptionBinding {
     command_id: u64,
     browser_session: BrowserSessionId,
@@ -90,7 +91,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
 /// Construction requires both the correlated remote subscription receipt and the immutable binding
 /// captured from the exact command that requested it. The command identifiers and private command
 /// allocation identity must match, and the original external context mapping must still resolve to
-/// the exact OriginWeave session/context. Event admission additionally requires the event message to
+/// the exact OriginWeave session/context in the original registry. Event admission additionally requires the event message to
 /// have been assembled on the same verified connection generation that carried the subscription
 /// command and receipt. Holding this value is therefore narrower than holding an opaque protocol
 /// subscription string. It grants only admission of the matching committed-navigation event through
@@ -275,7 +276,8 @@ fn require_current_binding(
 ///
 /// Unlike the lower-level protocol observation, this value proves that local admission was bound to
 /// the exact typed `session.subscribe` command/receipt pair and the same verified transport
-/// generation for the registered context at the time the event was admitted. It still does not prove
+/// generation for the registered context at the time the event was admitted. It retains the original
+/// registry witness for revalidation at the eventual document-mutation boundary. It still does not prove
 /// action causality or grant destination, origin, policy, node, secret, process, profile, or reusable
 /// Agent authority.
 pub struct WebDriverBiDiNavigationCommittedSubscribedObservation(

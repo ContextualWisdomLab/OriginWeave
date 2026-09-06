@@ -66,7 +66,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             browsing_context,
             external_context: external_context.to_owned(),
             subscription_intent: Arc::new(()),
-            registry_identity: registry.identity(),
+            registry_identity: registry.registry_identity(),
         })
     }
 
@@ -113,7 +113,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
 
     /// Revalidate, register, and write this exact subscription on an established verified BiDi stream.
     ///
-    /// Context binding is revalidated immediately before command correlation and network I/O so a
+    /// The original registry identity and context binding are revalidated before correlation and I/O so a
     /// command retained across registry retirement cannot subscribe a stale or replacement context.
     /// Invalid frame deadlines fail before correlation registration. Registration then binds both the
     /// private command-instance identity and this established connection's process-local generation

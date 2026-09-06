@@ -36,6 +36,25 @@ MCP version negotiation is independent of the OriginWeave Protocol version. As o
 
 ## Consequences
 
+### Proposed refinement: original registry identity (2026-09-06)
+
+In the context of a connection-bound navigation subscription whose local session/context numbers
+can also exist in another registry, facing the risk that a genuine receipt or admitted event
+changes unrelated document authority, we decided for a core-owned opaque registry witness retained
+from command construction through event admission to the shared document-mutation boundary, and
+against numeric/text equality, a constructor-only check, or globally renumbering every browser
+identifier, to preserve exact-owner authority before side effects, accepting one small allocation
+per registry and reference-counted witnesses while commands or observations remain live.
+
+The proposal reuses current context-liveness and expected-epoch checks. It does not freeze a
+context-wide subscription at its initial document epoch, authenticate the browser session associated
+with a stream, or turn the witness into a durable ID or capability grant. The witness has no public
+constructor or serialization. It cannot preserve a removed context or recreate a retired registry.
+The four real-socket failures recorded at `b3ffeac9` exercise send, receipt admission, event admission
+and a correctly admitted observation presented to a different mutation target. Status remains
+Proposed; local source acceptance does not approve the architecture or complete hosted, protected-main
+or browser compatibility gates.
+
 OriginWeave carries adapter maintenance and version negotiation but gains a durable customer API. Multiple browser/control transports can coexist. New upstream capabilities do not silently change risk or action semantics. Compatibility matrices become release artifacts.
 
 ## Failure and degraded behavior
