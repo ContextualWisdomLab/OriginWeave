@@ -288,6 +288,14 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "f352e3f04bdc3ed1912be7c452c5c426d9caaec7dd1a613b7d3ab9c6486ab69e",
             "formatting check fails in five test/support files",
             "Neither private nor remote results establish combined-source acceptance",
+            "2a9fdc5418b9af10353cdad0f6f6470655bf457d",
+            "52cff96954c3fec7b8cda5409e4560e970bfcbdf",
+            "1273/13317/16984/1432",
+            "f7e71e6fd67723688535053c389b4ff718c4563b403924af462848d3d51b541f",
+            "34024499232",
+            "5558261278",
+            "both complete lineages are now ancestors",
+            "too_many_active_automations",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
