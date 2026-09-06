@@ -17,9 +17,9 @@ use originweave_network::{
     WebDriverBiDiNavigationCommittedUnsubscribeResponseError,
     WebDriverBiDiNavigationCommittedUnsubscribeResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -82,6 +82,29 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
         *byte ^= mask[index % mask.len()];
     }
     Ok(payload)
+}
+
+fn read_empty_masked_pong_frame(
+    stream: &mut TcpStream,
+    expected_masking_key: [u8; 4],
+) -> io::Result<()> {
+    let mut frame = [0_u8; 6];
+    stream.read_exact(&mut frame)?;
+    let expected = [
+        0x8a,
+        0x80,
+        expected_masking_key[0],
+        expected_masking_key[1],
+        expected_masking_key[2],
+        expected_masking_key[3],
+    ];
+    if frame != expected {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected one empty masked client pong frame",
+        ));
+    }
+    Ok(())
 }
 
 fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Result<()> {
@@ -289,7 +312,8 @@ fn duplicate_command_id_is_rejected_before_unsubscribe_write() -> Result<(), Box
     let command = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &subscription)?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
+    correlation
+        .register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
     let result = command.send(
         established,
         &mut correlation,
@@ -360,10 +384,59 @@ fn invalid_frame_timeout_fails_before_unsubscribe_correlation_or_write()
 }
 
 #[test]
+fn adjacent_mask_key_reuse_is_rejected_inside_unsubscribe_send_and_retires_correlation()
+-> Result<(), Box<dyn Error>> {
+    let subscription = obtain_subscription_receipt()?;
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        read_empty_masked_pong_frame(&mut stream, [5, 6, 7, 8])?;
+        require_no_client_command(&mut stream)
+    });
+
+    let masking_key = WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]);
+    let established = establish_websocket(local_addr)?.write_pong_frame(
+        &[],
+        masking_key,
+        Duration::from_millis(500),
+    )?;
+    let command = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &subscription)?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let result = command.send(
+        established,
+        &mut correlation,
+        masking_key,
+        Duration::from_millis(500),
+    );
+    let error = match result {
+        Ok(_) => {
+            return Err(io::Error::other("reused masking key sent unsubscribe command").into());
+        }
+        Err(error) => error,
+    };
+    assert!(matches!(
+        &error,
+        WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite {
+            source: WebDriverBiDiWebSocketFrameError::MalformedFrame { .. },
+        }
+    ));
+    assert_eq!(correlation.outstanding_count(), 0);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("mask-reuse test server panicked"))??;
+    Ok(())
+}
+
+#[test]
 fn malformed_and_unknown_unsubscribe_responses_preserve_outstanding_correlation()
 -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
+    correlation
+        .register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
 
     let malformed = read_text_over_loopback(MALFORMED_UNSUBSCRIBE_RESPONSE)?;
     let error = match WebDriverBiDiNavigationCommittedUnsubscribeResult::parse_and_correlate(
@@ -412,14 +485,17 @@ fn malformed_and_unknown_unsubscribe_responses_preserve_outstanding_correlation(
 #[test]
 fn unsubscribe_response_cannot_consume_subscription_command_kind() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+    correlation
+        .register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
     let matched = read_text_over_loopback(MATCHED_UNSUBSCRIBE_SUCCESS)?;
 
     let error = match WebDriverBiDiNavigationCommittedUnsubscribeResult::parse_and_correlate(
         &matched,
         &mut correlation,
     ) {
-        Ok(_) => return Err(io::Error::other("unsubscribe consumed subscription correlation").into()),
+        Ok(_) => {
+            return Err(io::Error::other("unsubscribe consumed subscription correlation").into());
+        }
         Err(error) => error,
     };
     assert!(matches!(
@@ -438,7 +514,8 @@ fn unsubscribe_response_cannot_consume_subscription_command_kind() -> Result<(),
 #[test]
 fn matched_unsubscribe_protocol_error_consumes_only_its_command() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
+    correlation
+        .register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
     let matched = read_text_over_loopback(MATCHED_UNSUBSCRIBE_ERROR)?;
 
     let error = match WebDriverBiDiNavigationCommittedUnsubscribeResult::parse_and_correlate(
