@@ -4,13 +4,14 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded published click and text-entry safeguards with their own test, coverage and visual evidence, keeping queued hosted checks and remaining browser outcomes separate from delivery.
 - Recorded the published subscription descendants and completed source visual inspection, correcting the stale unresolved-review count while keeping queued checks, required approval and unreleased browser acceptance distinct. Compact linked revisions keep the new evidence table readable without hiding coverage off-screen.
 - Recorded the verified subscription-reply connection repair, preserving queued hosted checks, the locked-screen visual-inspection gap and remaining authority and delivery work.
 - Recorded verified navigation and subscription adoption of the click-reply repair, distinguishing local checks and rendered evidence from queued hosted acceptance and remaining provenance gaps.
 - Recorded the verified pointer-reply connection repair and recovery tests, keeping pending hosted checks, remaining authority gaps and browser acceptance separate.
 - Recorded the published text-entry connection safeguards and their test evidence, separating queued hosted checks and remaining pointer/status repairs from released browser behavior.
 - Separate the current maintenance queue and source lineage from preserved historical observations, and record the text-entry session and pending-request safeguards without claiming released browser behavior.
-- Current delivery inventory: 125 open pull requests (12 ready, 113 draft); 13 open non-PR issues. Observed 2026-09-06; source acceptance remains revision-specific.
+- Current delivery inventory: 125 open pull requests (12 ready, 113 draft); 13 open non-PR issues. Observed 2026-09-07; source acceptance remains revision-specific.
 - Corrected historical checkpoint labels and made the current inventory check reject stale counts; recorded verified text-input parent adoption without claiming browser execution.
 - Recorded the executed session-isolation repair and its verified adoption, separating complete local checks and PR visual inspection from pending hosted checks and unreleased browser acceptance.
 - Recorded the current click safeguards, restored regression coverage and completed PR visual inspection, keeping the separately owned parent repair and queued hosted checks distinct from delivery.

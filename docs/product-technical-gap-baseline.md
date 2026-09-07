@@ -6,6 +6,60 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 This volatile section is refreshed from live GitHub state and is authoritative only for the exact observations recorded here. The dated snapshot below remains historical evidence and is not promoted to current acceptance evidence. Live GitHub PR/base/head/check APIs are authoritative over PR bodies and prior maintenance prose; a body that still names an older head is stale evidence, not merge evidence.
 
+### Latest verified cut: 2026-09-07
+
+#### Published input descendants: 00:40 UTC
+
+The latest complete five-page review/check/thread inventory contains **125 open pull requests:
+12 Ready/non-draft and 113 Draft; 13 open non-PR issues**, with zero unresolved review threads
+and no unfinished pagination. All 12 Ready candidates remain BLOCKED. Current rules require
+one counted approval and seven required workflows; the sole collaborator is the author.
+Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`, with no tags or releases.
+REST release inventory was rate-limited; GraphQL independently confirmed both empty inventories.
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
+| --- | --- | --- | --- | --- |
+| #265 | Published; Draft | [`e94a2372`](https://github.com/ContextualWisdomLab/OriginWeave/commit/e94a2372fe3771f9ddf70291d34fc9a7e4770ec9) | #264 `43395711` | 1297/13618/17315/1442 |
+| #266 | Published; Draft | [`e3885f69`](https://github.com/ContextualWisdomLab/OriginWeave/commit/e3885f69df2cf3899184209efdee5b11bba1bd86) | #265 `e94a2372` | 1310/13766/17524/1452 |
+| #267 | Published; Draft | [`ebd507ae`](https://github.com/ContextualWisdomLab/OriginWeave/commit/ebd507ae56c3064e3cae5566502f539c20618a8f) | #266 `e3885f69` | 1318/13852/17610/1456 |
+
+Functions, lines, regions and branches are each 100% covered on these exact local source trees.
+#265 replay `e7fb1527` first failed both replacement-reply tests before ordinary merge
+`d847b530`. The contributor's existing outbound-session guard remains intact. #266 replay
+`009f9a41` and #267 replay `4e020e16` each failed all three inherited pointer regressions
+before ordinary merges `d9503b30` and `7e4bd76d`. The repaired click path rejects a foreign
+session before reserving or sending work, and rejects replacement success/error replies
+without consuming either pending request. The original reply completes only its own request.
+
+#265 passed 14 focused tests; #266 passed 21; #267 passed 23 focused tests. Each exact head
+passed full local Rust 1.97.1 gates, 145 Python contracts, compileall, CodeGraph and diff checks.
+The text constructor, privacy checks and eight core text tests were preserved in #266.
+#267 also preserves its existing text sender, public exports and ten text-send tests unchanged.
+Coverage artifact SHA-256 values for #265, #266 and #267, respectively, are
+`fc9aebce5e633be1c4faa10755e56bb792a0f2679daeef3a0a1984d4a4b58404`,
+`a06aebb7c2f30c153c3a3867f3b7847d9c485ae2db5ba2b23029ca0375e4ec79` and
+`8bd32ad83ba5f9ef65bad8a3503f5e6cff38335b8526bff9f974bd6ee7fabceb`.
+The pinned nightly branch-instrumentation warning remains explicit; no coverage gate changed.
+
+Native CI `34068277243`, `34068882527` and `34070121583` remains queued for those three heads;
+#265/#266 MV3 runs `34068277244` and `34068882439` are also queued. Independent read-only
+preservation reviews found no actionable findings, but are not counted approval. Source writer
+leases `5563064004`, `5563186050` and `5563277731` are released. Actual visual inspection
+used actual screenshots of published exact-head evidence: in-app for #265/#266 and isolated
+installed Edge for #267 after browser-control connection failures. Revisions, caveats and
+wrapping were readable without observed clipping or overlap. This is GitHub presentation,
+not product-browser acceptance. This baseline needs its own checks and visual inspection.
+
+Next source work is #268's content-aware adoption of #267, retaining its existing sealed
+text-response consumer rather than rebuilding it. Then continue status receipt prerequisites
+and protected-main asset preservation at their canonical owners. #195/#279 workflow recovery,
+#212 sandboxed browser acceptance and .github#1929 dispatch identity admission remain separate.
+Text transport and pointer acknowledgments do not prove field values, browser authentication,
+policy approval, navigation causality or release acceptance. Earlier dated observations below
+remain unchanged historical evidence and do not override this checkpoint.
+
 ### Latest verified cut: 2026-09-06
 
 #### Published subscription descendants: 23:27 UTC
