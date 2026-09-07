@@ -1,5 +1,25 @@
 # Action Post-Condition Evidence Traceability
 
+## Text responses retain pointer safeguards — 2026-09-07
+
+Ordinary merge `34e537b1` adopts published #267 `ebd507ae` while preserving
+#268 `e567af9e` and its complete sealed text-response consumer. The text sender,
+consumer, exports, all text tests and entire core crate are unchanged. Actual
+RED `716fd842` first reproduced foreign-session click dispatch and replacement
+success/error consumption: all three pointer regressions failed before adoption.
+The inherited canonical sender and sealed click consumer now reject those cases
+without consuming the original or unrelated pending work.
+
+Text replies already require the sending connection and exact command family;
+missing provenance, malformed envelopes and unknown identifiers preserve pending
+work, while matched remote errors consume only their own request. No generic
+response fallback or duplicated parser is introduced. The earlier text repair's
+hosted success belongs to `e567af9e`, not this combined head, which requires fresh
+full verification and actual visual inspection. Observed field values, browser
+authentication, policy approval and causal action success remain unproven.
+Status receipts and protected-foundation integration remain separate owner work.
+The dated checkpoints below preserve predecessor evidence, not current acceptance.
+
 ## Text receipt-provenance repair — 2026-09-06
 
 Actual socket RED `4632f2df` accepted a reply from a replacement connection sharing
