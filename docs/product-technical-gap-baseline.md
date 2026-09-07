@@ -8,6 +8,50 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-07
 
+#### Published observation safeguards: 03:00 UTC
+
+The complete five-page inventory contains **125 open pull requests: 12 Ready/non-draft
+and 113 Draft; 13 open non-PR issues**, with zero unresolved review threads and no
+pagination gaps. All Ready candidates remain BLOCKED. Protected main remains
+`87c4daa1830bac5a5228b6036752ad5633232085`; no tags or releases exist.
+Active ruleset `18156473` requires one counted approval and seven central workflows;
+the sole collaborator is the author. Advisory review does not satisfy that approval.
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
+| --- | --- | --- | --- | --- |
+| #270 | Published; Draft | [`8eda9691`](https://github.com/ContextualWisdomLab/OriginWeave/commit/8eda96915dbbe4cc617f834267c7464689c2844d) | #269 `3df2a631` | 1346/14113/17928/1464 |
+| #271 | Published; Draft | [`b0410ae9`](https://github.com/ContextualWisdomLab/OriginWeave/commit/b0410ae92bd20eaf31d09b7d49390e13cb045999) | #270 `8eda9691` | 1393/14770/18899/1546 |
+
+Every listed coverage dimension is 100% locally. #270 repaired wrong-session dispatch,
+invalid deadlines and reused masking keys through existing transport guards, preserving
+the fixed observation command and ordinary parent history. Its 11 focused tests,
+147 Python contracts and complete stable Rust gates passed. Coverage artifact SHA-256:
+`7748d42c541140314995ffa2087b3aca87d52875f98a6ffa36614a0453b30260`.
+
+#271 reproduced replacement-connection completion at RED `29cd0d66`, still failing after
+parent adoption `14efb678`. The existing sealed receipt and connection-aware correlation
+now reject foreign success, protocol error and script exception. A same-listener test
+proves the original connection can still complete its command, leaving unrelated work
+pending. Earlier fixture compile errors are not runtime RED evidence. All 148 Python
+contracts, focused recovery tests and complete stable Rust gates passed. Coverage SHA-256:
+`8f211170f9e7b691b95b12151e9e87827e4cb741ca8fa2892576adf8421e8a30`.
+
+Exact-head native CI `34076117534` and `34077987302` remain queued, not passing evidence.
+Independent read-only review found no remaining actionable findings; it is not counted
+approval. Source leases `5563898819` and `5564211278` are released. Both revisions received
+actual visual inspection in isolated Edge: generated API documentation and published
+commit views were readable without observed clipping or overlap. This is documentation
+presentation, not product-browser acceptance. This baseline needs its own verification
+and visual inspection; it cannot inherit source coverage or hosted acceptance.
+
+Next are downstream semantic-action adoption, status receipts and protected-foundation
+work. Matching text replies do not establish authenticated browser ownership, policy
+approval or complete authorized action success. #195/#279 workflow recovery and #212
+sandbox acceptance retain their separate owners. Earlier checkpoints below are unchanged
+historical observations, including superseded next actions; no release is claimed.
+
 #### Published response and observation: 01:45 UTC
 
 The fresh five-page inventory still contains **125 open pull requests: 12 Ready/non-draft
