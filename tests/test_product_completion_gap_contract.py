@@ -228,6 +228,38 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, current)
 
+    def test_action_adoption_checkpoint_binds_published_owners(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published semantic-action adoption: 04:15 UTC",
+            "#### Published observation safeguards: 03:00 UTC",
+        )
+        for owner, head, parent, coverage in (
+            (93, "82056d13aa94c106060b84ee76be56fcb7787fc8", "b0410ae9", "1403/14852/18976/1552"),
+            (95, "6b29d890245ed2f612c2998198f4e8c8a06da312", "82056d13", "1408/14897/19022/1552"),
+            (96, "cbabf55c6a25b979fa0d9e3c1677338665975ab7", "6b29d890", "1410/14908/19030/1552"),
+        ):
+            row = active_pr_row(current, owner)
+            for marker in ("Published; Draft", parent, coverage, f"/commit/{head}"):
+                self.assertIn(marker, row)
+        for marker in (
+            "34079739018", "34080772063", "34081979602", "queued",
+            "actual visual inspection", "not product-browser acceptance",
+            "original connection", "status receipts", "publish = false",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_rows_cannot_replace_action_adoption(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(text, "#### Published semantic-action adoption: 04:15 UTC", "#### Published observation safeguards: 03:00 UTC")
+        for owner in (93, 95, 96):
+            row = active_pr_row(current, owner)
+            for replacement in ("", row.replace("Published; Draft", "Local only; Draft")):
+                mutated = text.replace(row, replacement, 1) + "\nHistorical evidence:\n" + row
+                with patch.object(pathlib.Path, "read_text", return_value=mutated):
+                    with self.assertRaises(AssertionError):
+                        self.test_action_adoption_checkpoint_binds_published_owners()
+
     def test_historical_rows_cannot_replace_observation_safeguards(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(text, "#### Published observation safeguards: 03:00 UTC", "#### Published response and observation: 01:45 UTC")
