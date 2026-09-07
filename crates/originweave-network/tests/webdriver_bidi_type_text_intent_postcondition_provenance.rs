@@ -11,8 +11,8 @@ use originweave_network::{
 };
 
 #[test]
-fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input()
--> Result<(), Box<dyn Error>> {
+fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input(
+) -> Result<(), Box<dyn Error>> {
     let acknowledged_intent =
         type_text_intent::acknowledged_type_text_intent(42, "authorized-value")?;
 
@@ -44,5 +44,39 @@ fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input()
         }
     ));
     assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn observation_on_another_connection_cannot_certify_the_acknowledged_typed_input(
+) -> Result<(), Box<dyn Error>> {
+    let acknowledged_intent =
+        type_text_intent::acknowledged_type_text_intent(43, "same-value")?;
+
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let observation = text_observation::receive_command_responses(
+        &[br#"{"type":"success","id":71,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"same-value"}}}"#],
+        71,
+        &mut correlation,
+    )?
+    .remove(0);
+
+    if verify_webdriver_bidi_text_value_postcondition(
+        &observation,
+        acknowledged_intent,
+        &mut correlation,
+    )
+    .is_ok()
+    {
+        return Err(io::Error::other(
+            "an observation from another verified connection must not certify an earlier typed-input intent",
+        )
+        .into());
+    }
+    assert_eq!(
+        correlation.outstanding_count(),
+        1,
+        "foreign post-condition evidence must not consume the pending observation"
+    );
     Ok(())
 }
