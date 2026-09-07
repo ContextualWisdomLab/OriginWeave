@@ -45,9 +45,8 @@ pub enum WebDriverBiDiCorrelatedResponseOutcome {
 ///
 /// This value carries only the matched command identifier and success/error classification. A
 /// private process-local connection generation is retained when the command owner bound one before
-/// I/O so a later response-provenance owner can compare transport evidence without accepting
-/// caller-supplied provenance. It does not retain result bodies, error text, browser authority,
-/// transport authority, or secrets.
+/// I/O so later transport evidence can be compared without accepting caller-supplied provenance.
+/// It does not retain result bodies, error text, browser authority, transport authority, or secrets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiCorrelatedResponse {
     command_id: u64,
@@ -134,12 +133,13 @@ impl Error for WebDriverBiDiCommandCorrelationError {}
 ///
 /// Register an id together with its exact typed command family only after the caller has committed
 /// to that outbound command. Connection-owning command adapters may additionally bind the private
-/// generation of the exact established transport before I/O. Generic success or correlatable error
-/// responses consume the id exactly once through a matching typed consumer; a later slice that owns
-/// received-connection evidence adds the connection-sensitive consuming boundary. This type
-/// performs no I/O, retry, command serialization, browser authentication, or authority grant. Debug
-/// output reports only the outstanding-count summary; command identifiers, families, and
-/// generations remain private correlation state.
+/// generation of the exact established transport before I/O. A success or correlatable error
+/// response consumes the id exactly once only through a matching typed consumer. Events, null-id
+/// errors, command-kind mismatches, missing connection provenance, and responses received on a
+/// different verified connection leave outstanding state untouched. This type performs no I/O,
+/// retry, command serialization, browser authentication, or authority grant. Debug output reports
+/// only the outstanding-count summary; command identifiers, families, and generations remain
+/// private correlation state.
 #[derive(Default)]
 pub struct WebDriverBiDiCommandCorrelation {
     outstanding: BTreeMap<u64, OutstandingCommand>,
@@ -233,32 +233,29 @@ impl WebDriverBiDiCommandCorrelation {
     /// Successful responses and error responses with ids consume exactly one matching command.
     /// Unknown ids and command-kind mismatches fail without consuming state. Events and null-id
     /// errors fail before touching the map. This generic path does not claim received-connection
-    /// provenance; connection-sensitive response handling belongs to its owning child slice.
+    /// provenance; connection-sensitive command owners must use their connection-bound path.
     pub fn correlate_response_for(
         &mut self,
         envelope: &WebDriverBiDiJsonEnvelope,
         expected_kind: WebDriverBiDiCommandKind,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        match envelope.routing() {
-            WebDriverBiDiJsonEnvelopeRouting::Event => {
-                Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
-            }
-            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
-                Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
-            }
-            WebDriverBiDiJsonEnvelopeRouting::CommandError {
-                command_id: Some(command_id),
-            } => self.complete(
-                command_id,
-                expected_kind,
-                WebDriverBiDiCorrelatedResponseOutcome::Error,
-            ),
-            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => self.complete(
-                command_id,
-                expected_kind,
-                WebDriverBiDiCorrelatedResponseOutcome::Success,
-            ),
-        }
+        let (command_id, outcome) = response_route(envelope)?;
+        self.complete(command_id, expected_kind, outcome)
+    }
+
+    pub(crate) fn correlate_response_for_connection(
+        &mut self,
+        envelope: &WebDriverBiDiJsonEnvelope,
+        expected_kind: WebDriverBiDiCommandKind,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
+        let (command_id, outcome) = response_route(envelope)?;
+        self.complete_on_connection(
+            command_id,
+            expected_kind,
+            outcome,
+            received_connection_generation,
+        )
     }
 
     fn require_command_kind(
@@ -293,6 +290,49 @@ impl WebDriverBiDiCommandCorrelation {
             outcome,
             connection_generation: outstanding.connection_generation,
         })
+    }
+
+    fn complete_on_connection(
+        &mut self,
+        command_id: u64,
+        expected_kind: WebDriverBiDiCommandKind,
+        outcome: WebDriverBiDiCorrelatedResponseOutcome,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
+        let outstanding = self.require_command_kind(command_id, expected_kind)?;
+        let expected_connection_generation = outstanding.connection_generation.ok_or(
+            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+        )?;
+        if expected_connection_generation != received_connection_generation {
+            return Err(
+                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
+            );
+        }
+        let _removed = self.outstanding.remove(&command_id);
+        Ok(WebDriverBiDiCorrelatedResponse {
+            command_id,
+            outcome,
+            connection_generation: Some(expected_connection_generation),
+        })
+    }
+}
+
+fn response_route(
+    envelope: &WebDriverBiDiJsonEnvelope,
+) -> Result<(u64, WebDriverBiDiCorrelatedResponseOutcome), WebDriverBiDiCommandCorrelationError> {
+    match envelope.routing() {
+        WebDriverBiDiJsonEnvelopeRouting::Event => {
+            Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
+        }
+        WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+            Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
+        }
+        WebDriverBiDiJsonEnvelopeRouting::CommandError {
+            command_id: Some(command_id),
+        } => Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Error)),
+        WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => {
+            Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Success))
+        }
     }
 }
 
