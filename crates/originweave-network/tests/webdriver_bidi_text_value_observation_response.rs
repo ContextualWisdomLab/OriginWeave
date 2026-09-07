@@ -87,7 +87,7 @@ fn replacement_connection_cannot_complete_text_observation() -> Result<(), Box<d
             .read_opening_response(Duration::from_millis(500))?;
         let (registry, handle, remote) = admitted_text_field_fixture()?;
         let mut correlation = WebDriverBiDiCommandCorrelation::new();
-        correlation.register_command_for(44, WebDriverBiDiCommandKind::TypeText)?;
+        correlation.register_command_for(44, WebDriverBiDiCommandKind::TextValueObservation)?;
         let _original = send_webdriver_bidi_text_value_observation(
             semantic_observation_proof()?, 43, "context-a", &handle, &remote, &registry,
             established, &mut correlation, WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
