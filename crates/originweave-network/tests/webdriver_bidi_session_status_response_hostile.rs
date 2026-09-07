@@ -9,11 +9,11 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
     WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusResponseError,
     WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -21,7 +21,7 @@ const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 
 type StatusRead = (
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiReceivedTextMessage,
     WebDriverBiDiCommandCorrelation,
 );
 
@@ -132,13 +132,13 @@ fn send_status_and_read_response(response: Vec<u8>) -> Result<StatusRead, Box<dy
         Duration::from_millis(500),
     )?;
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "session.status response produced unexpected assembly state: {other:?}"
+                "session.status response produced unexpected message state: {other:?}"
             ))
             .into());
         }
@@ -147,7 +147,7 @@ fn send_status_and_read_response(response: Vec<u8>) -> Result<StatusRead, Box<dy
     server
         .join()
         .map_err(|_| io::Error::other("session.status response test server panicked"))??;
-    Ok((text, correlation))
+    Ok((message, correlation))
 }
 
 fn parse_response(
@@ -159,8 +159,8 @@ fn parse_response(
     ),
     Box<dyn Error>,
 > {
-    let (text, mut correlation) = send_status_and_read_response(response)?;
-    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
+    let (message, mut correlation) = send_status_and_read_response(response)?;
+    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation);
     Ok((parsed, correlation))
 }
 
