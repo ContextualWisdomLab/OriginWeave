@@ -13,16 +13,13 @@ use originweave_network::{
 #[test]
 fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input()
 -> Result<(), Box<dyn Error>> {
-    let acknowledged_intent =
-        type_text_intent::acknowledged_type_text_intent(42, "authorized-value")?;
-
-    let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let observation = text_observation::receive_command_responses(
-        &[br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"substituted-value"}}}"#],
-        70,
-        &mut correlation,
-    )?
-    .remove(0);
+    let (acknowledged_intent, observation, mut correlation) =
+        type_text_intent::acknowledged_type_text_intent_and_observation(
+            42,
+            "authorized-value",
+            70,
+            br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"substituted-value"}}}"#,
+        )?;
 
     let substituted = verify_webdriver_bidi_text_value_postcondition(
         &observation,
