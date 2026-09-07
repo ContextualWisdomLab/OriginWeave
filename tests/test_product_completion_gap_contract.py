@@ -207,6 +207,34 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, current)
 
+    def test_response_observation_checkpoint_binds_each_published_owner(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published response and observation: 01:45 UTC",
+            "#### Published input descendants: 00:40 UTC",
+        )
+        for owner, head, parent, coverage in (
+            (268, "ff27220cb5eb4d11ca1dc5614a4181e1a397a3f1", "ebd507ae", "1325/13907/17682/1456"),
+            (269, "3df2a631bacd7109b3982fdd7ac599d0bd92a589", "ff27220c", "1338/14025/17843/1460"),
+        ):
+            row = active_pr_row(current, owner)
+            for marker in ("Published; Draft", parent, coverage):
+                self.assertIn(marker, row)
+            self.assertIn(f"[`{head[:8]}`](https://github.com/ContextualWisdomLab/OriginWeave/commit/{head})", row)
+        for marker in ("658fb676", "49d18f5f", "147 Python", "34072645796", "34073733364", "34073733355", "queued", "actual visual inspection", "not product-browser acceptance", "#270"):
+            self.assertIn(marker, current)
+
+    def test_historical_rows_cannot_replace_response_observation_checkpoint(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(text, "#### Published response and observation: 01:45 UTC", "#### Published input descendants: 00:40 UTC")
+        for owner in (268, 269):
+            row = active_pr_row(current, owner)
+            for replacement in ("", row.replace("Published; Draft", "Local only; Draft")):
+                mutated = text.replace(row, replacement, 1) + "\nHistorical evidence:\n" + row
+                with patch.object(pathlib.Path, "read_text", return_value=mutated):
+                    with self.assertRaises(AssertionError):
+                        self.test_response_observation_checkpoint_binds_each_published_owner()
+
     def test_input_descendants_bind_publication_and_coverage_to_each_owner(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),
