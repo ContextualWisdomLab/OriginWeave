@@ -1,8 +1,8 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTextValueObservationResponseError,
-    WebDriverBiDiTextValueObservationResult, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
 };
 
 /// Credential-minimal proof that one exact correlated text observation matched the authorized
@@ -90,11 +90,12 @@ impl Error for WebDriverBiDiTextValuePostconditionError {
 /// observation consumes its correlated command because the response is complete, but returns a
 /// typed negative result rather than `Ok`. This prevents command acknowledgment, parser success, or
 /// correlation success from being mistaken for successful browser state mutation.
+/// Only a message received on the sender's exact connection can supply this evidence.
 ///
 /// No page-controlled text, expected text, realm identifier, credential, secret, browser authority,
 /// or policy authority is retained in the returned value or error diagnostics.
 pub fn verify_webdriver_bidi_text_value_postcondition(
-    message: &WebDriverBiDiWebSocketTextMessage,
+    message: &WebDriverBiDiReceivedTextMessage,
     expected_text: &str,
     correlation: &mut WebDriverBiDiCommandCorrelation,
 ) -> Result<WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError> {
