@@ -35,6 +35,10 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         )
         text = source.read_text(encoding="utf-8")
         self.assertIn('"2026-08-18"', text)
+        self.assertIn(
+            '"1e5e36c43adbe24f2a4052c2ec091635c006c352"',
+            text,
+        )
         self.assertIn("PresentationSurface::Screen", text)
         self.assertIn("PresentationSurface::Viewport", text)
         self.assertIn("PresentationSurface::DevicePixelRatio", text)
