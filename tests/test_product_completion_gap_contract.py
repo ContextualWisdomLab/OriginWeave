@@ -129,7 +129,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(
-            text, "### Latest verified cut: 2026-09-06", "#### Prior observation: 12:28 UTC"
+            text, "### Latest verified cut: 2026-09-07", "### Latest verified cut: 2026-09-06"
         )
         roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
         self.assertEqual(len(roots), 1)
@@ -206,6 +206,49 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "outbound session binding", "protected-main asset", "not product-browser acceptance",
         ):
             self.assertIn(marker, current)
+
+    def test_input_descendants_bind_publication_and_coverage_to_each_owner(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published input descendants: 00:40 UTC",
+            "### Latest verified cut: 2026-09-06",
+        )
+        for owner, head, parent, coverage in (
+            (265, "e94a2372fe3771f9ddf70291d34fc9a7e4770ec9", "43395711", "1297/13618/17315/1442"),
+            (266, "e3885f69df2cf3899184209efdee5b11bba1bd86", "e94a2372", "1310/13766/17524/1452"),
+            (267, "ebd507ae56c3064e3cae5566502f539c20618a8f", "e3885f69", "1318/13852/17610/1456"),
+        ):
+            row = active_pr_row(current, owner)
+            for marker in ("Published; Draft", parent, coverage):
+                self.assertIn(marker, row)
+            self.assertIn(
+                f"[`{head[:8]}`](https://github.com/ContextualWisdomLab/OriginWeave/commit/{head})",
+                row,
+            )
+        for marker in (
+            "e7fb1527", "009f9a41", "4e020e16", "23 focused", "145 Python",
+            "34068277243", "34068882527", "34070121583", "queued",
+            "zero unresolved review threads", "one counted approval", "seven required workflows",
+            "actual screenshots", "not product-browser acceptance", "own checks and visual inspection",
+            "#268", "protected-main asset preservation", "status receipt",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_rows_cannot_hide_current_input_evidence_changes(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(
+            text, "#### Published input descendants: 00:40 UTC",
+            "### Latest verified cut: 2026-09-06",
+        )
+        for owner in (265, 266, 267):
+            row = active_pr_row(current, owner)
+            for replacement in ("", row.replace("Published; Draft", "Local only; Draft")):
+                with self.subTest(owner=owner, replacement=replacement):
+                    mutated = text.replace(row, replacement, 1) + "\nHistorical evidence:\n" + row
+                    self.assertNotEqual(text, mutated)
+                    with patch.object(pathlib.Path, "read_text", return_value=mutated):
+                        with self.assertRaises(AssertionError):
+                            self.test_input_descendants_bind_publication_and_coverage_to_each_owner()
 
     def test_published_descendants_bind_evidence_to_current_owner_rows(self) -> None:
         current = bounded_section(
