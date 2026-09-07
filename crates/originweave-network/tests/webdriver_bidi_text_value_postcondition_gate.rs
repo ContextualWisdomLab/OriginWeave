@@ -101,8 +101,7 @@ fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiReceivedTextMessag
 
 #[test]
 fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn Error>> {
-    let acknowledged_intent =
-        type_text_intent::acknowledged_type_text_intent(42, "expected")?;
+    let acknowledged_intent = type_text_intent::acknowledged_type_text_intent(42, "expected")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let response = text_observation::receive_command_responses(
         &[
@@ -126,8 +125,7 @@ fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn
 
 #[test]
 fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), Box<dyn Error>> {
-    let acknowledged_intent =
-        type_text_intent::acknowledged_type_text_intent(43, "expected")?;
+    let acknowledged_intent = type_text_intent::acknowledged_type_text_intent(43, "expected")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let response = text_observation::receive_command_responses(
         &[
@@ -169,8 +167,7 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
 #[test]
 fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
 -> Result<(), Box<dyn Error>> {
-    let acknowledged_intent =
-        type_text_intent::acknowledged_type_text_intent(44, "expected")?;
+    let acknowledged_intent = type_text_intent::acknowledged_type_text_intent(44, "expected")?;
     let response = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(72, WebDriverBiDiCommandKind::TextValueObservation)?;
@@ -198,8 +195,7 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
 
 #[test]
 fn unrelated_outstanding_command_cannot_certify_text_postcondition() -> Result<(), Box<dyn Error>> {
-    let acknowledged_intent =
-        type_text_intent::acknowledged_type_text_intent(45, "expected")?;
+    let acknowledged_intent = type_text_intent::acknowledged_type_text_intent(45, "expected")?;
     let response = receive_server_text(
         br#"{"type":"success","id":73,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
     )?;
