@@ -231,10 +231,14 @@ fn replacement_status_reply_preserves_original_pending_request_and_recovery()
     let (original, mut pending) = send_status_and_read_response(STATUS_RESPONSE)?;
     let (replacement, _replacement_pending) = send_status_and_read_response(STATUS_RESPONSE)?;
 
-    assert!(
-        WebDriverBiDiSessionStatusResult::parse_and_correlate(&replacement, &mut pending).is_err(),
-        "a replacement connection must not complete the original status request"
-    );
+    assert!(matches!(
+        WebDriverBiDiSessionStatusResult::parse_and_correlate(&replacement, &mut pending),
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+            source: originweave_network::WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                command_id: 7,
+            },
+        })
+    ));
     assert_eq!(pending.outstanding_count(), 1);
     let completed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&original, &mut pending)?;
     assert_eq!(completed.command_id(), 7);

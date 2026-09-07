@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- The session-ending command stack now retains the status-reply protections from its current parent. A reply from a replacement connection is rejected while the original pending status request remains recoverable; sending the end command still does not prove that the browser session ended.
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Regression checks now exercise fragmented browser replies, interleaved control messages, and rejected replies without losing a pending request. These checks do not establish browser readiness or release acceptance.
 - The typed browser-status response stack now includes its verified command and opening-exchange prerequisites, including the release-record check that previously did not execute; parsing remains bounded and does not grant browser authority or prove operational readiness.
