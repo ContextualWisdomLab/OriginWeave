@@ -40,10 +40,12 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             text, "#### Published session-end reply binding: 05:35 UTC",
             "#### Published status-response repair: 04:45 UTC",
         )
-        stale = text.replace(current, current.replace("Published; Draft", "Local only"), 1)
-        with patch.object(pathlib.Path, "read_text", return_value=stale + current):
-            with self.assertRaises(AssertionError):
-                self.test_end_reply_checkpoint_binds_published_evidence()
+        for owner in (251, 252):
+            row = active_pr_row(current, owner)
+            stale = text.replace(row, row.replace("Published; Draft", "Local only"), 1)
+            with patch.object(pathlib.Path, "read_text", return_value=stale + row):
+                with self.assertRaises(AssertionError):
+                    self.test_end_reply_checkpoint_binds_published_evidence()
 
     def test_status_repair_checkpoint_binds_published_evidence(self) -> None:
         current = bounded_section(
