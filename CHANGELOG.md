@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Session-ending replies from a replacement connection can no longer complete the original pending request. The original reply remains usable, and a protocol acknowledgment still does not prove browser shutdown or cleanup.
 - The session-ending command stack now retains the status-reply protections from its current parent. A reply from a replacement connection is rejected while the original pending status request remains recoverable; sending the end command still does not prove that the browser session ended.
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.

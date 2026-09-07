@@ -138,6 +138,12 @@ On 7 September 2026, the session-end sender stack reproduced the inherited statu
 
 The shared routing validation, result projection order, and parent connection safeguards are unchanged. This supersedes the earlier no-received-provenance description for the status path only: the session-end sender still makes no received-acknowledgment, process-exit, profile-cleanup, browser-policy or release-acceptance claim. End-response provenance belongs to its separate consumer. Local tests and exact-head hosted checks must be evaluated independently after this adoption.
 
+### Current session-end response connection binding
+
+On 7 September 2026, regression `6aaf7f3f` reproduced replacement-reply acceptance on #252. Ordinary adoption of #251 `924ad97551750d4a901ded38b89488cc5438e54f` retained the failure, confirming that parent status safeguards alone did not repair the end-response consumer. The end sender now uses the existing connection-bound registration before writing, and the response parser accepts the existing sealed received-text type and checks that connection through shared correlation before consuming pending state. The original sender preflight retirement and ambiguous-write behavior, result shape, command-id accessor and remote-error classification remain unchanged. No new authority accessor or duplicate reader is introduced.
+
+Real loopback tests require exact connection-mismatch rejection for replacement success and error replies, unchanged original pending state, and subsequent completion using the original received reply. They also reject unbound registrations, events and null-id errors without consuming the pending command. These fixtures use separate listener endpoints and retain receipts after their server threads finish; they do not prove same-endpoint replacement rejection or liveness of an open original connection. This supersedes the earlier unbound-response description for the current #252 branch only. A correlated acknowledgment still does not prove browser-process exit, profile deletion, resource cleanup, browser policy authority, protected integration or release acceptance. Exact-head local and hosted verification remain separate.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html

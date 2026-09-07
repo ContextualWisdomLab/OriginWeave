@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `session.end` command.
@@ -26,15 +26,21 @@ impl WebDriverBiDiSessionEndResult {
     /// can be consumed. Successful responses retain only the matched command id. A correlatable
     /// protocol-error response consumes its matching id and returns a typed remote failure, while
     /// events, null-id errors, malformed envelopes, unknown ids, and command-kind mismatches fail
-    /// closed without consuming unrelated outstanding state.
+    /// closed without consuming unrelated outstanding state. Only a sealed reply from the same
+    /// connection that registered the command can consume it; a replacement connection cannot
+    /// complete the request even when its session and command identifiers match.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiSessionEndResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message)
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message())
             .map_err(|source| WebDriverBiDiSessionEndResponseError::Envelope { source })?;
         let completed = correlation
-            .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionEnd)
+            .correlate_response_for_connection(
+                &envelope,
+                WebDriverBiDiCommandKind::SessionEnd,
+                message.connection_generation(),
+            )
             .map_err(|source| WebDriverBiDiSessionEndResponseError::Correlation { source })?;
 
         match completed.outcome() {

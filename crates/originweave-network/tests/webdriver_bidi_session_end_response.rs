@@ -8,12 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand,
-    WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndResponseError,
+    WebDriverBiDiSessionEndResult, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -28,6 +28,50 @@ const END_UNKNOWN_ID_RESPONSE: &[u8] =
 const END_MALFORMED_RESPONSE: &[u8] = br#"{"type":"success","id":7}"#;
 
 #[test]
+fn unbound_end_command_cannot_consume_a_connection_bound_reply() -> Result<(), Box<dyn Error>> {
+    use originweave_network::WebDriverBiDiCommandKind;
+
+    let (message, mut original) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
+    let mut unbound = WebDriverBiDiCommandCorrelation::new();
+    unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionEnd)?;
+    assert!(matches!(
+        WebDriverBiDiSessionEndResult::parse_and_correlate(&message, &mut unbound),
+        Err(WebDriverBiDiSessionEndResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                command_id: 7,
+            },
+        })
+    ));
+    assert_eq!(unbound.outstanding_count(), 1);
+    let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&message, &mut original)?;
+    assert_eq!(result.command_id(), 7);
+    assert_eq!(original.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn event_and_null_id_error_preserve_the_sent_end_command() -> Result<(), Box<dyn Error>> {
+    for (document, expected) in [
+        (
+            br#"{"type":"event","method":"log.entryAdded","params":{}}"#.as_slice(),
+            WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+        ),
+        (
+            br#"{"type":"error","id":null,"error":"unknown error","message":"remote"}"#.as_slice(),
+            WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
+        ),
+    ] {
+        let (message, mut correlation) = send_end_and_read_response(document)?;
+        assert!(matches!(
+            WebDriverBiDiSessionEndResult::parse_and_correlate(&message, &mut correlation),
+            Err(WebDriverBiDiSessionEndResponseError::Correlation { source }) if source == expected
+        ));
+        assert_eq!(correlation.outstanding_count(), 1);
+    }
+    Ok(())
+}
+
+#[test]
 fn replacement_end_replies_preserve_original_pending_request_and_recovery()
 -> Result<(), Box<dyn Error>> {
     for response in [END_SUCCESS_RESPONSE, END_REMOTE_ERROR_RESPONSE] {
@@ -35,7 +79,11 @@ fn replacement_end_replies_preserve_original_pending_request_and_recovery()
         let (replacement, _) = send_end_and_read_response(response)?;
         assert!(matches!(
             WebDriverBiDiSessionEndResult::parse_and_correlate(&replacement, &mut pending),
-            Err(WebDriverBiDiSessionEndResponseError::Correlation { .. })
+            Err(WebDriverBiDiSessionEndResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                    command_id: 7
+                }
+            })
         ));
         assert_eq!(pending.outstanding_count(), 1);
         let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&original, &mut pending)?;
@@ -92,7 +140,7 @@ fn send_end_and_read_response(
     response: &'static [u8],
 ) -> Result<
     (
-        WebDriverBiDiWebSocketTextMessage,
+        WebDriverBiDiReceivedTextMessage,
         WebDriverBiDiCommandCorrelation,
     ),
     Box<dyn Error>,
@@ -133,10 +181,10 @@ fn send_end_and_read_response(
         Duration::from_millis(500),
     )?;
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "session.end response produced unexpected assembly state: {other:?}"
