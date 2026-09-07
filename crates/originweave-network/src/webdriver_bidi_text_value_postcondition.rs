@@ -13,8 +13,9 @@ use crate::{
 /// constructed. This type therefore carries only the typed-input command identifier, the consumed
 /// observation command identifier, and observed byte count. A caller can obtain this value only
 /// after the original one-shot typed-input intent received its exact protocol ACK and the later
-/// observation exactly matched that retained intent; a command ACK, parser success, or
-/// verification-time caller value is not sufficient post-condition evidence.
+/// observation exactly matched that retained intent on the same verified WebDriver BiDi connection;
+/// a command ACK, parser success, same textual value on another connection, or verification-time
+/// caller value is not sufficient post-condition evidence.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct WebDriverBiDiTextValuePostcondition {
     type_text_command_id: u64,
@@ -56,6 +57,9 @@ impl WebDriverBiDiTextValuePostcondition {
 /// Failure to produce positive text-value post-condition evidence from one correlated response.
 #[derive(Debug)]
 pub enum WebDriverBiDiTextValuePostconditionError {
+    /// The received observation belongs to a different verified connection than the acknowledged
+    /// typed-input intent. This check runs before observation correlation can consume pending state.
+    ObservationConnectionMismatch,
     /// The underlying bounded response admission or correlation failed.
     Observation {
         /// Exact typed lower-boundary failure.
@@ -76,6 +80,9 @@ pub enum WebDriverBiDiTextValuePostconditionError {
 impl fmt::Display for WebDriverBiDiTextValuePostconditionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ObservationConnectionMismatch => formatter.write_str(
+                "WebDriver BiDi text-value postcondition observation arrived on a different connection than the acknowledged typed-input intent",
+            ),
             Self::Observation { .. } => {
                 formatter.write_str("WebDriver BiDi text-value postcondition observation failed")
             }
@@ -90,7 +97,7 @@ impl Error for WebDriverBiDiTextValuePostconditionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Observation { source } => Some(source),
-            Self::PostconditionMismatch { .. } => None,
+            Self::ObservationConnectionMismatch | Self::PostconditionMismatch { .. } => None,
         }
     }
 }
@@ -100,19 +107,26 @@ impl Error for WebDriverBiDiTextValuePostconditionError {
 ///
 /// The caller must transfer a one-shot [`WebDriverBiDiAcknowledgedTypeTextIntent`]. That value is
 /// produced only from the reviewed typed-input sender and its exact connection-bound protocol ACK,
-/// so the expected value can no longer be selected at verification time. The lower observation
-/// boundary validates response structure, script result shape, and exact observation-command
+/// so the expected value can no longer be selected at verification time. The received observation
+/// must first match the acknowledged intent's private connection generation; that check happens
+/// before lower response admission or correlation can consume pending state. The lower observation
+/// boundary then validates response structure, script result shape, and exact observation-command
 /// correlation before comparison. A mismatching observation consumes its correlated observation
 /// command because the response is complete, but returns a typed negative result rather than `Ok`.
 ///
-/// No page-controlled text, expected text, realm identifier, credential, secret, browser authority,
-/// or policy authority is retained in the returned value or error diagnostics. The acknowledged
-/// intent is consumed exactly once by this call and its private text is dropped afterward.
+/// No page-controlled text, expected text, connection-generation identifier, realm identifier,
+/// credential, secret, browser authority, or policy authority is retained in the returned value or
+/// error diagnostics. The acknowledged intent is consumed exactly once by this call and its private
+/// text and connection generation are dropped afterward.
 pub fn verify_webdriver_bidi_text_value_postcondition(
     message: &WebDriverBiDiReceivedTextMessage,
     acknowledged_intent: WebDriverBiDiAcknowledgedTypeTextIntent,
     correlation: &mut WebDriverBiDiCommandCorrelation,
 ) -> Result<WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError> {
+    if !acknowledged_intent.matches_connection_generation(message.connection_generation()) {
+        return Err(WebDriverBiDiTextValuePostconditionError::ObservationConnectionMismatch);
+    }
+
     let type_text_command_id = acknowledged_intent.command_id();
     let observation = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         message,
