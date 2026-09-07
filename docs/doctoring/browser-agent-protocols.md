@@ -16,6 +16,8 @@ WebDriver BiDi commands may execute concurrently and finish out of order. The 3 
 
 OriginWeave also retains the registered command family until correlation completes. A response id registered for typed input, navigation, or semantic observation cannot be consumed by a different family merely because the numeric id matches.
 
+The fixed field-observation sender now requires the admitted node's registered session to match the established transport session before writing. It validates the deadline before registration, binds pending requests to the exact connection generation, and uses the existing lifetime command-ID guard. Proven zero-write rejection retires that request; an ambiguous socket write keeps it pending. These transport checks do not prove the field value or a completed user action.
+
 The same Working Draft defines `ErrorResponse.error` as `ErrorCode`. Its rendered local-end CDDL enumerates 30 values and omits `no such client window`, while §3.5 separately defines `no such client window` and normative client-window algorithms return that error code. OriginWeave therefore admits the finite rendered CDDL vocabulary plus this one separately defined normative error, and still rejects arbitrary error-code text fail closed. This is an explicit interoperability exception for a specification-internal inconsistency, not authority to infer or accept other strings; adding any further code requires fresh primary-source review and regression evidence.
 
 Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working Draft and current Editor’s Draft).

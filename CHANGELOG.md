@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Reject field-observation requests on another browser session and preserve pending requests only when a write may have reached the peer.
+
 - Preserve fixed field-observation checks while adopting current input safeguards; constructing a request still does not verify that the field changed.
 - Label earlier text-reply limitations as historical so they do not contradict the later click safeguards.
 - Preserve text-reply checks while adopting click-session and reply safeguards. A matched response still does not prove the requested field changed.
