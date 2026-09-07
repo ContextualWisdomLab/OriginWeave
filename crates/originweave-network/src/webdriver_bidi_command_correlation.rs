@@ -1,6 +1,9 @@
-use std::{collections::BTreeMap, error::Error, fmt};
+use std::{collections::BTreeMap, error::Error, fmt, sync::Arc};
 
-use crate::{MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeKind};
+use crate::{
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
+};
 
 /// Maximum number of local WebDriver BiDi commands retained as outstanding at once.
 ///
@@ -9,22 +12,35 @@ use crate::{MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDi
 /// prevents an unbounded remote-control session from growing local correlation state indefinitely.
 pub const MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS: usize = 256;
 
-/// Typed WebDriver BiDi command families that require response-family provenance.
+/// Exact WebDriver BiDi command family bound to one outstanding local correlation identifier.
 ///
-/// Existing legacy command slices may still use the unclassified correlation API while they are
-/// migrated independently. A typed command is deliberately segregated from that compatibility
-/// path: an unclassified response consumer cannot consume its id, and a typed consumer cannot
-/// consume an unclassified id merely because the numeric correlation value matches.
+/// Command identifiers are local-end routing values rather than command-type provenance. Keeping
+/// the reviewed command family beside each outstanding id prevents a success or protocol error for
+/// one command from being consumed by a different typed response boundary that happens to receive
+/// the same id. Additional command families are introduced by their owning typed command slices.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiCommandKind {
     /// Fixed product-owned `script.callFunction` text-value observation.
     TextValueObservation,
+    /// WebDriver BiDi `session.status`.
+    SessionStatus,
+    /// WebDriver BiDi `session.end`.
+    SessionEnd,
+    /// WebDriver BiDi `input.performActions` pointer click.
+    PointerClick,
+    /// WebDriver BiDi `input.performActions` node-bound non-secret text input.
+    TypeText,
+    /// Context-scoped WebDriver BiDi `session.subscribe` for committed navigation.
+    NavigationCommittedSubscription,
+    /// WebDriver BiDi `session.unsubscribe` for one retained committed-navigation subscription.
+    NavigationCommittedUnsubscribe,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum OutstandingCommandKind {
-    Unclassified,
-    Typed(WebDriverBiDiCommandKind),
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct OutstandingCommand {
+    kind: WebDriverBiDiCommandKind,
+    connection_generation: Option<WebDriverBiDiConnectionGeneration>,
+    subscription_intent: Option<Arc<()>>,
 }
 
 /// Outcome of a response after it has consumed the matching outstanding command identifier.
@@ -38,12 +54,15 @@ pub enum WebDriverBiDiCorrelatedResponseOutcome {
 
 /// Credential-free evidence that one parsed response consumed one outstanding local command.
 ///
-/// This value carries only the matched command identifier and success/error classification. It
-/// does not retain result bodies, error text, browser authority, transport authority, or secrets.
+/// This value carries only the matched command identifier and success/error classification. A
+/// private process-local connection generation is retained when the command owner bound one before
+/// I/O so later transport evidence can be compared without accepting caller-supplied provenance.
+/// It does not retain result bodies, error text, browser authority, transport authority, or secrets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiCorrelatedResponse {
     command_id: u64,
     outcome: WebDriverBiDiCorrelatedResponseOutcome,
+    connection_generation: Option<WebDriverBiDiConnectionGeneration>,
 }
 
 impl WebDriverBiDiCorrelatedResponse {
@@ -71,8 +90,28 @@ pub enum WebDriverBiDiCommandCorrelationError {
     OutstandingCommandLimit,
     /// No currently outstanding command matches the requested or returned identifier.
     CommandNotOutstanding,
-    /// The response consumer does not match the command provenance registered for this identifier.
-    CommandKindMismatch,
+    /// The typed consumer does not match the command family registered for this identifier.
+    CommandKindMismatch {
+        /// Command family required by the typed consumer.
+        expected: WebDriverBiDiCommandKind,
+        /// Command family actually registered for the outstanding identifier.
+        actual: WebDriverBiDiCommandKind,
+    },
+    /// A connection-bound consumer found an outstanding command with no connection provenance.
+    CommandConnectionProvenanceMissing {
+        /// Exact outstanding local command identifier.
+        command_id: u64,
+    },
+    /// No subscription sender bound its private command-instance identity to this command.
+    CommandSubscriptionProvenanceMissing {
+        /// Exact outstanding local command identifier left untouched after rejection.
+        command_id: u64,
+    },
+    /// The response was received on a different verified connection from the outstanding command.
+    ResponseConnectionMismatch {
+        /// Exact outstanding local command identifier left untouched after rejection.
+        command_id: u64,
+    },
     /// An event is not a command response and cannot consume correlation state.
     EventIsNotResponse,
     /// A protocol error with a `null` id cannot be attributed to one outstanding command.
@@ -86,8 +125,17 @@ impl fmt::Display for WebDriverBiDiCommandCorrelationError {
             Self::CommandAlreadyOutstanding => "WebDriver BiDi command id is already outstanding",
             Self::OutstandingCommandLimit => "WebDriver BiDi outstanding-command limit reached",
             Self::CommandNotOutstanding => "WebDriver BiDi command id is not outstanding",
-            Self::CommandKindMismatch => {
+            Self::CommandKindMismatch { .. } => {
                 "WebDriver BiDi response command kind does not match the outstanding command"
+            }
+            Self::CommandConnectionProvenanceMissing { .. } => {
+                "WebDriver BiDi outstanding command lacks connection provenance"
+            }
+            Self::CommandSubscriptionProvenanceMissing { .. } => {
+                "WebDriver BiDi outstanding subscription lacks sent-context provenance"
+            }
+            Self::ResponseConnectionMismatch { .. } => {
+                "WebDriver BiDi response arrived on a different connection"
             }
             Self::EventIsNotResponse => "WebDriver BiDi event cannot be correlated as a response",
             Self::UncorrelatableErrorResponse => {
@@ -102,16 +150,20 @@ impl Error for WebDriverBiDiCommandCorrelationError {}
 
 /// Bounded local WebDriver BiDi command-response correlation state.
 ///
-/// The compatibility [`Self::register_command`] path retains unclassified command provenance for
-/// existing typed boundaries that have not yet migrated. Security-sensitive consumers that require
-/// an exact command family use [`Self::register_command_for`] and [`Self::correlate_response_for`].
-/// Typed and unclassified entries cannot consume one another. Events, null-id errors, unknown ids,
-/// and provenance mismatches leave outstanding state untouched. This type performs no I/O, retry,
-/// command serialization, browser authentication, or authority grant. Debug output reports only
-/// the outstanding-count summary; identifiers and command provenance remain private state.
+/// Register an id together with its exact typed command family only after the caller has committed
+/// to that outbound command. Connection-owning command adapters may additionally bind the private
+/// generation of the exact established transport before I/O. Subscription senders retain both a
+/// private command-instance identity and the exact verified connection generation; generic
+/// registration cannot supply either. A success or correlatable error response consumes the id
+/// exactly once only through a matching typed consumer. Events, null-id errors, command-kind
+/// mismatches, missing connection provenance, and responses received on a different verified
+/// connection leave outstanding state untouched. This type performs no I/O, retry, command
+/// serialization, browser authentication, or authority grant. Debug output reports only the
+/// outstanding-count summary; command identifiers, families, and generations remain private
+/// correlation state.
 #[derive(Default)]
 pub struct WebDriverBiDiCommandCorrelation {
-    outstanding: BTreeMap<u64, OutstandingCommandKind>,
+    outstanding: BTreeMap<u64, OutstandingCommand>,
 }
 
 impl fmt::Debug for WebDriverBiDiCommandCorrelation {
@@ -136,76 +188,74 @@ impl WebDriverBiDiCommandCorrelation {
         self.outstanding.len()
     }
 
-    /// Register one legacy/unclassified local command id before its response can be accepted.
+    /// Register one local command id and its exact command family before its response can be accepted.
     ///
-    /// This compatibility path cannot later be consumed by a typed response-family boundary.
     /// Identifiers are unique only while outstanding. A completed or explicitly retired id may be
-    /// reused later, matching WebDriver BiDi's local-end correlation semantics.
-    pub fn register_command(
-        &mut self,
-        command_id: u64,
-    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
-        self.register(command_id, OutstandingCommandKind::Unclassified)
-    }
-
-    /// Register one local command id together with its exact typed command family.
-    ///
-    /// A typed entry cannot later be consumed by the unclassified compatibility response path or by
-    /// another typed command family. Registration remains local correlation bookkeeping only and
-    /// does not authorize or dispatch the command.
+    /// reused later, matching WebDriver BiDi's local-end correlation semantics. Reusing an id while
+    /// any command family is still outstanding fails before replacing its provenance. This generic
+    /// table does not authorize dispatch: the typed connection owner independently requires strictly
+    /// increasing identifiers across all typed command families for its complete lifetime.
     pub fn register_command_for(
         &mut self,
         command_id: u64,
         command_kind: WebDriverBiDiCommandKind,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
-        self.register(command_id, OutstandingCommandKind::Typed(command_kind))
+        self.register(command_id, command_kind, None, None)
     }
 
-    /// Explicitly retire one outstanding command without accepting a response for it.
-    ///
-    /// This supports caller-owned cancellation or session teardown without retaining stale ids.
-    /// Retirement does not produce success evidence and therefore may remove either compatibility
-    /// or typed provenance when the caller owns the exact outstanding identifier.
-    pub fn retire_command(
+    pub(crate) fn register_command_for_connection(
         &mut self,
         command_id: u64,
+        command_kind: WebDriverBiDiCommandKind,
+        connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
-        if self.outstanding.remove(&command_id).is_some() {
-            Ok(())
-        } else {
-            Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)
-        }
+        self.register(command_id, command_kind, Some(connection_generation), None)
     }
 
-    /// Correlate one parsed local-end envelope with an unclassified outstanding command.
-    ///
-    /// This compatibility consumer cannot consume an id that was registered through the typed
-    /// provenance API. Unknown ids and provenance mismatches fail without consuming state. Events
-    /// and null-id errors fail before touching the map.
-    pub fn correlate_response(
+    pub(crate) fn register_subscription_command_for_connection(
         &mut self,
-        envelope: &WebDriverBiDiJsonEnvelope,
-    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        self.correlate_response_kind(envelope, OutstandingCommandKind::Unclassified)
+        command_id: u64,
+        connection_generation: WebDriverBiDiConnectionGeneration,
+        subscription_intent: Arc<()>,
+    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
+        self.register(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            Some(connection_generation),
+            Some(subscription_intent),
+        )
     }
 
-    /// Correlate one parsed local-end envelope with the exact typed outstanding command family.
-    ///
-    /// A matching numeric id is insufficient: the registered family must also match. This prevents
-    /// a response produced for an unrelated outstanding command from being consumed as typed
-    /// evidence by another protocol boundary.
-    pub fn correlate_response_for(
+    pub(crate) fn complete_subscription_command_on_connection(
         &mut self,
-        envelope: &WebDriverBiDiJsonEnvelope,
-        expected_kind: WebDriverBiDiCommandKind,
-    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        self.correlate_response_kind(envelope, OutstandingCommandKind::Typed(expected_kind))
+        command_id: u64,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<(Arc<()>, WebDriverBiDiConnectionGeneration), WebDriverBiDiCommandCorrelationError>
+    {
+        let outstanding = self.require_command_kind(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        )?;
+        let subscription_intent = outstanding.subscription_intent.ok_or(
+            WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
+                command_id,
+            },
+        )?;
+        let expected_connection_generation = require_connection_generation(
+            outstanding.connection_generation,
+            command_id,
+            received_connection_generation,
+        )?;
+        let _removed = self.outstanding.remove(&command_id);
+        Ok((subscription_intent, expected_connection_generation))
     }
 
     fn register(
         &mut self,
         command_id: u64,
-        command_kind: OutstandingCommandKind,
+        command_kind: WebDriverBiDiCommandKind,
+        connection_generation: Option<WebDriverBiDiConnectionGeneration>,
+        subscription_intent: Option<Arc<()>>,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
         if command_id > MAX_WEBDRIVER_BIDI_JS_UINT {
             return Err(WebDriverBiDiCommandCorrelationError::CommandIdOutOfRange);
@@ -216,62 +266,170 @@ impl WebDriverBiDiCommandCorrelation {
         if self.outstanding.len() >= MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS {
             return Err(WebDriverBiDiCommandCorrelationError::OutstandingCommandLimit);
         }
-        let _previous = self.outstanding.insert(command_id, command_kind);
+        let _previous = self.outstanding.insert(
+            command_id,
+            OutstandingCommand {
+                kind: command_kind,
+                connection_generation,
+                subscription_intent,
+            },
+        );
         Ok(())
     }
 
-    fn correlate_response_kind(
+    /// Explicitly retire one exact outstanding command without accepting a response for it.
+    ///
+    /// The expected command family must match the registered provenance. A mismatched caller cannot
+    /// retire another typed command merely by knowing or reusing its local correlation identifier.
+    pub fn retire_command_for(
+        &mut self,
+        command_id: u64,
+        expected_kind: WebDriverBiDiCommandKind,
+    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
+        self.require_command_kind(command_id, expected_kind)?;
+        let _removed = self.outstanding.remove(&command_id);
+        Ok(())
+    }
+
+    /// Correlate one parsed local-end envelope with an exact outstanding command family.
+    ///
+    /// Successful responses and error responses with ids consume exactly one matching command.
+    /// Unknown ids and command-kind mismatches fail without consuming state. Events and null-id
+    /// errors fail before touching the map. This generic path does not claim received-connection
+    /// provenance; connection-sensitive command owners must use their connection-bound path.
+    pub fn correlate_response_for(
         &mut self,
         envelope: &WebDriverBiDiJsonEnvelope,
-        expected_kind: OutstandingCommandKind,
+        expected_kind: WebDriverBiDiCommandKind,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        match envelope.kind() {
-            WebDriverBiDiJsonEnvelopeKind::Event => {
+        match envelope.routing() {
+            WebDriverBiDiJsonEnvelopeRouting::Event => {
                 Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
             }
-            WebDriverBiDiJsonEnvelopeKind::Error => {
-                let Some(command_id) = envelope.command_id() else {
-                    return Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse);
-                };
-                self.complete(
-                    command_id,
-                    expected_kind,
-                    WebDriverBiDiCorrelatedResponseOutcome::Error,
-                )
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+                Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
             }
-            WebDriverBiDiJsonEnvelopeKind::Success => self.complete(
-                envelope.success_command_id(),
+            WebDriverBiDiJsonEnvelopeRouting::CommandError {
+                command_id: Some(command_id),
+            } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Error,
+            ),
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => self.complete(
+                command_id,
                 expected_kind,
                 WebDriverBiDiCorrelatedResponseOutcome::Success,
             ),
         }
     }
 
+    pub(crate) fn correlate_response_for_connection(
+        &mut self,
+        envelope: &WebDriverBiDiJsonEnvelope,
+        expected_kind: WebDriverBiDiCommandKind,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
+        match envelope.routing() {
+            WebDriverBiDiJsonEnvelopeRouting::Event => {
+                Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+                Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError {
+                command_id: Some(command_id),
+            } => self.complete_on_connection(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Error,
+                received_connection_generation,
+            ),
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => self
+                .complete_on_connection(
+                    command_id,
+                    expected_kind,
+                    WebDriverBiDiCorrelatedResponseOutcome::Success,
+                    received_connection_generation,
+                ),
+        }
+    }
+
+    fn require_command_kind(
+        &self,
+        command_id: u64,
+        expected_kind: WebDriverBiDiCommandKind,
+    ) -> Result<OutstandingCommand, WebDriverBiDiCommandCorrelationError> {
+        let actual = self
+            .outstanding
+            .get(&command_id)
+            .cloned()
+            .ok_or(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)?;
+        if actual.kind != expected_kind {
+            return Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+                expected: expected_kind,
+                actual: actual.kind,
+            });
+        }
+        Ok(actual)
+    }
+
     fn complete(
         &mut self,
         command_id: u64,
-        expected_kind: OutstandingCommandKind,
+        expected_kind: WebDriverBiDiCommandKind,
         outcome: WebDriverBiDiCorrelatedResponseOutcome,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        let actual_kind = self
-            .outstanding
-            .get(&command_id)
-            .copied()
-            .ok_or(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)?;
-        if actual_kind != expected_kind {
-            return Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch);
-        }
+        let outstanding = self.require_command_kind(command_id, expected_kind)?;
         let _removed = self.outstanding.remove(&command_id);
         Ok(WebDriverBiDiCorrelatedResponse {
             command_id,
             outcome,
+            connection_generation: outstanding.connection_generation,
+        })
+    }
+
+    fn complete_on_connection(
+        &mut self,
+        command_id: u64,
+        expected_kind: WebDriverBiDiCommandKind,
+        outcome: WebDriverBiDiCorrelatedResponseOutcome,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
+        let outstanding = self.require_command_kind(command_id, expected_kind)?;
+        let expected_connection_generation = require_connection_generation(
+            outstanding.connection_generation,
+            command_id,
+            received_connection_generation,
+        )?;
+        let _removed = self.outstanding.remove(&command_id);
+        Ok(WebDriverBiDiCorrelatedResponse {
+            command_id,
+            outcome,
+            connection_generation: Some(expected_connection_generation),
         })
     }
 }
 
+fn require_connection_generation(
+    expected: Option<WebDriverBiDiConnectionGeneration>,
+    command_id: u64,
+    received: WebDriverBiDiConnectionGeneration,
+) -> Result<WebDriverBiDiConnectionGeneration, WebDriverBiDiCommandCorrelationError> {
+    let expected = expected.ok_or(
+        WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+    )?;
+    if expected != received {
+        return Err(
+            WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
+        );
+    }
+    Ok(expected)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::WebDriverBiDiCommandCorrelationError;
+    use super::{WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind};
 
     #[test]
     fn correlation_errors_have_stable_nonempty_operator_messages() {
@@ -293,8 +451,27 @@ mod tests {
                 "WebDriver BiDi command id is not outstanding",
             ),
             (
-                WebDriverBiDiCommandCorrelationError::CommandKindMismatch,
+                WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+                    expected: WebDriverBiDiCommandKind::SessionEnd,
+                    actual: WebDriverBiDiCommandKind::SessionStatus,
+                },
                 "WebDriver BiDi response command kind does not match the outstanding command",
+            ),
+            (
+                WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                    command_id: 7,
+                },
+                "WebDriver BiDi outstanding command lacks connection provenance",
+            ),
+            (
+                WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
+                    command_id: 7,
+                },
+                "WebDriver BiDi outstanding subscription lacks sent-context provenance",
+            ),
+            (
+                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id: 7 },
+                "WebDriver BiDi response arrived on a different connection",
             ),
             (
                 WebDriverBiDiCommandCorrelationError::EventIsNotResponse,

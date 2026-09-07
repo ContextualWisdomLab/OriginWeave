@@ -61,6 +61,7 @@ mod webdriver_bidi_websocket_endpoint;
 
 pub use browser_authority_registry::{
     AdmittedNodeAuthorityError, AdmittedNodeHandle, BrowserAuthorityRegistry,
+    BrowserRegistryIdentity,
 };
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
