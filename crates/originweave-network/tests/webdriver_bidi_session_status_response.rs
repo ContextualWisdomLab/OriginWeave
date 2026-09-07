@@ -8,12 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionStatusCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiSessionStatusCommand,
     WebDriverBiDiSessionStatusResponseError, WebDriverBiDiSessionStatusResult,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -24,6 +24,55 @@ const STATUS_RESPONSE: &[u8] =
 const STATUS_RESPONSE_MISSING_READY: &[u8] =
     br#"{"type":"success","id":7,"result":{"message":"capacity available"}}"#;
 const STATUS_RESPONSE_EMPTY_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
+
+#[test]
+fn unbound_command_cannot_consume_a_connection_bound_reply() -> Result<(), Box<dyn Error>> {
+    use originweave_network::{WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind};
+
+    let (message, mut original) = send_status_and_read_response(STATUS_RESPONSE)?;
+    let mut unbound = WebDriverBiDiCommandCorrelation::new();
+    unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
+    assert!(matches!(
+        WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut unbound),
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                command_id: 7,
+            },
+        })
+    ));
+    assert_eq!(unbound.outstanding_count(), 1);
+    assert_eq!(original.outstanding_count(), 1);
+    let result = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut original)?;
+    assert_eq!(result.command_id(), 7);
+    assert_eq!(original.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn event_and_null_id_error_preserve_the_sent_status_command() -> Result<(), Box<dyn Error>> {
+    use originweave_network::WebDriverBiDiCommandCorrelationError;
+
+    for (document, expected) in [
+        (
+            br#"{"type":"event","method":"log.entryAdded","params":{}}"#.as_slice(),
+            WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+        ),
+        (
+            br#"{"type":"error","id":null,"error":"unknown error","message":"remote"}"#.as_slice(),
+            WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
+        ),
+    ] {
+        let (message, mut correlation) = send_status_and_read_response(document)?;
+        let result =
+            WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation);
+        assert!(matches!(
+            result,
+            Err(WebDriverBiDiSessionStatusResponseError::Correlation { source }) if source == expected
+        ));
+        assert_eq!(correlation.outstanding_count(), 1);
+    }
+    Ok(())
+}
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -72,7 +121,7 @@ fn send_status_and_read_response(
     response: &'static [u8],
 ) -> Result<
     (
-        WebDriverBiDiWebSocketTextMessage,
+        WebDriverBiDiReceivedTextMessage,
         WebDriverBiDiCommandCorrelation,
     ),
     Box<dyn Error>,
@@ -113,13 +162,13 @@ fn send_status_and_read_response(
         Duration::from_millis(500),
     )?;
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "session.status response produced unexpected assembly state: {other:?}"
+                "session.status response produced unexpected message state: {other:?}"
             ))
             .into());
         }
@@ -128,14 +177,14 @@ fn send_status_and_read_response(
     server
         .join()
         .map_err(|_| io::Error::other("session.status response test server panicked"))??;
-    Ok((text, correlation))
+    Ok((message, correlation))
 }
 
 #[test]
 fn session_status_success_result_is_typed_correlated_and_message_redacted_in_debug()
 -> Result<(), Box<dyn Error>> {
-    let (text, mut correlation) = send_status_and_read_response(STATUS_RESPONSE)?;
-    let result = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation)?;
+    let (message, mut correlation) = send_status_and_read_response(STATUS_RESPONSE)?;
+    let result = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation)?;
 
     assert_eq!(result.command_id(), 7);
     assert!(result.ready());
@@ -151,8 +200,8 @@ fn session_status_success_result_is_typed_correlated_and_message_redacted_in_deb
 #[test]
 fn malformed_status_result_does_not_consume_the_outstanding_command() -> Result<(), Box<dyn Error>>
 {
-    let (text, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_MISSING_READY)?;
-    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
+    let (message, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_MISSING_READY)?;
+    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation);
 
     assert!(matches!(
         parsed,
@@ -165,13 +214,34 @@ fn malformed_status_result_does_not_consume_the_outstanding_command() -> Result<
 #[test]
 fn empty_status_result_fails_before_consuming_the_outstanding_command() -> Result<(), Box<dyn Error>>
 {
-    let (text, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_EMPTY_RESULT)?;
-    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
+    let (message, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_EMPTY_RESULT)?;
+    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation);
 
     assert!(matches!(
         parsed,
         Err(WebDriverBiDiSessionStatusResponseError::MissingReady)
     ));
     assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
+fn replacement_status_reply_preserves_original_pending_request_and_recovery()
+-> Result<(), Box<dyn Error>> {
+    let (original, mut pending) = send_status_and_read_response(STATUS_RESPONSE)?;
+    let (replacement, _replacement_pending) = send_status_and_read_response(STATUS_RESPONSE)?;
+
+    assert!(matches!(
+        WebDriverBiDiSessionStatusResult::parse_and_correlate(&replacement, &mut pending),
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+            source: originweave_network::WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                command_id: 7,
+            },
+        })
+    ));
+    assert_eq!(pending.outstanding_count(), 1);
+    let completed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&original, &mut pending)?;
+    assert_eq!(completed.command_id(), 7);
+    assert_eq!(pending.outstanding_count(), 0);
     Ok(())
 }

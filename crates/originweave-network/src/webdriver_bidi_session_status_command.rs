@@ -42,12 +42,14 @@ impl WebDriverBiDiSessionStatusCommand {
     /// Register and write this exact command on an already established verified BiDi stream.
     ///
     /// Locally invalid frame deadlines fail before correlation registration and before any remote
-    /// side effect. Correlation then registers the command before the first possible frame write.
-    /// A frame-owner preflight rejection that proves no write began retires this exact command
-    /// again; currently that covers adjacent client masking-key reuse. Once frame emission can have
-    /// begun, a later failure leaves the identifier outstanding because partial or full emission is
-    /// ambiguous. Callers must treat that failed stream/correlation pairing as unusable or
-    /// explicitly tear down its session state.
+    /// side effect. Correlation then registers the command together with the established
+    /// connection generation before the first possible frame write, so a response received on a
+    /// same-session replacement connection cannot consume this pending command. A frame-owner
+    /// preflight rejection that proves no write began retires this exact command again; currently
+    /// that covers adjacent client masking-key reuse. Once frame emission can have begun, a later
+    /// failure leaves the identifier outstanding because partial or full emission is ambiguous.
+    /// Callers must treat that failed stream/correlation pairing as unusable or explicitly tear down
+    /// its session state.
     pub fn send(
         self,
         established: WebDriverBiDiWebSocketEstablished,
@@ -64,7 +66,11 @@ impl WebDriverBiDiSessionStatusCommand {
             });
         }
         correlation
-            .register_command_for(self.command_id, WebDriverBiDiCommandKind::SessionStatus)
+            .register_command_for_connection(
+                self.command_id,
+                WebDriverBiDiCommandKind::SessionStatus,
+                established.transport_evidence().connection_generation(),
+            )
             .map_err(|source| WebDriverBiDiSessionStatusCommandError::Correlation { source })?;
         let message = self.serialized();
         match established.write_text_frame(&message, masking_key, frame_timeout) {
