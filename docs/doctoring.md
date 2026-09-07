@@ -4,6 +4,16 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Text-command descendant preservation
+
+At `009f9a41`, the #266 text-command descendant reproduced all three inherited
+pointer session/replacement-reply failures with the canonical real socket regressions.
+Ordinary integration `d9503b30` adopts #265 `e94a2372`, preserving the child text
+constructor and its eight privacy/authority tests byte-for-byte. The 21 focused tests
+pass after adoption. This reuses the existing sender, registry and sealed-reader
+boundaries; it adds no new standard, transport, dependency or accepted architecture.
+Text dispatch, causal observations and protected-main acceptance remain separate.
+
 ### Pointer outbound authority and received-reply integration
 
 Child #265 at `ddce7248` already checked the admitted node and canonical registry session

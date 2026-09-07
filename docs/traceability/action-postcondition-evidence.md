@@ -1,5 +1,23 @@
 # Action Post-Condition Evidence Traceability
 
+## Pointer session and reply adoption — 2026-09-07
+
+Ordinary merge `d9503b30` adopts #265 `e94a2372` without changing this child's
+text-command source, exports or eight existing text/privacy tests. Three real socket
+regressions at `009f9a41` first reproduced foreign-session pointer dispatch and
+replacement success/error replies consuming the original request (0/3 passing).
+The integrated sender keeps current-node, outbound-session and monotonic typed
+dispatch checks; its replies require the exact sending connection. Foreign replies
+leave both pending commands intact, and the original reply completes only its own.
+
+All 21 focused pointer, navigation-postcondition and text-command tests pass. The
+child's revised issue-#28 dossier remains intact alongside the parent's dated receipt
+history. This is still bounded non-secret text construction, not typed text dispatch
+or observed browser success. The existing #267 transport owns the next integration;
+this change does not duplicate it. Full combined-head verification, hosted checks
+and actual visual inspection are separate gates, and none of the historical heads
+below supplies protected-main, policy, browser-authentication or release acceptance.
+
 ## Parent-adoption checkpoint — 2026-09-06
 
 Ordinary integration `5a722867` preserves the text-input and diagnostic-privacy delta
