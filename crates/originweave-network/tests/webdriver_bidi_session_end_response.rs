@@ -27,6 +27,24 @@ const END_UNKNOWN_ID_RESPONSE: &[u8] =
     br#"{"type":"success","id":8,"result":{"vendorExtension":true}}"#;
 const END_MALFORMED_RESPONSE: &[u8] = br#"{"type":"success","id":7}"#;
 
+#[test]
+fn replacement_end_replies_preserve_original_pending_request_and_recovery()
+-> Result<(), Box<dyn Error>> {
+    for response in [END_SUCCESS_RESPONSE, END_REMOTE_ERROR_RESPONSE] {
+        let (original, mut pending) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
+        let (replacement, _) = send_end_and_read_response(response)?;
+        assert!(matches!(
+            WebDriverBiDiSessionEndResult::parse_and_correlate(&replacement, &mut pending),
+            Err(WebDriverBiDiSessionEndResponseError::Correlation { .. })
+        ));
+        assert_eq!(pending.outstanding_count(), 1);
+        let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&original, &mut pending)?;
+        assert_eq!(result.command_id(), 7);
+        assert_eq!(pending.outstanding_count(), 0);
+    }
+    Ok(())
+}
+
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
