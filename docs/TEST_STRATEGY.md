@@ -340,6 +340,10 @@ Do not retry deterministic failures blindly. If multiple distinct fixes fail, re
 
 Documentation contracts intentionally validate only durable properties such as required files, links, status vocabularies and authority assertions. Do not create brittle tests that freeze wording without preventing a real documentation defect.
 
+### Active browser-status response checks
+
+The active response stack exercises fragmented text with an interleaved Ping, malformed frame and message errors, and payload-redacted diagnostics. Separate correlation checks reject an event or a reply to a request lacking connection provenance while preserving the pending request. The fixture obtains its connection identity from a real loopback connection through the existing consuming transport handoff; it does not add a caller-supplied identity constructor. These local checks are not protected-main, real-browser acceptance, or release evidence.
+
 ## 17. Exit criteria for a production capability
 
 A capability may be documented as Implemented only when:

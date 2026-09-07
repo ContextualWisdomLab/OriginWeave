@@ -722,7 +722,8 @@ mod tests {
         let connection =
             WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
         let (_server, _) = listener.accept()?;
-        let generation = connection.connection_generation();
+        let (_stream, evidence) = connection.into_parts();
+        let generation = evidence.connection_generation();
         let mut correlation = WebDriverBiDiCommandCorrelation::new();
         correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
 
