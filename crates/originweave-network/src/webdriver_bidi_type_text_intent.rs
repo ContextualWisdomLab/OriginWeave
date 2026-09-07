@@ -6,12 +6,12 @@ use originweave_core::{
 };
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiJsonEnvelope, WebDriverBiDiReceivedTextMessage,
     WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,
     WebDriverBiDiTypeTextSendError, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_type_text,
     webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
-    webdriver_bidi_json_envelope::WebDriverBiDiJsonEnvelopeRouting, WebDriverBiDiJsonEnvelope,
+    webdriver_bidi_json_envelope::WebDriverBiDiJsonEnvelopeRouting,
 };
 
 /// Sender-minted one-shot witness for the exact non-secret text intent dispatched by one typed-input command.
@@ -206,9 +206,8 @@ pub fn acknowledge_webdriver_bidi_type_text_intent(
         return Err(WebDriverBiDiTypeTextIntentAcknowledgementError::ResponseCommandMismatch);
     }
 
-    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(message, correlation).map_err(
-        |source| WebDriverBiDiTypeTextIntentAcknowledgementError::Response { source },
-    )?;
+    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(message, correlation)
+        .map_err(|source| WebDriverBiDiTypeTextIntentAcknowledgementError::Response { source })?;
     if result.command_id() != witness.command_id {
         return Err(WebDriverBiDiTypeTextIntentAcknowledgementError::ResponseCommandMismatch);
     }
