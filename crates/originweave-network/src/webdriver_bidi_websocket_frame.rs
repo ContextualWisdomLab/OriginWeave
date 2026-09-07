@@ -284,6 +284,27 @@ impl WebDriverBiDiWebSocketEstablished {
         write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
     }
 
+    /// Write one final masked RFC 6455 Close response on this verified stream.
+    ///
+    /// This crate-private operation is used only after the frame reader has validated a peer Close.
+    /// It echoes only the validated status code when one was present and deliberately does not replay
+    /// arbitrary peer reason text. The caller supplies fresh masking entropy; the same adjacent-key
+    /// guard used by all client frame writers remains in force.
+    pub(crate) fn write_close_frame(
+        mut self,
+        peer_close_status_code: Option<u16>,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        validate_frame_timeout(frame_timeout)?;
+        self.client_mask_keys.reserve(masking_key)?;
+        let status_bytes = peer_close_status_code.map(u16::to_be_bytes);
+        let payload = status_bytes.as_ref().map_or(&[][..], |bytes| bytes.as_slice());
+        let frame = serialize_client_frame(0x8, payload, masking_key);
+        let mut now = Instant::now;
+        write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
+    }
+
     /// Read one bounded RFC 6455 frame from this verified stream.
     ///
     /// Server frames must be unmasked. Reserved bits/opcodes, non-minimal lengths, oversized

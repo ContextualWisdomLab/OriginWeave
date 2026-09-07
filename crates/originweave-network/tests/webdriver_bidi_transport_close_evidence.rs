@@ -10,13 +10,15 @@ use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketTransportClosureError, WebDriverBiDiWebSocketTransportClosureKind,
-    WebDriverBiDiWebSocketTransportClosureObservation,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketTransportClosureError,
+    WebDriverBiDiWebSocketTransportClosureKind, WebDriverBiDiWebSocketTransportClosureObservation,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
+const PONG_MASK_KEY: [u8; 4] = [5, 6, 7, 8];
+const CLOSE_MASK_KEY: [u8; 4] = [9, 10, 11, 12];
 
 type EstablishedWithServer = (
     originweave_network::WebDriverBiDiWebSocketEstablished,
@@ -40,10 +42,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_control_frame(
-    stream: &mut TcpStream,
-    expected_opcode: u8,
-) -> io::Result<Vec<u8>> {
+fn read_masked_control_frame(stream: &mut TcpStream, expected_opcode: u8) -> io::Result<Vec<u8>> {
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
     if header[0] != (0x80 | expected_opcode) || header[1] & 0x80 == 0 {
@@ -97,6 +96,40 @@ fn established_with_server_frame(
     Ok((established, server))
 }
 
+fn established_with_peer_close_then_eof(
+    close_frame: &'static [u8],
+    expected_reply_payload: &'static [u8],
+) -> Result<EstablishedWithServer, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        stream.write_all(close_frame)?;
+        let close_reply = read_masked_control_frame(&mut stream, 0x08)?;
+        if close_reply != expected_reply_payload {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Close response did not preserve the validated peer status contract",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?;
+    Ok((established, server))
+}
+
 fn established_with_held_open_peer_close() -> Result<EstablishedWithServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
@@ -105,6 +138,13 @@ fn established_with_held_open_peer_close() -> Result<EstablishedWithServer, Box<
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
         stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        let close_reply = read_masked_control_frame(&mut stream, 0x08)?;
+        if close_reply != [0x03, 0xe8] {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "held-open peer did not receive the required Close response",
+            ));
+        }
         thread::sleep(Duration::from_millis(250));
         Ok(())
     });
@@ -122,7 +162,8 @@ fn established_with_held_open_peer_close() -> Result<EstablishedWithServer, Box<
     Ok((established, server))
 }
 
-fn established_with_ping_then_held_open_peer_close() -> Result<EstablishedWithServer, Box<dyn Error>> {
+fn established_with_ping_then_held_open_peer_close() -> Result<EstablishedWithServer, Box<dyn Error>>
+{
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -138,6 +179,13 @@ fn established_with_ping_then_held_open_peer_close() -> Result<EstablishedWithSe
             ));
         }
         stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        let close_reply = read_masked_control_frame(&mut stream, 0x08)?;
+        if close_reply != [0x03, 0xe8] {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Ping/Close peer did not receive the required Close response",
+            ));
+        }
         thread::sleep(Duration::from_millis(250));
         Ok(())
     });
@@ -155,15 +203,90 @@ fn established_with_ping_then_held_open_peer_close() -> Result<EstablishedWithSe
     Ok((established, server))
 }
 
+fn established_with_pong_then_peer_close() -> Result<EstablishedWithServer, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        stream.write_all(&[0x8a, 0x00, 0x88, 0x02, 0x03, 0xe8])?;
+        let close_reply = read_masked_control_frame(&mut stream, 0x08)?;
+        if close_reply != [0x03, 0xe8] {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Pong/Close peer did not receive the required Close response",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?;
+    Ok((established, server))
+}
+
+fn established_with_post_close_frame() -> Result<EstablishedWithServer, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        let close_reply = read_masked_control_frame(&mut stream, 0x08)?;
+        if close_reply != [0x03, 0xe8] {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "post-Close fixture did not receive the required Close response",
+            ));
+        }
+        stream.write_all(&[0x8a, 0x00])?;
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?;
+    Ok((established, server))
+}
+
+fn observe(
+    established: originweave_network::WebDriverBiDiWebSocketEstablished,
+    frame_timeout: Duration,
+) -> Result<
+    WebDriverBiDiWebSocketTransportClosureObservation,
+    WebDriverBiDiWebSocketTransportClosureError,
+> {
+    WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
+        frame_timeout,
+    )
+}
+
 #[test]
 fn ping_before_close_requires_masked_pong_and_still_waits_for_tcp_closure()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_ping_then_held_open_peer_close()?;
 
-    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(50),
-    );
+    let result = observe(established, Duration::from_millis(50));
     let server_result = server
         .join()
         .map_err(|_| io::Error::other("ping-before-close test server panicked"))?;
@@ -181,23 +304,37 @@ fn ping_before_close_requires_masked_pong_and_still_waits_for_tcp_closure()
 }
 
 #[test]
-fn validated_peer_close_frame_yields_nonforgeable_transport_observation()
--> Result<(), Box<dyn Error>> {
-    let (established, server) = established_with_server_frame(Some(&[0x88, 0x02, 0x03, 0xe8]))?;
+fn validated_peer_close_requires_masked_reply_and_tcp_eof() -> Result<(), Box<dyn Error>> {
+    let (established, server) =
+        established_with_peer_close_then_eof(&[0x88, 0x04, 0x03, 0xe8, b'o', b'k'], &[0x03, 0xe8])?;
 
-    let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(500),
-    )?;
+    let observation = observe(established, Duration::from_millis(500))?;
 
     server
         .join()
         .map_err(|_| io::Error::other("transport-close test server panicked"))??;
     assert_eq!(
         observation.kind(),
-        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseFrame
+        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof
     );
     assert_eq!(observation.peer_close_status_code(), Some(1000));
+    Ok(())
+}
+
+#[test]
+fn empty_peer_close_uses_empty_masked_reply_before_tcp_eof() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_peer_close_then_eof(&[0x88, 0x00], &[])?;
+
+    let observation = observe(established, Duration::from_millis(500))?;
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("empty-close test server panicked"))??;
+    assert_eq!(
+        observation.kind(),
+        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof
+    );
+    assert_eq!(observation.peer_close_status_code(), None);
     Ok(())
 }
 
@@ -205,10 +342,7 @@ fn validated_peer_close_frame_yields_nonforgeable_transport_observation()
 fn peer_close_without_tcp_eof_is_not_transport_closure_evidence() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_held_open_peer_close()?;
 
-    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(50),
-    );
+    let result = observe(established, Duration::from_millis(50));
 
     server
         .join()
@@ -232,20 +366,16 @@ fn peer_close_without_tcp_eof_is_not_transport_closure_evidence() -> Result<(), 
 #[test]
 fn one_unsolicited_pong_before_close_does_not_block_closure_observation()
 -> Result<(), Box<dyn Error>> {
-    let (established, server) =
-        established_with_server_frame(Some(&[0x8a, 0x00, 0x88, 0x02, 0x03, 0xe8]))?;
+    let (established, server) = established_with_pong_then_peer_close()?;
 
-    let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(500),
-    )?;
+    let observation = observe(established, Duration::from_millis(500))?;
 
     server
         .join()
         .map_err(|_| io::Error::other("pong-before-close test server panicked"))??;
     assert_eq!(
         observation.kind(),
-        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseFrame
+        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof
     );
     assert_eq!(observation.peer_close_status_code(), Some(1000));
     Ok(())
@@ -255,10 +385,7 @@ fn one_unsolicited_pong_before_close_does_not_block_closure_observation()
 fn repeated_pong_frames_remain_fail_closed_under_fixed_read_budget() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(Some(&[0x8a, 0x00, 0x8a, 0x00]))?;
 
-    let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(500),
-    ) else {
+    let Err(error) = observe(established, Duration::from_millis(500)) else {
         return Err(io::Error::other(
             "repeated Pong frames unexpectedly became transport-closure evidence",
         )
@@ -285,10 +412,7 @@ fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(None)?;
 
-    let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(500),
-    )?;
+    let observation = observe(established, Duration::from_millis(500))?;
 
     server
         .join()
@@ -302,14 +426,29 @@ fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
 }
 
 #[test]
+fn post_close_frame_is_not_transport_closure_evidence() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_post_close_frame()?;
+
+    let Err(error) = observe(established, Duration::from_millis(500)) else {
+        return Err(io::Error::other("post-Close frame unexpectedly became closure evidence").into());
+    };
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("post-Close frame test server panicked"))??;
+    assert!(matches!(
+        error,
+        WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame { opcode: 0xa }
+    ));
+    Ok(())
+}
+
+#[test]
 fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result<(), Box<dyn Error>>
 {
     let (established, server) = established_with_server_frame(Some(&[0x81, 0x02, b'o', b'k']))?;
 
-    let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(500),
-    ) else {
+    let Err(error) = observe(established, Duration::from_millis(500)) else {
         return Err(io::Error::other(
             "application frame unexpectedly became transport-closure evidence",
         )
@@ -335,10 +474,7 @@ fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result
 fn malformed_close_frame_remains_a_typed_frame_failure() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(Some(&[0x88, 0x01, 0x00]))?;
 
-    let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
-        established,
-        Duration::from_millis(500),
-    ) else {
+    let Err(error) = observe(established, Duration::from_millis(500)) else {
         return Err(io::Error::other(
             "malformed close frame unexpectedly became transport-closure evidence",
         )
