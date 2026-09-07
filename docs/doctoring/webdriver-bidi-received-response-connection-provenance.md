@@ -42,7 +42,7 @@ Fresh integration verification executes 13 focused received-message, response an
 
 ## Evidence and remaining risk
 
-### Text-input receipt integration
+### Historical text-input receipt integration
 
 PR #268 applies the existing selected boundary to text input. Actual RED `4632f2df`
 accepted a success reply from a replacement socket on the same listener/session.
@@ -54,7 +54,9 @@ connection's reply and leaves unrelated work pending. Fixture migration `35cb119
 preserves real matched remote-error consumption, extensible success, malformed and
 unknown-envelope rejection, family isolation and missing-provenance rejection.
 These are local source/test observations, not hosted acceptance or observed field
-mutation. Pointer and status consumers have not adopted this boundary at this head.
+mutation. At predecessor `35cb1197`, pointer and status consumers had not adopted
+this boundary. The later parent adoption recorded above includes the pointer
+consumer; status response adoption remains separate work.
 
 ### Pointer-click child integration
 
