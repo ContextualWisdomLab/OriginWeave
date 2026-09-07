@@ -1,3 +1,6 @@
+#[path = "support/text_observation.rs"]
+mod text_observation;
+
 use std::{
     error::Error,
     io::{self, Read, Write},
@@ -8,11 +11,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -36,9 +39,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn receive_server_text(
-    payload: &[u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     if payload.len() > 125 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -70,10 +71,10 @@ fn receive_server_text(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let message = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "fixture produced unexpected message assembly state: {other:?}"
@@ -89,11 +90,12 @@ fn receive_server_text(
 
 #[test]
 fn escaped_unicode_is_compared_after_bounded_response_projection() -> Result<(), Box<dyn Error>> {
-    let response = receive_server_text(
-        br#"{"type":"success","id":81,"result":{"type":"success","realm":"r","result":{"type":"string","value":"\u20ac"}}}"#,
-    )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(81, WebDriverBiDiCommandKind::TextValueObservation)?;
+    let response = text_observation::receive_command_responses(
+        &[
+        br#"{"type":"success","id":81,"result":{"type":"success","realm":"r","result":{"type":"string","value":"\u20ac"}}}"#,
+        ], 81, &mut correlation,
+    )?.remove(0);
 
     let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &response,

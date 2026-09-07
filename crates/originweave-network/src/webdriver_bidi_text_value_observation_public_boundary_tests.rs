@@ -9,11 +9,11 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -64,7 +64,7 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Res
 
 fn read_text_over_loopback(
     document: &'static [u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -86,10 +86,10 @@ fn read_text_over_loopback(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "validated text frame produced unexpected assembly state: {other:?}"
@@ -182,6 +182,12 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     assert_eq!(correlation.outstanding_count(), 1);
 
     let valid_success = read_text_over_loopback(VALID_SUCCESS)?;
+    correlation.retire_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
+    correlation.register_command_for_connection(
+        70,
+        WebDriverBiDiCommandKind::TextValueObservation,
+        valid_success.connection_generation(),
+    )?;
     let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &valid_success,
         FINAL_EXPECTED_TEXT,

@@ -1,3 +1,6 @@
+#[path = "support/text_observation.rs"]
+mod text_observation;
+
 use std::{
     error::Error,
     io::{self, Read, Write},
@@ -8,11 +11,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -61,7 +64,7 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Res
 
 fn read_text_over_loopback(
     document: &'static [u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -83,10 +86,10 @@ fn read_text_over_loopback(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "validated text frame produced unexpected assembly state: {other:?}"
@@ -116,8 +119,9 @@ fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exc
     ));
     assert_eq!(correlation.outstanding_count(), 0);
 
-    correlation.register_command_for(73, WebDriverBiDiCommandKind::TextValueObservation)?;
-    let protocol_error = read_text_over_loopback(PROTOCOL_ERROR)?;
+    let protocol_error =
+        text_observation::receive_command_responses(&[PROTOCOL_ERROR], 73, &mut correlation)?
+            .remove(0);
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &protocol_error,
@@ -128,8 +132,9 @@ fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exc
     ));
     assert_eq!(correlation.outstanding_count(), 0);
 
-    correlation.register_command_for(74, WebDriverBiDiCommandKind::TextValueObservation)?;
-    let script_exception = read_text_over_loopback(SCRIPT_EXCEPTION)?;
+    let script_exception =
+        text_observation::receive_command_responses(&[SCRIPT_EXCEPTION], 74, &mut correlation)?
+            .remove(0);
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &script_exception,

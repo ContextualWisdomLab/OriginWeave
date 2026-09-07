@@ -8,11 +8,11 @@ use std::{
 
 use originweave_core::{MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -54,9 +54,7 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     stream.write_all(payload)
 }
 
-fn receive_server_text(
-    payload: &[u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let response = payload.to_vec();
@@ -79,10 +77,10 @@ fn receive_server_text(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let message = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "fixture produced unexpected message assembly state: {other:?}"
@@ -97,7 +95,7 @@ fn receive_server_text(
 }
 
 fn require_observation_error(
-    message: &WebDriverBiDiWebSocketTextMessage,
+    message: &WebDriverBiDiReceivedTextMessage,
     correlation: &mut WebDriverBiDiCommandCorrelation,
 ) -> Result<WebDriverBiDiTextValueObservationResponseError, Box<dyn Error>> {
     match WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
@@ -111,7 +109,7 @@ fn require_observation_error(
 }
 
 fn require_expected_text_error(
-    message: &WebDriverBiDiWebSocketTextMessage,
+    message: &WebDriverBiDiReceivedTextMessage,
     expected_text: &str,
     correlation: &mut WebDriverBiDiCommandCorrelation,
 ) -> Result<WebDriverBiDiTextValueObservationResponseError, Box<dyn Error>> {

@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Reject field-value replies received on a replacement connection, even when their request identifier and text match.
+
 - Reject field-observation requests on another browser session and preserve pending requests only when a write may have reached the peer.
 
 - Preserve fixed field-observation checks while adopting current input safeguards; constructing a request still does not verify that the field changed.

@@ -1,3 +1,6 @@
+#[path = "support/text_observation.rs"]
+mod text_observation;
+
 use std::{
     error::Error,
     io::{self, Read, Write},
@@ -16,11 +19,11 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
     send_webdriver_bidi_text_value_observation,
 };
 
@@ -98,7 +101,11 @@ fn replacement_connection_cannot_complete_text_observation() -> Result<(), Box<d
         let rejected = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &foreign, "Quarterly review", &mut correlation,
         );
-        assert!(rejected.is_err(), "a replacement connection completed the original observation");
+        assert!(matches!(rejected,
+            Err(WebDriverBiDiTextValueObservationResponseError::Correlation {
+                source: originweave_network::WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id: 43 },
+            })
+        ), "replacement response must fail connection provenance: {rejected:?}");
         assert_eq!(correlation.outstanding_count(), 2);
     }
     Ok(())
@@ -211,9 +218,7 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     stream.write_all(payload)
 }
 
-fn receive_server_text(
-    payload: &[u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let response = payload.to_vec();
@@ -236,10 +241,10 @@ fn receive_server_text(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let message = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "fixture produced unexpected message assembly state: {other:?}"
@@ -312,10 +317,10 @@ fn observed_text_postcondition_consumes_exact_command_without_exposing_page_text
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "text-value observation response produced unexpected assembly state: {other:?}"
@@ -344,9 +349,14 @@ fn observed_text_postcondition_consumes_exact_command_without_exposing_page_text
 #[test]
 fn response_admission_failures_preserve_or_consume_exact_correlation_state()
 -> Result<(), Box<dyn Error>> {
-    let invalid = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
+    let mut original_responses = text_observation::receive_command_responses(
+        &[
+            b"not-json",
+            br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
+        ], 70, &mut correlation,
+    )?;
+    let invalid = original_responses.remove(0);
     let Err(envelope_error) = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &invalid,
         "expected",
@@ -376,10 +386,12 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    correlation.register_command_for(71, WebDriverBiDiCommandKind::TextValueObservation)?;
-    let protocol_error = receive_server_text(
-        br#"{"type":"error","id":71,"error":"unknown error","message":"remote failure"}"#,
-    )?;
+    let protocol_error = text_observation::receive_command_responses(
+        &[br#"{"type":"error","id":71,"error":"unknown error","message":"remote failure"}"#],
+        71,
+        &mut correlation,
+    )?
+    .remove(0);
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &protocol_error,
@@ -413,10 +425,13 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     assert!(correlation_error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 1);
 
-    correlation.register_command_for(73, WebDriverBiDiCommandKind::TextValueObservation)?;
-    let malformed_projection = receive_server_text(
-        br#"{"type":"success","id":73,"result":{"type":"success","result":{"type":"string","value":"expected"}}}"#,
+    let mut same_connection = text_observation::receive_command_responses(
+        &[
+            br#"{"type":"success","id":73,"result":{"type":"success","result":{"type":"string","value":"expected"}}}"#,
+            br#"{"type":"success","id":73,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{}}}"#,
+        ], 73, &mut correlation,
     )?;
+    let malformed_projection = same_connection.remove(0);
     let Err(projection_error) =
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &malformed_projection,
@@ -437,9 +452,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     assert!(projection_error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 2);
 
-    let script_exception = receive_server_text(
-        br#"{"type":"success","id":73,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{}}}"#,
-    )?;
+    let script_exception = same_connection.remove(0);
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &script_exception,
@@ -450,9 +463,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let valid_success = receive_server_text(
-        br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
-    )?;
+    let valid_success = original_responses.remove(0);
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &valid_success,
