@@ -64,9 +64,9 @@ impl WebDriverBiDiSessionStatusResult {
                         WebDriverBiDiCommandKind::SessionStatus,
                         message.connection_generation(),
                     )
-                    .map_err(|source| WebDriverBiDiSessionStatusResponseError::Correlation {
-                        source,
-                    })?;
+                    .map_err(
+                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
+                    )?;
                 Ok(Self {
                     command_id: completed.command_id(),
                     ready: projected.ready,
@@ -75,15 +75,16 @@ impl WebDriverBiDiSessionStatusResult {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
-                    let completed = correlation
-                        .correlate_response_for_connection(
-                            &envelope,
-                            WebDriverBiDiCommandKind::SessionStatus,
-                            message.connection_generation(),
-                        )
-                        .map_err(|source| {
-                            WebDriverBiDiSessionStatusResponseError::Correlation { source }
-                        })?;
+                    let completed =
+                        correlation
+                            .correlate_response_for_connection(
+                                &envelope,
+                                WebDriverBiDiCommandKind::SessionStatus,
+                                message.connection_generation(),
+                            )
+                            .map_err(|source| {
+                                WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                            })?;
                     Err(
                         WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                             command_id: completed.command_id(),

@@ -703,6 +703,55 @@ mod tests {
     }
 
     #[test]
+    fn connection_correlation_rejections_preserve_pending_command() -> Result<(), Box<dyn Error>> {
+        use std::{net::TcpListener, time::Duration};
+
+        use originweave_core::WebDriverBiDiWebSocketEndpoint;
+
+        use crate::{
+            WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+            WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+        };
+
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let session = "01234567-89ab-cdef-0123-456789abcdef";
+        let endpoint = format!("ws://{}/session/{session}", listener.local_addr()?);
+        let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+            .correlate_session_id(session)?
+            .into_explicit_connect_target()?;
+        let connection =
+            WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+        let (_server, _) = listener.accept()?;
+        let generation = connection.connection_generation();
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
+
+        for (document, expected) in [
+            (
+                r#"{"type":"event","method":"log.entryAdded","params":{}}"#,
+                WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+            ),
+            (
+                r#"{"type":"success","id":7,"result":{}}"#,
+                WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                    command_id: 7,
+                },
+            ),
+        ] {
+            assert_eq!(
+                correlation.correlate_response_for_connection(
+                    &parse(document)?,
+                    WebDriverBiDiCommandKind::SessionStatus,
+                    generation,
+                ),
+                Err(expected)
+            );
+            assert_eq!(correlation.outstanding_count(), 1);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn classifies_all_local_end_envelope_kinds_and_redacts_debug() {
         let success = parse(
             r#"{"type":"success","id":9007199254740991,"result":{"ready":true},"ext":[null,false,1.5,-2e3,"\u20ac","\ud83d\ude00"]}"#,
