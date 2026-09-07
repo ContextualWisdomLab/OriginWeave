@@ -340,6 +340,10 @@ Do not retry deterministic failures blindly. If multiple distinct fixes fail, re
 
 Documentation contracts intentionally validate only durable properties such as required files, links, status vocabularies and authority assertions. Do not create brittle tests that freeze wording without preventing a real documentation defect.
 
+### Active browser-status response checks
+
+The active response stack exercises fragmented text with an interleaved Ping, malformed frame and message errors, and payload-redacted diagnostics. Public loopback checks reject events, unattributable errors, and replies to requests lacking connection provenance while preserving the pending request; the original request can still accept its matching reply after rejection by an unbound registry. Generic and connection-bound correlation share routing validation, while result validation and connection checks still precede completion. These local checks are not protected-main, real-browser acceptance, or release evidence.
+
 ## 17. Exit criteria for a production capability
 
 A capability may be documented as Implemented only when:
