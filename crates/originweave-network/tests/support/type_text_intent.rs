@@ -16,11 +16,12 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiAcknowledgedTypeTextIntent, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
-    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
-    acknowledge_webdriver_bidi_type_text_intent, send_webdriver_bidi_text_value_observation,
+    acknowledge_webdriver_bidi_type_text_intent,
+    send_webdriver_bidi_text_value_observation,
     send_webdriver_bidi_type_text_with_postcondition_intent,
 };
 
@@ -258,18 +259,12 @@ pub fn acknowledged_type_text_intent_and_observation(
 ) -> Result<AcknowledgedObservationFixture, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
-    let type_text_prefix = format!(
-        r#"{{"id":{type_text_command_id},"method":"input.performActions""#
-    )
-    .into_bytes();
-    let observation_prefix = format!(
-        r#"{{"id":{observation_command_id},"method":"script.callFunction""#
-    )
-    .into_bytes();
-    let ack = format!(
-        r#"{{"type":"success","id":{type_text_command_id},"result":{{}}}}"#
-    )
-    .into_bytes();
+    let type_text_prefix =
+        format!(r#"{{"id":{type_text_command_id},"method":"input.performActions""#).into_bytes();
+    let observation_prefix =
+        format!(r#"{{"id":{observation_command_id},"method":"script.callFunction""#).into_bytes();
+    let ack =
+        format!(r#"{{"type":"success","id":{type_text_command_id},"result":{{}}}}"#).into_bytes();
     let response = observation_response.to_vec();
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
@@ -279,7 +274,11 @@ pub fn acknowledged_type_text_intent_and_observation(
         assert_command_prefix(&type_text_command, &type_text_prefix, "typed-input")?;
         write_text_frame(&mut stream, &ack)?;
         let observation_command = read_masked_text_frame(&mut stream)?;
-        assert_command_prefix(&observation_command, &observation_prefix, "text-observation")?;
+        assert_command_prefix(
+            &observation_command,
+            &observation_prefix,
+            "text-observation",
+        )?;
         write_text_frame(&mut stream, &response)
     });
 
@@ -333,7 +332,9 @@ pub fn acknowledged_type_text_intent_and_observation(
     {
         WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
-            return Err(io::Error::other(format!("expected observation response: {other:?}")).into());
+            return Err(
+                io::Error::other(format!("expected observation response: {other:?}")).into(),
+            );
         }
     };
     server
@@ -351,14 +352,17 @@ pub fn acknowledged_type_text_intent_and_registered_response(
 ) -> Result<AcknowledgedObservationFixture, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
-    let type_text_prefix = format!(
-        r#"{{"id":{type_text_command_id},"method":"input.performActions""#
-    )
-    .into_bytes();
-    let ack = format!(
-        r#"{{"type":"success","id":{type_text_command_id},"result":{{}}}}"#
-    )
-    .into_bytes();
+    let type_text_prefix =
+        format!(r#"{{"id":{type_text_command_id},"method":"input.performActions""#).into_bytes();
+    let ack =
+        format!(r#"{{"type":"success","id":{type_text_command_id},"result":{{}}}}"#).into_bytes();
+    if response_kind != WebDriverBiDiCommandKind::SessionStatus {
+        return Err(
+            io::Error::other("registered-response fixture only supports session.status").into(),
+        );
+    }
+    let response_prefix =
+        format!(r#"{{"id":{response_command_id},"method":"session.status""#).into_bytes();
     let response = response.to_vec();
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
@@ -367,6 +371,8 @@ pub fn acknowledged_type_text_intent_and_registered_response(
         let type_text_command = read_masked_text_frame(&mut stream)?;
         assert_command_prefix(&type_text_command, &type_text_prefix, "typed-input")?;
         write_text_frame(&mut stream, &ack)?;
+        let response_command = read_masked_text_frame(&mut stream)?;
+        assert_command_prefix(&response_command, &response_prefix, "session.status")?;
         write_text_frame(&mut stream, &response)
     });
 
@@ -399,17 +405,20 @@ pub fn acknowledged_type_text_intent_and_registered_response(
     };
     let acknowledged =
         acknowledge_webdriver_bidi_type_text_intent(&action_ack, witness, &mut correlation)?;
-    correlation.register_command_for_connection(
-        response_command_id,
-        response_kind,
-        established.transport_evidence().connection_generation(),
+    let established = WebDriverBiDiSessionStatusCommand::new(response_command_id)?.send(
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+        Duration::from_millis(500),
     )?;
     let message = match WebDriverBiDiWebSocketMessageReader::new(established)
         .read_next(Duration::from_millis(500))?
     {
         WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
-            return Err(io::Error::other(format!("expected registered response: {other:?}")).into());
+            return Err(
+                io::Error::other(format!("expected registered response: {other:?}")).into(),
+            );
         }
     };
     server
