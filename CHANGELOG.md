@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Reject text-entry replies received on a replacement connection without losing the original pending request. The original connection can still complete it; a reply alone does not prove the field changed.
 - Text-entry replies cannot complete another kind of pending browser request. Malformed and unrelated replies preserve pending work; acknowledgment alone still does not prove the field changed or authenticate the reply's connection.
+- Preserve text-entry safeguards while rejecting clicks sent to another browser session and click replies from replacement connections. These checks do not yet verify that the browser changed the requested field.
 - Retain each pending text-entry request's original connection so a connection-aware response consumer can reject replies from a replacement socket. Consumer integration and observed field-value verification remain separate requirements.
 - Text entry rejects a connection for a different browser session and invalid deadlines before reserving a pending request. Rejected writes that provably sent nothing release that request; uncertain writes remain pending and are not silently retried. Real-browser outcome verification remains unfinished.
 - Retained text-input privacy and validation while adopting the latest click and subscription safeguards; text dispatch and browser outcome verification remain unfinished.
@@ -13,7 +14,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Preserve text-command privacy and authority checks while adopting click-session and reply safeguards; text construction still does not prove browser execution.
+- Keep current-node and browser-session click checks when rejecting replies from replacement connections; the original request remains recoverable without consuming unrelated work.
 - Recheck that a click still targets the admitted node in the current document before sending it. Invalid deadlines send nothing and reserve no pending request; uncertain writes remain pending instead of being treated as safe to retry.
+- Reject replacement-connection click replies while retaining increasing request numbers, original subscription ownership and same-connection shutdown checks.
 
 - Reject a navigation subscription aimed at a different browser session before sending it, without creating or replacing browser state.
 - Keep connection-failure checks focused on the requested action by completing fixture setup before the simulated peer disconnects.
@@ -25,13 +29,21 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Keep navigation subscriptions and accepted navigation events attached to their original browser state, so a replacement state with matching local identifiers cannot send a request or change another document.
 - Reject navigation-subscription replies and events received on a different connection, even when their session and request details match. Rejected messages leave the original request and document unchanged, so the original connection can still complete its work.
 - Prevent an unsent navigation subscription from borrowing another request's successful response, including when separate sessions reuse the same local numbers. Re-registering a completed request number without sending a new request cannot recreate its consumed subscription.
+- Carried replacement-connection subscription-reply rejection into unsubscribe preparation, preserving opaque identifiers and existing teardown checks without claiming that pending events have drained.
+- Reject navigation-subscription replies received on replacement connections while keeping the original request available for its own reply; a successful subscription still does not prove that a navigation occurred.
+- Carried replacement-connection click-reply rejection into the navigation-subscription stack while preserving deadline rejection, unrelated pending requests and conservative handling of uncertain writes.
 - Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.
 - Retire only the exact committed-navigation subscription correlation when frame preparation fails locally as `MalformedFrame` before any command bytes can be emitted, while preserving unrelated requests and retaining correlation after ambiguous frame-write failures.
 - Integrated current origin-binding prerequisites into context-scoped navigation subscriptions, preserving typed command isolation, response bounds, and the original subscription tests while restoring the inherited executable release contract.
+- Carried replacement-connection click-reply rejection into navigation origin binding, preserving invalid-URL and stale-document rejection before changes to the registered origin.
 - Integrated current document-advance prerequisites into committed-navigation origin binding, preserving URL validation before mutation and stale-epoch rejection while restoring the inherited executable release contract.
+- Carried replacement-connection click-reply rejection into document advancement while preserving rejection of stale or retired contexts; a successful reply still does not authenticate a later navigation.
 - Integrated current navigation-observation prerequisites into document-epoch advancement, preserving stale-epoch and retired-context rejection and the Proposed architecture decision without granting a new origin or action authority.
+- Carried replacement-connection click-reply rejection into the navigation-observation stack while preserving its context and URL checks; observing a navigation still does not prove that a click caused it.
 - Integrated current click-response prerequisites into bounded navigation observation, preserving exact registered-context and URL admission and keeping event evidence separate from causal action or document advancement.
+- Rejected pointer-click replies received on replacement connections without losing the original pending click; a later reply on the originating connection can still complete that protocol exchange, without claiming that the page changed.
 - Integrated the current click-transport prerequisites into typed click-response handling, preserving the response contracts and bounded socket-observation test adjustment without claiming a browser post-condition.
+- Retained the originating connection when sending a pointer click so later response validation can reject acknowledgments received through a replacement connection; sending still does not prove that the click completed.
 - Integrated the current connection-provenance and pointer-click prerequisites into bounded click transport, retaining both public adapters and keeping frame-write evidence separate from browser-action completion.
 - Integrated the current connection-provenance prerequisite into bounded pointer-click serialization, preserving its command validation and inert authority boundary while restoring the inherited executable release contract.
 - Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
