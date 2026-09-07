@@ -1,5 +1,24 @@
 # Action Post-Condition Evidence Traceability
 
+## Text sender adopts pointer safeguards — 2026-09-07
+
+Ordinary merge `7e4bd76d` adopts #266 `e3885f69` while preserving #267
+`3346d8ec`, including its unchanged text sender, public exports, text tests and
+entire core crate. Actual RED `4e020e16` reproduced three inherited failures:
+foreign-session click dispatch and replacement success/error replies consuming
+the original request. The parent repair rejects the foreign session before any
+request is reserved or sent, and rejects replacement replies without consuming
+either pending command; the original reply still completes only its own request.
+
+Text dispatch already revalidates current node and session authority, registers
+the sending connection, validates deadlines before registration, and distinguishes
+proven no-write rejection from ambiguous writes. Those boundaries are unchanged.
+The inherited click consumer uses sealed connection evidence; this does not finish
+the separate text-response consumer owned by #268. Field-value post-conditions,
+browser authentication, action policy and causal browser acceptance remain open.
+Full combined-head checks and actual visual inspection must be recorded separately;
+older checkpoints below are historical, not current hosted or protected-main proof.
+
 ## Text sender receipt-provenance prerequisite — 2026-09-06
 
 Child #268 regression `4632f2df` opens two connections to the same listener and

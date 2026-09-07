@@ -4,6 +4,17 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Pointer safeguards retained by the text sender
+
+The #267 real-socket replay at `4e020e16` failed all three inherited pointer
+regressions before ordinary adoption of #266 `e3885f69` in `7e4bd76d`.
+Both foreign-session dispatch and replacement success/error consumption were
+observable behavioral failures, not fixture setup or compilation failures.
+The parent repair supplies canonical session validation and sealed reply
+provenance without changing the text sender's existing connection registration,
+current-node checks, deadlines or privacy boundary. This is local implementation
+evidence for the existing policy, not a new standards claim or browser acceptance.
+
 ### Text-command descendant preservation
 
 At `009f9a41`, the #266 text-command descendant reproduced all three inherited
