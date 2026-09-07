@@ -307,6 +307,8 @@ PR #96 revalidates the retained registry-issued node authority before invoking o
 
 The callback result remains adapter-local. Adapter failure stays distinct from authority failure, and adapter completion is not post-condition proof. This boundary grants no destination, secret, approval, or network authority and remains non-shipped until its dependency stack is integrated and accepted on protected main.
 
+The current parent adoption retains the dispatch implementation and its original tests unchanged. It also inherits the rejection of field replies from replacement connections while allowing the original connection to finish its pending request. Current node authority, callback execution and reply provenance remain separate checks; combining them still does not establish the requested browser outcome.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:

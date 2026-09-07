@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Preserve dispatch-time node checks while adopting connection-bound field replies; completing an adapter callback still does not prove the requested browser outcome.
+
 - Preserve explicit policy-allow and current-node checks while adopting connection-bound field replies; neither a policy decision nor a reply alone proves action success.
 
 - Preserve current-node action safeguards while adopting connection-bound field-value replies; a matching reply still does not authorize an action.
