@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Record the published semantic-action adoption stack and its local verification, visual evidence and unmet release prerequisites without treating open pull requests as shipped behavior.
+
 - Record verified maintenance lessons for resumable checks, rendered documentation links, parent-preserving repairs and release-readiness checks without exposing credentials.
 
 - Recorded published observation safeguards and original-connection recovery with separate local, queued hosted and visual evidence; full browser acceptance remains unfinished.

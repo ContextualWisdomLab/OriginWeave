@@ -129,8 +129,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(
-            text, "#### Published observation safeguards: 03:00 UTC",
-            "#### Published response and observation: 01:45 UTC",
+            text, "#### Published semantic-action adoption: 04:11 UTC",
+            "#### Published observation safeguards: 03:00 UTC",
         )
         roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
         self.assertEqual(len(roots), 1)
@@ -231,7 +231,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_action_adoption_checkpoint_binds_published_owners(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),
-            "#### Published semantic-action adoption: 04:15 UTC",
+            "#### Published semantic-action adoption: 04:11 UTC",
             "#### Published observation safeguards: 03:00 UTC",
         )
         for owner, head, parent, coverage in (
@@ -251,7 +251,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
 
     def test_historical_rows_cannot_replace_action_adoption(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
-        current = bounded_section(text, "#### Published semantic-action adoption: 04:15 UTC", "#### Published observation safeguards: 03:00 UTC")
+        current = bounded_section(text, "#### Published semantic-action adoption: 04:11 UTC", "#### Published observation safeguards: 03:00 UTC")
         for owner in (93, 95, 96):
             row = active_pr_row(current, owner)
             for replacement in ("", row.replace("Published; Draft", "Local only; Draft")):

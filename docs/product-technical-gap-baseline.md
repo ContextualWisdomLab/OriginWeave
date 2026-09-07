@@ -8,6 +8,60 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-07
 
+#### Published semantic-action adoption: 04:11 UTC
+
+The five-page inventory contains **125 open pull requests: 12 Ready/non-draft
+and 113 Draft; 13 open non-PR issues**, with zero unresolved review threads and no
+pagination gaps. All Ready candidates remain BLOCKED. Protected main remains
+`87c4daa1830bac5a5228b6036752ad5633232085`; no tags or releases exist.
+Active ruleset `18156473` still requires one counted approval and seven central
+workflows; the only listed collaborator is the author. Advisory review is not approval.
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
+| --- | --- | --- | --- | --- |
+| #93 | Published; Draft | [`82056d13`](https://github.com/ContextualWisdomLab/OriginWeave/commit/82056d13aa94c106060b84ee76be56fcb7787fc8) | #271 `b0410ae9` | 1403/14852/18976/1552 |
+| #95 | Published; Draft | [`6b29d890`](https://github.com/ContextualWisdomLab/OriginWeave/commit/6b29d890245ed2f612c2998198f4e8c8a06da312) | #93 `82056d13` | 1408/14897/19022/1552 |
+| #96 | Published; Draft | [`cbabf55c`](https://github.com/ContextualWisdomLab/OriginWeave/commit/cbabf55c6a25b979fa0d9e3c1677338665975ab7) | #95 `6b29d890` | 1410/14908/19030/1552 |
+
+Each listed coverage dimension is 100% locally. These ordinary parent adoptions retain
+node-action binding, explicit policy allow and dispatch-time node validation while
+inheriting connection-bound reply rejection. The original connection can still complete
+its own pending request; unrelated pending work survives. The child implementations
+and original tests were preserved. Node authority, policy decisions, callback execution
+and reply provenance remain separate checks, not proof of the requested browser outcome.
+
+#93 passed 10 focused Rust tests and 149 Python contracts; #95 passed eight focused tests
+and 150 Python contracts; #96 passed six focused tests and 151 Python contracts. Complete
+local Rust gates passed. #93's final Python/Markdown-only correction preserved the entire
+measured Rust tree and manifests. Coverage artifact SHA-256 values, in owner order:
+`9479014b94c1575a379d31fea09309deaf00143374b6dd6f04a539aaf452a685`,
+`666797dec8486f0f196616525303bd24dc52ef5d035f1c548e1bddde3fb48a22`,
+`f69829e1968a75c8d3c8ea7d08df87669d47a7d6adfbbb88d08d9bb0d384b10d`.
+
+Exact-head CI `34079739018`, `34080772063` and `34081979602` remain queued.
+#93's MV3 run `34079739021` is also queued. Independent read-only review found no
+remaining actionable findings; it is not counted approval. Source leases are released.
+All three revisions received actual visual inspection in isolated Edge, with readable
+API documentation and no observed clipping or overlap. Dependency-inclusive workspace
+rustdoc restored cross-crate links omitted by the no-dependencies build. This is
+documentation presentation, not product-browser acceptance.
+
+The user-requested `AGENTS.md` lessons were published at `de06d65e` with 197 Python
+contracts and their own rendered visual inspection. Automatic package publishing was
+checked but not attempted: protected main's core manifest has `publish = false`, no
+publishing workflow or Python package manifest is present, and the release contract
+still requires its evidence and an explicit version decision. Repository/environment
+secret metadata lists were empty; organization-secret listing returned 403, so those
+keys remain unverified, not proven absent. No secret values were accessed.
+
+Next are status receipts, protected-foundation work and release-readiness evidence.
+#195/#279 workflow recovery and #212 sandbox acceptance retain their separate owners.
+This baseline requires its own exact-head verification and visual inspection; it cannot
+inherit source coverage or hosted acceptance. Earlier checkpoints below are unchanged
+historical observations. No merge, package publication or release is claimed.
+
 #### Published observation safeguards: 03:00 UTC
 
 The complete five-page inventory contains **125 open pull requests: 12 Ready/non-draft
