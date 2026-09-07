@@ -41,7 +41,8 @@ impl WebDriverBiDiSessionEndCommand {
     /// Register and write this exact command on an already established verified BiDi stream.
     ///
     /// Locally invalid frame deadlines fail before correlation registration and before any remote
-    /// side effect. Correlation then registers the command before the first possible frame write.
+    /// side effect. Correlation then binds the command to this connection before the first possible
+    /// frame write. Only a reply received on this same connection can complete that registration.
     /// A frame-owner preflight rejection that proves no write began retires this exact command
     /// again. Once frame emission can have begun, a later failure leaves the identifier outstanding
     /// because partial or full emission is ambiguous. A successful write also leaves the identifier
@@ -62,7 +63,11 @@ impl WebDriverBiDiSessionEndCommand {
             });
         }
         correlation
-            .register_command_for(self.command_id, WebDriverBiDiCommandKind::SessionEnd)
+            .register_command_for_connection(
+                self.command_id,
+                WebDriverBiDiCommandKind::SessionEnd,
+                established.transport_evidence().connection_generation(),
+            )
             .map_err(|source| WebDriverBiDiSessionEndCommandError::Correlation { source })?;
         let message = self.serialized();
         match established.write_text_frame(&message, masking_key, frame_timeout) {

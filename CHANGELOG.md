@@ -6,8 +6,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Session-ending replies from a replacement connection can no longer complete the original pending request. The original reply remains usable, and a protocol acknowledgment still does not prove browser shutdown or cleanup.
 - The session-ending command stack now retains the status-reply protections from its current parent. A reply from a replacement connection is rejected while the original pending status request remains recoverable; sending the end command still does not prove that the browser session ended.
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
+- Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.
 - Regression checks now exercise fragmented browser replies, interleaved control messages, and rejected replies without losing a pending request. These checks do not establish browser readiness or release acceptance.
 - The typed browser-status response stack now includes its verified command and opening-exchange prerequisites, including the release-record check that previously did not execute; parsing remains bounded and does not grant browser authority or prove operational readiness.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
@@ -60,6 +62,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried verified command prerequisites and the executable release-record check into session-end response validation without changing response admission or treating an acknowledgment as proof of resource cleanup.
 - Carried the verified status-response prerequisites into the session-end sender, preserving its command behavior and making the inherited release-record check execute in the existing test suite.
 - Kept the `session.status` frame-failure coverage contract focused on observable correlation state, avoiding assertion-internal uncovered branches without weakening preflight retirement or ambiguous-write retention checks.
 - Made the command-correlation release-record check run in the existing CI test suite, preserving its exact bounds and authority exclusions; carried the verified message-parent fixture repairs into the correlation stack.
