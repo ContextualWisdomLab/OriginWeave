@@ -17,6 +17,8 @@ Main remains `87c4daa1830bac5a5228b6036752ad5633232085`; there are no tags or re
 Active ruleset `18156473` requires one counted approval and seven central workflows;
 the sole collaborator is the author. No advisory review is counted as that approval.
 
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
 | Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
 | --- | --- | --- | --- | --- |
 | #268 | Published; Draft | [`ff27220c`](https://github.com/ContextualWisdomLab/OriginWeave/commit/ff27220cb5eb4d11ca1dc5614a4181e1a397a3f1) | #267 `ebd507ae` | 1325/13907/17682/1456 |
