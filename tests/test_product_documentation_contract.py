@@ -11,6 +11,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class ProductDocumentationContractTests(unittest.TestCase):
     """Keep product requirements, technical design, diagrams, and traceability discoverable."""
 
+    def test_text_receipt_checkpoint_is_explicitly_historical(self) -> None:
+        """An earlier pointer limitation must not contradict its later adoption."""
+        note = (ROOT / "docs/doctoring/webdriver-bidi-received-response-connection-provenance.md").read_text(encoding="utf-8")
+        checkpoint = note.split("## Evidence and remaining risk", 1)[1].split(
+            "### Pointer-click child integration", 1
+        )[0]
+        self.assertIn("### Historical text-input receipt integration", checkpoint)
+        self.assertIn("At predecessor `35cb1197`", checkpoint)
+        self.assertNotIn("at this head", checkpoint)
+
     def test_authoritative_product_documentation_graph_exists(self) -> None:
         """Major product decisions must not require reconstructing chat or PR history."""
         required_paths = {
