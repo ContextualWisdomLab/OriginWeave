@@ -1,0 +1,17 @@
+[package]
+name = "originweave-bidi"
+description = "OriginWeave WebDriver BiDi adapter contracts for versioned browser capabilities."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+originweave-fingerprint = { path = "../originweave-fingerprint" }
+
+[lints]
+workspace = true
