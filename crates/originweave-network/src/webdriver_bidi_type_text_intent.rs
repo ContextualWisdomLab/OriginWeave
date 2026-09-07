@@ -39,11 +39,14 @@ impl fmt::Debug for WebDriverBiDiTypeTextIntentWitness {
 
 /// One-shot proof that the exact sender-minted typed-input intent received its correlated protocol ACK.
 ///
-/// This value keeps the original non-secret text private until post-condition verification. It can
-/// only be constructed by [`acknowledge_webdriver_bidi_type_text_intent`] after the ACK matches both
-/// the witness command id and the witness's private connection generation.
+/// This value keeps the original non-secret text and its private connection generation until
+/// post-condition verification. It can only be constructed by
+/// [`acknowledge_webdriver_bidi_type_text_intent`] after the ACK matches both the witness command id
+/// and the witness's private connection generation. Neither private value is exposed through
+/// `Debug`, errors, or public accessors.
 pub struct WebDriverBiDiAcknowledgedTypeTextIntent {
     command_id: u64,
+    connection_generation: WebDriverBiDiConnectionGeneration,
     expected_text: Box<str>,
 }
 
@@ -66,6 +69,13 @@ impl WebDriverBiDiAcknowledgedTypeTextIntent {
 
     pub(crate) fn expected_text(&self) -> &str {
         &self.expected_text
+    }
+
+    pub(crate) fn matches_connection_generation(
+        &self,
+        connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> bool {
+        self.connection_generation == connection_generation
     }
 }
 
@@ -205,6 +215,7 @@ pub fn acknowledge_webdriver_bidi_type_text_intent(
 
     Ok(WebDriverBiDiAcknowledgedTypeTextIntent {
         command_id: witness.command_id,
+        connection_generation: witness.connection_generation,
         expected_text: witness.expected_text,
     })
 }
