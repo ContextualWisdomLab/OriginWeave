@@ -6,6 +6,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- The session-ending command stack now retains the status-reply protections from its current parent. A reply from a replacement connection is rejected while the original pending status request remains recoverable; sending the end command still does not prove that the browser session ended.
+- Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Regression checks now exercise fragmented browser replies, interleaved control messages, and rejected replies without losing a pending request. These checks do not establish browser readiness or release acceptance.
 - The typed browser-status response stack now includes its verified command and opening-exchange prerequisites, including the release-record check that previously did not execute; parsing remains bounded and does not grant browser authority or prove operational readiness.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
@@ -58,6 +60,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried the verified status-response prerequisites into the session-end sender, preserving its command behavior and making the inherited release-record check execute in the existing test suite.
 - Kept the `session.status` frame-failure coverage contract focused on observable correlation state, avoiding assertion-internal uncovered branches without weakening preflight retirement or ambiguous-write retention checks.
 - Made the command-correlation release-record check run in the existing CI test suite, preserving its exact bounds and authority exclusions; carried the verified message-parent fixture repairs into the correlation stack.
 - Carried the verified parent fixture and release-check repairs into the session-status sender without changing command or correlation behavior.

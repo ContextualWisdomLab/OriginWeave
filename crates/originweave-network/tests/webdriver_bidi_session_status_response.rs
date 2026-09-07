@@ -224,3 +224,24 @@ fn empty_status_result_fails_before_consuming_the_outstanding_command() -> Resul
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
+
+#[test]
+fn replacement_status_reply_preserves_original_pending_request_and_recovery()
+-> Result<(), Box<dyn Error>> {
+    let (original, mut pending) = send_status_and_read_response(STATUS_RESPONSE)?;
+    let (replacement, _replacement_pending) = send_status_and_read_response(STATUS_RESPONSE)?;
+
+    assert!(matches!(
+        WebDriverBiDiSessionStatusResult::parse_and_correlate(&replacement, &mut pending),
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+            source: originweave_network::WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                command_id: 7,
+            },
+        })
+    ));
+    assert_eq!(pending.outstanding_count(), 1);
+    let completed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&original, &mut pending)?;
+    assert_eq!(completed.command_id(), 7);
+    assert_eq!(pending.outstanding_count(), 0);
+    Ok(())
+}
