@@ -64,6 +64,7 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Res
 
 fn read_text_over_loopback(
     document: &'static [u8],
+    correlation: Option<&mut WebDriverBiDiCommandCorrelation>,
 ) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
@@ -86,6 +87,13 @@ fn read_text_over_loopback(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
+    if let Some(correlation) = correlation {
+        correlation.register_command_for_connection(
+            70,
+            WebDriverBiDiCommandKind::TextValueObservation,
+            established.transport_evidence().connection_generation(),
+        )?;
+    }
     let text = match WebDriverBiDiWebSocketMessageReader::new(established)
         .read_next(Duration::from_millis(500))?
     {
@@ -110,7 +118,7 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
 
-    let invalid = read_text_over_loopback(b"not-json")?;
+    let invalid = read_text_over_loopback(b"not-json", None)?;
     let envelope_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &invalid,
         "expected",
@@ -130,7 +138,7 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let error_unknown = read_text_over_loopback(ERROR_UNKNOWN_COMMAND)?;
+    let error_unknown = read_text_over_loopback(ERROR_UNKNOWN_COMMAND, None)?;
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &error_unknown,
@@ -141,7 +149,7 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let malformed_projection = read_text_over_loopback(MALFORMED_PROJECTION)?;
+    let malformed_projection = read_text_over_loopback(MALFORMED_PROJECTION, None)?;
     let projection_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &malformed_projection,
         "expected",
@@ -161,7 +169,7 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let success_unknown = read_text_over_loopback(SUCCESS_UNKNOWN_COMMAND)?;
+    let success_unknown = read_text_over_loopback(SUCCESS_UNKNOWN_COMMAND, None)?;
     let correlation_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &success_unknown,
         "expected",
@@ -181,13 +189,8 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let valid_success = read_text_over_loopback(VALID_SUCCESS)?;
     correlation.retire_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
-    correlation.register_command_for_connection(
-        70,
-        WebDriverBiDiCommandKind::TextValueObservation,
-        valid_success.connection_generation(),
-    )?;
+    let valid_success = read_text_over_loopback(VALID_SUCCESS, Some(&mut correlation))?;
     let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &valid_success,
         FINAL_EXPECTED_TEXT,

@@ -4,7 +4,7 @@ mod text_observation;
 use std::{
     error::Error,
     io::{self, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
     thread,
     time::Duration,
 };
@@ -22,9 +22,9 @@ use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
     WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
-    send_webdriver_bidi_text_value_observation,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketMessageReader, send_webdriver_bidi_text_value_observation,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -62,51 +62,93 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     )?)
 }
 
+fn establish_response_connection(
+    local_addr: SocketAddr,
+) -> Result<WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    Ok(WebDriverBiDiWebSocketHandshakePlan::new(
+        connection,
+        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+    )?
+    .write_opening_request(Duration::from_millis(500))?
+    .read_opening_response(Duration::from_millis(500))?)
+}
+
+fn read_response_text(
+    established: WebDriverBiDiWebSocketEstablished,
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => Ok(message),
+        _ => Err(io::Error::other("fixture expected a complete text response").into()),
+    }
+}
+
 #[test]
 fn replacement_connection_cannot_complete_text_observation() -> Result<(), Box<dyn Error>> {
     for payload in [
         OBSERVATION_SUCCESS_RESPONSE,
         br#"{"type":"error","id":43,"error":"invalid argument","message":"rejected"}"#,
-        br#"{"type":"success","id":43,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{"text":"rejected","lineNumber":0,"columnNumber":0,"exception":{"type":"undefined"},"stackTrace":{"callFrames":[]}}}}"#,
+        br#"{"type":"success","id":43,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{}}}"#,
     ] {
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
         let local_addr = listener.local_addr()?;
         let server = thread::spawn(move || -> io::Result<()> {
-            let (mut stream, _) = listener.accept()?;
-            read_opening_request(&mut stream)?;
-            stream.write_all(OPENING_RESPONSE)?;
-            let command = read_masked_text_frame(&mut stream)?;
+            let (mut first, _) = listener.accept()?;
+            read_opening_request(&mut first)?;
+            first.write_all(OPENING_RESPONSE)?;
+            let command = read_masked_text_frame(&mut first)?;
             assert!(command.starts_with(br#"{"id":43,"method":"script.callFunction""#));
-            Ok(())
+            let (mut second, _) = listener.accept()?;
+            read_opening_request(&mut second)?;
+            second.write_all(OPENING_RESPONSE)?;
+            write_text_frame(&mut second, payload)?;
+            write_text_frame(&mut first, OBSERVATION_SUCCESS_RESPONSE)
         });
-        let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-        let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
-            .correlate_session_id(SESSION_ID)?
-            .into_explicit_connect_target()?;
-        let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
-        let established = WebDriverBiDiWebSocketHandshakePlan::new(
-            connection, WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
-        )?.write_opening_request(Duration::from_millis(500))?
-            .read_opening_response(Duration::from_millis(500))?;
         let (registry, handle, remote) = admitted_text_field_fixture()?;
         let mut correlation = WebDriverBiDiCommandCorrelation::new();
         correlation.register_command_for(44, WebDriverBiDiCommandKind::TextValueObservation)?;
-        let _original = send_webdriver_bidi_text_value_observation(
-            semantic_observation_proof()?, 43, "context-a", &handle, &remote, &registry,
-            established, &mut correlation, WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        let first = send_webdriver_bidi_text_value_observation(
+            semantic_observation_proof()?,
+            43,
+            "context-a",
+                &handle,
+            &remote,
+            &registry,
+            establish_response_connection(local_addr)?,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
             Duration::from_millis(500),
         )?;
-        server.join().map_err(|_| io::Error::other("original observation server panicked"))??;
-        let foreign = receive_server_text(payload)?;
-        let rejected = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
-            &foreign, "Quarterly review", &mut correlation,
-        );
-        assert!(matches!(rejected,
-            Err(WebDriverBiDiTextValueObservationResponseError::Correlation {
-                source: originweave_network::WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id: 43 },
-            })
-        ), "replacement response must fail connection provenance: {rejected:?}");
         assert_eq!(correlation.outstanding_count(), 2);
+        let foreign = read_response_text(establish_response_connection(local_addr)?)?;
+        let rejected = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(&foreign, "Quarterly review", &mut correlation);
+        let original = read_response_text(first)?;
+        server
+            .join()
+            .map_err(|_| io::Error::other("response server panicked"))??;
+        assert!(
+            matches!(
+                rejected,
+                Err(WebDriverBiDiTextValueObservationResponseError::Correlation {
+                    source: originweave_network::WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                        command_id: 43,
+                    },
+                })
+            ),
+            "replacement socket must not acknowledge the original request: {rejected:?}"
+        );
+        assert_eq!(correlation.outstanding_count(), 2);
+        let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(&original, "Quarterly review", &mut correlation)?;
+        assert_eq!(result.command_id(), 43);
+        assert!(result.matches_expected_text());
+        assert_eq!(correlation.outstanding_count(), 1);
     }
     Ok(())
 }
