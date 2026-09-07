@@ -11,8 +11,8 @@ use originweave_network::{
 };
 
 #[test]
-fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input(
-) -> Result<(), Box<dyn Error>> {
+fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input()
+-> Result<(), Box<dyn Error>> {
     let acknowledged_intent =
         type_text_intent::acknowledged_type_text_intent(42, "authorized-value")?;
 
@@ -48,10 +48,9 @@ fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input(
 }
 
 #[test]
-fn observation_on_another_connection_cannot_certify_the_acknowledged_typed_input(
-) -> Result<(), Box<dyn Error>> {
-    let acknowledged_intent =
-        type_text_intent::acknowledged_type_text_intent(43, "same-value")?;
+fn observation_on_another_connection_cannot_certify_the_acknowledged_typed_input()
+-> Result<(), Box<dyn Error>> {
+    let acknowledged_intent = type_text_intent::acknowledged_type_text_intent(43, "same-value")?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let observation = text_observation::receive_command_responses(
@@ -61,22 +60,31 @@ fn observation_on_another_connection_cannot_certify_the_acknowledged_typed_input
     )?
     .remove(0);
 
-    if verify_webdriver_bidi_text_value_postcondition(
+    let Err(error) = verify_webdriver_bidi_text_value_postcondition(
         &observation,
         acknowledged_intent,
         &mut correlation,
-    )
-    .is_ok()
-    {
+    ) else {
         return Err(io::Error::other(
             "an observation from another verified connection must not certify an earlier typed-input intent",
         )
         .into());
-    }
+    };
+    assert!(matches!(
+        &error,
+        WebDriverBiDiTextValuePostconditionError::ObservationConnectionMismatch
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi text-value postcondition observation arrived on a different connection than the acknowledged typed-input intent"
+    );
+    assert!(error.source().is_none());
     assert_eq!(
         correlation.outstanding_count(),
         1,
         "foreign post-condition evidence must not consume the pending observation"
     );
+    let debug = format!("{error:?}");
+    assert!(!debug.contains("same-value"));
     Ok(())
 }
