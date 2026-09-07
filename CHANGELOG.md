@@ -4,10 +4,12 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Retained text-input privacy and validation while adopting the latest click and subscription safeguards; text dispatch and browser outcome verification remain unfinished.
 - Integrated the current navigation-subscription safeguards while preserving active-subscription admission, replay rejection and stale-document checks. A response from a replacement connection still cannot complete an earlier session shutdown; this source integration is not real-browser or release acceptance.
 
 ### Changed
 
+- Preserve text-command privacy and authority checks while adopting click-session and reply safeguards; text construction still does not prove browser execution.
 - Keep current-node and browser-session click checks when rejecting replies from replacement connections; the original request remains recoverable without consuming unrelated work.
 - Recheck that a click still targets the admitted node in the current document before sending it. Invalid deadlines send nothing and reserve no pending request; uncertain writes remain pending instead of being treated as safe to retry.
 - Reject replacement-connection click replies while retaining increasing request numbers, original subscription ownership and same-connection shutdown checks.
@@ -82,6 +84,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Same-call `locateNodes` result admission that revalidates the exact current session, browsing context, canonical origin, and document epoch, rejects an over-budget or non-node result, and translates each admitted `sharedId` through the authority registry into an `ObservedNodeHandle` without performing browser I/O.
 - Same-call QueryNodes admission that transfers a non-cloneable SemanticObservation protocol-use proof by ownership into `bind_current_nodes` before an untrusted `locateNodes` result can become current `ObservedNodeHandle` values, so Navigation-only or TypedInput-only proofs cannot mint observation handles.
 - Registry-issued admitted node handles and authority-bound WebDriver BiDi pointer-click construction that revalidate the exact session, context, canonical origin, document epoch, registry provenance, and retained `sharedId` before serializing `input.performActions`; caller-constructed node tuples or arbitrary wire identifiers cannot become typed-input authority, and the command itself grants no policy or Agent authority.
+- Node-bound WebDriver BiDi text input that revalidates the exact session, browsing context, canonical origin, current document epoch, registry-issued node provenance, and admitted `sharedId` before serializing bounded protocol-safe non-secret `input.performActions`; the command focuses the admitted element before keyboard input, and its diagnostic representation exposes only command metadata and text byte length rather than typed text or the serialized wire payload.
 - Fail-closed rejection of reviewed Unicode format and bidirectional-override characters in accessibility roles, accessible names, BiDi `sharedId` values, and registry external identifiers, while ordinary spaces in accessible names remain valid.
 - Credential-safe browser-protocol validation evidence that copies only the already validated protocol family, OriginWeave generation, adapter version, pinned protocol/browser revisions, and exact capability into cloneable audit metadata without recreating the non-cloneable validation prerequisite or granting browser/Agent authority.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
