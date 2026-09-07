@@ -17,12 +17,12 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiPointerClickResponseError,
-    WebDriverBiDiPointerClickResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage, send_webdriver_bidi_pointer_click,
+    WebDriverBiDiWebSocketMessageReader, send_webdriver_bidi_pointer_click,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -116,7 +116,6 @@ fn admitted_pointer_click_fixture() -> Result<AdmittedPointerClickFixture, Box<d
     let remote = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
     Ok((registry, handle, remote))
 }
-
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
@@ -191,11 +190,11 @@ fn establish(local_addr: SocketAddr) -> Result<WebDriverBiDiWebSocketEstablished
 
 fn read_response(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "replacement pointer connection produced unexpected assembly state: {other:?}"

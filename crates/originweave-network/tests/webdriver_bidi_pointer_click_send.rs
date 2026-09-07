@@ -77,7 +77,7 @@ fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
 
 fn admitted_pointer_click_fixture() -> Result<AdmittedPointerClickFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let browser_session = registry.register_session("webdriver-session")?;
+    let browser_session = registry.register_session(SESSION_ID)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
     let origin = Origin::parse("https://app.example").map_err(|error| {
         io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))

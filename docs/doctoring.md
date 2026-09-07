@@ -4,6 +4,28 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Pointer outbound authority and received-reply integration
+
+Child #265 at `ddce7248` already checked the admitted node and canonical registry session
+before pointer dispatch. Regression `e7fb1527` nevertheless reproduced both replacement
+success and error replies consuming its original pending request (0/2 passing), using
+the same listener and external session. The original server was joined before the
+decisive mismatch assertion; unrelated pending work and genuine-reply recovery remain
+part of each case.
+
+Ordinary parent adoption `d847b530` retains that child authority guard and typed monotonic
+dispatch while adding #264 `43395711` connection registration and sealed reply consumption.
+It reuses the existing connection identity and message reader, with no new dependency,
+raw-response fallback or duplicate authority owner. The 14 focused pointer, outbound
+session and navigation-postcondition tests pass. Full combined-head verification remains
+required; predecessor coverage and screenshots are not transferable.
+
+This implements the existing reply-provenance invariant, not a new accepted architectural
+decision. Node/session matching and a correctly correlated reply still do not authenticate
+Chromium, authorize policy, prove that an observed navigation was caused by the click,
+or establish protected-main and release acceptance. Parent-only historical deferrals below
+do not remove the stronger safeguards already present in this child.
+
 ### Subscription registry-to-transport session provenance
 
 The real-loopback test at `b4702cd5`, executed locally before repair, dispatched a subscription
@@ -171,6 +193,16 @@ These are separate authority guarantees: the parent's received-response connecti
 Fresh combined-tree verification passes nine focused reconnect/admission/document-transition loopback tests and all 144 Python repository contracts without skips. Full Rust `1.97.1` formatting, locked workspace check/tests, all-feature strict Clippy and warning-denying rustdoc pass, along with compileall, CodeGraph sync and diff checks. Pinned `nightly-2026-08-01` coverage is exactly 1271/1271 functions, 13244/13244 lines, 16919/16919 regions and 1428/1428 branches; the unstable `--branch` measurement warning remains separate. An independent read-only merge review found no changed parent transport/correlation/teardown bodies or changed child admission/document-transition bodies. Current REST formal reviews and inline comments are empty; a GraphQL rate-limit rejection prevents a new thread-resolution claim, and absence of a review is not approval.
 
 ### Browser automation and interoperability
+
+The subscription repair paragraph below records the historical #277 parent-only cut.
+Current #264 already retains registry-to-transport session validation and consuming,
+connection-bound subscription teardown described above. Ordinary parent adoption
+`92e576c8` preserves those stronger child contracts and adds the parent's sealed pointer
+responses while retaining monotonic typed dispatch. Actual replacement-pointer success
+and error both failed at `637fd97d` before adoption. This combined source still requires
+its own complete verification and does not establish protected-main or browser acceptance.
+
+The subscription response repair reuses the existing sender-owned connection generation and sealed receiving-message capability. On regression head `122ca139`, two real connections to the same listener and session reproduced replacement success and protocol-error responses consuming the original subscription. Source repair `8b1508c8` rejects both with an exact connection mismatch, preserves two outstanding requests, and accepts the original connection's response while leaving the unrelated request outstanding. Manually registered commands lack sender provenance and cannot bypass that check. Required subscription projection still precedes correlation consumption; invalid deadlines precede registration, proven no-write failures retire only their exact request, and ambiguous writes retain correlation. The 14 focused subscription tests pass. This closes response-connection substitution only: outbound registry-to-endpoint session binding, authenticated later navigation events, protected-main asset preservation, hosted checks and browser-runtime acceptance remain separate work.
 
 Fresh deadline-repair verification passed 11 focused subscription loopback tests and all 142 Python contracts, plus the complete locked Rust workspace checks/tests, formatting, all-feature Clippy, warning-denying rustdoc, compileall, and diff checks. Numeric production coverage is 100% for 1,221 functions, 12,781 lines, 16,404 regions, and 1,418 branches; the unstable branch-measurement warning remains. The 1,220-function result below belongs to the earlier parent-adoption tree, not this subsequent source change.
 

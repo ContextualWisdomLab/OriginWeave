@@ -38,6 +38,44 @@ Protected main also retains the generic authority/evidence primitives and design
 
 ## 3. Current executable evidence
 
+### Historical pointer-click connection-bound receipt checkpoint
+
+Ordinary merge `0234b587d1bca9286eb5b597f9dab33be47ff518` integrates #257
+`9451fd8a23dec95b31749376bc78c2eaca977fe8` with #258's sealed received-message
+consumer. Test commit `d9396f05` strengthened the published `8193fcd5` regression:
+two sockets share one listener and session; foreign success and error replies
+must produce the exact connection-mismatch error, retain both pending commands,
+and permit the original reply to complete only its click. Both cases failed
+before repair. Consumer-only `588fe731` also failed original-response acceptance
+because the sender lacked connection provenance; this prevents a partial repair
+from appearing complete.
+
+All six focused response and replacement-connection tests pass on the integrated
+tree. Existing malformed-envelope, unknown-id, extensible-success and matched
+remote-error behavior is retained. No public receipt constructor, caller-supplied
+generation, generic fallback, dependency, or new authority boundary was added.
+This supersedes the receipt prerequisite below, not its dated evidence or the
+remaining outbound session-authority and real-browser postcondition gaps.
+Full exact-head verification, hosted acceptance and protected integration remain
+separate requirements; focused loopback success does not establish them.
+
+### Historical pointer-click originating-connection prerequisite
+
+PR #258 test-only head `8193fcd50125d9e9a43b4755e0f7626801b74374`, on
+PR #257 `8f1507346f65798a6bf4eaf370d65a2d406a6f44`, reproduced a replacement
+connection consuming the original connection's pointer command. The Rust 1.97.1
+loopback regression failed at its rejection assertion (zero passed, one failed);
+the four predecessor response tests passed separately.
+
+The #257 sender now registers the existing private transport generation before
+writing, reusing the shared correlation owner without changing local deadline
+rejection, preflight retirement, or ambiguous-write retention. This prerequisite
+alone does not reject foreign responses: #258 must consume the existing sealed
+received-message type and require connection-bound correlation. Its regression
+must also retain unrelated requests and allow the original connection's response.
+Outbound session authority, browser authentication, observed click effects,
+protected-main acceptance, and release evidence remain separate and unproven.
+
 ### PR #64 — verified action-outcome and interruption evidence
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
@@ -140,3 +178,20 @@ This dossier does **not** close issue #28. Material remaining work includes:
 ## 7. Documentation fitness consequence
 
 The documentation graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. The active stack materially narrows WebDriver BiDi navigation and typed-input authority, but it introduces no new OriginWeave-owned durable database schema or persistence owner. A physical ERD entity would therefore overstate the implementation. Detailed as-built sequence diagrams should be reconciled when the executable pinned-Chromium composition is stable enough that they describe measured runtime behavior rather than anticipated integration.
+
+## 8. Pointer descendant reply integration
+
+The #265 integration at `d847b530` preserves current-node and outbound-session checks
+from `ddce7248`, then adopts parent #264 `43395711` reply provenance. The real socket
+regression `e7fb1527` first reproduced replacement success and error consuming the
+original click request. Both now reject the foreign connection while retaining the
+original request and unrelated work; the genuine original reply still completes.
+
+All 14 focused tests pass, including stale-node rejection, foreign-session rejection
+before pending state or command bytes, and the preserved navigation-postcondition
+cases. Full exact-head local/hosted gates and visual inspection remain independently
+required. No inherited checkpoint establishes acceptance for this combined tree.
+
+A matching response is still only protocol acknowledgment. Policy approval, browser
+authentication, trusted event provenance and causal page effects remain separate.
+This active Draft does not close issue #28 or establish protected-main delivery.

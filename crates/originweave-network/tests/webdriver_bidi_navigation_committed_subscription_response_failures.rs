@@ -258,6 +258,8 @@ fn protocol_error_consumes_only_its_exact_sent_command() -> Result<(), Box<dyn E
     assert_eq!(correlation.outstanding_count(), 1);
 
     let (matched, mut correlation) = sent_subscription_response(MATCHED_ERROR_RESPONSE)?;
+    correlation.register_command_for(43, WebDriverBiDiCommandKind::SessionStatus)?;
+    assert_eq!(correlation.outstanding_count(), 2);
     assert_eq!(
         WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
             &matched,
@@ -270,7 +272,7 @@ fn protocol_error_consumes_only_its_exact_sent_command() -> Result<(), Box<dyn E
             }
         )
     );
-    assert_eq!(correlation.outstanding_count(), 0);
+    assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
 
@@ -357,5 +359,41 @@ fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<
         )
     );
     assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
+fn generic_registration_cannot_mint_subscription_receipts() -> Result<(), Box<dyn Error>> {
+    for (document, expected) in [
+        (
+            MATCHED_SUCCESS_RESPONSE,
+            WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
+                command_id: 7,
+            },
+        ),
+        (
+            MATCHED_ERROR_RESPONSE,
+            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                command_id: 7,
+            },
+        ),
+    ] {
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        correlation
+            .register_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+        let received = read_text_over_loopback(document)?;
+        assert_eq!(
+            WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+                &received,
+                &mut correlation
+            ),
+            Err(
+                WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                    source: expected
+                }
+            )
+        );
+        assert_eq!(correlation.outstanding_count(), 1);
+    }
     Ok(())
 }
