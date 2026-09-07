@@ -42,7 +42,7 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("PresentationSurface::Languages", text)
         self.assertIn("PresentationSurface::ReducedMotion", text)
         self.assertIn("PresentationSurface::HardwareConcurrency", text)
-        self.assertIn("MissingRequiredSurface", text)
+        self.assertIn("PresentationError::MissingSurface", text)
 
 
 if __name__ == "__main__":
