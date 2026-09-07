@@ -129,7 +129,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(
-            text, "### Latest verified cut: 2026-09-07", "### Latest verified cut: 2026-09-06"
+            text, "#### Published response and observation: 01:45 UTC",
+            "#### Published input descendants: 00:40 UTC",
         )
         roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
         self.assertEqual(len(roots), 1)
