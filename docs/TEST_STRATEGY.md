@@ -342,7 +342,7 @@ Documentation contracts intentionally validate only durable properties such as r
 
 ### Active browser-status response checks
 
-The active response stack exercises fragmented text with an interleaved Ping, malformed frame and message errors, and payload-redacted diagnostics. Separate correlation checks reject an event or a reply to a request lacking connection provenance while preserving the pending request. The fixture obtains its connection identity from a real loopback connection through the existing consuming transport handoff; it does not add a caller-supplied identity constructor. These local checks are not protected-main, real-browser acceptance, or release evidence.
+The active response stack exercises fragmented text with an interleaved Ping, malformed frame and message errors, and payload-redacted diagnostics. Public loopback checks reject events, unattributable errors, and replies to requests lacking connection provenance while preserving the pending request; the original request can still accept its matching reply after rejection by an unbound registry. Generic and connection-bound correlation share routing validation, while result validation and connection checks still precede completion. These local checks are not protected-main, real-browser acceptance, or release evidence.
 
 ## 17. Exit criteria for a production capability
 
