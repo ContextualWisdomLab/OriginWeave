@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Preserve explicit policy-allow and current-node checks while adopting connection-bound field replies; neither a policy decision nor a reply alone proves action success.
+
 - Preserve current-node action safeguards while adopting connection-bound field-value replies; a matching reply still does not authorize an action.
 
 - Reject field-value replies received on a replacement connection, even when their request identifier and text match.
@@ -61,7 +63,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
-- Complete typed semantic-node action retention at the public binding boundary, including fail-closed coverage of registry-authority corruption and deterministic typed error sources.
+- Complete typed semantic-node action retention through the public binding and policy boundaries, including fail-closed current-authority revalidation, registry-corruption coverage, and deterministic typed error sources.
 - Typed WebDriver BiDi command-family correlation for text-value post-condition observations, so a matching numeric response id cannot consume an outstanding command from another operation family; successful envelopes reuse the parser-proven non-null id invariant without an unreachable fallback branch.
 - Deterministic WebDriver BiDi primary-button click serialization for an already admitted remote node: it emits one fixed `input.performActions` mouse sequence from bounded command/context/node identifiers and remains inert until a trusted adapter binds it to current session, origin, document, policy, and approval authority.
 - Typed outbound WebDriver BiDi primary-button click transport over the bounded client WebSocket stream: it rejects invalid frame deadlines before correlation registration, retires only the just-registered id when local frame preflight proves no command bytes were emitted, preserves correlation across ambiguous writes, and does not treat frame-write success as proof that the browser performed the click.
