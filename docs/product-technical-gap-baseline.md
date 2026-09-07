@@ -8,6 +8,49 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-07
 
+#### Published response and observation: 01:45 UTC
+
+The fresh five-page inventory still contains **125 open PRs: 12 Ready and 113 Draft**,
+13 open issues and zero unresolved review threads. All Ready candidates remain BLOCKED.
+Main remains `87c4daa1830bac5a5228b6036752ad5633232085`; there are no tags or releases.
+Active ruleset `18156473` requires one counted approval and seven central workflows;
+the sole collaborator is the author. No advisory review is counted as that approval.
+
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
+| --- | --- | --- | --- | --- |
+| #268 | Published; Draft | [`ff27220c`](https://github.com/ContextualWisdomLab/OriginWeave/commit/ff27220cb5eb4d11ca1dc5614a4181e1a397a3f1) | #267 `ebd507ae` | 1325/13907/17682/1456 |
+| #269 | Published; Draft | [`3df2a631`](https://github.com/ContextualWisdomLab/OriginWeave/commit/3df2a631bacd7109b3982fdd7ac599d0bd92a589) | #268 `ff27220c` | 1338/14025/17843/1460 |
+
+Each dimension is 100% covered locally. #268's actual RED `716fd842` reproduced three
+pointer/session failures before ordinary parent adoption. The sealed text consumer and
+all original text tests were preserved. Review exposed an unqualified historical limitation;
+RED `49d18f5f` reproduced it, and the correction anchors it to predecessor `35cb1197`.
+#269's RED `658fb676` reproduced dispatch to the wrong browser session before ordinary
+merge `f883fd6f`. Its fixed field-observation command and all eight child tests remain
+byte-identical to the predecessor; the entire network crate matches its parent.
+
+#268 passed 20 focused tests and 146 Python contracts; #269 passed 18 focused tests and
+147 Python contracts. Both passed complete local Rust 1.97.1 gates, compileall, CodeGraph
+and diff checks. Coverage artifact SHA-256 values are respectively
+`bce553c93d5b5dd3cb59c78bbb75c9f1225b659ec7ea22b674c54455e5067a07` and
+`1e203e6c0801bedbbcdbeb1be500b533a3d68e0ac842de221f7f470c5e742c66`.
+The pinned nightly branch-instrumentation warning remains visible.
+
+Exact-head native CI `34072645796` and `34073733364`, and #269 MV3 `34073733355`,
+are queued, not passing evidence. Independent read-only reviews found no remaining
+actionable findings. Source leases `5563501468` and `5563726066` are released.
+Both published PRs and dated dossiers received actual visual inspection in isolated Edge:
+revision links, current/historical separation and text were readable without visible
+clipping or overlap. This is GitHub documentation presentation, not product-browser acceptance.
+This baseline requires its own exact-head tests and visual inspection.
+
+Next is #270's content-aware adoption of #269, followed by response/value verification,
+status receipts and protected-foundation work. Request construction and protocol replies
+still do not prove field changes, authenticated browser ownership, policy approval or
+authorized action success. #195/#279 workflow recovery, #212 sandbox acceptance and
+.github#1929 dispatch identity admission retain their separate owners. Earlier checkpoints
+below remain unchanged historical observations, including their superseded next actions.
+
 #### Published input descendants: 00:40 UTC
 
 The latest complete five-page review/check/thread inventory contains **125 open pull requests:

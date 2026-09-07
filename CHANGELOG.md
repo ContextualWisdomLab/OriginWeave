@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded published text-response and fixed-observation progress with separate local, hosted and visual evidence; browser outcome verification remains unfinished.
 - Recorded published click and text-entry safeguards with their own test, coverage and visual evidence, keeping queued hosted checks and remaining browser outcomes separate from delivery.
 - Recorded the published subscription descendants and completed source visual inspection, correcting the stale unresolved-review count while keeping queued checks, required approval and unreleased browser acceptance distinct. Compact linked revisions keep the new evidence table readable without hiding coverage off-screen.
 - Recorded the verified subscription-reply connection repair, preserving queued hosted checks, the locked-screen visual-inspection gap and remaining authority and delivery work.
