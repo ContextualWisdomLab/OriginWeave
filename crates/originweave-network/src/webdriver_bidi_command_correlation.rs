@@ -20,6 +20,8 @@ pub const MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS: usize = 256;
 /// the same id. Additional command families are introduced by their owning typed command slices.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiCommandKind {
+    /// Fixed product-owned `script.callFunction` text-value observation.
+    TextValueObservation,
     /// WebDriver BiDi `session.status`.
     SessionStatus,
     /// WebDriver BiDi `session.end`.

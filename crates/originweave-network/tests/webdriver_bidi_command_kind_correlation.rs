@@ -77,6 +77,39 @@ fn parse_success_over_loopback() -> Result<WebDriverBiDiJsonEnvelope, Box<dyn Er
 }
 
 #[test]
+fn observation_response_cannot_cross_any_sibling_command_family() -> Result<(), Box<dyn Error>> {
+    let response = parse_success_over_loopback()?;
+    for sibling in [
+        WebDriverBiDiCommandKind::SessionStatus,
+        WebDriverBiDiCommandKind::SessionEnd,
+        WebDriverBiDiCommandKind::PointerClick,
+        WebDriverBiDiCommandKind::TypeText,
+        WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+    ] {
+        for (actual, expected) in [
+            (WebDriverBiDiCommandKind::TextValueObservation, sibling),
+            (sibling, WebDriverBiDiCommandKind::TextValueObservation),
+        ] {
+            let mut correlation = WebDriverBiDiCommandCorrelation::new();
+            correlation.register_command_for(42, actual)?;
+            assert_eq!(
+                correlation.correlate_response_for(&response, expected),
+                Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch { expected, actual })
+            );
+            assert_eq!(correlation.outstanding_count(), 1);
+            assert_eq!(
+                correlation
+                    .correlate_response_for(&response, actual)?
+                    .command_id(),
+                42
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn response_cannot_consume_a_different_outstanding_command_kind() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(42, WebDriverBiDiCommandKind::SessionStatus)?;
