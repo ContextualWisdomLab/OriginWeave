@@ -7,7 +7,7 @@ use originweave_core::{
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiReceivedTextMessage,
 };
 
 const MAX_SCRIPT_RESULT_OBJECT_MEMBERS: usize = 64;
@@ -54,13 +54,16 @@ impl WebDriverBiDiTextValueObservationResult {
     /// immediately drops the page-controlled string after computing byte count and equality. This
     /// boundary does not retry, grant browser or policy authority, retain a realm identifier, or
     /// claim success when the observed value differs from the expected text.
+    /// The received message must belong to the exact connection generation registered by the
+    /// sender. Missing or foreign connection provenance leaves the pending request untouched,
+    /// including for protocol errors and script exceptions.
     pub fn parse_correlate_and_compare(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         expected_text: &str,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiTextValueObservationResponseError> {
         validate_expected_text(expected_text)?;
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message).map_err(|source| {
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message()).map_err(|source| {
             WebDriverBiDiTextValueObservationResponseError::Envelope { source }
         })?;
 
@@ -70,9 +73,10 @@ impl WebDriverBiDiTextValueObservationResult {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 let completed = correlation
-                    .correlate_response_for(
+                    .correlate_response_for_connection(
                         &envelope,
                         WebDriverBiDiCommandKind::TextValueObservation,
+                        message.connection_generation(),
                     )
                     .map_err(|source| {
                         WebDriverBiDiTextValueObservationResponseError::Correlation { source }
@@ -84,13 +88,15 @@ impl WebDriverBiDiTextValueObservationResult {
                 )
             }
             WebDriverBiDiJsonEnvelopeKind::Success => {
-                let projection = project_script_result(message.as_str()).map_err(|source| {
-                    WebDriverBiDiTextValueObservationResponseError::Projection { source }
-                })?;
+                let projection =
+                    project_script_result(message.message().as_str()).map_err(|source| {
+                        WebDriverBiDiTextValueObservationResponseError::Projection { source }
+                    })?;
                 let completed = correlation
-                    .correlate_response_for(
+                    .correlate_response_for_connection(
                         &envelope,
                         WebDriverBiDiCommandKind::TextValueObservation,
+                        message.connection_generation(),
                     )
                     .map_err(|source| {
                         WebDriverBiDiTextValueObservationResponseError::Correlation { source }

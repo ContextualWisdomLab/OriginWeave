@@ -1,3 +1,6 @@
+#[path = "support/text_observation.rs"]
+mod text_observation;
+
 use std::{
     error::Error,
     io::{self, Read, Write},
@@ -8,10 +11,10 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValuePostconditionError, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageReader,
     verify_webdriver_bidi_text_value_postcondition,
 };
 
@@ -54,9 +57,7 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     stream.write_all(payload)
 }
 
-fn receive_server_text(
-    payload: &[u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let response = payload.to_vec();
@@ -79,10 +80,10 @@ fn receive_server_text(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "fixture produced unexpected message assembly state: {other:?}"
@@ -98,11 +99,12 @@ fn receive_server_text(
 
 #[test]
 fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn Error>> {
-    let response = receive_server_text(
-        br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
-    )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
+    let response = text_observation::receive_command_responses(
+        &[
+        br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
+        ], 70, &mut correlation,
+    )?.remove(0);
 
     let verified =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)?;
@@ -116,11 +118,12 @@ fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn
 
 #[test]
 fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), Box<dyn Error>> {
-    let response = receive_server_text(
-        br#"{"type":"success","id":71,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"unexpected"}}}"#,
-    )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(71, WebDriverBiDiCommandKind::TextValueObservation)?;
+    let response = text_observation::receive_command_responses(
+        &[
+        br#"{"type":"success","id":71,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"unexpected"}}}"#,
+        ], 71, &mut correlation,
+    )?.remove(0);
 
     let Err(error) =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
@@ -182,7 +185,7 @@ fn unrelated_outstanding_command_cannot_certify_text_postcondition() -> Result<(
         br#"{"type":"success","id":73,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(73)?;
+    correlation.register_command_for(73, WebDriverBiDiCommandKind::SessionStatus)?;
 
     let Err(error) =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)

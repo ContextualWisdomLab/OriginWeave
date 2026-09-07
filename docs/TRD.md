@@ -319,6 +319,11 @@ Generic network evidence retains bounded names and canonical locators while valu
 
 **Planned.** WebDriver BiDi is an evolving W3C adapter contract. Its session/user-context/browsing-context identifiers are translated into OriginWeave-scoped internal identities. Core lifetime authority is already Implemented; active PR #40 is non-shipped registry implementation evidence.
 
+The non-shipped #264 dispatch refinement retains exclusive connection ownership and strictly
+increasing typed command IDs so old local replies cannot complete a later reused request. Raw-text
+work uses a separate connection. This local socket evidence does not change the adapter's Planned
+status or satisfy real-browser, protected-foundation or release acceptance.
+
 ### Chrome DevTools Protocol
 
 **Planned.** The **Chrome DevTools Protocol** supplies Chromium-specific observation, diagnostics and experimental capabilities. OriginWeave binds supported protocol versions and does not expose unrestricted Runtime evaluation as a normal agent action.

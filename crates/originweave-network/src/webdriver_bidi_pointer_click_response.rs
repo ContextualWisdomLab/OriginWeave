@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `input.performActions`
@@ -21,21 +21,27 @@ pub struct WebDriverBiDiPointerClickResult {
 }
 
 impl WebDriverBiDiPointerClickResult {
-    /// Parse one bounded local-end message and consume its exact outstanding command on response.
+    /// Parse one bounded local-end message and consume its exact outstanding pointer-click command.
     ///
+    /// The sealed message must come from the exact connection registered by the pointer sender.
+    /// Missing connection provenance or a replacement connection leaves the command outstanding.
     /// Complete JSON and common WebDriver BiDi envelope validation occur before correlation state
     /// can be consumed. Successful responses retain only the matched command id. A correlatable
-    /// protocol-error response consumes its matching id and returns a typed remote failure, while
-    /// events, null-id errors, malformed envelopes, and unknown ids fail closed without consuming
-    /// unrelated outstanding state.
+    /// protocol-error response consumes its matching pointer-click id and returns a typed remote
+    /// failure. A response for another typed command family, an event, a null-id error, a malformed
+    /// envelope, or an unknown id fails closed without consuming unrelated outstanding state.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiPointerClickResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message)
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message())
             .map_err(|source| WebDriverBiDiPointerClickResponseError::Envelope { source })?;
         let completed = correlation
-            .correlate_response(&envelope)
+            .correlate_response_for_connection(
+                &envelope,
+                WebDriverBiDiCommandKind::PointerClick,
+                message.connection_generation(),
+            )
             .map_err(|source| WebDriverBiDiPointerClickResponseError::Correlation { source })?;
 
         match completed.outcome() {

@@ -29,7 +29,7 @@ pub enum WebDriverBiDiTextValueObservationSendError {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
     },
-    /// Writing the already-registered command frame failed and the transport is not reusable.
+    /// Deadline validation or writing the command frame failed.
     FrameWrite {
         /// Exact typed bounded WebSocket frame-write failure.
         source: WebDriverBiDiWebSocketFrameError,
@@ -83,12 +83,14 @@ impl Error for WebDriverBiDiTextValueObservationSendError {
 /// session, context, origin, document epoch, registry provenance, and exact admitted wire node
 /// identifier. Callers cannot supply function source, sandbox, or generic script arguments.
 ///
-/// Registration records [`WebDriverBiDiCommandKind::TextValueObservation`] before the first
+/// The registered session must match the established connection's exact session identifier.
+/// Deadline validation precedes registration. Registration binds the connection generation and
+/// records [`WebDriverBiDiCommandKind::TextValueObservation`] before the first
 /// possible remote side effect. A later typed response boundary must match both the exact id and
 /// this command provenance; an unrelated outstanding command id therefore cannot certify a text
-/// post-condition. A correlation failure writes nothing. Once registration succeeds, a frame-write
-/// failure leaves the identifier outstanding because partial or complete remote execution is
-/// ambiguous and the identifier must not be silently reused.
+/// post-condition. A correlation failure writes nothing. A proven zero-write malformed-frame
+/// rejection retires only this registration; an ambiguous write failure keeps it outstanding.
+/// The transport enforces increasing command identifiers across its entire lifetime.
 ///
 /// Dispatch is only protocol-level observation transport. This function does not authenticate the
 /// browser, authorize the preceding text-input action, compare the eventual remote value with the
@@ -133,13 +135,45 @@ pub fn send_webdriver_bidi_text_value_observation(
     )
     .map_err(|source| WebDriverBiDiTextValueObservationSendError::Authority { source })?;
 
+    registry
+        .require_registered_session_external_identifier(
+            handle.browser_session(),
+            established
+                .transport_evidence()
+                .verified_peer()
+                .session_id(),
+        )
+        .map_err(
+            |source| WebDriverBiDiTextValueObservationSendError::Authority {
+                source: WebDriverBiDiTextValueObservationAuthorityError::BrowserAuthority(source),
+            },
+        )?;
+    crate::webdriver_bidi_websocket_frame::validate_frame_timeout(frame_timeout)
+        .map_err(|source| WebDriverBiDiTextValueObservationSendError::FrameWrite { source })?;
     correlation
-        .register_command_for(
+        .register_command_for_connection(
             command.command_id(),
             WebDriverBiDiCommandKind::TextValueObservation,
+            established.transport_evidence().connection_generation(),
         )
         .map_err(|source| WebDriverBiDiTextValueObservationSendError::Correlation { source })?;
     established
-        .write_text_frame(command.as_json(), masking_key, frame_timeout)
-        .map_err(|source| WebDriverBiDiTextValueObservationSendError::FrameWrite { source })
+        .write_command_frame(
+            command.command_id(),
+            command.as_json(),
+            masking_key,
+            frame_timeout,
+        )
+        .map_err(|source| {
+            if matches!(
+                source,
+                WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+            ) {
+                let _retirement = correlation.retire_command_for(
+                    command.command_id(),
+                    WebDriverBiDiCommandKind::TextValueObservation,
+                );
+            }
+            WebDriverBiDiTextValueObservationSendError::FrameWrite { source }
+        })
 }

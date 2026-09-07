@@ -77,9 +77,9 @@ fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     )
 }
 
-fn type_text_fixture() -> Result<TypeTextFixture, Box<dyn Error>> {
+fn type_text_fixture(session_id: &str) -> Result<TypeTextFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let browser_session = registry.register_session("webdriver-session")?;
+    let browser_session = registry.register_session(session_id)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
     let origin = Origin::parse("https://app.example").map_err(|error| {
         io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
@@ -134,7 +134,21 @@ fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
-        stream.write_all(OPENING_RESPONSE)
+        stream.write_all(OPENING_RESPONSE)?;
+        let mut byte = [0_u8; 1];
+        match stream.read(&mut byte) {
+            Ok(0) => Ok(()),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) =>
+            {
+                Ok(())
+            }
+            Ok(_) => Err(io::Error::other("rejected text command emitted wire bytes")),
+            Err(error) => Err(error),
+        }
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -155,7 +169,7 @@ fn type_text_rejects_non_typed_input_proof_before_correlation_or_frame_write()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let (registry, handle, remote) = type_text_fixture()?;
+    let (registry, handle, remote) = type_text_fixture(SESSION_ID)?;
 
     let error = send_webdriver_bidi_type_text(
         semantic_observation_proof()?,
@@ -196,7 +210,7 @@ fn type_text_rejects_non_webdriver_bidi_proof_before_correlation_or_frame_write(
 -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let (registry, handle, remote) = type_text_fixture()?;
+    let (registry, handle, remote) = type_text_fixture(SESSION_ID)?;
 
     let error = send_webdriver_bidi_type_text(
         protocol_proof(
@@ -240,7 +254,7 @@ fn type_text_rejects_invalid_text_before_correlation_or_frame_write() -> Result<
 {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let (registry, handle, remote) = type_text_fixture()?;
+    let (registry, handle, remote) = type_text_fixture(SESSION_ID)?;
 
     let error = send_webdriver_bidi_type_text(
         typed_input_proof()?,
@@ -283,8 +297,8 @@ fn type_text_rejects_invalid_text_before_correlation_or_frame_write() -> Result<
 fn type_text_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(8)?;
-    let (registry, handle, remote) = type_text_fixture()?;
+    correlation.register_command_for(8, originweave_network::WebDriverBiDiCommandKind::TypeText)?;
+    let (registry, handle, remote) = type_text_fixture(SESSION_ID)?;
 
     let error = send_webdriver_bidi_type_text(
         typed_input_proof()?,
@@ -319,10 +333,10 @@ fn type_text_rejects_duplicate_correlation_before_frame_write() -> Result<(), Bo
 }
 
 #[test]
-fn type_text_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>> {
+fn type_text_rejects_invalid_frame_timeout_without_registration() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let (registry, handle, remote) = type_text_fixture()?;
+    let (registry, handle, remote) = type_text_fixture(SESSION_ID)?;
 
     let error = send_webdriver_bidi_type_text(
         typed_input_proof()?,
@@ -348,10 +362,44 @@ fn type_text_preserves_registration_when_frame_timeout_is_invalid() -> Result<()
         "WebDriver BiDi text-input command frame write failed"
     );
     assert!(error.source().is_some());
-    assert_eq!(correlation.outstanding_count(), 1);
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()
         .map_err(|_| io::Error::other("invalid-timeout text server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn type_text_rejects_foreign_transport_session_without_correlation_or_wire_io()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_handshake_only_server()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let (registry, handle, remote) = type_text_fixture("foreign-session")?;
+    let result = send_webdriver_bidi_type_text(
+        typed_input_proof()?,
+        12,
+        "context-a",
+        "Quarterly review",
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    );
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiTypeTextSendError::Authority {
+            source: WebDriverBiDiTypeTextAuthorityError::BrowserAuthority(
+                originweave_core::BrowserRegistryError::SessionExternalIdentifierMismatch
+            )
+        })
+    ));
+    assert_eq!(correlation.outstanding_count(), 0);
+    server
+        .join()
+        .map_err(|_| io::Error::other("foreign-session rejection server panicked"))??;
     Ok(())
 }

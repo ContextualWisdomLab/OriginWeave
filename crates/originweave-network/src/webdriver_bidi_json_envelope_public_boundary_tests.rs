@@ -9,13 +9,13 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiNavigationCommittedObservation,
-    WebDriverBiDiNavigationCommittedObservationError, WebDriverBiDiSessionStatusResponseError,
-    WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+    WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiNavigationCommittedObservationError,
+    WebDriverBiDiSessionStatusResponseError, WebDriverBiDiSessionStatusResult,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -29,7 +29,7 @@ const NAVIGATION_COMMITTED_UTF8_EVENT: &str = r#"{"type":"event","method":"brows
 const NAVIGATION_COMMITTED_MISSING_CONTEXT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"navigation":null,"timestamp":0,"url":"x"}}"#;
 const MALFORMED_NAVIGATION_COMMITTED_EVENT: &[u8] =
     br#"{"type":"event","method":"browsingContext.navigationCommitted","params":"#;
-const OTHER_EVENT: &[u8] = br#"{"type":"event","method":"x","params":{}}"#;
+const OTHER_EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.load","params":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -130,6 +130,24 @@ fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Bo
 }
 
 #[test]
+fn public_json_envelope_rejects_non_event_name_methods() -> Result<(), Box<dyn Error>> {
+    let malformed_methods: [&'static [u8]; 4] = [
+        br#"{"type":"event","method":"","params":{}}"#,
+        br#"{"type":"event","method":"load","params":{}}"#,
+        br#"{"type":"event","method":".load","params":{}}"#,
+        br#"{"type":"event","method":"browsingContext.","params":{}}"#,
+    ];
+
+    for document in malformed_methods {
+        assert_eq!(
+            parse_over_loopback(document)?,
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "method" })
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(), Box<dyn Error>> {
     let malformed_documents: [&'static [u8]; 8] = [
         br#"{"unterminated"#,
@@ -155,7 +173,7 @@ fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(),
 fn public_session_status_empty_result_fails_closed_from_unit_build() -> Result<(), Box<dyn Error>> {
     let text = read_text_over_loopback(EMPTY_STATUS_RESULT)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
 
     let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
     assert!(matches!(
