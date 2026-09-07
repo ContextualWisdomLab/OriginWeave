@@ -145,6 +145,10 @@ claim that the browser presents the profile. A versioned Chromium adapter must
 apply every released surface before page script and prove that unsupported
 surfaces do not silently fall back to ambient host values.
 
+### `originweave-bidi`
+
+Owns the narrow WebDriver BiDi adapter contract that is expressible by one explicit specification revision. The first active slice records the 18 August 2026 presentation-emulation capability set and delegates complete-profile admission back to `originweave-fingerprint`. Standard BiDi currently covers screen, viewport, device-pixel-ratio, timezone, language/locale, and reduced-motion surfaces but cannot satisfy the complete profile because hardware concurrency and the complete Chromium platform/User-Agent Client Hints surface remain outside that standard capability set. The adapter therefore fails closed rather than inheriting ambient Chromium values. It does not yet send browser commands or prove a page-observed post-condition; those require the pinned Chromium/BiDi path and, for Chromium-only surfaces, a separate versioned `originweave-cdp` adapter.
+
 ## 6. Planned modules
 
 ```text
@@ -154,7 +158,6 @@ originweave-http          request, response, redirect, and elapsed-time budgets
 originweave-observation   AX + DOM + layout + network semantic snapshots
 originweave-action        typed browser actions and post-condition verification
 originweave-secret        opaque secret broker and trusted fill channel
-originweave-bidi          WebDriver BiDi adapter
 originweave-cdp           versioned Chromium DevTools Protocol adapter
 originweave-mcp           external MCP server
 originweave-protocol      Browser Agent Protocol schemas and compatibility
