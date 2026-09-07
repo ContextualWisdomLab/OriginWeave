@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Record verified maintenance lessons for resumable checks, rendered documentation links, parent-preserving repairs and release-readiness checks without exposing credentials.
+
 - Recorded published observation safeguards and original-connection recovery with separate local, queued hosted and visual evidence; full browser acceptance remains unfinished.
 - Recorded published text-response and fixed-observation progress with separate local, hosted and visual evidence; browser outcome verification remains unfinished.
 - Recorded published click and text-entry safeguards with their own test, coverage and visual evidence, keeping queued hosted checks and remaining browser outcomes separate from delivery.

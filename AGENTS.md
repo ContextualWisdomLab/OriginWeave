@@ -116,3 +116,19 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 ## Release contract
 
 A release requires all current-head checks, complete coverage and docs, updated `CHANGELOG.md`, SBOM and provenance, reproducible artifacts, compatibility evidence, security review, and an explicit version decision. Pre-alpha commits are not releases.
+
+## Package Manager
+
+- Use the pinned Rust toolchain and Cargo workspace with the checked-in `Cargo.lock`; use `--locked` for release verification.
+
+## Commit Attribution
+
+- AI-assisted commits include `Co-Authored-By` with the actual agent identity; never attribute work to an agent that did not contribute.
+
+## Verified maintenance lessons
+
+- Add concise, reproducible lessons here as work establishes them. Keep transient heads, job IDs and incident snapshots in PR evidence, not permanent instructions; never record secret values.
+- Resume the existing process after a tool observation timeout; inspect its terminal status and logs before starting another copy. A timeout waiting for output is not a failed test.
+- For rustdoc visual inspection, use `RUSTDOCFLAGS='-D warnings' cargo doc --workspace` when `--no-deps` leaves cross-crate references unlinked. Inspect the actual rendered page and open the link destinations before claiming success; do not patch valid source links to hide a build artifact.
+- In parent adoption, preserve the child's behavior and tests, and compare inherited security boundaries against the exact parent. A rejected replacement reply must preserve pending work and prove that the original connection can still complete its own request.
+- Secret availability is not release readiness. Verify the intended package, registry, version, protected revision and release evidence before publishing. Inspect only secret metadata; an empty repository list does not prove organization or environment secrets are absent. Do not remove `publish = false` merely to make a publish command succeed.
