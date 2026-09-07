@@ -1,6 +1,64 @@
 # Action Post-Condition Evidence Traceability
 
-## Pointer session and reply adoption — 2026-09-07
+## Text sender adopts pointer safeguards — 2026-09-07
+
+Ordinary merge `7e4bd76d` adopts #266 `e3885f69` while preserving #267
+`3346d8ec`, including its unchanged text sender, public exports, text tests and
+entire core crate. Actual RED `4e020e16` reproduced three inherited failures:
+foreign-session click dispatch and replacement success/error replies consuming
+the original request. The parent repair rejects the foreign session before any
+request is reserved or sent, and rejects replacement replies without consuming
+either pending command; the original reply still completes only its own request.
+
+Text dispatch already revalidates current node and session authority, registers
+the sending connection, validates deadlines before registration, and distinguishes
+proven no-write rejection from ambiguous writes. Those boundaries are unchanged.
+The inherited click consumer uses sealed connection evidence; this does not finish
+the separate text-response consumer owned by #268. Field-value post-conditions,
+browser authentication, action policy and causal browser acceptance remain open.
+Full combined-head checks and actual visual inspection must be recorded separately;
+older checkpoints below are historical, not current hosted or protected-main proof.
+
+## Text sender receipt-provenance prerequisite — 2026-09-06
+
+Child #268 regression `4632f2df` opens two connections to the same listener and
+session, sends text input on the first and observes a successful acknowledgment
+from the second being accepted. Sealed-consumer candidate `d6889c80` rejects both
+connections because the sender has not retained connection provenance. This owner
+repair reuses `register_command_for_connection` before frame I/O and records the
+established transport's private generation. It preserves session/current-node
+validation, deadlines, no-write retirement and ambiguous-write retention.
+
+This prerequisite alone does not make generic consumers connection-sensitive.
+#268 must adopt it and finish sealed-reader migration, foreign success/error
+rejection, original-connection recovery and complete verification. The regression
+and consumer commits are local integration evidence until their publication is
+verified. Browser authentication, policy approval and observed text-value success
+remain unproven. Earlier checkpoint evidence below remains revision-specific.
+
+## Text-transport integration checkpoint — 2026-09-06
+
+#267 adopts #266 `eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` through ordinary merge
+`d903cf6b`, preserving original transport `46a05d7f`. Text dispatch reconstructs the
+command from current node authority and now uses the parent's sealed typed-write lane
+with a distinct `TypeText` correlation family. The shared frame-deadline validator
+runs before registration. Actual RED `2b960002` exposed a zero deadline retaining an
+unsent command; RED `e2b49e68` exposed the same retention after reused-mask preflight.
+The repair retires only malformed-frame rejections that prove no write began and
+retains correlation after ambiguous socket failure. Independent review then exposed a
+pre-existing cross-session gap: RED `10131eb7` showed that a node admitted for session A
+could be sent on session B's transport. Dispatch now uses the parent's canonical
+read-only registry-to-transport session check before correlation or action bytes.
+The socket regression requires the exact typed mismatch, zero pending commands and
+wire silence; valid fixtures name the same session at both boundaries. Complete
+exact-head acceptance is still pending.
+
+The transport is not policy approval, browser authentication, a typed response consumer,
+an observed text-value post-condition, protected-main delivery, or release evidence.
+Those boundaries remain separate #28 work. The predecessor dossier below is historical;
+its counts, source heads and hosted results are not current combined-head acceptance.
+
+## Historical parent pointer session and reply adoption — 2026-09-07
 
 Ordinary merge `d9503b30` adopts #265 `e94a2372` without changing this child's
 text-command source, exports or eight existing text/privacy tests. Three real socket
@@ -18,7 +76,7 @@ this change does not duplicate it. Full combined-head verification, hosted check
 and actual visual inspection are separate gates, and none of the historical heads
 below supplies protected-main, policy, browser-authentication or release acceptance.
 
-## Parent-adoption checkpoint — 2026-09-06
+## Historical parent-adoption checkpoint — 2026-09-06
 
 Ordinary integration `5a722867` preserves the text-input and diagnostic-privacy delta
 from `cc9980c0` while adopting pointer parent `7147893c96ca95c9b5b275d8011c5bfe99aab065`.

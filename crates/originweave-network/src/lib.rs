@@ -9,8 +9,8 @@
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! binds received fragmented text to one exact verified connection, classifies
 //! complete local-end JSON envelopes, tracks bounded command-response correlation,
-//! transports a narrowly typed pointer click, admits its typed correlated protocol
-//! response, sends a context-bound committed-navigation subscription and retains
+//! transports narrowly typed pointer-click and node-bound non-secret text-input
+//! actions, admits typed correlated protocol responses, sends a context-bound committed-navigation subscription and retains
 //! its typed bounded correlated identifier, binds navigation-event admission to
 //! that active command/receipt lifecycle with bounded fail-closed navigation replay
 //! prevention, explicitly unsubscribes that exact
@@ -49,6 +49,7 @@ mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_session_teardown;
+mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
@@ -143,6 +144,9 @@ pub use webdriver_bidi_session_status_response::{
 pub use webdriver_bidi_session_teardown::{
     WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
     WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
+};
+pub use webdriver_bidi_type_text_transport::{
+    WebDriverBiDiTypeTextSendError, send_webdriver_bidi_type_text,
 };
 pub use webdriver_bidi_websocket_frame::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
