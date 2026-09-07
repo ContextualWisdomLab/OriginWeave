@@ -16,10 +16,11 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiAcknowledgedTypeTextIntent, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiConnectionMessageRead, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
-    acknowledge_webdriver_bidi_type_text_intent,
+    acknowledge_webdriver_bidi_type_text_intent, send_webdriver_bidi_text_value_observation,
     send_webdriver_bidi_type_text_with_postcondition_intent,
 };
 
@@ -36,6 +37,12 @@ type AdmittedTypeTextFixture = (
     BrowserAuthorityRegistry,
     AdmittedNodeHandle,
     WebDriverBiDiRemoteNodeReference,
+);
+
+type AcknowledgedObservationFixture = (
+    WebDriverBiDiAcknowledgedTypeTextIntent,
+    WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiCommandCorrelation,
 );
 
 fn protocol_proof(
@@ -158,11 +165,36 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     if payload.len() > 125 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "fixture ACK unexpectedly exceeded one-byte framing",
+            "fixture response unexpectedly exceeded one-byte framing",
         ));
     }
     stream.write_all(&[0x81, payload.len() as u8])?;
     stream.write_all(payload)
+}
+
+fn assert_command_prefix(command: &[u8], expected_prefix: &[u8], name: &str) -> io::Result<()> {
+    if command.starts_with(expected_prefix) {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!("unexpected {name} command")))
+    }
+}
+
+fn open_established_connection(
+    local_addr: std::net::SocketAddr,
+) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    Ok(WebDriverBiDiWebSocketHandshakePlan::new(
+        connection,
+        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+    )?
+    .write_opening_request(Duration::from_millis(500))?
+    .read_opening_response(Duration::from_millis(500))?)
 }
 
 pub fn acknowledged_type_text_intent(
@@ -179,25 +211,11 @@ pub fn acknowledged_type_text_intent(
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
         let command = read_masked_text_frame(&mut stream)?;
-        if !command.starts_with(&expected_prefix) {
-            return Err(io::Error::other("unexpected typed-input command"));
-        }
+        assert_command_prefix(&command, &expected_prefix, "typed-input")?;
         write_text_frame(&mut stream, &ack)
     });
 
-    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
-        .correlate_session_id(SESSION_ID)?
-        .into_explicit_connect_target()?;
-    let connection =
-        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
-    let established = WebDriverBiDiWebSocketHandshakePlan::new(
-        connection,
-        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
-    )?
-    .write_opening_request(Duration::from_millis(500))?
-    .read_opening_response(Duration::from_millis(500))?;
-
+    let established = open_established_connection(local_addr)?;
     let (registry, handle, remote) = admitted_type_text_fixture()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let (established, witness) = send_webdriver_bidi_type_text_with_postcondition_intent(
@@ -230,4 +248,172 @@ pub fn acknowledged_type_text_intent(
         .join()
         .map_err(|_| io::Error::other("typed-input fixture server panicked"))??;
     Ok(acknowledged)
+}
+
+pub fn acknowledged_type_text_intent_and_observation(
+    type_text_command_id: u64,
+    text: &str,
+    observation_command_id: u64,
+    observation_response: &[u8],
+) -> Result<AcknowledgedObservationFixture, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let type_text_prefix = format!(
+        r#"{{"id":{type_text_command_id},"method":"input.performActions""#
+    )
+    .into_bytes();
+    let observation_prefix = format!(
+        r#"{{"id":{observation_command_id},"method":"script.callFunction""#
+    )
+    .into_bytes();
+    let ack = format!(
+        r#"{{"type":"success","id":{type_text_command_id},"result":{{}}}}"#
+    )
+    .into_bytes();
+    let response = observation_response.to_vec();
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let type_text_command = read_masked_text_frame(&mut stream)?;
+        assert_command_prefix(&type_text_command, &type_text_prefix, "typed-input")?;
+        write_text_frame(&mut stream, &ack)?;
+        let observation_command = read_masked_text_frame(&mut stream)?;
+        assert_command_prefix(&observation_command, &observation_prefix, "text-observation")?;
+        write_text_frame(&mut stream, &response)
+    });
+
+    let established = open_established_connection(local_addr)?;
+    let (registry, handle, remote) = admitted_type_text_fixture()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let (established, witness) = send_webdriver_bidi_type_text_with_postcondition_intent(
+        typed_input_proof()?,
+        type_text_command_id,
+        "context-a",
+        text,
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    )?;
+    let (established, action_ack) = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => (established, message),
+        other => {
+            return Err(io::Error::other(format!("expected typed-input ACK: {other:?}")).into());
+        }
+    };
+    let acknowledged =
+        acknowledge_webdriver_bidi_type_text_intent(&action_ack, witness, &mut correlation)?;
+    if correlation.outstanding_count() != 0 {
+        return Err(io::Error::other("typed-input ACK did not consume its correlation").into());
+    }
+
+    let established = send_webdriver_bidi_text_value_observation(
+        semantic_observation_proof()?,
+        observation_command_id,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+        Duration::from_millis(500),
+    )?;
+    let observation = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
+        other => {
+            return Err(io::Error::other(format!("expected observation response: {other:?}")).into());
+        }
+    };
+    server
+        .join()
+        .map_err(|_| io::Error::other("combined postcondition fixture server panicked"))??;
+    Ok((acknowledged, observation, correlation))
+}
+
+pub fn acknowledged_type_text_intent_and_registered_response(
+    type_text_command_id: u64,
+    text: &str,
+    response_command_id: u64,
+    response_kind: WebDriverBiDiCommandKind,
+    response: &[u8],
+) -> Result<AcknowledgedObservationFixture, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let type_text_prefix = format!(
+        r#"{{"id":{type_text_command_id},"method":"input.performActions""#
+    )
+    .into_bytes();
+    let ack = format!(
+        r#"{{"type":"success","id":{type_text_command_id},"result":{{}}}}"#
+    )
+    .into_bytes();
+    let response = response.to_vec();
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let type_text_command = read_masked_text_frame(&mut stream)?;
+        assert_command_prefix(&type_text_command, &type_text_prefix, "typed-input")?;
+        write_text_frame(&mut stream, &ack)?;
+        write_text_frame(&mut stream, &response)
+    });
+
+    let established = open_established_connection(local_addr)?;
+    let (registry, handle, remote) = admitted_type_text_fixture()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let (established, witness) = send_webdriver_bidi_type_text_with_postcondition_intent(
+        typed_input_proof()?,
+        type_text_command_id,
+        "context-a",
+        text,
+        &handle,
+        &remote,
+        &registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    )?;
+    let (established, action_ack) = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => (established, message),
+        other => {
+            return Err(io::Error::other(format!("expected typed-input ACK: {other:?}")).into());
+        }
+    };
+    let acknowledged =
+        acknowledge_webdriver_bidi_type_text_intent(&action_ack, witness, &mut correlation)?;
+    correlation.register_command_for_connection(
+        response_command_id,
+        response_kind,
+        established.transport_evidence().connection_generation(),
+    )?;
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
+        other => {
+            return Err(io::Error::other(format!("expected registered response: {other:?}")).into());
+        }
+    };
+    server
+        .join()
+        .map_err(|_| io::Error::other("registered-response fixture server panicked"))??;
+    Ok((acknowledged, message, correlation))
 }
