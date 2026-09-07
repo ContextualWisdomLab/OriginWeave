@@ -48,6 +48,32 @@ fn unbound_command_cannot_consume_a_connection_bound_reply() -> Result<(), Box<d
     Ok(())
 }
 
+#[test]
+fn event_and_null_id_error_preserve_the_sent_status_command() -> Result<(), Box<dyn Error>> {
+    use originweave_network::WebDriverBiDiCommandCorrelationError;
+
+    for (document, expected) in [
+        (
+            br#"{"type":"event","method":"log.entryAdded","params":{}}"#.as_slice(),
+            WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+        ),
+        (
+            br#"{"type":"error","id":null,"error":"unknown error","message":"remote"}"#.as_slice(),
+            WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
+        ),
+    ] {
+        let (message, mut correlation) = send_status_and_read_response(document)?;
+        let result =
+            WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation);
+        assert!(matches!(
+            result,
+            Err(WebDriverBiDiSessionStatusResponseError::Correlation { source }) if source == expected
+        ));
+        assert_eq!(correlation.outstanding_count(), 1);
+    }
+    Ok(())
+}
+
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
