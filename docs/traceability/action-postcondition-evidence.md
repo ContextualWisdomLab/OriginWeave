@@ -1,5 +1,24 @@
 # Action Post-Condition Evidence Traceability
 
+## Fixed field observation adopts current input safeguards — 2026-09-07
+
+Ordinary merge `f883fd6f` adopts #268 `ff27220c` while retaining #269
+`78543942` and its fixed observation command and complete eight-test regression
+file byte-for-byte. Actual RED `658fb676` first demonstrated that the old child
+could dispatch a click to a foreign browser session. The inherited sender now
+rejects it before writing or reserving a request. Parent connection-bound text
+and pointer replies, command-family isolation and subscription safeguards are
+retained together rather than copied into another implementation.
+
+The observation command still only constructs a request for the admitted field.
+Its function, sandbox and argument shape remain fixed; callers cannot supply
+script source. Current document, origin, session and registry provenance checks
+and private diagnostics are preserved. Construction does not perform I/O, accept
+a result, compare the field value or prove an authorized action succeeded.
+The old child's hosted CI and MV3 success apply only to `78543942`; this combined
+head requires fresh complete verification and actual visual inspection. The
+checkpoints below retain historical evidence, not current-head acceptance.
+
 ## Text responses retain pointer safeguards — 2026-09-07
 
 Ordinary merge `34e537b1` adopts published #267 `ebd507ae` while preserving

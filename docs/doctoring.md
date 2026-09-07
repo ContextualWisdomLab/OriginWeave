@@ -4,6 +4,15 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Fixed field observation retains current input safeguards
+
+The canonical foreign-session socket regression fails at `658fb676` on #269's
+old parent. Ordinary merge `f883fd6f` adopts #268 `ff27220c`, preserving the fixed
+observation implementation and all eight child regressions from `78543942`.
+This reuses existing session and receipt policy; it introduces no new standards
+claim or general-purpose scripting surface. Request construction, transport,
+response admission and observed action success remain separate evidence stages.
+
 ### Text-response stack retains pointer session and receipt safeguards
 
 Real-socket replay `716fd842` reproduced all three inherited pointer failures on

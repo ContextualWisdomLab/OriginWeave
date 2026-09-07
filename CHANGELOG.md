@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Preserve fixed field-observation checks while adopting current input safeguards; constructing a request still does not verify that the field changed.
 - Label earlier text-reply limitations as historical so they do not contradict the later click safeguards.
 - Preserve text-reply checks while adopting click-session and reply safeguards. A matched response still does not prove the requested field changed.
 - Reject text-entry replies received on a replacement connection without losing the original pending request. The original connection can still complete it; a reply alone does not prove the field changed.
