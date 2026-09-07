@@ -297,6 +297,8 @@ PR #95 consumes the exact semantic-node/business-action binding from #93, and on
 
 The retained action must still revalidate registry-owned current authority immediately before dispatch. Policy authorization does not grant destination, secret, approval, or adapter authority, and does not execute browser I/O or prove a post-condition. The branch remains non-shipped evidence until its dependency stack is integrated and accepted on protected main.
 
+The current parent adoption preserves this policy implementation and its original tests while inheriting the connection-bound field-reply safeguards. Rejected replacement replies leave the original request pending, and only its original connection can complete it. Registry-owned node validation, the policy decision and reply-connection provenance remain independent checks; none substitutes for the others.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:

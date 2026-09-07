@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Preserve explicit policy-allow and current-node checks while adopting connection-bound field replies; neither a policy decision nor a reply alone proves action success.
+
 - Preserve current-node action safeguards while adopting connection-bound field-value replies; a matching reply still does not authorize an action.
 
 - Reject field-value replies received on a replacement connection, even when their request identifier and text match.
