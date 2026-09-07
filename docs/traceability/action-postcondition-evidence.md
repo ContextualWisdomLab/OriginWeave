@@ -1,5 +1,24 @@
 # Action Post-Condition Evidence Traceability
 
+## Fixed field observation adopts current input safeguards — 2026-09-07
+
+Ordinary merge `f883fd6f` adopts #268 `ff27220c` while retaining #269
+`78543942` and its fixed observation command and complete eight-test regression
+file byte-for-byte. Actual RED `658fb676` first demonstrated that the old child
+could dispatch a click to a foreign browser session. The inherited sender now
+rejects it before writing or reserving a request. Parent connection-bound text
+and pointer replies, command-family isolation and subscription safeguards are
+retained together rather than copied into another implementation.
+
+The observation command still only constructs a request for the admitted field.
+Its function, sandbox and argument shape remain fixed; callers cannot supply
+script source. Current document, origin, session and registry provenance checks
+and private diagnostics are preserved. Construction does not perform I/O, accept
+a result, compare the field value or prove an authorized action succeeded.
+The old child's hosted CI and MV3 success apply only to `78543942`; this combined
+head requires fresh complete verification and actual visual inspection. The
+checkpoints below retain historical evidence, not current-head acceptance.
+
 ## Text responses retain pointer safeguards — 2026-09-07
 
 Ordinary merge `34e537b1` adopts published #267 `ebd507ae` while preserving
@@ -154,7 +173,7 @@ checks, visual inspection, parent-first protected integration and runtime eviden
 - **Documentation status:** Active-stack evidence dossier; protected-main truth is called out separately
 - **Canonical owner:** issue #28 (`Complete the first real Chromium agent vertical slice`)
 - **Protected-main baseline:** `542ca1e9c0a863595b8b6697790005d2471f5413`
-- **Active stack tip at this revision:** PR #266 (`feat/core: add node-bound WebDriver BiDi text input`)
+- **Active stack tip at this revision:** PR #269 (`feat/core: observe typed-text postconditions without ambient script authority`)
 - **Capability maturity:** **PARTIAL**
 - **Governing decisions:** Accepted ADR 0003 plus Proposed ADR 0106 preserve provenance-native evidence and separation of action execution from verification.
 
@@ -254,6 +273,14 @@ A current-source privacy defect was found and repaired test-first on this same c
 
 The pre-documentation exact repaired head `1958720a2f0f7e33e40bcea0073c486f37ad278d` passed CI run `33451284736` and Manifest V3 Compatibility run `33451284820`; Rust contracts included formatting, workspace checks, full tests, strict Clippy, and public API documentation, while Production coverage passed exact owned-production function/line/region/branch enforcement. A later documentation-only head must obtain its own fresh exact-head evidence before these results can be treated as current for the PR.
 
+### PR #269 — fixed text-value observation for an admitted current node
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
+
+PR #269 adds a fixed sandboxed text-value observation command on top of the node-bound text-input stack. Construction revalidates the exact registered session, external browsing context, canonical origin, current document epoch, registry-issued node provenance, and admitted `sharedId`. The caller cannot replace the `script.callFunction` method, `node => node.value` function declaration, isolated sandbox, argument shape, or result-ownership policy.
+
+The command only serializes an observation request. It performs no browser I/O, accepts no page/model-supplied script, grants no policy or action authority, and does not prove browser execution or post-condition success. Descendant transport and response slices must correlate the exact response and compare the returned non-secret text with the intended value before any action outcome can become verified.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:
@@ -292,7 +319,8 @@ The first real Chromium vertical slice remains distributed rather than shipped a
 - PR #64 verified post-condition and interruption evidence;
 - PRs #261–#264 committed-navigation origin/subscription/admission lifecycle;
 - PR #265 send-time pointer input revalidation against admitted node authority; and
-- PR #266 node-bound non-secret text input with privacy-safe diagnostics.
+- PR #266 node-bound non-secret text input with privacy-safe diagnostics; and
+- PR #269 fixed text-value observation construction, still without browser I/O or outcome verification.
 
 These pieces do not transfer evidence across heads. A descendant must be revalidated after any parent movement, and protected-main shipment requires fresh integrated acceptance after dependency-ordered merge by an authorized integrator.
 
