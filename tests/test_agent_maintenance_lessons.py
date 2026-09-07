@@ -15,6 +15,8 @@ class AgentMaintenanceLessonsTests(unittest.TestCase):
             "original connection can still complete",
             "public integration path",
             "Do not weaken coverage exclusions",
+            "Retained receipt recovery is not live-stream recovery",
+            "same endpoint",
         ):
             with self.subTest(instruction=instruction):
                 self.assertIn(instruction, text)

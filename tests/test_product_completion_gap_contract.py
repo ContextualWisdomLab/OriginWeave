@@ -16,6 +16,35 @@ BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 class ProductCompletionGapContractTests(unittest.TestCase):
     """Keep the exact repository snapshot and completion tracks reviewable."""
 
+    def test_end_reply_checkpoint_binds_published_evidence(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published session-end reply binding: 05:35 UTC",
+            "#### Published status-response repair: 04:45 UTC",
+        )
+        for marker in (
+            "924ad97551750d4a901ded38b89488cc5438e54f",
+            "363a78e36e7690e9ed5bf49829567e00e2ec5d59",
+            "Published; Draft",
+            "1057/10840/13873/1194",
+            "1064/10898/13947/1194",
+            "34085877650", "34087239755",
+            "9f2249637f31916acf9874baec724ddedfe621e5b14fdb6f4bd850620e89f307",
+            "not hosted acceptance", "retained receipts", "#255", "#292",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_evidence_cannot_replace_end_reply_checkpoint(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(
+            text, "#### Published session-end reply binding: 05:35 UTC",
+            "#### Published status-response repair: 04:45 UTC",
+        )
+        stale = text.replace(current, current.replace("Published; Draft", "Local only"), 1)
+        with patch.object(pathlib.Path, "read_text", return_value=stale + current):
+            with self.assertRaises(AssertionError):
+                self.test_end_reply_checkpoint_binds_published_evidence()
+
     def test_status_repair_checkpoint_binds_published_evidence(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),
