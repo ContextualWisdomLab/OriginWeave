@@ -2,8 +2,7 @@ use std::{error::Error, fmt, time::Duration};
 
 use crate::{
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
-    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
+    WebDriverBiDiWebSocketMaskKey, webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
 /// Bounded transport-closure condition observed on one consumed WebDriver BiDi WebSocket.
@@ -84,9 +83,9 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
             Ok((established, frame)) if frame.opcode() == 0x9 && allow_pre_close_control => {
                 let established = established
                     .write_pong_frame(frame.payload(), pong_masking_key, frame_timeout)
-                    .map_err(|source| WebDriverBiDiWebSocketTransportClosureError::Frame {
-                        source,
-                    })?;
+                    .map_err(
+                        |source| WebDriverBiDiWebSocketTransportClosureError::Frame { source },
+                    )?;
                 Self::observe_pre_close(
                     established,
                     pong_masking_key,
@@ -103,9 +102,9 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
                     .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]));
                 let established = established
                     .write_close_frame(peer_close_status_code, close_masking_key, frame_timeout)
-                    .map_err(|source| WebDriverBiDiWebSocketTransportClosureError::Frame {
-                        source,
-                    })?;
+                    .map_err(
+                        |source| WebDriverBiDiWebSocketTransportClosureError::Frame { source },
+                    )?;
                 Self::observe_eof_after_close(
                     established,
                     frame_timeout,
@@ -113,11 +112,11 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
                     connection_generation,
                 )
             }
-            Ok((_established, frame)) => {
-                Err(WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
+            Ok((_established, frame)) => Err(
+                WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
                     opcode: frame.opcode(),
-                })
-            }
+                },
+            ),
             Err(WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 0 }) => Ok(Self {
                 kind: WebDriverBiDiWebSocketTransportClosureKind::PeerEof,
                 peer_close_status_code: None,
@@ -139,11 +138,11 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
                 peer_close_status_code,
                 connection_generation,
             }),
-            Ok((_established, frame)) => {
-                Err(WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
+            Ok((_established, frame)) => Err(
+                WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
                     opcode: frame.opcode(),
-                })
-            }
+                },
+            ),
             Err(source) => Err(WebDriverBiDiWebSocketTransportClosureError::Frame { source }),
         }
     }

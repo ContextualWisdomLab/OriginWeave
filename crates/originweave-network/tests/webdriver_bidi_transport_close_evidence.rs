@@ -430,7 +430,9 @@ fn post_close_frame_is_not_transport_closure_evidence() -> Result<(), Box<dyn Er
     let (established, server) = established_with_post_close_frame()?;
 
     let Err(error) = observe(established, Duration::from_millis(500)) else {
-        return Err(io::Error::other("post-Close frame unexpectedly became closure evidence").into());
+        return Err(
+            io::Error::other("post-Close frame unexpectedly became closure evidence").into(),
+        );
     };
 
     server
