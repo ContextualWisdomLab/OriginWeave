@@ -40,6 +40,35 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
+fn read_masked_control_frame(
+    stream: &mut TcpStream,
+    expected_opcode: u8,
+) -> io::Result<Vec<u8>> {
+    let mut header = [0_u8; 2];
+    stream.read_exact(&mut header)?;
+    if header[0] != (0x80 | expected_opcode) || header[1] & 0x80 == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected one final masked client control frame",
+        ));
+    }
+    let payload_len = usize::from(header[1] & 0x7f);
+    if payload_len > 125 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "client control-frame payload exceeded RFC 6455 bound",
+        ));
+    }
+    let mut mask = [0_u8; 4];
+    stream.read_exact(&mut mask)?;
+    let mut payload = vec![0_u8; payload_len];
+    stream.read_exact(&mut payload)?;
+    for (index, byte) in payload.iter_mut().enumerate() {
+        *byte ^= mask[index % mask.len()];
+    }
+    Ok(payload)
+}
+
 fn established_with_server_frame(
     frame: Option<&'static [u8]>,
 ) -> Result<EstablishedWithServer, Box<dyn Error>> {
@@ -93,6 +122,64 @@ fn established_with_held_open_peer_close() -> Result<EstablishedWithServer, Box<
     Ok((established, server))
 }
 
+fn established_with_ping_then_held_open_peer_close() -> Result<EstablishedWithServer, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        stream.write_all(&[0x89, 0x05, b'p', b'r', b'o', b'b', b'e'])?;
+        let pong_payload = read_masked_control_frame(&mut stream, 0x0a)?;
+        if pong_payload != b"probe" {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Pong did not preserve the Ping application data",
+            ));
+        }
+        stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        thread::sleep(Duration::from_millis(250));
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?;
+    Ok((established, server))
+}
+
+#[test]
+fn ping_before_close_requires_masked_pong_and_still_waits_for_tcp_closure()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_ping_then_held_open_peer_close()?;
+
+    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        Duration::from_millis(50),
+    );
+    let server_result = server
+        .join()
+        .map_err(|_| io::Error::other("ping-before-close test server panicked"))?;
+    let error = result.err().ok_or_else(|| {
+        io::Error::other("Ping/Close traffic became final transport-closure evidence")
+    })?;
+    assert!(matches!(
+        &error,
+        WebDriverBiDiWebSocketTransportClosureError::Frame {
+            source: WebDriverBiDiWebSocketFrameError::FrameReadTimedOut { bytes_read: 0, .. }
+        }
+    ));
+    server_result?;
+    Ok(())
+}
+
 #[test]
 fn validated_peer_close_frame_yields_nonforgeable_transport_observation()
 -> Result<(), Box<dyn Error>> {
@@ -126,9 +213,9 @@ fn peer_close_without_tcp_eof_is_not_transport_closure_evidence() -> Result<(), 
     server
         .join()
         .map_err(|_| io::Error::other("held-open close test server panicked"))??;
-    let error = result
-        .err()
-        .ok_or_else(|| io::Error::other("peer Close alone became final transport-closure evidence"))?;
+    let error = result.err().ok_or_else(|| {
+        io::Error::other("peer Close alone became final transport-closure evidence")
+    })?;
     assert!(matches!(
         &error,
         WebDriverBiDiWebSocketTransportClosureError::Frame {
