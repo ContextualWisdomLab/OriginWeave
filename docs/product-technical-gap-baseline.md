@@ -8,6 +8,48 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-07
 
+#### Published status-response repair: 04:45 UTC
+
+The refreshed five-page inventory contains **125 open pull requests: 12 Ready/non-draft
+and 113 Draft; 13 open non-PR issues**, with zero unresolved review threads and no
+pagination gaps. All Ready candidates remain BLOCKED. Protected main remains
+`87c4daa1830bac5a5228b6036752ad5633232085`; no tags or releases exist. Active ruleset
+`18156473` requires one counted approval and seven central workflows; the author is
+the only listed collaborator. This reviewer-provisioning gap does not permit bypass.
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
+| --- | --- | --- | --- | --- |
+| #250 | Published; Draft | [`bbdc6ace`](https://github.com/ContextualWisdomLab/OriginWeave/commit/bbdc6ace7a5932adf24836700f806850e6b230bc) | #249 `65ac3ab9` | 1043/10711/13717/1188 |
+
+All four coverage dimensions are 100% locally. Prior exact-head CI `34064507212`
+failed formatting and coverage; that terminal evidence supersedes its historical
+queued description. The repair reuses the sealed-reader tests and a shared, pure
+reply-routing check. Validation and connection provenance still precede completion.
+Public loopback checks reject events, unattributable errors and unbound requests
+without consuming pending work. After an unbound request rejects a sealed reply,
+the original request can still accept it. This does not prove a browser outcome.
+
+All 142 Python contracts, compileall and full Rust formatting, check, tests, Clippy
+and warnings-denied workspace documentation passed at the published head. Coverage
+artifact SHA-256: `e1fccefc6b56eabe653ae41377fbcec0aa89b4be1ada92dba73d3ef87e841029`.
+Actual Edge inspection confirmed readable API documentation and the published commit.
+Independent source review found no actionable findings; it is not counted approval.
+
+Exact-head CI `34084134654` has Rust job `101624834145` and coverage job `101624834026`
+queued. Local verification is not hosted acceptance. The source writer lease is
+released; this documentation checkpoint needs its own verification and visual inspection.
+Earlier checkpoints remain unchanged historical records, not current acceptance.
+
+Automatic publishing remains unattempted: the protected package disables publication,
+no Python package or publishing workflow is present, and release evidence and an
+explicit version decision are still required. Empty repository/environment secret
+metadata does not prove organization keys absent; their listing remains unavailable
+under current permissions. No credential values, workflow gates or release settings
+were changed. Next executable work remains parent-first status-receipt adoption,
+protected foundations and release-readiness evidence under their separate owners.
+
 #### Published semantic-action adoption: 04:11 UTC
 
 The five-page inventory contains **125 open pull requests: 12 Ready/non-draft

@@ -128,6 +128,7 @@ A release requires all current-head checks, complete coverage and docs, updated 
 ## Verified maintenance lessons
 
 - Add concise, reproducible lessons here as work establishes them. Keep transient heads, job IDs and incident snapshots in PR evidence, not permanent instructions; never record secret values.
+- For coverage repairs, inspect uncovered regions in each linked crate instance and prefer the existing public integration path. Reuse shared validation before adding test-only authority accessors; keep validation before state consumption. Do not weaken coverage exclusions or production lint gates to hide uncovered fixture or production paths.
 - Resume the existing process after a tool observation timeout; inspect its terminal status and logs before starting another copy. A timeout waiting for output is not a failed test.
 - For rustdoc visual inspection, use `RUSTDOCFLAGS='-D warnings' cargo doc --workspace` when `--no-deps` leaves cross-crate references unlinked. Inspect the actual rendered page and open the link destinations before claiming success; do not patch valid source links to hide a build artifact.
 - In parent adoption, preserve the child's behavior and tests, and compare inherited security boundaries against the exact parent. A rejected replacement reply must preserve pending work and prove that the original connection can still complete its own request.

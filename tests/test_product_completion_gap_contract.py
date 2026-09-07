@@ -30,8 +30,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "e1fccefc6b56eabe653ae41377fbcec0aa89b4be1ada92dba73d3ef87e841029",
             "not hosted acceptance",
         ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, current)
+            self.assertIn(marker, current)
 
     def test_historical_evidence_cannot_replace_status_repair(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
@@ -157,8 +156,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(
-            text, "#### Published semantic-action adoption: 04:11 UTC",
-            "#### Published observation safeguards: 03:00 UTC",
+            text, "#### Published status-response repair: 04:45 UTC",
+            "#### Published semantic-action adoption: 04:11 UTC",
         )
         roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
         self.assertEqual(len(roots), 1)
