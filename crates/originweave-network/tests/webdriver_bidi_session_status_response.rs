@@ -25,6 +25,29 @@ const STATUS_RESPONSE_MISSING_READY: &[u8] =
     br#"{"type":"success","id":7,"result":{"message":"capacity available"}}"#;
 const STATUS_RESPONSE_EMPTY_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
 
+#[test]
+fn unbound_command_cannot_consume_a_connection_bound_reply() -> Result<(), Box<dyn Error>> {
+    use originweave_network::{WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind};
+
+    let (message, mut original) = send_status_and_read_response(STATUS_RESPONSE)?;
+    let mut unbound = WebDriverBiDiCommandCorrelation::new();
+    unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
+    assert!(matches!(
+        WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut unbound),
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                command_id: 7,
+            },
+        })
+    ));
+    assert_eq!(unbound.outstanding_count(), 1);
+    assert_eq!(original.outstanding_count(), 1);
+    let result = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut original)?;
+    assert_eq!(result.command_id(), 7);
+    assert_eq!(original.outstanding_count(), 0);
+    Ok(())
+}
+
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
