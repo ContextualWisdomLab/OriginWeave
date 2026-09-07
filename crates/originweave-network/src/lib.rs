@@ -20,6 +20,7 @@ mod connection;
 mod webdriver_bidi_command_correlation;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
+mod webdriver_bidi_received_message;
 mod webdriver_bidi_session_end_command;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
@@ -48,6 +49,10 @@ pub(crate) use webdriver_bidi_json_envelope::WebDriverBiDiJsonEnvelopeRouting;
 pub use webdriver_bidi_json_envelope::{
     MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+};
+pub use webdriver_bidi_received_message::{
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiConnectionMessageReadError,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiWebSocketMessageReader,
 };
 pub use webdriver_bidi_session_end_command::{
     WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
