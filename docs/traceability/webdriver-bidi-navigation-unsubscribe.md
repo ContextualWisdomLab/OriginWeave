@@ -59,6 +59,29 @@ construction. Already admitted observations remain unchanged; this is not retroa
 
 ## Authority and follow-up
 
+### Historical parent-only subscription receipt adoption
+
+The following checkpoint describes #263, not the current #264 tree. This child retains
+consuming unsubscribe receipt ownership, original-connection dispatch and sealed reply
+admission, plus registry-session and monotonic command-ID guards. Its adoption of
+#263 at `92e576c8` additionally binds pointer replies to their sending connection.
+Regression `637fd97d` first reproduced both replacement pointer success and error
+consuming the original request (0/2 passing). The integration combines the parent's
+connection registration with the child's existing typed dispatch, rather than replacing
+either safeguard. Current-head verification is required for this combined tree.
+
+Ordinary merge `9e85cadc` adopts #277 `46ae62aa31e35c702cd61c16322d05c7a9c35da1`
+without changing either unsubscribe production module. Canonical regression replay
+`90395f81` reproduced both replacement success and error consuming the original
+subscription (0/2 passing). Adoption exposed two fixture calls that still supplied
+raw messages; `cb0c4261` uses the existing sealed reader and preserves its returned
+connection for the subsequent unsubscribe exchange. The escaped opaque identifier,
+deadline/no-byte checks and all original unsubscribe assertions remain intact.
+Unsubscribe dispatch and response provenance remain separate unfinished boundaries;
+this integration must not be interpreted as authenticated subscription teardown.
+Exact local and hosted gates must be revalidated for this combined head; neither
+parent coverage nor predecessor screenshots establish its acceptance.
+
 This adapter performs no policy authorization, destination approval, browser authentication, action dispatch, semantic observation, or durable evidence escalation. The browser-domain owner remains OriginWeave; WebDriver BiDi remains an adapter. Integration into protected main remains parent-first and non-destructive, and exact-head hosted evidence does not transfer from predecessor heads.
 
 ### References — APA 7th
