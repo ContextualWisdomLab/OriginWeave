@@ -24,6 +24,8 @@ pub enum WebDriverBiDiCommandKind {
     SessionStatus,
     /// WebDriver BiDi `session.end`.
     SessionEnd,
+    /// WebDriver BiDi `input.performActions` pointer click.
+    PointerClick,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
