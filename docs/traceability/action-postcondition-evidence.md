@@ -1,6 +1,64 @@
 # Action Post-Condition Evidence Traceability
 
-## Text sender adopts pointer safeguards — 2026-09-07
+## Text responses retain pointer safeguards — 2026-09-07
+
+Ordinary merge `34e537b1` adopts published #267 `ebd507ae` while preserving
+#268 `e567af9e` and its complete sealed text-response consumer. The text sender,
+consumer, exports, all text tests and entire core crate are unchanged. Actual
+RED `716fd842` first reproduced foreign-session click dispatch and replacement
+success/error consumption: all three pointer regressions failed before adoption.
+The inherited canonical sender and sealed click consumer now reject those cases
+without consuming the original or unrelated pending work.
+
+Text replies already require the sending connection and exact command family;
+missing provenance, malformed envelopes and unknown identifiers preserve pending
+work, while matched remote errors consume only their own request. No generic
+response fallback or duplicated parser is introduced. The earlier text repair's
+hosted success belongs to `e567af9e`, not this combined head, which requires fresh
+full verification and actual visual inspection. Observed field values, browser
+authentication, policy approval and causal action success remain unproven.
+Status receipts and protected-foundation integration remain separate owner work.
+The dated checkpoints below preserve predecessor evidence, not current acceptance.
+
+## Text receipt-provenance repair — 2026-09-06
+
+Actual socket RED `4632f2df` accepted a reply from a replacement connection sharing
+the original listener and session. Sealed consumer `d6889c80` then exposed missing
+sender provenance. Ordinary merge `e1188c86` adopts canonical #267 sender fix
+`3346d8ec`; it retains the transport's private generation before sending.
+The consumer now requires the existing sealed received-message type and compares
+the receiving connection before consuming correlation. No caller-supplied generation,
+raw-message fallback or new parser is introduced.
+
+Seven focused tests pass at `35cb1197`: foreign success/error rejection with original
+connection recovery and unrelated pending-state retention, real success and remote
+error completion, missing sender provenance, wrong command family, malformed envelope
+and unknown id. Extensible results and payload-free error chains remain intact.
+Complete current-head verification and publication are still pending. This repair
+does not prove browser-process ownership, policy approval or observed field values.
+Pointer and status receipt consumers remain separate required owner repairs.
+
+The following integration checkpoints are historical evidence, not current semantics.
+
+## Text-response integration checkpoint — 2026-09-06
+
+#268 adopts #267 `4435ce5f561ca069c1844a1a5bd9b603505e25f7` by ordinary merge,
+preserving the original response validation and transport safeguards. Test-first
+commit `a9446fbc` requires success and error replies to reject every other registered
+command family without consuming its pending request. Parent adoption exposed the
+removed generic correlation call; `cd93d9fc` reuses the existing `TypeText` family
+guard. Five focused response tests pass, including ten wrong-family cases, the real
+send/receive round trip, extensible success results, typed remote failure, malformed
+envelopes and unknown identifiers. Complete combined-head verification remains pending.
+
+The consumer still receives an assembled message without authenticated receipt
+provenance. Family isolation does not prove that the reply arrived on the command's
+connection, that text appeared in the field, or that an action was authorized.
+Connection-bound receipt admission remains a separate required repair before runtime
+acceptance. Earlier checkpoint evidence below is revision-specific, not current-head
+CI, protected-main delivery or release acceptance.
+
+## Historical parent: text sender adopts pointer safeguards — 2026-09-07
 
 Ordinary merge `7e4bd76d` adopts #266 `e3885f69` while preserving #267
 `3346d8ec`, including its unchanged text sender, public exports, text tests and

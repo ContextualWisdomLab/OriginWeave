@@ -4,6 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Label earlier text-reply limitations as historical so they do not contradict the later click safeguards.
+- Preserve text-reply checks while adopting click-session and reply safeguards. A matched response still does not prove the requested field changed.
+- Reject text-entry replies received on a replacement connection without losing the original pending request. The original connection can still complete it; a reply alone does not prove the field changed.
+- Text-entry replies cannot complete another kind of pending browser request. Malformed and unrelated replies preserve pending work; acknowledgment alone still does not prove the field changed or authenticate the reply's connection.
 - Preserve text-entry safeguards while rejecting clicks sent to another browser session and click replies from replacement connections. These checks do not yet verify that the browser changed the requested field.
 - Retain each pending text-entry request's original connection so a connection-aware response consumer can reject replies from a replacement socket. Consumer integration and observed field-value verification remain separate requirements.
 - Text entry rejects a connection for a different browser session and invalid deadlines before reserving a pending request. Rejected writes that provably sent nothing release that request; uncertain writes remain pending and are not silently retried. Real-browser outcome verification remains unfinished.

@@ -4,6 +4,16 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Text-response stack retains pointer session and receipt safeguards
+
+Real-socket replay `716fd842` reproduced all three inherited pointer failures on
+#268 before ordinary adoption of #267 `ebd507ae` in `34e537b1`. The repair retains
+the already sealed text-response consumer and its existing tests unchanged while
+adopting the parent's click-session rejection and exact-connection replies. This
+is implementation evidence for existing local policy, not a new standards claim.
+A matched text acknowledgment remains separate from observing the requested field
+value, browser authentication and authorized action completion.
+
 ### Pointer safeguards retained by the text sender
 
 The #267 real-socket replay at `4e020e16` failed all three inherited pointer
