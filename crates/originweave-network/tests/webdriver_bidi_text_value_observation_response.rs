@@ -59,6 +59,51 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     )?)
 }
 
+#[test]
+fn replacement_connection_cannot_complete_text_observation() -> Result<(), Box<dyn Error>> {
+    for payload in [
+        OBSERVATION_SUCCESS_RESPONSE,
+        br#"{"type":"error","id":43,"error":"invalid argument","message":"rejected"}"#,
+        br#"{"type":"success","id":43,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{"text":"rejected","lineNumber":0,"columnNumber":0,"exception":{"type":"undefined"},"stackTrace":{"callFrames":[]}}}}"#,
+    ] {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> {
+            let (mut stream, _) = listener.accept()?;
+            read_opening_request(&mut stream)?;
+            stream.write_all(OPENING_RESPONSE)?;
+            let command = read_masked_text_frame(&mut stream)?;
+            assert!(command.starts_with(br#"{"id":43,"method":"script.callFunction""#));
+            Ok(())
+        });
+        let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+        let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+            .correlate_session_id(SESSION_ID)?
+            .into_explicit_connect_target()?;
+        let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+        let established = WebDriverBiDiWebSocketHandshakePlan::new(
+            connection, WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+        )?.write_opening_request(Duration::from_millis(500))?
+            .read_opening_response(Duration::from_millis(500))?;
+        let (registry, handle, remote) = admitted_text_field_fixture()?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        correlation.register_command_for(44, WebDriverBiDiCommandKind::SessionStatus)?;
+        let _original = send_webdriver_bidi_text_value_observation(
+            semantic_observation_proof()?, 43, "context-a", &handle, &remote, &registry,
+            established, &mut correlation, WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+            Duration::from_millis(500),
+        )?;
+        server.join().map_err(|_| io::Error::other("original observation server panicked"))??;
+        let foreign = receive_server_text(payload)?;
+        let rejected = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &foreign, "Quarterly review", &mut correlation,
+        );
+        assert!(rejected.is_err(), "a replacement connection completed the original observation");
+        assert_eq!(correlation.outstanding_count(), 2);
+    }
+    Ok(())
+}
+
 fn admitted_text_field_fixture() -> Result<AdmittedTextFieldFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let browser_session = registry.register_session(SESSION_ID)?;
