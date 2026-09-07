@@ -18,7 +18,7 @@ fn substituted_expected_text_cannot_certify_a_different_authorized_typed_input()
             42,
             "authorized-value",
             70,
-            br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"substituted-value"}}}"#,
+            br#"{"type":"success","id":70,"result":{"type":"success","realm":"r","result":{"type":"string","value":"substituted-value"}}}"#,
         )?;
 
     let substituted = verify_webdriver_bidi_text_value_postcondition(
