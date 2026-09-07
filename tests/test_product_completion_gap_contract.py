@@ -22,12 +22,14 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "#### Published session-end reply binding: 05:35 UTC",
             "#### Published status-response repair: 04:45 UTC",
         )
+        for owner, head, parent, coverage in (
+            (251, "924ad97551750d4a901ded38b89488cc5438e54f", "#250 `bbdc6ace`", "1057/10840/13873/1194"),
+            (252, "363a78e36e7690e9ed5bf49829567e00e2ec5d59", "#251 `924ad975`", "1064/10898/13947/1194"),
+        ):
+            row = active_pr_row(current, owner)
+            for marker in (head, parent, coverage, "Published; Draft"):
+                self.assertIn(marker, row)
         for marker in (
-            "924ad97551750d4a901ded38b89488cc5438e54f",
-            "363a78e36e7690e9ed5bf49829567e00e2ec5d59",
-            "Published; Draft",
-            "1057/10840/13873/1194",
-            "1064/10898/13947/1194",
             "34085877650", "34087239755",
             "9f2249637f31916acf9874baec724ddedfe621e5b14fdb6f4bd850620e89f307",
             "not hosted acceptance", "retained receipts", "#255", "#292",

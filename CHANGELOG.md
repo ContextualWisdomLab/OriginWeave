@@ -5,6 +5,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ## [Unreleased]
 
 - Recorded published session-end reply protections, their visual and local verification, and the new browser-presentation evidence gap without treating queued checks or retained replies as release or live-stream acceptance.
+- Bound each new delivery-evidence row to its own publication state, revision, parent and coverage so one row cannot hide another row's missing evidence.
 
 - Record the published semantic-action adoption stack and its local verification, visual evidence and unmet release prerequisites without treating open pull requests as shipped behavior.
 
