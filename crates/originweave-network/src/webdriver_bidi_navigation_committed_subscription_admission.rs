@@ -1,14 +1,15 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, sync::Arc};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserRegistryIdentity, BrowserSessionId,
+    BrowsingContextId,
 };
 
 use crate::{
     WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiNavigationCommittedObservationError,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
     WebDriverBiDiNavigationCommittedUnsubscribeCommand,
-    WebDriverBiDiNavigationCommittedUnsubscribeCommandError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiNavigationCommittedUnsubscribeCommandError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Maximum distinct committed-navigation identifiers retained by one active subscription admission.
@@ -23,12 +24,16 @@ pub const MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS: usize = 256;
 /// The binding carries only the exact local command identifier and the already-registered
 /// OriginWeave session/context association used to serialize that command. The external BiDi
 /// context identifier is retained privately for immediate registry revalidation and is not exposed
-/// as durable OriginWeave authority.
+/// as durable OriginWeave authority. A private allocation identity binds this value to the exact
+/// command instance; matching caller-supplied numbers cannot recreate that identity.
+/// A separate core-issued witness preserves the original registry instance across later use.
 pub struct WebDriverBiDiNavigationCommittedSubscriptionBinding {
     command_id: u64,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
     external_context: String,
+    subscription_intent: Arc<()>,
+    registry_identity: BrowserRegistryIdentity,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionBinding {
@@ -49,12 +54,16 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         external_context: &str,
+        subscription_intent: Arc<()>,
+        registry_identity: BrowserRegistryIdentity,
     ) -> Self {
         Self {
             command_id,
             browser_session,
             browsing_context,
             external_context: external_context.to_owned(),
+            subscription_intent,
+            registry_identity,
         }
     }
 
@@ -80,13 +89,16 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
 /// Active local admission capability for one exact committed-navigation BiDi subscription.
 ///
 /// Construction requires both the correlated remote subscription receipt and the immutable binding
-/// captured from the exact command that requested it. The command identifiers must match and the
-/// original external context mapping must still resolve to the exact OriginWeave session/context.
-/// Holding this value is therefore narrower than holding an opaque protocol subscription string.
-/// It grants only admission of the matching committed-navigation event through the existing bounded
-/// parser; it grants no navigation, destination, origin, policy, secret, node, or Agent authority.
-/// Each admitted non-null WebDriver BiDi navigation identifier is retained until unsubscribe so a
-/// replayed remote event cannot mint a second state-changing observation from the same navigation.
+/// captured from the exact command that requested it. The command identifiers and private command
+/// allocation identity must match, and the original external context mapping must still resolve to
+/// the exact OriginWeave session/context in the original registry. Event admission requires the message to
+/// have been assembled on the same verified connection generation that carried the subscription
+/// command and receipt. Holding this value is therefore narrower than holding an opaque protocol
+/// subscription string. It grants only admission of the matching committed-navigation event through
+/// the existing bounded parser; it grants no navigation, destination, origin, policy, secret, node,
+/// or Agent authority. Each admitted non-null WebDriver BiDi navigation identifier is retained until
+/// unsubscribe so a replayed remote event cannot mint a second state-changing observation from the
+/// same navigation.
 pub struct WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     subscription: WebDriverBiDiNavigationCommittedSubscriptionResult,
     binding: WebDriverBiDiNavigationCommittedSubscriptionBinding,
@@ -104,6 +116,7 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
                 "subscription_id_bytes",
                 &self.subscription.subscription_id().len(),
             )
+            .field("connection_bound", &true)
             .field(
                 "admitted_navigation_count",
                 &self.admitted_navigation_ids.len(),
@@ -115,9 +128,11 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
 impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     /// Bind one correlated subscription receipt to the exact command-side session/context intent.
     ///
-    /// A response correlated to a different command cannot be rebound to this capability. The
-    /// original external BiDi context is revalidated before the capability exists, so a retired or
-    /// replaced registry mapping fails closed without creating active event-admission state.
+    /// A response correlated to a different command instance cannot be rebound to this capability,
+    /// even when its numeric command, session and context identifiers match. The original external
+    /// BiDi context is revalidated before the capability exists, so a retired or replaced registry
+    /// mapping fails closed without creating active event-admission state. Connection provenance is
+    /// retained inside the correlated receipt and cannot be supplied by this caller.
     pub fn new(
         subscription: WebDriverBiDiNavigationCommittedSubscriptionResult,
         binding: WebDriverBiDiNavigationCommittedSubscriptionBinding,
@@ -129,6 +144,14 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
                     subscription_command_id: subscription.command_id(),
                     binding_command_id: binding.command_id,
                 },
+            );
+        }
+        if !Arc::ptr_eq(
+            &subscription.subscription_intent,
+            &binding.subscription_intent,
+        ) {
+            return Err(
+                WebDriverBiDiNavigationCommittedSubscriptionAdmissionError::CommandIntentMismatch,
             );
         }
         require_current_binding(registry, &binding).map_err(|source| {
@@ -155,8 +178,11 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
 
     /// Admit one exact committed-navigation event while this subscription capability remains active.
     ///
-    /// The original command-side external-context mapping is revalidated immediately before parsing
-    /// the event. The event must then independently carry that same registered context and the exact
+    /// The event must first have been assembled by the connection-bound reader on the same private
+    /// connection generation that carried the exact typed subscription command and receipt. A message
+    /// from another verified connection fails before registry revalidation or event parsing. The
+    /// original command-side external-context mapping is then revalidated immediately before parsing
+    /// the event. The event must independently carry that same registered context and the exact
     /// declared URL. State-changing admission additionally requires the WebDriver BiDi navigation
     /// identifier to be present and unique within this active subscription. The specification defines
     /// non-null navigation identifiers as unique identifiers for ongoing navigations; retaining them
@@ -166,18 +192,23 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     /// state-changing document-advance boundary.
     pub fn admit(
         &mut self,
-        message: &WebDriverBiDiWebSocketTextMessage,
+        received: &WebDriverBiDiReceivedTextMessage,
         registry: &BrowserAuthorityRegistry,
         expected_url: &str,
     ) -> Result<
         WebDriverBiDiNavigationCommittedSubscribedObservation,
         WebDriverBiDiNavigationCommittedSubscriptionEventError,
     > {
+        if self.subscription.connection_generation != received.connection_generation() {
+            return Err(
+                WebDriverBiDiNavigationCommittedSubscriptionEventError::EventConnectionMismatch,
+            );
+        }
         require_current_binding(registry, &self.binding).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionEventError::ContextBinding { source }
         })?;
         let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-            message,
+            received.message(),
             registry,
             self.binding.browser_session,
             self.binding.browsing_context,
@@ -207,6 +238,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
         self.admitted_navigation_ids.push(navigation_id.to_owned());
         Ok(WebDriverBiDiNavigationCommittedSubscribedObservation(
             observation,
+            self.binding.registry_identity.clone(),
         ))
     }
 
@@ -215,6 +247,8 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     /// Consumption deliberately ends local event admission before the unsubscribe command can be
     /// emitted. If later transport or remote teardown fails, callers must explicitly establish a new
     /// typed subscription before admitting more events; ambiguous teardown never restores authority.
+    /// Teardown retains the subscription connection identity and accepts its acknowledgment only
+    /// from that same connection. Previously admitted observations are not retroactively revoked.
     pub fn into_unsubscribe(
         self,
         command_id: u64,
@@ -222,7 +256,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
         WebDriverBiDiNavigationCommittedUnsubscribeCommand,
         WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
     > {
-        WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(command_id, &self.subscription)
+        WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(command_id, self.subscription)
     }
 }
 
@@ -230,6 +264,7 @@ fn require_current_binding(
     registry: &BrowserAuthorityRegistry,
     binding: &WebDriverBiDiNavigationCommittedSubscriptionBinding,
 ) -> Result<(), BrowserRegistryError> {
+    registry.require_identity(&binding.registry_identity)?;
     registry.require_registered_context_external_identifier(
         binding.browser_session,
         binding.browsing_context,
@@ -240,11 +275,14 @@ fn require_current_binding(
 /// One committed-navigation observation admitted through an active exact subscription capability.
 ///
 /// Unlike the lower-level protocol observation, this value proves that local admission was bound to
-/// the exact typed `session.subscribe` command/receipt pair for the same registered context at the
-/// time the event was admitted. It still does not prove action causality or grant destination,
-/// origin, policy, node, secret, process, profile, or reusable Agent authority.
+/// the exact typed `session.subscribe` command/receipt pair and the same verified transport
+/// generation for the registered context at the time the event was admitted. It retains the original
+/// registry witness for revalidation at the eventual document-mutation boundary. It does not prove
+/// action causality or grant destination, origin, policy, node, secret, process, profile, or reusable
+/// Agent authority.
 pub struct WebDriverBiDiNavigationCommittedSubscribedObservation(
     WebDriverBiDiNavigationCommittedObservation,
+    BrowserRegistryIdentity,
 );
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscribedObservation {
@@ -257,6 +295,13 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscribedObservation {
 }
 
 impl WebDriverBiDiNavigationCommittedSubscribedObservation {
+    pub(crate) fn require_registry(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        registry.require_identity(&self.1)
+    }
+
     /// Return the exact OriginWeave browser session whose active subscription admitted the event.
     #[must_use]
     pub const fn browser_session(&self) -> BrowserSessionId {
@@ -291,6 +336,8 @@ impl WebDriverBiDiNavigationCommittedSubscribedObservation {
 /// Fail-closed failures while binding a correlated subscription receipt to command-side authority.
 #[derive(Debug)]
 pub enum WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
+    /// The supplied binding was captured from a different command instance than the actual sender.
+    CommandIntentMismatch,
     /// The correlated response belongs to a different local command than the supplied binding.
     CommandIdMismatch {
         /// Exact command identifier carried by the correlated subscription receipt.
@@ -308,6 +355,9 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
 impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CommandIntentMismatch => formatter.write_str(
+                "WebDriver BiDi navigation subscription binding differs from its sent command",
+            ),
             Self::CommandIdMismatch { .. } => formatter.write_str(
                 "WebDriver BiDi navigation subscription response does not match its command binding",
             ),
@@ -321,7 +371,7 @@ impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError
 impl Error for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::CommandIdMismatch { .. } => None,
+            Self::CommandIdMismatch { .. } | Self::CommandIntentMismatch => None,
             Self::ContextBinding { source } => Some(source),
         }
     }
@@ -330,6 +380,8 @@ impl Error for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
 /// Fail-closed failures while admitting an event through one active subscription capability.
 #[derive(Debug)]
 pub enum WebDriverBiDiNavigationCommittedSubscriptionEventError {
+    /// The event message was assembled on a different verified connection from the subscription.
+    EventConnectionMismatch,
     /// The original external context no longer maps to the exact registered session/context pair.
     ContextBinding {
         /// Exact browser-registry authority failure.
@@ -354,6 +406,9 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionEventError {
 impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionEventError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::EventConnectionMismatch => formatter.write_str(
+                "WebDriver BiDi navigation event arrived on a different subscription connection",
+            ),
             Self::ContextBinding { .. } => formatter.write_str(
                 "WebDriver BiDi navigation subscription context is no longer registered authority",
             ),
@@ -379,7 +434,8 @@ impl Error for WebDriverBiDiNavigationCommittedSubscriptionEventError {
         match self {
             Self::ContextBinding { source } => Some(source),
             Self::Observation { source } => Some(source),
-            Self::MissingNavigationIdentity
+            Self::EventConnectionMismatch
+            | Self::MissingNavigationIdentity
             | Self::ReplayedNavigation
             | Self::ReplayHistoryExhausted { .. } => None,
         }

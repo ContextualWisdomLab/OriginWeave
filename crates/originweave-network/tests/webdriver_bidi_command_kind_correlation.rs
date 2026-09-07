@@ -77,20 +77,44 @@ fn parse_success_over_loopback() -> Result<WebDriverBiDiJsonEnvelope, Box<dyn Er
 }
 
 #[test]
-fn typed_response_provenance_cannot_cross_the_legacy_correlation_boundary()
--> Result<(), Box<dyn Error>> {
+fn observation_response_cannot_cross_any_sibling_command_family() -> Result<(), Box<dyn Error>> {
+    let response = parse_success_over_loopback()?;
+    for sibling in [
+        WebDriverBiDiCommandKind::SessionStatus,
+        WebDriverBiDiCommandKind::SessionEnd,
+        WebDriverBiDiCommandKind::PointerClick,
+        WebDriverBiDiCommandKind::TypeText,
+        WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+    ] {
+        for (actual, expected) in [(WebDriverBiDiCommandKind::TextValueObservation, sibling), (sibling, WebDriverBiDiCommandKind::TextValueObservation)] {
+            let mut correlation = WebDriverBiDiCommandCorrelation::new();
+            correlation.register_command_for(42, actual)?;
+            assert_eq!(correlation.correlate_response_for(&response, expected), Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch { expected, actual }));
+            assert_eq!(correlation.outstanding_count(), 1);
+            assert_eq!(correlation.correlate_response_for(&response, actual)?.command_id(), 42);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn response_cannot_consume_a_different_outstanding_command_kind() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(42, WebDriverBiDiCommandKind::TextValueObservation)?;
+    correlation.register_command_for(42, WebDriverBiDiCommandKind::SessionStatus)?;
     let response = parse_success_over_loopback()?;
 
     assert_eq!(
-        correlation.correlate_response(&response),
-        Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch)
+        correlation.correlate_response_for(&response, WebDriverBiDiCommandKind::SessionEnd),
+        Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+            expected: WebDriverBiDiCommandKind::SessionEnd,
+            actual: WebDriverBiDiCommandKind::SessionStatus,
+        })
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let completed = correlation
-        .correlate_response_for(&response, WebDriverBiDiCommandKind::TextValueObservation)?;
+    let completed =
+        correlation.correlate_response_for(&response, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(completed.command_id(), 42);
     assert_eq!(
         completed.outcome(),

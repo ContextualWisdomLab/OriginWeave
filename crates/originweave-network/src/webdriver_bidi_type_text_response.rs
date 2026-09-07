@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `input.performActions`
@@ -27,15 +27,21 @@ impl WebDriverBiDiTypeTextResult {
     /// can be consumed. Successful responses retain only the matched command id. A correlatable
     /// protocol-error response consumes its matching id and returns a typed remote failure, while
     /// events, null-id errors, malformed envelopes, and unknown ids fail closed without consuming
-    /// unrelated outstanding state.
+    /// unrelated outstanding state. Both success and error replies must match the registered
+    /// text-input command family and the sender's exact connection generation. Missing or
+    /// mismatched receipt provenance leaves the pending command untouched.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiTypeTextResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message)
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message())
             .map_err(|source| WebDriverBiDiTypeTextResponseError::Envelope { source })?;
         let completed = correlation
-            .correlate_response(&envelope)
+            .correlate_response_for_connection(
+                &envelope,
+                WebDriverBiDiCommandKind::TypeText,
+                message.connection_generation(),
+            )
             .map_err(|source| WebDriverBiDiTypeTextResponseError::Correlation { source })?;
 
         match completed.outcome() {

@@ -11,6 +11,7 @@
 - [Conceptual ERD and durable domain model](erd/README.md)
 - [Data governance and privacy boundary](DATA_GOVERNANCE.md)
 - [Product and decision traceability](traceability/README.md)
+  - [WebDriver BiDi committed-navigation unsubscribe traceability](traceability/webdriver-bidi-navigation-unsubscribe.md)
 - [Documentation fitness assessment](DOCUMENTATION_FITNESS.md)
 - [Dated active-PR maturity evidence (2026-08-10)](evidence/2026-08-10-active-pr-maturity.md)
 - [Active-PR maturity delta (2026-08-11)](evidence/2026-08-11-active-pr-maturity-delta.md)

@@ -275,7 +275,7 @@ fn observation_rejects_stale_external_context_before_correlation_or_frame_write(
 fn observation_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(46)?;
+    correlation.register_command_for(46, originweave_network::WebDriverBiDiCommandKind::TextValueObservation)?;
     let (registry, handle, remote) = observation_fixture()?;
 
     let error = send_webdriver_bidi_text_value_observation(

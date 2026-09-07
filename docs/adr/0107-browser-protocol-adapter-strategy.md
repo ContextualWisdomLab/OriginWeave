@@ -36,6 +36,111 @@ MCP version negotiation is independent of the OriginWeave Protocol version. As o
 
 ## Consequences
 
+### Proposed refinement: immediate pointer authority with shared dispatch (2026-09-06)
+
+In the context of integrating admitted-node clicks with the navigation-subscription prerequisite,
+facing stale node authority and an invalid deadline leaving an unsent command pending, we decided
+for immediate node revalidation followed by the existing typed dispatch boundary, and against
+reusable prevalidated commands or a second registry-identity allocation, to preserve both node
+provenance and exact pending-command behavior, accepting that callers must supply live registry
+state and a fresh typed-input proof for every attempt.
+
+The node handle shares the core registry's existing identity allocation; its exact external-node
+mapping and lifecycle invalidation remain private. Zero and excessive deadlines fail before
+registration, proven no-write frame failures retire only the new PointerClick entry, and ambiguous
+writes retain it. This does not authenticate the browser, authorize the action, bind pointer replies
+to a connection, or prove that the click caused navigation.
+
+The socket regression at `3f9cdc1a` observed one outstanding command after a zero deadline. Its
+successor at integration commit `7535d8af` observes none and requires no command bytes on the peer.
+The integration also restores four parent navigation-postcondition regressions and retains both
+mask-reuse rejection and ambiguous-write socket tests. Status remains Proposed; hosted checks,
+protected-main delivery and fresh visual inspection are separate gates.
+
+### Proposed refinement: registry-to-transport session provenance (2026-09-06)
+
+In the context of dispatching a registry-bound subscription on an established transport, facing
+a valid context from session A being sent over session B, we decided for a read-only comparison
+against the existing canonical external-session mapping and against a duplicate reverse registry
+or registration from transport text, to reject mismatches before correlation and command bytes,
+accepting one bounded lookup per subscription and rejection of adapters using unrelated session aliases.
+
+This supplements original-registry and current-context checks rather than replacing them. The
+existing connection-generation binding continues to govern replies and teardown. Unknown or retired
+session mappings fail closed without creating state. Matching protocol text is not browser-process
+authentication or navigation causality. The actual loopback RED at `b4702cd5` and its successor
+check the no-correlation/no-wire boundary; status remains Proposed pending exact-head gates and
+protected parent-first integration, not a release or architecture approval.
+
+### Proposed refinement: consuming subscription teardown (2026-09-06)
+
+In the context of ending a navigation subscription, facing a borrowed receipt that permits continued
+event admission and teardown messages crossing connections, we decided for consuming the existing
+non-cloneable receipt and retaining its connection identity through dispatch and acknowledgment,
+and against shared revocation flags or matching session text alone, to close local admission before
+teardown without duplicating lifecycle state, accepting that even construction or transport failure
+requires a new subscription before local admission can resume.
+
+This source proposal reuses the existing received-message wrapper and connection-aware correlation
+owner. It adds no registry, dependency, reconnection or mutable revocation service. A different
+connection is rejected before pending-command insertion or wire emission; a foreign success or error
+cannot consume the original pending command. An unrelated outstanding command remains untouched.
+The receipt and teardown command cannot be cloned. Previously admitted observations are not revoked,
+and acknowledgment does not prove that buffered events have drained or that browser cleanup occurred.
+
+The real-socket lifetime failure is retained in commit `2c45cea8`; its successor is the constructor's
+`E0382` compile-fail example, because the repaired API makes the offending receipt reuse unrepresentable.
+Commit `ce6f6fd4` records three separate real-socket transport failures. The existing admission-to-teardown
+path and escaped-identifier round trip remain runtime checks. Shared flags would require extra checks
+at every lifetime consumer while ownership already enforces this transition. Session or identifier
+equality cannot distinguish two connections. Status remains Proposed, pending exact-head gates and
+parent-first protected integration; this is not a browser-runtime acceptance or release decision.
+
+### Proposed refinement: sealed command dispatch history (2026-09-06)
+
+In the context of successive browser commands on one verified connection, facing retained or
+buffered replies completing a later command with the same wire identifier, we decided for one
+connection-owned strictly increasing typed-command namespace and mutually exclusive raw-text and
+typed-command lanes, and against receive-order counters, consuming response wrappers alone, or a
+resettable correlation-table ledger, to prevent ambiguity between local dispatches with constant
+memory, accepting that callers must choose increasing IDs and use separate connections for raw text.
+
+WebDriver BiDi permits identifier reuse; this is an OriginWeave local policy, not a protocol mandate.
+The first typed ID may be zero and the JavaScript-safe maximum is usable once; exhaustion requires
+an explicit new connection rather than wraparound. Pong frames and message reads preserve the mode
+and last ID. All typed senders use the shared frame owner. Raw text cannot precede typed dispatch or
+be inserted while typed responses are pending. The nonconsuming TCP stream borrow is removed because
+a cloned handle could write outside that owner; the consuming raw-stream handoff remains available
+but cannot reconstruct an upgradeable connection. No generic HTTP/TLS stream contract changes.
+
+The real locally-revoked opening-write test moves into the connection owner's unit module so it can
+retain its OS-socket failure checks without publishing a cloneable socket. Preflight failures still
+retire only the newly registered command; ambiguous I/O failures retain pending correlation. A
+bounded tombstone set would eventually force arbitrary eviction or reconnection, while an unbounded
+set creates lifetime memory growth. Receive ordering cannot distinguish a buffered old reply first
+read after resend, and consuming wrappers misses retirement before parsing. This proposal does not
+authenticate the remote browser, reject invented peer replies, or prove navigation causality.
+The adapter remains non-shipped, and this refinement remains Proposed pending governance and gates.
+
+### Proposed refinement: original registry identity (2026-09-06)
+
+In the context of a connection-bound navigation subscription whose local session/context numbers
+can also exist in another registry, facing the risk that a genuine receipt or admitted event
+changes unrelated document authority, we decided for a core-owned opaque registry witness retained
+from command construction through event admission to the shared document-mutation boundary, and
+against numeric/text equality, a constructor-only check, or globally renumbering every browser
+identifier, to preserve exact-owner authority before side effects, accepting one small allocation
+per registry and reference-counted witnesses while commands or observations remain live.
+
+The proposal reuses current context-liveness and expected-epoch checks. It does not freeze a
+context-wide subscription at its initial document epoch, authenticate the browser session associated
+with a stream, or turn the witness into a durable ID or capability grant. The witness has no public
+constructor or serialization. It cannot preserve a removed context or recreate a retired registry.
+The four real-socket failures recorded at `b3ffeac9` exercise send, receipt admission, event admission
+and a correctly admitted observation presented to a different mutation target. Status remains
+Proposed; local source acceptance does not approve the architecture or complete hosted, protected-main
+or browser compatibility gates.
+
 OriginWeave carries adapter maintenance and version negotiation but gains a durable customer API. Multiple browser/control transports can coexist. New upstream capabilities do not silently change risk or action semantics. Compatibility matrices become release artifacts.
 
 ## Failure and degraded behavior
