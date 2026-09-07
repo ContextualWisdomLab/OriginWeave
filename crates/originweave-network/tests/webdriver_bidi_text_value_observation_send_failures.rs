@@ -72,7 +72,7 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
 
 fn observation_fixture() -> Result<ObservationFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let browser_session = registry.register_session("webdriver-session")?;
+    let browser_session = registry.register_session(SESSION_ID)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
     let origin = Origin::parse("https://app.example").map_err(|error| {
         io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
@@ -275,7 +275,10 @@ fn observation_rejects_stale_external_context_before_correlation_or_frame_write(
 fn observation_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command_for(46, originweave_network::WebDriverBiDiCommandKind::TextValueObservation)?;
+    correlation.register_command_for(
+        46,
+        originweave_network::WebDriverBiDiCommandKind::TextValueObservation,
+    )?;
     let (registry, handle, remote) = observation_fixture()?;
 
     let error = send_webdriver_bidi_text_value_observation(
@@ -310,8 +313,7 @@ fn observation_rejects_duplicate_correlation_before_frame_write() -> Result<(), 
 }
 
 #[test]
-fn observation_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>>
-{
+fn observation_rejects_invalid_frame_timeout_before_registration() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let (registry, handle, remote) = observation_fixture()?;
@@ -339,7 +341,7 @@ fn observation_preserves_registration_when_frame_timeout_is_invalid() -> Result<
         "WebDriver BiDi text-value observation command frame write failed"
     );
     assert!(error.source().is_some());
-    assert_eq!(correlation.outstanding_count(), 1);
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()

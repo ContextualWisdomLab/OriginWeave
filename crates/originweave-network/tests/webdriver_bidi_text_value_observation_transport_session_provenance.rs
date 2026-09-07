@@ -12,12 +12,12 @@ use originweave_core::{
     BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
     BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
     ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiTextValueObservationAuthorityError, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiRemoteNodeReference, WebDriverBiDiTextValueObservationAuthorityError,
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTextValueObservationSendError,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiTextValueObservationSendError, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
     send_webdriver_bidi_text_value_observation,
 };
@@ -163,9 +163,9 @@ fn current_node_text_value_observation_is_rejected_before_writing_to_a_foreign_s
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     );
-    let command_byte_seen = server
-        .join()
-        .map_err(|_| io::Error::other("foreign-session text-value observation server panicked"))??;
+    let command_byte_seen = server.join().map_err(|_| {
+        io::Error::other("foreign-session text-value observation server panicked")
+    })??;
 
     let error = send_result.err().ok_or_else(|| {
         io::Error::other(

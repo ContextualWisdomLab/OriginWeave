@@ -87,12 +87,23 @@ fn observation_response_cannot_cross_any_sibling_command_family() -> Result<(), 
         WebDriverBiDiCommandKind::NavigationCommittedSubscription,
         WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
     ] {
-        for (actual, expected) in [(WebDriverBiDiCommandKind::TextValueObservation, sibling), (sibling, WebDriverBiDiCommandKind::TextValueObservation)] {
+        for (actual, expected) in [
+            (WebDriverBiDiCommandKind::TextValueObservation, sibling),
+            (sibling, WebDriverBiDiCommandKind::TextValueObservation),
+        ] {
             let mut correlation = WebDriverBiDiCommandCorrelation::new();
             correlation.register_command_for(42, actual)?;
-            assert_eq!(correlation.correlate_response_for(&response, expected), Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch { expected, actual }));
+            assert_eq!(
+                correlation.correlate_response_for(&response, expected),
+                Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch { expected, actual })
+            );
             assert_eq!(correlation.outstanding_count(), 1);
-            assert_eq!(correlation.correlate_response_for(&response, actual)?.command_id(), 42);
+            assert_eq!(
+                correlation
+                    .correlate_response_for(&response, actual)?
+                    .command_id(),
+                42
+            );
         }
     }
     Ok(())
