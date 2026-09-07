@@ -38,20 +38,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pinned_revision_is_explicit() {
-        assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-08-18");
+    fn pinned_revision_tracks_current_published_working_draft() {
+        assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-09-03");
     }
 
     #[test]
-    fn standard_bidi_does_not_claim_chromium_only_surfaces() {
+    fn standard_bidi_claims_only_complete_canonical_surfaces() {
+        let surfaces = webdriver_bidi_presentation_surfaces();
+
         assert_eq!(
             require_complete_presentation_profile(),
-            Err(PresentationError::MissingSurface(
-                PresentationSurface::HardwareConcurrency
-            ))
+            Err(PresentationError::MissingSurface(PresentationSurface::Screen))
         );
-        assert!(!webdriver_bidi_presentation_surfaces()
-            .contains(&PresentationSurface::HardwareConcurrency));
-        assert!(!webdriver_bidi_presentation_surfaces().contains(&PresentationSurface::Platform));
+        assert!(!surfaces.contains(&PresentationSurface::Screen));
+        assert!(surfaces.contains(&PresentationSurface::Viewport));
+        assert!(surfaces.contains(&PresentationSurface::DevicePixelRatio));
+        assert!(!surfaces.contains(&PresentationSurface::HardwareConcurrency));
+        assert!(surfaces.contains(&PresentationSurface::TimeZone));
+        assert!(!surfaces.contains(&PresentationSurface::Platform));
+        assert!(!surfaces.contains(&PresentationSurface::Languages));
+        assert!(surfaces.contains(&PresentationSurface::ReducedMotion));
     }
 }
