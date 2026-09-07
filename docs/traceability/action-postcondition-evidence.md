@@ -299,6 +299,16 @@ The retained action must still revalidate registry-owned current authority immed
 
 The current parent adoption preserves this policy implementation and its original tests while inheriting the connection-bound field-reply safeguards. Rejected replacement replies leave the original request pending, and only its original connection can complete it. Registry-owned node validation, the policy decision and reply-connection provenance remain independent checks; none substitutes for the others.
 
+### PR #96 — dispatch-time semantic-node authority revalidation
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #96 revalidates the retained registry-issued node authority before invoking one adapter callback. The callback is never invoked when the node is stale, retired, forged, or owned by another registry; after document advance removes the admission, dispatch fails closed as `NotAdmitted`.
+
+The callback result remains adapter-local. Adapter failure stays distinct from authority failure, and adapter completion is not post-condition proof. This boundary grants no destination, secret, approval, or network authority and remains non-shipped until its dependency stack is integrated and accepted on protected main.
+
+The current parent adoption retains the dispatch implementation and its original tests unchanged. It also inherits the rejection of field replies from replacement connections while allowing the original connection to finish its pending request. Current node authority, callback execution and reply provenance remain separate checks; combining them still does not establish the requested browser outcome.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:

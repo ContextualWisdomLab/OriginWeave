@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Preserve dispatch-time node checks while adopting connection-bound field replies; completing an adapter callback still does not prove the requested browser outcome.
+
 - Preserve explicit policy-allow and current-node checks while adopting connection-bound field replies; neither a policy decision nor a reply alone proves action success.
 
 - Preserve current-node action safeguards while adopting connection-bound field-value replies; a matching reply still does not authorize an action.
@@ -63,6 +65,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Dispatch-time semantic-node authority revalidation that invokes an adapter callback only while the retained registry-issued node remains current, without treating callback completion as post-condition proof.
 - Complete typed semantic-node action retention through the public binding and policy boundaries, including fail-closed current-authority revalidation, registry-corruption coverage, and deterministic typed error sources.
 - Typed WebDriver BiDi command-family correlation for text-value post-condition observations, so a matching numeric response id cannot consume an outstanding command from another operation family; successful envelopes reuse the parser-proven non-null id invariant without an unreachable fallback branch.
 - Deterministic WebDriver BiDi primary-button click serialization for an already admitted remote node: it emits one fixed `input.performActions` mouse sequence from bounded command/context/node identifiers and remains inert until a trusted adapter binds it to current session, origin, document, policy, and approval authority.
