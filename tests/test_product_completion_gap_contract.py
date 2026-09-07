@@ -185,8 +185,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(
-            text, "#### Published status-response repair: 04:45 UTC",
-            "#### Published semantic-action adoption: 04:11 UTC",
+            text, "#### Published session-end reply binding: 05:35 UTC",
+            "#### Published status-response repair: 04:45 UTC",
         )
         roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
         self.assertEqual(len(roots), 1)

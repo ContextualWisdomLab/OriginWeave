@@ -8,6 +8,54 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-07
 
+#### Published session-end reply binding: 05:35 UTC
+
+The refreshed five-page inventory contains **125 open pull requests: 12 Ready/non-draft
+and 113 Draft; 14 open non-PR issues**, with zero unresolved review threads and no
+pagination gaps. All Ready candidates remain BLOCKED. Protected main remains
+`87c4daa1830bac5a5228b6036752ad5633232085`; no tags or releases exist. Active ruleset
+`18156473` requires one counted approval and seven central workflows; the author
+remains the only listed collaborator. This reviewer-provisioning gap permits no bypass.
+
+Ready roots: #37, #50, #166, #219, #220, #229, #238, #240, #272, #274, #285, #287.
+
+| Owner | Publication | Exact head | Parent | Local coverage (F/L/R/B) |
+| --- | --- | --- | --- | --- |
+| #251 | Published; Draft | [`924ad975`](https://github.com/ContextualWisdomLab/OriginWeave/commit/924ad97551750d4a901ded38b89488cc5438e54f) | #250 `bbdc6ace` | 1057/10840/13873/1194 |
+| #252 | Published; Draft | [`363a78e3`](https://github.com/ContextualWisdomLab/OriginWeave/commit/363a78e36e7690e9ed5bf49829567e00e2ec5d59) | #251 `924ad975` | 1064/10898/13947/1194 |
+
+Both heads passed all four coverage dimensions at 100%, 142 Python contracts,
+compileall and full stable Rust formatting, check, tests, strict Clippy and
+dependency-inclusive warnings-denied rustdoc. Actual Edge inspection covered the
+rendered APIs, the end-response link to its sealed-reply type, and published commits.
+Independent source review found no actionable findings; it is not counted approval.
+
+#251 preserves its sender and original tests while adopting status-reply safeguards.
+#252 reproduced replacement end-reply acceptance before and after parent adoption,
+then reused connection-bound registration and sealed reply correlation. Replacement
+success and error replies now leave the original request pending, and its original
+reply can still complete it. The fixtures use retained receipts after separate
+listener servers finish: they do not establish same-endpoint or live-stream recovery,
+browser shutdown, profile cleanup or protected delivery.
+
+Coverage artifact SHA-256 for #251 is
+`5cbb52b50b5740a22d269490f6296380d4b53bbe61ceae632376f6de63ff1054`;
+for #252 it is `9f2249637f31916acf9874baec724ddedfe621e5b14fdb6f4bd850620e89f307`.
+Exact-head CI `34085877650` (Rust `101629699915`, coverage `101629699750`) and
+`34087239755` (Rust `101633511589`, coverage `101633511320`) are queued.
+Local verification is not hosted acceptance. Both source writer leases are released.
+
+Next, safe successor #255 must adopt #252 while preserving its stronger closure
+provenance; #253/#254 remain open and are not safe intermediate prerequisites.
+New issue #292 owns version-pinned browser presentation evidence after #229; its
+requested implementation and real-browser acceptance remain unverified. Existing
+release, runtime, extraction, API and enterprise gaps remain open. Automatic package
+publishing is still unattempted: the protected package disables publication, no
+Python package or registry-publishing workflow exists, and release evidence plus an
+explicit version decision are required. Secret metadata is not release readiness;
+organization key availability remains unverified. No gates or credentials changed.
+Earlier checkpoints remain unchanged historical evidence.
+
 #### Published status-response repair: 04:45 UTC
 
 The refreshed five-page inventory contains **125 open pull requests: 12 Ready/non-draft
