@@ -129,8 +129,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         current = bounded_section(
-            text, "#### Published response and observation: 01:45 UTC",
-            "#### Published input descendants: 00:40 UTC",
+            text, "#### Published observation safeguards: 03:00 UTC",
+            "#### Published response and observation: 01:45 UTC",
         )
         roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
         self.assertEqual(len(roots), 1)
@@ -207,6 +207,37 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "outbound session binding", "protected-main asset", "not product-browser acceptance",
         ):
             self.assertIn(marker, current)
+
+    def test_observation_safeguards_bind_each_published_owner(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published observation safeguards: 03:00 UTC",
+            "#### Published response and observation: 01:45 UTC",
+        )
+        for owner, head, parent, coverage in (
+            (270, "8eda96915dbbe4cc617f834267c7464689c2844d", "3df2a631", "1346/14113/17928/1464"),
+            (271, "b0410ae92bd20eaf31d09b7d49390e13cb045999", "8eda9691", "1393/14770/18899/1546"),
+        ):
+            row = active_pr_row(current, owner)
+            for marker in ("Published; Draft", parent, coverage, f"/commit/{head}"):
+                self.assertIn(marker, row)
+        for marker in (
+            "29cd0d66", "14efb678", "148 Python", "34076117534", "34077987302",
+            "queued", "actual visual inspection", "not product-browser acceptance",
+            "original connection", "status receipts", "#195/#279",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_rows_cannot_replace_observation_safeguards(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(text, "#### Published observation safeguards: 03:00 UTC", "#### Published response and observation: 01:45 UTC")
+        for owner in (270, 271):
+            row = active_pr_row(current, owner)
+            for replacement in ("", row.replace("Published; Draft", "Local only; Draft")):
+                mutated = text.replace(row, replacement, 1) + "\nHistorical evidence:\n" + row
+                with patch.object(pathlib.Path, "read_text", return_value=mutated):
+                    with self.assertRaises(AssertionError):
+                        self.test_observation_safeguards_bind_each_published_owner()
 
     def test_response_observation_checkpoint_binds_each_published_owner(self) -> None:
         current = bounded_section(

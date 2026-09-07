@@ -91,8 +91,8 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertIn("on 2026-09-05", refresh_line)
         current = bounded_section(
             self.baseline,
+            "#### Published observation safeguards: 03:00 UTC",
             "#### Published response and observation: 01:45 UTC",
-            "#### Published input descendants: 00:40 UTC",
         )
         queue_counts = re.findall(
             r"\*\*(\d+) open pull requests: (\d+) Ready/non-draft and (\d+) Draft; "
