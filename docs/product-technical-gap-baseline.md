@@ -10,8 +10,9 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 #### Published response and observation: 01:45 UTC
 
-The fresh five-page inventory still contains **125 open PRs: 12 Ready and 113 Draft**,
-13 open issues and zero unresolved review threads. All Ready candidates remain BLOCKED.
+The fresh five-page inventory still contains **125 open pull requests: 12 Ready/non-draft
+and 113 Draft; 13 open non-PR issues**, with zero unresolved review threads.
+All Ready candidates remain BLOCKED.
 Main remains `87c4daa1830bac5a5228b6036752ad5633232085`; there are no tags or releases.
 Active ruleset `18156473` requires one counted approval and seven central workflows;
 the sole collaborator is the author. No advisory review is counted as that approval.
