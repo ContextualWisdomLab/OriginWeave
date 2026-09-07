@@ -12,6 +12,14 @@ SOURCE = ROOT / "crates/originweave-network/src/webdriver_bidi_command_correlati
 class CommandCorrelationDocumentationTests(unittest.TestCase):
     """Enforce the correlation-owned release record without constraining other entries."""
 
+    def test_action_binding_keeps_registry_and_reply_provenance_separate(self) -> None:
+        """Node ownership must not be described as response-connection provenance."""
+        text = (ROOT / "docs/doctoring/browser-agent-protocols.md").read_text(encoding="utf-8")
+        paragraph = next(line for line in text.splitlines() if line.startswith("Semantic action binding retains"))
+        self.assertIn("same registry identity as admitted-node minting and typed-command validation", paragraph)
+        self.assertIn("reply provenance remains independently connection-bound", paragraph)
+        self.assertNotIn("same registry identity as transport provenance", paragraph)
+
     def test_command_correlation_release_record_matches_public_boundary(self) -> None:
         """The release record must retain its resource, provenance and authority bounds."""
         changelog = CHANGELOG.read_text(encoding="utf-8")

@@ -89,7 +89,6 @@ fn read_response_text(
         _ => Err(io::Error::other("fixture expected a complete text response").into()),
     }
 }
-
 #[test]
 fn replacement_connection_cannot_complete_text_observation() -> Result<(), Box<dyn Error>> {
     for payload in [
