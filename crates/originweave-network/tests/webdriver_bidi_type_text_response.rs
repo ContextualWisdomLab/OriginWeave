@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     io::{self, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
     thread,
     time::Duration,
 };
@@ -15,10 +15,13 @@ use originweave_core::{
     WebDriverBiDiRemoteNodeReference, WebDriverBiDiTypeTextCommand, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResult,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, send_webdriver_bidi_type_text,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResponseError,
+    WebDriverBiDiTypeTextResult, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
+    send_webdriver_bidi_type_text,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -26,6 +29,8 @@ const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const TYPE_TEXT_SUCCESS_RESPONSE: &[u8] =
     br#"{"type":"success","id":42,"result":{"vendorExtension":{"observed":false}}}"#;
+const TYPE_TEXT_ERROR_RESPONSE: &[u8] =
+    br#"{"type":"error","id":42,"error":"invalid argument","message":"rejected"}"#;
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
     OriginWeaveProtocolVersion::new(0, 1);
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
@@ -37,6 +42,93 @@ type AdmittedTypeTextFixture = (
     AdmittedNodeHandle,
     WebDriverBiDiRemoteNodeReference,
 );
+
+fn establish_response_connection(
+    local_addr: SocketAddr,
+) -> Result<WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    Ok(WebDriverBiDiWebSocketHandshakePlan::new(
+        connection,
+        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+    )?
+    .write_opening_request(Duration::from_millis(500))?
+    .read_opening_response(Duration::from_millis(500))?)
+}
+
+fn read_response_text(
+    established: WebDriverBiDiWebSocketEstablished,
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => Ok(message),
+        _ => Err(io::Error::other("fixture expected a complete text response").into()),
+    }
+}
+
+#[test]
+fn replacement_socket_cannot_complete_text_input() -> Result<(), Box<dyn Error>> {
+    for payload in [TYPE_TEXT_SUCCESS_RESPONSE, TYPE_TEXT_ERROR_RESPONSE] {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> {
+            let (mut first, _) = listener.accept()?;
+            read_opening_request(&mut first)?;
+            first.write_all(OPENING_RESPONSE)?;
+            let command = read_masked_text_frame(&mut first)?;
+            assert!(command.starts_with(br#"{"id":42,"method":"input.performActions""#));
+            let (mut second, _) = listener.accept()?;
+            read_opening_request(&mut second)?;
+            second.write_all(OPENING_RESPONSE)?;
+            write_text_frame(&mut second, payload)?;
+            write_text_frame(&mut first, TYPE_TEXT_SUCCESS_RESPONSE)
+        });
+        let (registry, handle, remote) = admitted_type_text_fixture()?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        correlation.register_command_for(43, WebDriverBiDiCommandKind::SessionStatus)?;
+        let first = send_webdriver_bidi_type_text(
+            typed_input_proof()?,
+            42,
+            "context-a",
+            "Quarterly review",
+            &handle,
+            &remote,
+            &registry,
+            establish_response_connection(local_addr)?,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+            Duration::from_millis(500),
+        )?;
+        assert_eq!(correlation.outstanding_count(), 2);
+        let foreign = read_response_text(establish_response_connection(local_addr)?)?;
+        let rejected = WebDriverBiDiTypeTextResult::parse_and_correlate(&foreign, &mut correlation);
+        let original = read_response_text(first)?;
+        server
+            .join()
+            .map_err(|_| io::Error::other("response server panicked"))??;
+        assert!(
+            matches!(
+                rejected,
+                Err(WebDriverBiDiTypeTextResponseError::Correlation {
+                    source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                        command_id: 42,
+                    },
+                })
+            ),
+            "replacement socket must not acknowledge the original request: {rejected:?}"
+        );
+        assert_eq!(correlation.outstanding_count(), 2);
+        let result = WebDriverBiDiTypeTextResult::parse_and_correlate(&original, &mut correlation)?;
+        assert_eq!(result.command_id(), 42);
+        assert_eq!(correlation.outstanding_count(), 1);
+    }
+    Ok(())
+}
 
 fn protocol_proof(
     capability: BrowserProtocolCapability,
@@ -176,6 +268,16 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 #[test]
 fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(), Box<dyn Error>> {
+    assert_sent_response(TYPE_TEXT_SUCCESS_RESPONSE)
+}
+
+#[test]
+fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<(), Box<dyn Error>>
+{
+    assert_sent_response(TYPE_TEXT_ERROR_RESPONSE)
+}
+
+fn assert_sent_response(payload: &'static [u8]) -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let (registry, handle, remote) = admitted_type_text_fixture()?;
@@ -202,7 +304,7 @@ fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(),
                 "unexpected input.performActions text-input command",
             ));
         }
-        write_text_frame(&mut stream, TYPE_TEXT_SUCCESS_RESPONSE)
+        write_text_frame(&mut stream, payload)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -234,19 +336,24 @@ fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(),
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
-        other => {
-            return Err(io::Error::other(format!(
-                "text-input response produced unexpected assembly state: {other:?}"
-            ))
-            .into());
-        }
-    };
-    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)?;
-    assert_eq!(result.command_id(), 42);
+    let text = read_response_text(established)?;
+    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation);
+    if payload == TYPE_TEXT_SUCCESS_RESPONSE {
+        assert_eq!(result?.command_id(), 42);
+    } else {
+        let error = result
+            .err()
+            .ok_or_else(|| io::Error::other("remote error accepted as success"))?;
+        assert!(matches!(
+            error,
+            WebDriverBiDiTypeTextResponseError::RemoteProtocolError { command_id: 42 }
+        ));
+        assert_eq!(
+            error.to_string(),
+            "WebDriver BiDi text-input returned a protocol error"
+        );
+        assert!(error.source().is_none());
+    }
     assert_eq!(correlation.outstanding_count(), 0);
 
     server
