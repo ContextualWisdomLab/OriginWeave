@@ -11,9 +11,9 @@
 //! complete local-end JSON envelopes, tracks bounded command-response correlation,
 //! transports narrowly typed pointer-click and node-bound non-secret text-input
 //! actions and fixed sandboxed text-value observations, admits typed correlated
-//! protocol responses and text-value comparisons, requires exact equality before
-//! positive text-value post-condition evidence, sends a context-bound
-//! committed-navigation subscription and retains
+//! protocol responses, binds positive text-value evidence to a sender-minted
+//! acknowledged typed-input intent, sends a context-bound committed-navigation
+//! subscription and retains
 //! its typed bounded correlated identifier, binds navigation-event admission to
 //! that active command/receipt lifecycle with bounded fail-closed navigation replay
 //! prevention, explicitly unsubscribes that exact
@@ -55,6 +55,7 @@ mod webdriver_bidi_session_teardown;
 mod webdriver_bidi_text_value_observation_response;
 mod webdriver_bidi_text_value_observation_transport;
 mod webdriver_bidi_text_value_postcondition;
+mod webdriver_bidi_type_text_intent;
 mod webdriver_bidi_type_text_response;
 mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
@@ -164,6 +165,11 @@ pub use webdriver_bidi_text_value_observation_transport::{
 pub use webdriver_bidi_text_value_postcondition::{
     WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError,
     verify_webdriver_bidi_text_value_postcondition,
+};
+pub use webdriver_bidi_type_text_intent::{
+    WebDriverBiDiAcknowledgedTypeTextIntent, WebDriverBiDiTypeTextIntentAcknowledgementError,
+    WebDriverBiDiTypeTextIntentWitness, acknowledge_webdriver_bidi_type_text_intent,
+    send_webdriver_bidi_type_text_with_postcondition_intent,
 };
 pub use webdriver_bidi_type_text_response::{
     WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,

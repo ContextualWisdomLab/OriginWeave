@@ -1,5 +1,7 @@
 #[path = "support/text_observation.rs"]
 mod text_observation;
+#[path = "support/type_text_intent.rs"]
+mod type_text_intent;
 
 use std::{
     error::Error,
@@ -99,6 +101,8 @@ fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiReceivedTextMessag
 
 #[test]
 fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn Error>> {
+    let acknowledged_intent =
+        type_text_intent::acknowledged_type_text_intent(42, "expected")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let response = text_observation::receive_command_responses(
         &[
@@ -106,9 +110,13 @@ fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn
         ], 70, &mut correlation,
     )?.remove(0);
 
-    let verified =
-        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)?;
+    let verified = verify_webdriver_bidi_text_value_postcondition(
+        &response,
+        acknowledged_intent,
+        &mut correlation,
+    )?;
 
+    assert_eq!(verified.type_text_command_id(), 42);
     assert_eq!(verified.command_id(), 70);
     assert_eq!(verified.observed_text_bytes(), "expected".len());
     assert_eq!(correlation.outstanding_count(), 0);
@@ -118,6 +126,8 @@ fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn
 
 #[test]
 fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), Box<dyn Error>> {
+    let acknowledged_intent =
+        type_text_intent::acknowledged_type_text_intent(43, "expected")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let response = text_observation::receive_command_responses(
         &[
@@ -125,9 +135,11 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
         ], 71, &mut correlation,
     )?.remove(0);
 
-    let Err(error) =
-        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
-    else {
+    let Err(error) = verify_webdriver_bidi_text_value_postcondition(
+        &response,
+        acknowledged_intent,
+        &mut correlation,
+    ) else {
         return Err(io::Error::other(
             "a mismatched page value must not be returned as successful postcondition evidence",
         )
@@ -137,6 +149,7 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
     assert!(matches!(
         &error,
         WebDriverBiDiTextValuePostconditionError::PostconditionMismatch {
+            type_text_command_id: 43,
             command_id: 71,
             observed_text_bytes: 10,
         }
@@ -144,7 +157,7 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
     assert_eq!(correlation.outstanding_count(), 0);
     assert_eq!(
         error.to_string(),
-        "WebDriver BiDi text-value postcondition did not match the authorized expected text"
+        "WebDriver BiDi text-value postcondition did not match the acknowledged typed-input intent"
     );
     assert!(error.source().is_none());
     let debug = format!("{error:?}");
@@ -156,13 +169,17 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
 #[test]
 fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
 -> Result<(), Box<dyn Error>> {
+    let acknowledged_intent =
+        type_text_intent::acknowledged_type_text_intent(44, "expected")?;
     let response = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(72, WebDriverBiDiCommandKind::TextValueObservation)?;
 
-    let Err(error) =
-        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
-    else {
+    let Err(error) = verify_webdriver_bidi_text_value_postcondition(
+        &response,
+        acknowledged_intent,
+        &mut correlation,
+    ) else {
         return Err(io::Error::other("malformed observation must fail closed").into());
     };
 
@@ -181,15 +198,19 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
 
 #[test]
 fn unrelated_outstanding_command_cannot_certify_text_postcondition() -> Result<(), Box<dyn Error>> {
+    let acknowledged_intent =
+        type_text_intent::acknowledged_type_text_intent(45, "expected")?;
     let response = receive_server_text(
         br#"{"type":"success","id":73,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(73, WebDriverBiDiCommandKind::SessionStatus)?;
 
-    let Err(error) =
-        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
-    else {
+    let Err(error) = verify_webdriver_bidi_text_value_postcondition(
+        &response,
+        acknowledged_intent,
+        &mut correlation,
+    ) else {
         return Err(io::Error::other(
             "an unrelated outstanding command id must not certify a text-value postcondition",
         )
