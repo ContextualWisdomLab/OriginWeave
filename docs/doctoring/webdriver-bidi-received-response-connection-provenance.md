@@ -55,8 +55,8 @@ preserves real matched remote-error consumption, extensible success, malformed a
 unknown-envelope rejection, family isolation and missing-provenance rejection.
 These are local source/test observations, not hosted acceptance or observed field
 mutation. At predecessor `35cb1197`, pointer and status consumers had not adopted
-this boundary. The later parent adoption recorded above includes the pointer
-consumer; status response adoption remains separate work.
+this boundary. The later [parent adoption](../traceability/action-postcondition-evidence.md#text-responses-retain-pointer-safeguards--2026-09-07)
+includes the pointer consumer; status response adoption remains separate work.
 
 ### Pointer-click child integration
 
