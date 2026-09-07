@@ -13,6 +13,8 @@ class AgentMaintenanceLessonsTests(unittest.TestCase):
             "cargo doc --workspace",
             "open the link destinations",
             "original connection can still complete",
+            "public integration path",
+            "Do not weaken coverage exclusions",
         ):
             with self.subTest(instruction=instruction):
                 self.assertIn(instruction, text)

@@ -16,6 +16,34 @@ BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 class ProductCompletionGapContractTests(unittest.TestCase):
     """Keep the exact repository snapshot and completion tracks reviewable."""
 
+    def test_status_repair_checkpoint_binds_published_evidence(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published status-response repair: 04:45 UTC",
+            "#### Published semantic-action adoption: 04:11 UTC",
+        )
+        for marker in (
+            "bbdc6ace7a5932adf24836700f806850e6b230bc",
+            "Published; Draft",
+            "1043/10711/13717/1188",
+            "34084134654",
+            "e1fccefc6b56eabe653ae41377fbcec0aa89b4be1ada92dba73d3ef87e841029",
+            "not hosted acceptance",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+
+    def test_historical_evidence_cannot_replace_status_repair(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(
+            text, "#### Published status-response repair: 04:45 UTC",
+            "#### Published semantic-action adoption: 04:11 UTC",
+        )
+        stale = text.replace(current, current.replace("Published; Draft", "Local only"), 1)
+        with patch.object(pathlib.Path, "read_text", return_value=stale + current):
+            with self.assertRaises(AssertionError):
+                self.test_status_repair_checkpoint_binds_published_evidence()
+
     def test_current_snapshot_checks_do_not_route_by_phrase_substrings(self) -> None:
         """Current-snapshot assertions must not depend on count-word substrings."""
         source = pathlib.Path(__file__).read_text(encoding="utf-8")
