@@ -25,6 +25,22 @@ const STATUS_RESPONSE_MISSING_READY: &[u8] =
     br#"{"type":"success","id":7,"result":{"message":"capacity available"}}"#;
 const STATUS_RESPONSE_EMPTY_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
 
+#[test]
+fn teardown_stack_rejects_replacement_status_reply_and_preserves_original_request()
+-> Result<(), Box<dyn Error>> {
+    let (original, mut pending) = send_status_and_read_response(STATUS_RESPONSE)?;
+    let (replacement, _) = send_status_and_read_response(STATUS_RESPONSE)?;
+    assert!(
+        WebDriverBiDiSessionStatusResult::parse_and_correlate(&replacement, &mut pending).is_err(),
+        "a replacement status reply must not complete the original request"
+    );
+    assert_eq!(pending.outstanding_count(), 1);
+    let result = WebDriverBiDiSessionStatusResult::parse_and_correlate(&original, &mut pending)?;
+    assert_eq!(result.command_id(), 7);
+    assert_eq!(pending.outstanding_count(), 0);
+    Ok(())
+}
+
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
