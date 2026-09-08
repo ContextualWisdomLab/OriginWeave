@@ -4,12 +4,34 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+### Changed
+
+- Browser transport shutdown rejects the client-only Close status 1010 when received from a server, before sending a reply or recording completion; server status 1011 remains supported.
+
+- Browser transport shutdown now handles repeated keepalive traffic within one time budget, using a separate supplied key for each reply and rejecting exhausted keys or excess traffic without reporting completion.
+
+- Browser transport shutdown rejects unassigned protocol close codes before replying or recording completion; application and private-use code ranges remain supported.
+
+- Browser transport shutdown now shares one time budget across control replies and final connection closure; late closure cannot become successful completion evidence.
+
+- Restored the simple frame-timeout validation after correcting coverage diagnosis; direct Close-writer tests verify invalid deadlines send no bytes and return the expected error.
+- Kept exact invalid-deadline error checks without compound test-only guards in the coverage measurement.
+- Verified literal masked Close bytes with and without a status code, and that a reused masking key emits no Close bytes after the preceding text frame.
+- Corrected three masking-rejection test peers so unrelated socket errors cannot masquerade as key-reuse protection; each now verifies the preceding frame, the exact rejection, and no subsequent bytes.
+
+- Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
+- Integrated the current teardown prerequisites into transport-closure observation, including the previously uncollected release-record check, while retaining the unresolved connection-provenance finding and its downstream repair ownership.
+- Integrated the verified opening-exchange and closure prerequisites into the connection-bound response repair, preserving its sender, receiver and closure provenance checks while restoring the inherited executable release contract; process and profile cleanup remain unproven.
+
 ### Added
 
 - Session-ending replies from a replacement connection can no longer complete the original pending request. The original reply remains usable, and a protocol acknowledgment still does not prove browser shutdown or cleanup.
 - The session-ending command stack now retains the status-reply protections from its current parent. A reply from a replacement connection is rejected while the original pending status request remains recoverable; sending the end command still does not prove that the browser session ended.
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.
+- Fail-closed `session.end` teardown assessment that binds only the typed observation produced by consuming the exact transport, keeps browser-process-exit and task-profile-removal evidence unavailable until their runtime owners exist, and therefore cannot report operational completion from caller-supplied booleans.
+- Bounded WebDriver BiDi transport-closure observation that consumes the established stream, accepts only a validated peer Close frame or clean pre-frame EOF, permits at most one unsolicited Pong, and keeps transport closure separate from process-exit and profile-cleanup claims.
+
 - Regression checks now exercise fragmented browser replies, interleaved control messages, and rejected replies without losing a pending request. These checks do not establish browser readiness or release acceptance.
 - The typed browser-status response stack now includes its verified command and opening-exchange prerequisites, including the release-record check that previously did not execute; parsing remains bounded and does not grant browser authority or prove operational readiness.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
@@ -62,6 +84,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried current response prerequisites and the executable release-record check into the teardown-assessment stack; caller-supplied cleanup claims remain unverified and cannot establish operational acceptance.
 - Carried verified command prerequisites and the executable release-record check into session-end response validation without changing response admission or treating an acknowledgment as proof of resource cleanup.
 - Carried the verified status-response prerequisites into the session-end sender, preserving its command behavior and making the inherited release-record check execute in the existing test suite.
 - Kept the `session.status` frame-failure coverage contract focused on observable correlation state, avoiding assertion-internal uncovered branches without weakening preflight retirement or ambiguous-write retention checks.

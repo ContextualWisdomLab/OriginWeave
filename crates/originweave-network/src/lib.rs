@@ -7,10 +7,14 @@
 //! `originweave-core` into one bounded exact TCP connection, binds and validates
 //! the RFC 6455 opening exchange, provides bounded masked client writes and
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
-//! classifies complete local-end JSON envelopes, tracks bounded command-response
-//! correlation, sends narrowly typed `session.status` and `session.end` commands,
-//! and admits typed correlated status and end responses without exposing generic
-//! JSON bodies or granting browser, TLS, policy, secret, or Agent authority.
+//! binds received fragmented text to one exact verified connection, classifies
+//! complete local-end JSON envelopes, tracks bounded command-response correlation,
+//! sends narrowly typed `session.status` and `session.end` commands, admits typed
+//! correlated status and end responses, binds `session.end` ACK and closure evidence
+//! to one private process-local connection generation, observes bounded peer Close
+//! or clean-EOF transport cessation, and keeps protocol/transport evidence separate
+//! from explicit operational teardown observations without exposing generic JSON
+//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -24,13 +28,23 @@ mod webdriver_bidi_session_end_command;
 mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
+mod webdriver_bidi_session_teardown;
 mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
 mod webdriver_bidi_websocket_opening_recovery;
+mod webdriver_bidi_websocket_transport_closure;
 
 #[cfg(test)]
 mod webdriver_bidi_json_envelope_public_boundary_tests;
+
+// LLVM coverage keeps the crate unit-test instantiation separate from integration-test binaries,
+// so compile the same realistic 1010/1011 loopback contract here instead of maintaining a copy.
+#[cfg(test)]
+extern crate self as originweave_network;
+#[cfg(test)]
+#[path = "../tests/webdriver_bidi_transport_close_role_validation.rs"]
+mod webdriver_bidi_transport_close_role_validation_unit;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
@@ -67,6 +81,10 @@ pub use webdriver_bidi_session_status_response::{
     MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE, WebDriverBiDiSessionStatusResponseError,
     WebDriverBiDiSessionStatusResult,
 };
+pub use webdriver_bidi_session_teardown::{
+    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
+    WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
+};
 pub use webdriver_bidi_websocket_frame::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrame,
@@ -86,3 +104,7 @@ pub use webdriver_bidi_websocket_message::{
     WebDriverBiDiWebSocketTextMessage,
 };
 pub use webdriver_bidi_websocket_opening_recovery::WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition;
+pub use webdriver_bidi_websocket_transport_closure::{
+    WebDriverBiDiWebSocketTransportClosureError, WebDriverBiDiWebSocketTransportClosureKind,
+    WebDriverBiDiWebSocketTransportClosureObservation,
+};

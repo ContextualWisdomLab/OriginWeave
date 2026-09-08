@@ -284,6 +284,29 @@ impl WebDriverBiDiWebSocketEstablished {
         write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
     }
 
+    /// Write one final masked RFC 6455 Close response on this verified stream.
+    ///
+    /// This crate-private operation is used only after the frame reader has validated a peer Close.
+    /// It echoes only the validated status code when one was present and deliberately does not replay
+    /// arbitrary peer reason text. The caller supplies fresh masking entropy; the same adjacent-key
+    /// guard used by all client frame writers remains in force.
+    pub(crate) fn write_close_frame(
+        mut self,
+        peer_close_status_code: Option<u16>,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        validate_frame_timeout(frame_timeout)?;
+        self.client_mask_keys.reserve(masking_key)?;
+        let status_bytes = peer_close_status_code.map(u16::to_be_bytes);
+        let payload = status_bytes
+            .as_ref()
+            .map_or(&[][..], |bytes| bytes.as_slice());
+        let frame = serialize_client_frame(0x8, payload, masking_key);
+        let mut now = Instant::now;
+        write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
+    }
+
     /// Read one bounded RFC 6455 frame from this verified stream.
     ///
     /// Server frames must be unmasked. Reserved bits/opcodes, non-minimal lengths, oversized
@@ -469,7 +492,9 @@ impl Error for WebDriverBiDiWebSocketFrameError {
     }
 }
 
-fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
+pub(crate) fn validate_frame_timeout(
+    frame_timeout: Duration,
+) -> Result<(), WebDriverBiDiWebSocketFrameError> {
     if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
         return Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
             frame_timeout,
@@ -788,7 +813,7 @@ fn validate_close_frame(
         });
     }
     let status_code = u16::from_be_bytes([frame.payload()[0], frame.payload()[1]]);
-    if !(1000..=4999).contains(&status_code) || matches!(status_code, 1004 | 1005 | 1006 | 1015) {
+    if !(1000..=4999).contains(&status_code) || matches!(status_code, 1004..=1006 | 1015..=2999) {
         return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
             reason: "Close frame status code is not valid on the wire",
         });
@@ -802,6 +827,128 @@ mod tests {
     use std::collections::VecDeque;
 
     use super::*;
+
+    #[test]
+    fn close_writer_checks_deadlines_masks_and_exact_wire_bytes() {
+        use crate::WebDriverBiDiTcpConnectionPlan;
+        use originweave_core::WebDriverBiDiWebSocketEndpoint;
+        use std::net::{TcpListener, TcpStream};
+        use std::thread;
+
+        let excessive = MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1);
+        for (timeout, status, seed_text, expected_bytes, expected_result) in [
+            (
+                Duration::ZERO,
+                Some(1000),
+                false,
+                vec![],
+                Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                    frame_timeout: Duration::ZERO,
+                    maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                }),
+            ),
+            (
+                excessive,
+                Some(1000),
+                false,
+                vec![],
+                Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                    frame_timeout: excessive,
+                    maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                }),
+            ),
+            (
+                Duration::from_secs(1),
+                Some(1000),
+                false,
+                vec![0x88, 0x82, 1, 2, 3, 4, 2, 0xea],
+                Ok(()),
+            ),
+            (
+                Duration::from_secs(1),
+                None,
+                false,
+                vec![0x88, 0x80, 1, 2, 3, 4],
+                Ok(()),
+            ),
+            (
+                Duration::from_secs(1),
+                Some(1000),
+                true,
+                vec![0x81, 0x82, 1, 2, 3, 4, 0x7a, 0x7f],
+                Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: REUSED_CLIENT_MASK_KEY_REASON,
+                }),
+            ),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind peer");
+            let address = listener.local_addr().expect("peer address");
+            let peer = thread::spawn(move || {
+                let (mut stream, _) = listener.accept().expect("accept client");
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .expect("bound peer read");
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0];
+                    stream.read_exact(&mut byte).expect("opening request");
+                    request.push(byte[0]);
+                }
+                stream.write_all(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n").expect("opening response");
+                let mut received = vec![0; expected_bytes.len()];
+                stream
+                    .read_exact(&mut received)
+                    .expect("expected client frame");
+                assert_eq!(received, expected_bytes);
+                let mut byte = [0];
+                assert_eq!(
+                    TcpStream::read(&mut stream, &mut byte).expect("client EOF"),
+                    0
+                );
+            });
+            let session = "01234567-89ab-cdef-0123-456789abcdef";
+            let endpoint =
+                WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{session}"))
+                    .expect("endpoint");
+            let target = endpoint
+                .correlate_session_id(session)
+                .expect("session")
+                .into_explicit_connect_target()
+                .expect("target");
+            let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)
+                .expect("plan")
+                .connect()
+                .expect("connect");
+            let key = crate::WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ==")
+                .expect("key");
+            let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)
+                .expect("handshake")
+                .write_opening_request(Duration::from_secs(1))
+                .expect("write opening")
+                .read_opening_response(Duration::from_secs(1))
+                .expect("read opening");
+            let established = if seed_text {
+                established
+                    .write_text_frame(
+                        "{}",
+                        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                        timeout,
+                    )
+                    .expect("seed text frame")
+            } else {
+                established
+            };
+            let result = established
+                .write_close_frame(
+                    status,
+                    WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                    timeout,
+                )
+                .map(drop);
+            assert_eq!(format!("{result:?}"), format!("{expected_result:?}"));
+            peer.join().expect("peer completed");
+        }
+    }
 
     #[derive(Clone, Debug)]
     enum ReadAction {
@@ -1310,16 +1457,30 @@ mod tests {
             payload: vec![0x03, 0xe8, 0xff],
         };
         assert!(validate_close_frame(&invalid_utf8).is_err());
-        for status in [999_u16, 1004, 1005, 1006, 1015, 5000] {
+        for status in [
+            0_u16,
+            999,
+            1004,
+            1005,
+            1006,
+            1015,
+            1016,
+            2000,
+            2999,
+            5000,
+            u16::MAX,
+        ] {
             let payload = status.to_be_bytes().to_vec();
             let frame = WebDriverBiDiWebSocketFrame {
                 fin: true,
                 opcode: 8,
                 payload,
             };
-            assert!(validate_close_frame(&frame).is_err());
+            assert!(validate_close_frame(&frame).is_err(), "status {status}");
         }
-        for status in [1000_u16, 3000, 4000] {
+        for status in [
+            1000_u16, 1003, 1007, 1011, 1012, 1013, 1014, 3000, 3999, 4000, 4999,
+        ] {
             let mut payload = status.to_be_bytes().to_vec();
             payload.extend_from_slice(b"ok");
             let frame = WebDriverBiDiWebSocketFrame {

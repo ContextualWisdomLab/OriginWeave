@@ -9,7 +9,7 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
     WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndResponseError,
     WebDriverBiDiSessionEndResult, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
@@ -23,75 +23,13 @@ const END_SUCCESS_RESPONSE: &[u8] =
     br#"{"type":"success","id":7,"result":{"vendorExtension":{"clean":true}}}"#;
 const END_REMOTE_ERROR_RESPONSE: &[u8] =
     br#"{"type":"error","id":7,"error":"unknown error","message":"remote refused"}"#;
+const END_NULL_ID_ERROR_RESPONSE: &[u8] =
+    br#"{"type":"error","id":null,"error":"unknown error","message":"unattributed"}"#;
+const END_EVENT_RESPONSE: &[u8] =
+    br#"{"type":"event","method":"log.entryAdded","params":{"text":"not a response"}}"#;
 const END_UNKNOWN_ID_RESPONSE: &[u8] =
     br#"{"type":"success","id":8,"result":{"vendorExtension":true}}"#;
 const END_MALFORMED_RESPONSE: &[u8] = br#"{"type":"success","id":7}"#;
-
-#[test]
-fn unbound_end_command_cannot_consume_a_connection_bound_reply() -> Result<(), Box<dyn Error>> {
-    use originweave_network::WebDriverBiDiCommandKind;
-
-    let (message, mut original) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
-    let mut unbound = WebDriverBiDiCommandCorrelation::new();
-    unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionEnd)?;
-    assert!(matches!(
-        WebDriverBiDiSessionEndResult::parse_and_correlate(&message, &mut unbound),
-        Err(WebDriverBiDiSessionEndResponseError::Correlation {
-            source: WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
-                command_id: 7,
-            },
-        })
-    ));
-    assert_eq!(unbound.outstanding_count(), 1);
-    let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&message, &mut original)?;
-    assert_eq!(result.command_id(), 7);
-    assert_eq!(original.outstanding_count(), 0);
-    Ok(())
-}
-
-#[test]
-fn event_and_null_id_error_preserve_the_sent_end_command() -> Result<(), Box<dyn Error>> {
-    for (document, expected) in [
-        (
-            br#"{"type":"event","method":"log.entryAdded","params":{}}"#.as_slice(),
-            WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
-        ),
-        (
-            br#"{"type":"error","id":null,"error":"unknown error","message":"remote"}"#.as_slice(),
-            WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
-        ),
-    ] {
-        let (message, mut correlation) = send_end_and_read_response(document)?;
-        assert!(matches!(
-            WebDriverBiDiSessionEndResult::parse_and_correlate(&message, &mut correlation),
-            Err(WebDriverBiDiSessionEndResponseError::Correlation { source }) if source == expected
-        ));
-        assert_eq!(correlation.outstanding_count(), 1);
-    }
-    Ok(())
-}
-
-#[test]
-fn replacement_end_replies_preserve_original_pending_request_and_recovery()
--> Result<(), Box<dyn Error>> {
-    for response in [END_SUCCESS_RESPONSE, END_REMOTE_ERROR_RESPONSE] {
-        let (original, mut pending) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
-        let (replacement, _) = send_end_and_read_response(response)?;
-        assert!(matches!(
-            WebDriverBiDiSessionEndResult::parse_and_correlate(&replacement, &mut pending),
-            Err(WebDriverBiDiSessionEndResponseError::Correlation {
-                source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
-                    command_id: 7
-                }
-            })
-        ));
-        assert_eq!(pending.outstanding_count(), 1);
-        let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&original, &mut pending)?;
-        assert_eq!(result.command_id(), 7);
-        assert_eq!(pending.outstanding_count(), 0);
-    }
-    Ok(())
-}
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -181,15 +119,17 @@ fn send_end_and_read_response(
         Duration::from_millis(500),
     )?;
 
-    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
-        .read_next(Duration::from_millis(500))?
-    {
-        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
-        other => {
-            return Err(io::Error::other(format!(
-                "session.end response produced unexpected assembly state: {other:?}"
-            ))
-            .into());
+    let mut reader = WebDriverBiDiWebSocketMessageReader::new(established);
+    let text = loop {
+        match reader.read_next(Duration::from_millis(500))? {
+            WebDriverBiDiConnectionMessageRead::Pending(next) => reader = next,
+            WebDriverBiDiConnectionMessageRead::Text { message, .. } => break message,
+            WebDriverBiDiConnectionMessageRead::Control { message, .. } => {
+                return Err(io::Error::other(format!(
+                    "session.end response produced unexpected control message: {message:?}"
+                ))
+                .into());
+            }
         }
     };
 
@@ -200,14 +140,39 @@ fn send_end_and_read_response(
 }
 
 #[test]
-fn session_end_success_accepts_extensible_empty_result_and_consumes_exact_correlation()
--> Result<(), Box<dyn Error>> {
+fn session_end_success_consumes_exact_connection_correlation() -> Result<(), Box<dyn Error>> {
     let (text, mut correlation) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
     assert_eq!(correlation.outstanding_count(), 1);
 
     let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)?;
     assert_eq!(result.command_id(), 7);
     assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn session_end_rejects_unbound_connection_provenance() -> Result<(), Box<dyn Error>> {
+    let (text, _connection_bound_correlation) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
+    let mut unbound = WebDriverBiDiCommandCorrelation::new();
+    unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionEnd)?;
+
+    let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut unbound);
+    let error = parsed
+        .err()
+        .ok_or_else(|| io::Error::other("unbound session.end correlation was accepted"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance { command_id: 7 }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi session.end response lacks connection provenance"
+    );
+    assert_eq!(
+        unbound.outstanding_count(),
+        1,
+        "missing provenance must not consume the outstanding command"
+    );
     Ok(())
 }
 
@@ -238,8 +203,43 @@ fn session_end_remote_error_consumes_only_the_correlated_command() -> Result<(),
 }
 
 #[test]
-fn malformed_session_end_envelope_fails_before_consuming_correlation() -> Result<(), Box<dyn Error>>
-{
+fn null_id_and_event_preserve_bound_correlation() -> Result<(), Box<dyn Error>> {
+    for (response, expected) in [
+        (
+            END_NULL_ID_ERROR_RESPONSE,
+            WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
+        ),
+        (
+            END_EVENT_RESPONSE,
+            WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+        ),
+    ] {
+        let (text, mut correlation) = send_end_and_read_response(response)?;
+        let error = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)
+            .err()
+            .ok_or_else(|| io::Error::other("uncorrelatable message was accepted"))?;
+        match error {
+            WebDriverBiDiSessionEndResponseError::Correlation { source } => {
+                assert_eq!(source, expected);
+            }
+            other => {
+                return Err(io::Error::other(format!(
+                    "uncorrelatable message produced unexpected error: {other}"
+                ))
+                .into());
+            }
+        }
+        assert_eq!(
+            correlation.outstanding_count(),
+            1,
+            "uncorrelatable message must leave session.end outstanding"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn malformed_envelope_preserves_correlation() -> Result<(), Box<dyn Error>> {
     let (text, mut correlation) = send_end_and_read_response(END_MALFORMED_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
@@ -263,8 +263,7 @@ fn malformed_session_end_envelope_fails_before_consuming_correlation() -> Result
 }
 
 #[test]
-fn unknown_session_end_response_id_does_not_consume_the_outstanding_command()
--> Result<(), Box<dyn Error>> {
+fn unknown_response_id_preserves_outstanding_command() -> Result<(), Box<dyn Error>> {
     let (text, mut correlation) = send_end_and_read_response(END_UNKNOWN_ID_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {

@@ -113,6 +113,27 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 - Run reasoning-effort and orchestration-depth ablations before claiming an LLM path is superior.
 - Scheduled agents may create bounded reviewed PRs but may not merge, tag, publish, alter workflows, add secrets, or weaken checks.
 
+### Coverage diagnosis lesson
+
+Keep generic wire-code validation separate from endpoint-role validation. For
+WebSocket Close, reject server-sent client-only 1010 in the client closure state
+machine before echoing it, and pair that RED case with valid server 1011 so a
+blanket rejection cannot satisfy the regression.
+
+Repeated control-frame support must preserve the total deadline and per-write masking authority. Supply a separate caller-owned key per Ping, consume none for unsolicited Pong, and keep the Close key independent. Test exact-budget success, budget overflow, exhausted keys, and reused keys with a peer that verifies no rejected reply. The 64-control budget is local resource policy, not an RFC limit.
+
+For Close-code validation, check the current IANA registry as well as RFC 6455: the protocol-reserved range is not an allowance for unassigned values. Keep application/private ranges separate, test assigned and reserved boundaries, and verify rejected peer codes produce neither an echo nor closure evidence. Record the registry date; future assignments need a reviewed update, not ambient network lookup during frame parsing.
+
+For a multi-step socket deadline, reproduce a sequence whose individual waits fit the limit but whose sum does not. Carry one monotonic expiry through every step and recheck before admitting final evidence. Pair real delayed-peer tests with a controlled clock at each read/write/evidence transition; a pre-I/O check alone cannot reject late completion. This is not a hard real-time host scheduling guarantee.
+
+Aggregate LLVM code regions by source coordinates across function instantiations before identifying a missing path. An invalid-input test at a public entry point may stop at an earlier guard; it does not prove a later private writer's error return executed. Exercise that writer directly, assert the exact error, and verify the peer received no bytes. Do not rewrite production predicates based only on a file-level coverage deficit.
+
+Coordinate union alone does not reproduce LLVM's region summary: `RegionCoverageInfo::merge` takes maximum covered/total counts across instantiations. Complementary unit-test and integration-test executions can therefore leave a deficit. Exercise successful status-bearing and empty Close writes, invalid deadlines, and adjacent masking-key rejection in the same unit-test binary; compare literal wire bytes and join the peer. Reference: LLVM Project. (n.d.). *CoverageSummaryInfo.h* [Source code]. https://github.com/llvm/llvm-project/blob/main/llvm/tools/llvm-cov/CoverageSummaryInfo.h
+
+Inspect uncovered coordinates inside test assertions too: guarded `matches!` expressions can contribute never-taken failure branches to the file summary. Preserve exact variant and field checks rather than broadening the accepted error to make coverage pass.
+
+Mask-reuse socket tests must consume the preceding text/Pong frame before sending the frame that triggers rejection. Assert the exact reuse error, literal preceding bytes, and EOF with no rejected response; propagate peer thread errors. A broad transport-error assertion plus an ignored join can pass because the peer rejected the fixture's own wrong opcode. An intervening fresh-key Pong also changes the adjacent-key history, so an older text key does not test adjacent Close-key reuse.
+
 ## Release contract
 
 A release requires all current-head checks, complete coverage and docs, updated `CHANGELOG.md`, SBOM and provenance, reproducible artifacts, compatibility evidence, security review, and an explicit version decision. Pre-alpha commits are not releases.

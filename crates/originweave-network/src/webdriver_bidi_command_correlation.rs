@@ -32,6 +32,25 @@ struct OutstandingCommand {
     connection_generation: Option<WebDriverBiDiConnectionGeneration>,
 }
 
+fn response_route(
+    envelope: &WebDriverBiDiJsonEnvelope,
+) -> Result<(u64, WebDriverBiDiCorrelatedResponseOutcome), WebDriverBiDiCommandCorrelationError> {
+    match envelope.routing() {
+        WebDriverBiDiJsonEnvelopeRouting::Event => {
+            Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
+        }
+        WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+            Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
+        }
+        WebDriverBiDiJsonEnvelopeRouting::CommandError {
+            command_id: Some(command_id),
+        } => Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Error)),
+        WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => {
+            Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Success))
+        }
+    }
+}
+
 /// Outcome of a response after it has consumed the matching outstanding command identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiCorrelatedResponseOutcome {
@@ -239,8 +258,26 @@ impl WebDriverBiDiCommandCorrelation {
         envelope: &WebDriverBiDiJsonEnvelope,
         expected_kind: WebDriverBiDiCommandKind,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        let (command_id, outcome) = response_route(envelope)?;
-        self.complete(command_id, expected_kind, outcome)
+        match envelope.routing() {
+            WebDriverBiDiJsonEnvelopeRouting::Event => {
+                Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+                Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError {
+                command_id: Some(command_id),
+            } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Error,
+            ),
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Success,
+            ),
+        }
     }
 
     pub(crate) fn correlate_response_for_connection(
@@ -314,25 +351,6 @@ impl WebDriverBiDiCommandCorrelation {
             outcome,
             connection_generation: Some(expected_connection_generation),
         })
-    }
-}
-
-fn response_route(
-    envelope: &WebDriverBiDiJsonEnvelope,
-) -> Result<(u64, WebDriverBiDiCorrelatedResponseOutcome), WebDriverBiDiCommandCorrelationError> {
-    match envelope.routing() {
-        WebDriverBiDiJsonEnvelopeRouting::Event => {
-            Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
-        }
-        WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
-            Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
-        }
-        WebDriverBiDiJsonEnvelopeRouting::CommandError {
-            command_id: Some(command_id),
-        } => Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Error)),
-        WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => {
-            Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Success))
-        }
     }
 }
 

@@ -18,6 +18,48 @@ UTS #39 Revision 32 is the current Unicode security-mechanisms standard and mark
 
 RFC 6455 carries the WebSocket opening handshake over HTTP/1.1, and RFC 9110 permits `obs-text` octets (`%x80-FF`) in field values while retaining ASCII field-name and delimiter syntax. RFC 6455 also specifies that unknown opening-handshake header fields are ignored. OriginWeave therefore treats unknown extension-field values as opaque compatibility data rather than requiring the entire opening response to be UTF-8, while keeping the authority-bearing `Upgrade`, `Connection`, and `Sec-WebSocket-Accept` checks fail closed: opaque replacement material cannot satisfy the reviewed ASCII token or exact accept-value contracts. Ignoring an unknown field never grants browser, network, secret, approval, or Agent authority. RFC 6455 section 5.3 additionally requires every client-to-server frame to use a fresh unpredictable 32-bit masking key derived from strong entropy. OriginWeave's frame owner enforces that normative masking requirement and also rejects immediate reuse of the preceding key as a local fail-closed stuck-randomness defense; the adjacent-reuse rule is stronger local policy, not an RFC 6455 requirement.
 
+### Transport closure deadline
+
+The experimental BiDi transport-closure observer applies one local operation-wide
+deadline across pre-Close control traffic, the masked Close response, and final TCP
+EOF. This is an OriginWeave resource policy, not an RFC 6455 timeout value. Each I/O
+step receives only the remaining budget, and final closure evidence is rejected if
+the monotonic deadline has expired. It prevents per-frame budget renewal without
+claiming a hard real-time bound on host scheduling or proving process exit/profile
+cleanup. Tests combine a delayed real peer with deterministic clock transitions.
+
+RFC 6455 sections 5.5.2–5.5.3 permit repeated Ping and unsolicited Pong traffic;
+a Ping response preserves its exact payload and an unsolicited Pong needs no reply.
+The closure observer now admits up to 64 pre-Close Ping/Pong frames under the same
+deadline. This count is a local resource budget, not a protocol limit. The caller
+supplies a borrowed masking-key slice consumed once per Ping and a separate Close
+key; no entropy provider or callback runs inside the observer. Missing keys fail
+before the corresponding response and the existing adjacent-key guard still applies.
+The unpublished `observe` API now accepts that slice instead of a single Pong key;
+all in-tree consumers are migrated. Boundary tests cover exactly 64 controls, the
+65th control, mixed Ping/Pong, exhaustion, and literal independently masked replies.
+
+### WebSocket Close code admission
+
+RFC 6455 section 7.4.2 reserves 1000–2999 for protocol and extension definitions.
+The IANA registry retrieved on 8 September 2026 lists 1016–2999 as unassigned;
+1012, 1013, and 1014 are assigned. The current adapter therefore rejects the
+unassigned protocol range alongside 1004–1006 and 1015, which cannot appear as
+ordinary wire status codes. It retains 3000–3999 for application codes and
+4000–4999 for private use without interpreting their meanings or treating them
+as proof of successful browser work. This is a reviewed static admission policy,
+not an online registry check. New protocol assignments require a reviewed update.
+The shared frame validator runs before role-specific handling. RFC 6455 section
+7.4.1 assigns status 1010 to clients and says servers do not use it, so the
+client-side transport-closure state machine rejects a peer 1010 before any
+Close echo or closure evidence. Server status 1011 remains admissible.
+
+Internet Assigned Numbers Authority. (2026). *WebSocket protocol registries*.
+Retrieved September 8, 2026, from https://www.iana.org/assignments/websocket
+
+Fette, I., & Melnikov, A. (2011). *The WebSocket protocol* (RFC 6455, §§ 7.4.1–7.4.2).
+Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -131,6 +173,18 @@ The #251 integration adopts #250 `ec433b844a121f8554c062f92267991af9cacb6f` by o
 ### Session-end response parent integration evidence
 
 PR #252 ordinarily adopts current command parent `f02af6d0dd01708d495cc08dec785675f3d58898` while preserving the response implementation, public exports and four real-loopback response tests from `2015259529ada99af836989079cc85a15779a2d8`. The pre-integration native loader again collected zero correlation release-record checks; adopting the existing parent TestCase makes that contract executable without a new framework or copied owner fix. Both sides of the changelog-only conflict are retained. The response boundary still validates the entire bounded envelope before consuming exact typed correlation, retains remote errors as failures and leaves malformed or mismatched responses unable to consume another command. The acknowledgment remains unbound to received-connection provenance in this layer and does not prove process exit, profile removal or operational teardown. Later connection-bound evidence belongs to its own owner stack; local quality results, hosted checks and protected delivery remain separate.
+
+### Teardown-assessment parent integration and acceptance limit
+
+PR #253 ordinarily adopts response parent `6569bf40b6595ac74c2f0a997d202137f07ba1db` and preserves its assessment implementation, public exports and existing loopback tests from `0d72082e595c0e1fcc03d609ba337896ed14e2fc`. Native release-record discovery first failed with zero collected checks; the canonical parent provides the existing executable TestCase and synchronized opening fixtures. Both changelog records remain. No new assessment API or runtime-evidence producer is introduced by this integration.
+
+The retained assessment still accepts three caller-supplied booleans and can label them `OperationallyComplete`; that calculation authenticates none of the observations and is not trusted operational-completion evidence. This known product gap remains open despite passing local structural tests or numerical coverage. The later #255 owner removes raw process/profile completion claims and binds received-response and closure provenance. That owner repair must remain intact when this dependency chain is integrated and independently reverified. No release or protected-main acceptance of caller claims is justified by this intermediate parent adoption.
+
+### Transport-closure parent integration and provenance limit
+
+PR #254 ordinarily adopts teardown parent `afb623e4449b7cbf926fdcef7225ceaca822cfcf` while retaining the closure implementation, exports and six loopback tests from `cbaf50dcc97753cc73135497ea8225e8b18de190`. The native correlation release-record contract first collected zero checks; the existing parent TestCase makes it execute. Both conflicting release records remain, and the synchronized opening fixtures are inherited without duplicating their repair.
+
+Review `5120077272` remains actionable: this intermediate closure value retains kind/status but no connection-generation identity, so it cannot prove that a particular acknowledged connection closed. The existing #255 owner carries and compares received-response and closure provenance and removes raw process/profile completion claims. Preserve that repair during subsequent integration; no local test or coverage result for this parent adoption establishes that the known provenance gap is fixed. The two-read closure envelope, rejection behavior and lack of reciprocal-handshake, process-exit or profile-removal proof are unchanged.
 
 ### Current session-end sender adoption of status-reply provenance
 
