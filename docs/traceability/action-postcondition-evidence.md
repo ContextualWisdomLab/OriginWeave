@@ -1,5 +1,24 @@
 # Action Post-Condition Evidence Traceability
 
+## Intent acknowledgment verification repair — 2026-09-08
+
+Exact #271 predecessor `14fb8e75` failed formatting and complete coverage in
+run `34151114820`. The remaining production gaps were confined to the intent
+acknowledgment boundary. Connection and command identity are checked before
+pending work can be consumed. The lower response owner uses that same validated
+envelope's identifier for its result, so a second identifier mismatch after
+successful correlation was unreachable and has been removed without weakening
+the pre-consumption check.
+
+Real loopback tests now exercise successful, malformed, event, null-id, remote-error,
+wrong-id and foreign-connection replies. Only a matching success or remote error
+retires the corresponding pending command; unrelated replies preserve pending work.
+Rejected input emits no command and mints no intent witness. Exact diagnostic
+comparisons retain only command identity and text length, never the input text or
+private connection generation. Shared helpers stay in integration tests; production
+provenance visibility is unchanged. Complete current-head verification is separate
+from browser outcome evidence, protected-parent acceptance and release readiness.
+
 ## Fixed field observation adopts current input safeguards — 2026-09-07
 
 Ordinary merge `f883fd6f` adopts #268 `ff27220c` while retaining #269

@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Strengthened text-entry acknowledgment checks with real-connection regression tests for unrelated replies, malformed responses and private diagnostics; removed a redundant check without changing pending-request protection.
+
 - Reject field-value replies received on a replacement connection, even when their request identifier and text match.
 
 - Reject field-observation requests on another browser session and preserve pending requests only when a write may have reached the peer.

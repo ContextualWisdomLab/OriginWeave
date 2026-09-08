@@ -20,8 +20,7 @@ use originweave_network::{
     WebDriverBiDiSessionStatusCommand, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
-    acknowledge_webdriver_bidi_type_text_intent,
-    send_webdriver_bidi_text_value_observation,
+    acknowledge_webdriver_bidi_type_text_intent, send_webdriver_bidi_text_value_observation,
     send_webdriver_bidi_type_text_with_postcondition_intent,
 };
 
@@ -44,6 +43,11 @@ type AcknowledgedObservationFixture = (
     WebDriverBiDiAcknowledgedTypeTextIntent,
     WebDriverBiDiReceivedTextMessage,
     WebDriverBiDiCommandCorrelation,
+);
+
+type EstablishedPeerFixture = (
+    originweave_network::WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<()>>,
 );
 
 fn protocol_proof(
@@ -71,11 +75,11 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     protocol_proof(BrowserProtocolCapability::SemanticObservation)
 }
 
-fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+pub fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     protocol_proof(BrowserProtocolCapability::TypedInput)
 }
 
-fn admitted_type_text_fixture() -> Result<AdmittedTypeTextFixture, Box<dyn Error>> {
+pub fn admitted_type_text_fixture() -> Result<AdmittedTypeTextFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let browser_session = registry.register_session(SESSION_ID)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
@@ -126,7 +130,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+pub fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
     if header[0] != 0x81 || header[1] & 0x80 == 0 {
@@ -162,7 +166,7 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
+pub fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     if payload.len() > 125 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -196,6 +200,20 @@ fn open_established_connection(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?)
+}
+
+pub fn established_with_peer_script(
+    script: impl FnOnce(&mut TcpStream) -> io::Result<()> + Send + 'static,
+) -> Result<EstablishedPeerFixture, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        script(&mut stream)
+    });
+    Ok((open_established_connection(local_addr)?, server))
 }
 
 pub fn acknowledged_type_text_intent(

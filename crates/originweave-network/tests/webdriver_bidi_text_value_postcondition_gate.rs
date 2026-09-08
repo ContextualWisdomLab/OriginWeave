@@ -1,5 +1,5 @@
 #[path = "support/type_text_intent.rs"]
-mod type_text_intent;
+pub mod type_text_intent;
 
 use std::{error::Error, io};
 

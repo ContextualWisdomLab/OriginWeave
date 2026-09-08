@@ -206,11 +206,8 @@ pub fn acknowledge_webdriver_bidi_type_text_intent(
         return Err(WebDriverBiDiTypeTextIntentAcknowledgementError::ResponseCommandMismatch);
     }
 
-    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(message, correlation)
+    WebDriverBiDiTypeTextResult::parse_and_correlate(message, correlation)
         .map_err(|source| WebDriverBiDiTypeTextIntentAcknowledgementError::Response { source })?;
-    if result.command_id() != witness.command_id {
-        return Err(WebDriverBiDiTypeTextIntentAcknowledgementError::ResponseCommandMismatch);
-    }
 
     Ok(WebDriverBiDiAcknowledgedTypeTextIntent {
         command_id: witness.command_id,
