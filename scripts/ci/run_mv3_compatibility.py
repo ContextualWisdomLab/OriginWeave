@@ -618,9 +618,7 @@ def _run_agent_task_browser_pass(
             _webdriver_path(session_id, "/url"),
         ).get("value")
         if initial_url != fixture_url:
-            raise RuntimeError(
-                f"Agent Task initial URL mismatch: expected {fixture_url!r}, got {initial_url!r}"
-            )
+            raise RuntimeError("Agent Task initial URL mismatch")
         input_element = _find_element(driver_port, session_id, "#task-text")
         input_role, input_name = _get_element_semantics(
             driver_port,
