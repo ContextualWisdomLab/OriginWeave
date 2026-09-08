@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs" / "product-technical-gap-baseline.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
+EVIDENCE_SCRIPT = ROOT / "scripts" / "ci" / "collect_live_merge_evidence.sh"
 
 
 def bounded(text: str, start: str, end: str) -> str:
@@ -26,12 +27,12 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.baseline = BASELINE.read_text(encoding="utf-8")
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
+        cls.evidence = EVIDENCE_SCRIPT.read_text(encoding="utf-8")
         cls.latest = bounded(
             cls.baseline,
             "### Latest verified cut: 2026-09-08",
             "### Historical verified cut: 2026-09-07",
         )
-        cls.evidence = cls.baseline.split("## Evidence commands", 1)[1]
 
     def test_latest_inventory_and_changelog_use_the_september_8_cut(self) -> None:
         marker = (
@@ -53,6 +54,10 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
         full_sha = "0c077445d73640a6299ea4d379faa4b0ab0226c2"
         self.assertIn(full_sha, self.latest)
         self.assertNotIn("to exact head\n`0c077445`", self.latest)
+
+    def test_baseline_names_the_executable_current_evidence_collector(self) -> None:
+        current_evidence = self.baseline.split("## Evidence commands", 1)[1]
+        self.assertIn("scripts/ci/collect_live_merge_evidence.sh", current_evidence)
 
     def test_current_change_requests_block_the_approval_verdict(self) -> None:
         self.assertIn("as $current_change_requests", self.evidence)
