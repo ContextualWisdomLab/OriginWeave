@@ -420,6 +420,18 @@ fn ping_after_pre_close_pong_remains_fail_closed() -> Result<(), Box<dyn Error>>
 }
 
 #[test]
+fn peer_close_rejects_zero_frame_timeout_before_writing() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_server_frame(Some(&[0x88, 0x02, 0x03, 0xe8]))?;
+    let result = observe(established, Duration::ZERO);
+    let _ = server.join();
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+    ));
+    Ok(())
+}
+
+#[test]
 fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(None)?;
