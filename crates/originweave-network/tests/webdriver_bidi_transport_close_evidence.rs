@@ -497,3 +497,43 @@ fn malformed_close_frame_remains_a_typed_frame_failure() -> Result<(), Box<dyn E
     assert!(error.source().is_some());
     Ok(())
 }
+
+#[test]
+fn reused_pong_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_ping_then_held_open_peer_close()?;
+    let reused = WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY);
+    let established = established.write_text_frame("{}", reused, Duration::from_millis(500))?;
+
+    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        reused,
+        WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
+        Duration::from_millis(500),
+    );
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+    ));
+    let _ = server.join();
+    Ok(())
+}
+
+#[test]
+fn reused_close_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_ping_then_held_open_peer_close()?;
+    let reused = WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY);
+    let established = established.write_text_frame("{}", reused, Duration::from_millis(500))?;
+
+    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        reused,
+        Duration::from_millis(500),
+    );
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+    ));
+    let _ = server.join();
+    Ok(())
+}
