@@ -2,31 +2,32 @@ use std::{error::Error, fmt, time::Duration};
 
 use crate::{
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
+    WebDriverBiDiWebSocketMaskKey, webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
 /// Bounded transport-closure condition observed on one consumed WebDriver BiDi WebSocket.
 ///
-/// This classification proves only what the already session-correlated transport itself exposed.
-/// A peer Close frame does not prove browser-process exit or profile cleanup, while peer EOF does
-/// not imply that the RFC 6455 closing handshake completed.
+/// Every successful variant proves clean TCP EOF on the exact established connection. A preceding
+/// RFC 6455 Close exchange is retained separately from EOF-only cessation so a consumer cannot
+/// confuse entering CLOSING with the transport actually becoming closed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiWebSocketTransportClosureKind {
-    /// The peer sent one RFC 6455 Close frame that passed the existing strict frame validator.
-    PeerCloseFrame,
     /// The peer ended the TCP byte stream cleanly before any new WebSocket frame byte was read.
     PeerEof,
+    /// A validated peer Close was answered with a masked client Close before clean TCP EOF.
+    PeerCloseThenEof,
 }
 
-/// Credential-free observation that one established WebDriver BiDi transport ceased carrying data.
+/// Credential-free observation that one established WebDriver BiDi transport actually closed.
 ///
 /// Construction consumes the established WebSocket, so this value cannot be used to regain the
 /// underlying connection. It retains the private process-local generation of that exact connection
 /// so a later teardown consumer can reject closure observed on another socket even when session and
-/// command identifiers are reused. It records only a validated peer Close status when one was
-/// actually present, or clean TCP EOF before a new frame began. It grants no browser, process,
-/// profile, policy, secret, retry, reconnect, or Agent authority and does not perform a reciprocal
-/// Close handshake.
+/// command identifiers are reused. Peer Close enters CLOSING only: OriginWeave answers it with a
+/// caller-keyed masked Close and emits this final observation only after subsequent clean TCP EOF.
+/// Pre-Close Ping is answered with an equally caller-keyed masked Pong carrying identical payload.
+/// No masking entropy, browser authority, process state, profile cleanup, policy, secret, reconnect,
+/// retry, or Agent authority is invented by this transport adapter.
 #[derive(Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiWebSocketTransportClosureObservation {
     kind: WebDriverBiDiWebSocketTransportClosureKind,
@@ -35,56 +36,113 @@ pub struct WebDriverBiDiWebSocketTransportClosureObservation {
 }
 
 impl WebDriverBiDiWebSocketTransportClosureObservation {
-    /// Consume one established connection and observe one bounded transport-closure condition.
+    /// Consume one established connection and prove bounded transport closure.
     ///
-    /// A validated peer Close frame and zero-byte clean EOF are the only success cases. One
-    /// unsolicited Pong may be ignored before that closure signal because Pong requires no client
-    /// response; a second Pong, Ping, data frame, partial-frame EOF, timeout, malformed Close, I/O
-    /// failure, or integrity failure remains a typed error. This fixed two-read envelope prevents
-    /// peer control traffic from extending teardown observation indefinitely and does not invent
-    /// masking entropy or outbound authority to answer Ping frames.
+    /// The caller supplies independent fresh masking keys for the only pre-Close Ping response and
+    /// the required Close response. At most one pre-Close Ping or unsolicited Pong is admitted;
+    /// additional control traffic, application data, timeout, partial EOF, malformed frames, write
+    /// failures, or any post-Close frame fail closed. Peer Close alone is never success: after the
+    /// masked response this boundary requires zero-byte TCP EOF within the same bounded frame
+    /// deadline before producing closure evidence.
     pub fn observe(
         established: WebDriverBiDiWebSocketEstablished,
+        pong_masking_key: WebDriverBiDiWebSocketMaskKey,
+        close_masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         let connection_generation = established.transport_evidence().connection_generation();
-        Self::observe_frame(established, frame_timeout, true, connection_generation)
+        Self::observe_pre_close(
+            established,
+            pong_masking_key,
+            close_masking_key,
+            frame_timeout,
+            true,
+            connection_generation,
+        )
     }
 
-    fn observe_frame(
+    fn observe_pre_close(
         established: WebDriverBiDiWebSocketEstablished,
+        pong_masking_key: WebDriverBiDiWebSocketMaskKey,
+        close_masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
-        allow_pong: bool,
+        allow_pre_close_control: bool,
         connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         match established.read_frame(frame_timeout) {
-            Ok((established, frame)) if frame.opcode() == 0xa && allow_pong => {
-                Self::observe_frame(established, frame_timeout, false, connection_generation)
+            Ok((established, frame)) if frame.opcode() == 0xa && allow_pre_close_control => {
+                Self::observe_pre_close(
+                    established,
+                    pong_masking_key,
+                    close_masking_key,
+                    frame_timeout,
+                    false,
+                    connection_generation,
+                )
             }
-            Ok((established, frame)) => {
-                if frame.opcode() != 0x8 {
-                    return Err(
-                        WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
-                            opcode: frame.opcode(),
-                        },
-                    );
-                }
+            Ok((established, frame)) if frame.opcode() == 0x9 && allow_pre_close_control => {
+                let established = established
+                    .write_pong_frame(frame.payload(), pong_masking_key, frame_timeout)
+                    .map_err(
+                        |source| WebDriverBiDiWebSocketTransportClosureError::Frame { source },
+                    )?;
+                Self::observe_pre_close(
+                    established,
+                    pong_masking_key,
+                    close_masking_key,
+                    frame_timeout,
+                    false,
+                    connection_generation,
+                )
+            }
+            Ok((established, frame)) if frame.opcode() == 0x8 => {
                 let peer_close_status_code = frame
                     .payload()
                     .get(..2)
                     .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]));
-                drop(established);
-                Ok(Self {
-                    kind: WebDriverBiDiWebSocketTransportClosureKind::PeerCloseFrame,
+                let established = established
+                    .write_close_frame(peer_close_status_code, close_masking_key, frame_timeout)
+                    .map_err(
+                        |source| WebDriverBiDiWebSocketTransportClosureError::Frame { source },
+                    )?;
+                Self::observe_eof_after_close(
+                    established,
+                    frame_timeout,
                     peer_close_status_code,
                     connection_generation,
-                })
+                )
             }
+            Ok((_established, frame)) => Err(
+                WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
+                    opcode: frame.opcode(),
+                },
+            ),
             Err(WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 0 }) => Ok(Self {
                 kind: WebDriverBiDiWebSocketTransportClosureKind::PeerEof,
                 peer_close_status_code: None,
                 connection_generation,
             }),
+            Err(source) => Err(WebDriverBiDiWebSocketTransportClosureError::Frame { source }),
+        }
+    }
+
+    fn observe_eof_after_close(
+        established: WebDriverBiDiWebSocketEstablished,
+        frame_timeout: Duration,
+        peer_close_status_code: Option<u16>,
+        connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
+        match established.read_frame(frame_timeout) {
+            Err(WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 0 }) => Ok(Self {
+                kind: WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof,
+                peer_close_status_code,
+                connection_generation,
+            }),
+            Ok((_established, frame)) => Err(
+                WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
+                    opcode: frame.opcode(),
+                },
+            ),
             Err(source) => Err(WebDriverBiDiWebSocketTransportClosureError::Frame { source }),
         }
     }
@@ -95,7 +153,7 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
         self.kind
     }
 
-    /// Return the validated peer Close status when a Close frame actually carried one.
+    /// Return the validated peer Close status when the completed closing exchange carried one.
     #[must_use]
     pub const fn peer_close_status_code(&self) -> Option<u16> {
         self.peer_close_status_code
@@ -109,12 +167,12 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
 /// Fail-closed errors while converting one established BiDi transport into closure evidence.
 #[derive(Debug)]
 pub enum WebDriverBiDiWebSocketTransportClosureError {
-    /// The peer sent a valid WebSocket frame that was not an admissible closure signal.
+    /// The peer sent a valid WebSocket frame outside the bounded closing state machine.
     UnexpectedFrame {
-        /// Exact validated RFC 6455 opcode observed instead of an admissible closure signal.
+        /// Exact validated RFC 6455 opcode observed instead of admissible bounded closing traffic.
         opcode: u8,
     },
-    /// The existing bounded WebSocket frame reader failed before closure was proven.
+    /// The existing bounded WebSocket frame reader or writer failed before closure was proven.
     Frame {
         /// Original typed frame failure retained as the causal source.
         source: WebDriverBiDiWebSocketFrameError,

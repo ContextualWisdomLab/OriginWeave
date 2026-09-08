@@ -239,23 +239,26 @@ impl WebDriverBiDiCommandCorrelation {
         envelope: &WebDriverBiDiJsonEnvelope,
         expected_kind: WebDriverBiDiCommandKind,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        let (command_id, outcome) = response_route(envelope)?;
-        self.complete(command_id, expected_kind, outcome)
-    }
-
-    pub(crate) fn correlate_response_for_connection(
-        &mut self,
-        envelope: &WebDriverBiDiJsonEnvelope,
-        expected_kind: WebDriverBiDiCommandKind,
-        received_connection_generation: WebDriverBiDiConnectionGeneration,
-    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        let (command_id, outcome) = response_route(envelope)?;
-        self.complete_on_connection(
-            command_id,
-            expected_kind,
-            outcome,
-            received_connection_generation,
-        )
+        match envelope.routing() {
+            WebDriverBiDiJsonEnvelopeRouting::Event => {
+                Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+                Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError {
+                command_id: Some(command_id),
+            } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Error,
+            ),
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Success,
+            ),
+        }
     }
 
     fn require_command_kind(
@@ -314,25 +317,6 @@ impl WebDriverBiDiCommandCorrelation {
             outcome,
             connection_generation: Some(expected_connection_generation),
         })
-    }
-}
-
-fn response_route(
-    envelope: &WebDriverBiDiJsonEnvelope,
-) -> Result<(u64, WebDriverBiDiCorrelatedResponseOutcome), WebDriverBiDiCommandCorrelationError> {
-    match envelope.routing() {
-        WebDriverBiDiJsonEnvelopeRouting::Event => {
-            Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
-        }
-        WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
-            Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
-        }
-        WebDriverBiDiJsonEnvelopeRouting::CommandError {
-            command_id: Some(command_id),
-        } => Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Error)),
-        WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => {
-            Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Success))
-        }
     }
 }
 
