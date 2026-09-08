@@ -34,6 +34,8 @@ class AgentTaskExtensionIsolationEvidenceContractTests(unittest.TestCase):
         observed_success = {
             "trial_number": 1,
             "passed": True,
+            "pre_action_baseline_verified": True,
+            "pre_click_baseline_verified": True,
             "post_condition": True,
             "input_echo_verified": True,
             "url_unchanged": True,
