@@ -47,6 +47,11 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("PresentationSurface::ReducedMotion", text)
         self.assertIn("PresentationSurface::HardwareConcurrency", text)
         self.assertIn("PresentationError::MissingSurface", text)
+        self.assertIn("WebDriverBidiBrowsingContext", text)
+        self.assertIn("plan_standard_presentation_commands", text)
+        self.assertIn("SetViewport", text)
+        self.assertIn("SetTimezone", text)
+        self.assertIn("SetReducedMotion", text)
 
 
 if __name__ == "__main__":
