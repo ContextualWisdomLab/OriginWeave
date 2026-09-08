@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded #255 exact-head hosted success and #293's narrow standard-BiDi capability repair, preserving the blocked visual-inspection and real-browser evidence gaps.
+
 - Recorded the server Close-role RED-to-GREEN repair with exact local coverage and visual evidence, keeping queued hosted checks and release acceptance separate.
 
 - Recorded completed local reply-verification checks, visual inspection and exact-head hosted success, distinguishing clean Draft state from protected-main and release acceptance.

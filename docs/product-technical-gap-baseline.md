@@ -39,10 +39,23 @@ server 1011 control remains valid. Exact-head local coverage is
 formatting, doctests and warnings-denied rustdoc pass. Actual Edge inspection
 verified the rendered role, masking-key, control-budget and deadline contract.
 Hosted [run 34188785932](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34188785932)
-is queued, so this is not hosted acceptance or shipped behavior. The source
-writer lease is released. Inventory remains 126 open PRs, 14 issues and zero
-releases. Earlier sections below retain dated evidence, not the current status
-of their superseded runs.
+is terminal SUCCESS: Rust contracts and Production coverage both pass on that
+exact head. The Draft is CLEAN, but this remains neither protected-main nor
+shipped behavior.
+
+Draft #293 now publishes exact head
+`6b5241c164f5283f8dd51b1846ef0e4dacec0b29` on parent #229. Its executed RED
+showed that standard BiDi was overstating complete Screen and Languages
+support. The minimal repair retains only Viewport, DevicePixelRatio, TimeZone
+and ReducedMotion. Exact local coverage is **587/4886/5881/748**, all 100%; 159
+repository contracts, strict Clippy, formatting, doctests and warnings-denied
+rustdoc pass. Visual inspection is unproven: browser safety policy blocked the
+local rustdoc page and prohibited an indirect workaround. The Draft is CLEAN;
+real Chromium application and page-observed evidence remain in #292.
+
+Both source writer leases are released. Inventory remains 126 open PRs, 14
+issues and zero releases. Earlier sections below retain dated evidence, not the
+current status of their superseded runs.
 
 #### Published repeated-control repair
 
