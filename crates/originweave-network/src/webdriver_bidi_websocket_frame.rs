@@ -493,8 +493,7 @@ impl Error for WebDriverBiDiWebSocketFrameError {
 }
 
 fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
-    let valid = !frame_timeout.is_zero() & (frame_timeout <= MAX_WEBSOCKET_FRAME_TIMEOUT);
-    if !valid {
+    if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
         return Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
             frame_timeout,
             maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
@@ -826,6 +825,72 @@ mod tests {
     use std::collections::VecDeque;
 
     use super::*;
+
+    #[test]
+    fn close_writer_rejects_invalid_deadline_without_emitting_bytes() {
+        use crate::WebDriverBiDiTcpConnectionPlan;
+        use originweave_core::WebDriverBiDiWebSocketEndpoint;
+        use std::net::{TcpListener, TcpStream};
+        use std::thread;
+
+        for timeout in [
+            Duration::ZERO,
+            MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind peer");
+            let address = listener.local_addr().expect("peer address");
+            let peer = thread::spawn(move || {
+                let (mut stream, _) = listener.accept().expect("accept client");
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .expect("bound peer read");
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0];
+                    stream.read_exact(&mut byte).expect("opening request");
+                    request.push(byte[0]);
+                }
+                stream.write_all(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n").expect("opening response");
+                let mut byte = [0];
+                assert_eq!(
+                    TcpStream::read(&mut stream, &mut byte).expect("client EOF"),
+                    0
+                );
+            });
+            let session = "01234567-89ab-cdef-0123-456789abcdef";
+            let endpoint =
+                WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{session}"))
+                    .expect("endpoint");
+            let target = endpoint
+                .correlate_session_id(session)
+                .expect("session")
+                .into_explicit_connect_target()
+                .expect("target");
+            let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)
+                .expect("plan")
+                .connect()
+                .expect("connect");
+            let key = crate::WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ==")
+                .expect("key");
+            let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)
+                .expect("handshake")
+                .write_opening_request(Duration::from_secs(1))
+                .expect("write opening")
+                .read_opening_response(Duration::from_secs(1))
+                .expect("read opening");
+            let error = established
+                .write_close_frame(
+                    Some(1000),
+                    WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                    timeout,
+                )
+                .expect_err("reject deadline");
+            assert!(
+                matches!(error, WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { frame_timeout, maximum_timeout } if frame_timeout == timeout && maximum_timeout == MAX_WEBSOCKET_FRAME_TIMEOUT)
+            );
+            peer.join().expect("peer completed");
+        }
+    }
 
     #[derive(Clone, Debug)]
     enum ReadAction {

@@ -115,4 +115,8 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 
 ## Release contract
 
+### Coverage diagnosis lesson
+
+Aggregate LLVM code regions by source coordinates across function instantiations before identifying a missing path. An invalid-input test at a public entry point may stop at an earlier guard; it does not prove a later private writer's error return executed. Exercise that writer directly, assert the exact error, and verify the peer received no bytes. Do not rewrite production predicates based only on a file-level coverage deficit.
+
 A release requires all current-head checks, complete coverage and docs, updated `CHANGELOG.md`, SBOM and provenance, reproducible artifacts, compatibility evidence, security review, and an explicit version decision. Pre-alpha commits are not releases.
