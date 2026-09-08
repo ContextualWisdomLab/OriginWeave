@@ -49,8 +49,10 @@ showed that standard BiDi was overstating complete Screen and Languages
 support. The minimal repair retains only Viewport, DevicePixelRatio, TimeZone
 and ReducedMotion. Exact local coverage is **587/4886/5881/748**, all 100%; 159
 repository contracts, strict Clippy, formatting, doctests and warnings-denied
-rustdoc pass. Visual inspection is unproven: browser safety policy blocked the
-local rustdoc page and prohibited an indirect workaround. The Draft is CLEAN;
+rustdoc pass. Actual Edge inspection of the GitHub-rendered exact-head diff
+showed the four admitted surfaces and exclusion contract with no clipping or overlap.
+Generated-rustdoc visual acceptance remains unproven because browser safety policy
+blocked the local page and prohibited an indirect workaround. The Draft is CLEAN;
 real Chromium application and page-observed evidence remain in #292.
 
 Both source writer leases are released. Inventory remains 126 open PRs, 14
