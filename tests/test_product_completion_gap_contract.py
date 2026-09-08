@@ -32,8 +32,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "1105/11574/14787/1218", "34188785932", "server-sent",
             "RED", "1010", "1011", "Actual Edge", "terminal SUCCESS",
             "6b5241c164f5283f8dd51b1846ef0e4dacec0b29", "predecessor",
-            "30941dc0d0b2640f14c9b66ff32b05ea58082d38",
-            "592/4960/5966/754", "#293", "three typed command intents",
+            "0c077445", "594/4974/5980/754", "#293", "three command intents",
+            "3 September 2026", "viewport/DPR reset intent",
             "current-head visual acceptance is unproven",
             "Viewport", "DevicePixelRatio", "TimeZone", "ReducedMotion",
         ):
