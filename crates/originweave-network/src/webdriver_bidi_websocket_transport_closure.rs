@@ -361,9 +361,13 @@ mod tests {
 
     #[test]
     fn invalid_deadline_is_rejected_before_clock_use() {
-        for timeout in [
-            Duration::ZERO,
-            crate::MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+        for (timeout, expected_calls) in [
+            (Duration::ZERO, 0),
+            (
+                crate::MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+                0,
+            ),
+            (Duration::from_secs(1), 3),
         ] {
             let (established, _peer) = established_peer(&[]);
             let mut clock_calls = 0;
@@ -377,13 +381,18 @@ mod tests {
                     Instant::now()
                 },
             );
-            assert!(matches!(
-                result,
+            let expected = if expected_calls == 0 {
                 Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
-                    source: WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. }
+                    source: WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                        frame_timeout: timeout,
+                        maximum_timeout: crate::MAX_WEBSOCKET_FRAME_TIMEOUT,
+                    },
                 })
-            ));
-            assert_eq!(clock_calls, 0);
+            } else {
+                Ok(())
+            };
+            assert_eq!(format!("{:?}", result.map(|_| ())), format!("{expected:?}"));
+            assert_eq!(clock_calls, expected_calls);
         }
     }
 
@@ -418,15 +427,97 @@ mod tests {
                 &mut now,
             )
             .expect_err("expired closure must not produce evidence");
-            assert!(matches!(
-                error,
-                WebDriverBiDiWebSocketTransportClosureError::DeadlineExpired
-            ));
+            assert_eq!(format!("{error:?}"), "DeadlineExpired");
             assert_eq!(
                 error.to_string(),
                 "WebDriver BiDi transport closure deadline expired"
             );
             assert!(error.source().is_none());
+        }
+    }
+
+    #[test]
+    fn fixed_deadline_preserves_protocol_and_masking_failures() {
+        use WebDriverBiDiWebSocketFrameError::{FrameEnded, MalformedFrame};
+        use WebDriverBiDiWebSocketTransportClosureError::{Frame, UnexpectedFrame};
+        let reused =
+            "client masking key was reused for consecutive frames on this established WebSocket";
+        for (frames, seed_text, pong_key, close_key, expected) in [
+            (
+                &[0x81, 0][..],
+                false,
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                UnexpectedFrame { opcode: 1 },
+            ),
+            (
+                &[0x88][..],
+                false,
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                Frame {
+                    source: FrameEnded { bytes_read: 1 },
+                },
+            ),
+            (
+                &[0x88, 0, 0x8a, 0][..],
+                false,
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                UnexpectedFrame { opcode: 0xa },
+            ),
+            (
+                &[0x88, 0, 0x88][..],
+                false,
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                Frame {
+                    source: FrameEnded { bytes_read: 1 },
+                },
+            ),
+            (
+                &[0x89, 0][..],
+                true,
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                Frame {
+                    source: MalformedFrame { reason: reused },
+                },
+            ),
+            (
+                &[0x88, 0][..],
+                true,
+                [5, 6, 7, 8],
+                [1, 2, 3, 4],
+                Frame {
+                    source: MalformedFrame { reason: reused },
+                },
+            ),
+        ] {
+            let (established, _peer) = established_peer(frames);
+            let established = if seed_text {
+                established
+                    .write_text_frame(
+                        "{}",
+                        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                        Duration::from_secs(1),
+                    )
+                    .expect("seed masking history")
+            } else {
+                established
+            };
+            let now = Instant::now();
+            let error = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
+                established,
+                WebDriverBiDiWebSocketMaskKey::new(pong_key),
+                WebDriverBiDiWebSocketMaskKey::new(close_key),
+                Duration::from_secs(1),
+                &mut || now,
+            )
+            .expect_err("protocol failure must survive the deadline wrapper");
+            assert_eq!(format!("{error:?}"), format!("{expected:?}"));
+            assert_eq!(error.to_string(), expected.to_string());
+            assert_eq!(error.source().is_some(), expected.source().is_some());
         }
     }
 }
