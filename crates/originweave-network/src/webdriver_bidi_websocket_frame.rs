@@ -885,8 +885,15 @@ mod tests {
                     timeout,
                 )
                 .expect_err("reject deadline");
-            assert!(
-                matches!(error, WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { frame_timeout, maximum_timeout } if frame_timeout == timeout && maximum_timeout == MAX_WEBSOCKET_FRAME_TIMEOUT)
+            assert_eq!(
+                format!("{error:?}"),
+                format!(
+                    "{:?}",
+                    WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                        frame_timeout: timeout,
+                        maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                    }
+                )
             );
             peer.join().expect("peer completed");
         }
