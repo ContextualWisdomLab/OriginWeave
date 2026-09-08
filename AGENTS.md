@@ -121,6 +121,8 @@ Coordinate union alone does not reproduce LLVM's region summary: `RegionCoverage
 
 Inspect uncovered coordinates inside test assertions too: guarded `matches!` expressions can contribute never-taken failure branches to the file summary. Preserve exact variant and field checks rather than broadening the accepted error to make coverage pass.
 
+Mask-reuse socket tests must consume the preceding text/Pong frame before sending the frame that triggers rejection. Assert the exact reuse error, literal preceding bytes, and EOF with no rejected response; propagate peer thread errors. A broad transport-error assertion plus an ignored join can pass because the peer rejected the fixture's own wrong opcode. An intervening fresh-key Pong also changes the adjacent-key history, so an older text key does not test adjacent Close-key reuse.
+
 ## Release contract
 
 A release requires all current-head checks, complete coverage and docs, updated `CHANGELOG.md`, SBOM and provenance, reproducible artifacts, compatibility evidence, security review, and an explicit version decision. Pre-alpha commits are not releases.

@@ -71,16 +71,24 @@ fn read_masked_control_frame(stream: &mut TcpStream, expected_opcode: u8) -> io:
 fn established_with_server_frame(
     frame: Option<&'static [u8]>,
 ) -> Result<EstablishedWithServer, Box<dyn Error>> {
+    established_with_peer_script(move |stream| {
+        if let Some(frame) = frame {
+            stream.write_all(frame)?;
+        }
+        Ok(())
+    })
+}
+
+fn established_with_peer_script(
+    script: impl FnOnce(&mut TcpStream) -> io::Result<()> + Send + 'static,
+) -> Result<EstablishedWithServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        if let Some(frame) = frame {
-            stream.write_all(frame)?;
-        }
-        Ok(())
+        script(&mut stream)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -536,7 +544,15 @@ fn malformed_close_frame_remains_a_typed_frame_failure() -> Result<(), Box<dyn E
 
 #[test]
 fn reused_pong_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn Error>> {
-    let (established, server) = established_with_ping_then_held_open_peer_close()?;
+    let (established, server) = established_with_peer_script(|stream| {
+        let mut seed = [0; 8];
+        stream.read_exact(&mut seed)?;
+        assert_eq!(seed, [0x81, 0x82, 5, 6, 7, 8, 0x7e, 0x7b]);
+        stream.write_all(&[0x89, 0x01, b'p'])?;
+        let mut byte = [0];
+        assert_eq!(stream.read(&mut byte)?, 0);
+        Ok(())
+    })?;
     let reused = WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY);
     let established = established.write_text_frame("{}", reused, Duration::from_millis(500))?;
 
@@ -548,36 +564,64 @@ fn reused_pong_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn Er
     );
     assert!(matches!(
         result,
-        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
+            source: WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "client masking key was reused for consecutive frames on this established WebSocket"
+            }
+        })
     ));
-    let _ = server.join();
+    server
+        .join()
+        .map_err(|_| io::Error::other("mask-reuse peer panicked"))??;
     Ok(())
 }
 
 #[test]
 fn reused_close_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn Error>> {
-    let (established, server) = established_with_ping_then_held_open_peer_close()?;
+    let (established, server) = established_with_peer_script(|stream| {
+        stream.write_all(&[0x89, 0x01, b'p'])?;
+        let mut pong = [0; 7];
+        stream.read_exact(&mut pong)?;
+        assert_eq!(pong, [0x8a, 0x81, 9, 10, 11, 12, 0x79]);
+        stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        let mut byte = [0];
+        assert_eq!(stream.read(&mut byte)?, 0);
+        Ok(())
+    })?;
     let reused = WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY);
-    let established = established.write_text_frame("{}", reused, Duration::from_millis(500))?;
 
     let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
-        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        reused,
         reused,
         Duration::from_millis(500),
     );
     assert!(matches!(
         result,
-        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
+            source: WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "client masking key was reused for consecutive frames on this established WebSocket"
+            }
+        })
     ));
-    let _ = server.join();
+    server
+        .join()
+        .map_err(|_| io::Error::other("mask-reuse peer panicked"))??;
     Ok(())
 }
 
 #[test]
 fn reused_close_mask_key_on_peer_close_preserves_typed_frame_failure() -> Result<(), Box<dyn Error>>
 {
-    let (established, server) = established_with_server_frame(Some(&[0x88, 0x02, 0x03, 0xe8]))?;
+    let (established, server) = established_with_peer_script(|stream| {
+        let mut seed = [0; 8];
+        stream.read_exact(&mut seed)?;
+        assert_eq!(seed, [0x81, 0x82, 9, 10, 11, 12, 0x72, 0x77]);
+        stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        let mut byte = [0];
+        assert_eq!(stream.read(&mut byte)?, 0);
+        Ok(())
+    })?;
     let reused = WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY);
     let established = established.write_text_frame("{}", reused, Duration::from_millis(500))?;
 
@@ -589,8 +633,14 @@ fn reused_close_mask_key_on_peer_close_preserves_typed_frame_failure() -> Result
     );
     assert!(matches!(
         result,
-        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
+            source: WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "client masking key was reused for consecutive frames on this established WebSocket"
+            }
+        })
     ));
-    let _ = server.join();
+    server
+        .join()
+        .map_err(|_| io::Error::other("mask-reuse peer panicked"))??;
     Ok(())
 }
