@@ -6,7 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Recorded the server Close-role RED-to-GREEN repair with exact local coverage and visual evidence, keeping queued hosted checks and release acceptance separate.
 
-- Recorded completed local reply-verification checks and visual inspection, distinguishing queued hosted checks and superseded runs from release acceptance.
+- Recorded completed local reply-verification checks, visual inspection and exact-head hosted success, distinguishing clean Draft state from protected-main and release acceptance.
 
 - Refreshed transport-closure evidence with completed predecessor CI, the separately pending test-integrity repair, and the remaining deadline and control-frame behavior gaps.
 

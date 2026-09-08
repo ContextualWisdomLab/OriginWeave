@@ -24,9 +24,10 @@ Frozen-source local coverage is **1406/14894/19018/1552**
 formatting, five doctests and warnings-denied rustdoc pass. Actual Edge visual
 inspection verified the rendered acknowledgment contract and readable layout.
 Hosted [run 34186280263](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34186280263)
-is queued at this checkpoint: local verification is **not hosted acceptance**.
-Both review threads remain unresolved pending current-head hosted verification;
-protected-parent adoption and real browser outcome evidence remain required.
+is terminal SUCCESS on this exact head: Rust contracts and Production coverage
+both pass. Both review threads are resolved and GitHub reports the Draft head
+**CLEAN**. Protected-parent adoption, governing approval and real browser
+outcome evidence remain required; this is still **not shipped**.
 
 Separately, #255 advanced from superseded test-only head
 `10d5e1ff78d46bbad004d4e0971d0ffceac757fa` to published repair

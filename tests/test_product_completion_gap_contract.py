@@ -25,8 +25,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         for marker in (
             "46db0045904f0289738df843d0a2f179c26673d3", "34186280263",
             "8eda96915dbbe4cc617f834267c7464689c2844d",
-            "1406/14894/19018/1552", "pre-consumption", "unresolved",
-            "not hosted acceptance", "not shipped", "148 repository",
+            "1406/14894/19018/1552", "pre-consumption", "resolved",
+            "terminal SUCCESS", "CLEAN", "not shipped", "148 repository",
             "10d5e1ff78d46bbad004d4e0971d0ffceac757fa", "superseded",
             "6b6c90ed3919ea84b69527ab688a087eeb45224d",
             "1105/11574/14787/1218", "34188785932", "server-sent",
