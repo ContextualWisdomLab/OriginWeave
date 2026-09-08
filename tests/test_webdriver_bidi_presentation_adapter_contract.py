@@ -49,7 +49,9 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("PresentationError::MissingSurface", text)
         self.assertIn("WebDriverBidiBrowsingContext", text)
         self.assertIn("plan_standard_presentation_commands", text)
+        self.assertIn("plan_standard_presentation_cleanup", text)
         self.assertIn("SetViewport", text)
+        self.assertIn("ResetViewport", text)
         self.assertIn("SetTimezone", text)
         self.assertIn("SetReducedMotion", text)
 

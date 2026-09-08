@@ -75,6 +75,11 @@ pub enum WebDriverBidiPresentationCommand {
         /// Whether `prefers-reduced-motion` is `reduce`.
         reduce: bool,
     },
+    /// Restore the implementation-defined viewport and remove the persistent DPR override.
+    ResetViewport {
+        /// Exact target browsing context.
+        context: WebDriverBidiBrowsingContext,
+    },
 }
 
 /// Plan the three typed standard-BiDi commands covering the four admitted surfaces.
@@ -101,6 +106,20 @@ pub fn plan_standard_presentation_commands(
             reduce: profile.reduced_motion(),
         },
     ]
+}
+
+/// Plan explicit cleanup for viewport dimensions and device-pixel ratio.
+///
+/// WebDriver BiDi does not clear its DPR override when the final session ends. This command intent
+/// sets both viewport and DPR to `null`; planning it does not prove transport, acknowledgement, or
+/// page-observed cleanup.
+#[must_use]
+pub fn plan_standard_presentation_cleanup(
+    context: &WebDriverBidiBrowsingContext,
+) -> WebDriverBidiPresentationCommand {
+    WebDriverBidiPresentationCommand::ResetViewport {
+        context: context.clone(),
+    }
 }
 
 /// Published WebDriver BiDi Working Draft revision used by this capability map.
@@ -227,6 +246,17 @@ mod tests {
                     reduce: true,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn cleanup_plan_explicitly_resets_viewport_and_persistent_dpr_override() {
+        let context =
+            WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
+
+        assert_eq!(
+            plan_standard_presentation_cleanup(&context),
+            WebDriverBidiPresentationCommand::ResetViewport { context }
         );
     }
 }

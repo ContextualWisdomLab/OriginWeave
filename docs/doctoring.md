@@ -58,9 +58,11 @@ does not define a hardware-concurrency override. Chromium's tip-of-tree DevTools
 tip-of-tree commands can change without notice. OriginWeave therefore records
 required presentation surfaces in a protocol-neutral Rust admission contract;
 the adapter maps the four complete standard surfaces to three typed command
-intents bound to one bounded opaque browsing context. Constructing those
-values performs no transport I/O and cannot be treated as acknowledgement or
-presentation evidence. A later pinned Chromium adapter must capability-negotiate every surface and
+intents bound to one bounded opaque browsing context. Because the specification
+does not clear device-pixel-ratio overrides when the final session ends, the
+adapter also plans an explicit viewport/DPR reset using null values. Constructing
+those values performs no transport I/O and cannot be treated as acknowledgement,
+successful cleanup, or presentation evidence. A later pinned Chromium adapter must capability-negotiate every surface and
 fail closed before claiming a complete profile.
 
 ### Extension-to-Agent grant origin binding
