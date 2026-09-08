@@ -48,9 +48,12 @@ object with enumerated architecture/bitness/platform tokens, an at-most-32
 ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
 that a non-mobile user agent reports an empty model (see ADR 0112).
 
-The 25 August 2026 WebDriver BiDi Editor's Draft exposes locale, media, screen,
-user-agent, viewport, and time-zone emulation commands, but it does not define a
-hardware-concurrency override. Chromium's tip-of-tree DevTools Protocol exposes
+The pinned 18 August 2026 WebDriver BiDi Working Draft and same-day source
+snapshot expose locale, media, screen, user-agent, viewport, and time-zone
+emulation commands. The screen shape contains width and height but not color
+depth, and locale accepts one value rather than an ordered language list, so
+neither proves the corresponding complete OriginWeave surface. The draft also
+does not define a hardware-concurrency override. Chromium's tip-of-tree DevTools Protocol exposes
 `Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
 tip-of-tree commands can change without notice. OriginWeave therefore records
 required presentation surfaces in a protocol-neutral Rust admission contract;

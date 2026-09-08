@@ -11,6 +11,6 @@
 mod presentation_capabilities;
 
 pub use presentation_capabilities::{
-    WEBDRIVER_BIDI_PRESENTATION_REVISION, require_complete_presentation_profile,
-    webdriver_bidi_presentation_surfaces,
+    WEBDRIVER_BIDI_PRESENTATION_DOCTORING_SOURCE_COMMIT, WEBDRIVER_BIDI_PRESENTATION_REVISION,
+    require_complete_presentation_profile, webdriver_bidi_presentation_surfaces,
 };

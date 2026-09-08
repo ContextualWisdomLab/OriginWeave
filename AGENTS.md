@@ -58,6 +58,7 @@ The organization currently documents a **solo-maintainer** governance condition.
 ## Architecture constraints
 
 - Keep Blink, V8, Skia, Viz, Dawn, Chromium sandboxing, Site Isolation, and Manifest V3 compatibility upstream-aligned.
+- Map browser presentation capabilities only when the protocol proves the complete canonical surface: width and height do not prove screen color depth, and one locale does not prove ordered languages.
 - New product logic belongs in Rust control-plane modules behind narrow adapters.
 - Rust crates must remain independently understandable and reusable.
 - Keep logical origin, resolved destination, operating-system TCP peer, TLS service identity, proxy route, and HTTP semantics as separate authority boundaries.
