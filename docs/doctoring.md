@@ -58,19 +58,19 @@ override. Chromium's tip-of-tree DevTools Protocol exposes
 `Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
 tip-of-tree commands can change without notice. OriginWeave therefore records
 required presentation surfaces in a protocol-neutral Rust admission contract;
-the adapter maps the four complete standard surfaces to three typed command
-intents bound to one bounded opaque browsing context.
+the adapter records those four complete standard surfaces as protocol
+capabilities, while the reusable-context plan emits only two typed command
+intents—viewport/DPR and timezone—bound to one bounded opaque browsing context.
 
 Cleanup authority is asymmetric. Nullable viewport and timezone operations can
 restore those adapter-owned overrides on a reusable context, so generic cleanup
 plans reset viewport/DPR and timezone. By contrast,
 `emulation.setMediaFeaturesOverride` with `features: null` unsets the target's
 complete media-feature override configuration rather than selectively reversing
-only `prefers-reduced-motion`. Generic reusable-context cleanup therefore does
-not emit a media reset. A complete media reset is exposed only through the
-caller-supplied `ExclusivePresentationContext` path, which is an explicit
-attestation and not proof that the Browser Session owner established exclusive
-ownership or will dispose of the context. Constructing application or cleanup
+only `prefers-reduced-motion`. The reusable-context plan therefore neither
+installs reduced motion nor emits a media reset. No caller-mintable exclusive
+reset is exposed as ownership evidence; a Browser Session owner must prove a
+disposable context lifecycle or restore the complete prior media configuration. Constructing application or cleanup
 intents performs no transport I/O and cannot be treated as acknowledgement,
 successful cleanup, ownership evidence, or page-observed presentation evidence.
 A later pinned Chromium adapter must capability-negotiate every surface, observe
