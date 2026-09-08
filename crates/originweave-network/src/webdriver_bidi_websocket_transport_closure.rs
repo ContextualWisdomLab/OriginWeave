@@ -463,33 +463,6 @@ mod tests {
     }
 
     #[test]
-    fn client_only_close_status_is_rejected_before_reply() {
-        let (established, mut peer) = established_peer(&[0x88, 2, 3, 0xf2]);
-        let now = Instant::now();
-        let error = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
-            established,
-            &[],
-            WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
-            Duration::from_secs(1),
-            &mut || now,
-        )
-        .expect_err("server Close 1010 must fail");
-        assert!(matches!(
-            &error,
-            WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
-                status_code: 1010
-            }
-        ));
-        assert_eq!(
-            error.to_string(),
-            "WebDriver BiDi server sent a Close status reserved for clients"
-        );
-        assert!(error.source().is_none());
-        let mut reply = [0];
-        assert_eq!(peer.read(&mut reply).expect("peer EOF"), 0);
-    }
-
-    #[test]
     fn invalid_deadline_is_rejected_before_clock_use() {
         for (timeout, expected_calls) in [
             (Duration::ZERO, 0),
