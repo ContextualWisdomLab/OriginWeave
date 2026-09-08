@@ -75,8 +75,18 @@ pub enum WebDriverBidiPresentationCommand {
         /// Whether `prefers-reduced-motion` is `reduce`.
         reduce: bool,
     },
-    /// Restore the implementation-defined viewport and remove the persistent DPR override.
+    /// Restore the implementation-defined viewport and remove the device-pixel-ratio override.
     ResetViewport {
+        /// Exact target browsing context.
+        context: WebDriverBidiBrowsingContext,
+    },
+    /// Remove the time-zone override.
+    ResetTimezone {
+        /// Exact target browsing context.
+        context: WebDriverBidiBrowsingContext,
+    },
+    /// Remove media-feature overrides set for this presentation plan.
+    ResetMediaFeatures {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
     },
@@ -108,24 +118,32 @@ pub fn plan_standard_presentation_commands(
     ]
 }
 
-/// Plan explicit cleanup for viewport dimensions and device-pixel ratio.
+/// Plan explicit cleanup for every standard-BiDi override emitted by this presentation plan.
 ///
-/// WebDriver BiDi does not clear its DPR override when the final session ends. This command intent
-/// sets both viewport and DPR to `null`; planning it does not prove transport, acknowledgement, or
+/// The pinned Working Draft removes viewport/DPR, time-zone, and media-feature overrides with
+/// nullable command values. Planning these intents does not prove transport, acknowledgement, or
 /// page-observed cleanup.
 #[must_use]
 pub fn plan_standard_presentation_cleanup(
     context: &WebDriverBidiBrowsingContext,
-) -> WebDriverBidiPresentationCommand {
-    WebDriverBidiPresentationCommand::ResetViewport {
-        context: context.clone(),
-    }
+) -> [WebDriverBidiPresentationCommand; 3] {
+    [
+        WebDriverBidiPresentationCommand::ResetViewport {
+            context: context.clone(),
+        },
+        WebDriverBidiPresentationCommand::ResetTimezone {
+            context: context.clone(),
+        },
+        WebDriverBidiPresentationCommand::ResetMediaFeatures {
+            context: context.clone(),
+        },
+    ]
 }
 
 /// Published WebDriver BiDi Working Draft revision used by this capability map.
 /// The immutable dated-TR identity is
-/// `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/`.
-pub const WEBDRIVER_BIDI_PRESENTATION_REVISION: &str = "2026-08-18";
+/// `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`.
+pub const WEBDRIVER_BIDI_PRESENTATION_REVISION: &str = "2026-09-03";
 
 /// Auxiliary upstream source commit retained as historical doctoring evidence.
 ///
@@ -173,7 +191,7 @@ mod tests {
 
     #[test]
     fn pinned_revision_tracks_current_published_working_draft() {
-        assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-08-18");
+        assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-09-03");
         assert_eq!(
             WEBDRIVER_BIDI_PRESENTATION_DOCTORING_SOURCE_COMMIT,
             "1e5e36c43adbe24f2a4052c2ec091635c006c352"
@@ -252,13 +270,21 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_plan_explicitly_resets_viewport_and_persistent_dpr_override() {
+    fn cleanup_plan_resets_every_override_emitted_by_the_standard_plan() {
         let context =
             WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
 
         assert_eq!(
             plan_standard_presentation_cleanup(&context),
-            WebDriverBidiPresentationCommand::ResetViewport { context }
+            [
+                WebDriverBidiPresentationCommand::ResetViewport {
+                    context: context.clone(),
+                },
+                WebDriverBidiPresentationCommand::ResetTimezone {
+                    context: context.clone(),
+                },
+                WebDriverBidiPresentationCommand::ResetMediaFeatures { context },
+            ]
         );
     }
 }
