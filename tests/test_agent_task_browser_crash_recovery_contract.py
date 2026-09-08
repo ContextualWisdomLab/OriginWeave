@@ -259,7 +259,8 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_sandbox")
         run_pass = namespace["_run_agent_task_browser_crash_browser_pass"]
-        request = mock.Mock(side_effect=RuntimeError("sandbox unavailable"))
+        session_error = namespace["_WebDriverSessionNotCreatedError"]
+        request = mock.Mock(side_effect=session_error("sandbox_unavailable"))
         driver = mock.Mock()
         driver.poll.return_value = 0
         with (
@@ -281,11 +282,12 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
             )
 
         self.assertFalse(result["passed"])
-        self.assertEqual(result["failure_type"], "RuntimeError")
+        self.assertEqual(result["failure_type"], "_WebDriverSessionNotCreatedError")
         self.assertEqual(result["failure_stage"], "session_create")
-        self.assertEqual(result["reason_code"], "runtime_error")
+        self.assertEqual(result["reason_code"], "session_not_created")
+        self.assertEqual(result["startup_reason"], "sandbox_unavailable")
         self.assertNotIn("failure_message", result)
-        self.assertNotIn("sandbox unavailable", repr(result))
+        self.assertNotIn("response details", repr(result))
         self.assertTrue(result["profile_cleaned"])
         launch.assert_called_once()
         driver.wait.assert_called_once_with(timeout=5)

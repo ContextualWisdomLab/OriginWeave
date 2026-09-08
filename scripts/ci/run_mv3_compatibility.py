@@ -62,6 +62,20 @@ class _WebDriverNoSuchWindowError(RuntimeError):
     """Identify reviewed ChromeDriver no-such-window evidence without masking other failures."""
 
 
+class _WebDriverSessionNotCreatedError(RuntimeError):
+    """Retain only closed ChromeDriver startup evidence from a rejected session."""
+
+    error_code = "session_not_created"
+
+    def __init__(self, startup_reason: str) -> None:
+        """Build one redacted typed failure with an allowlisted startup reason."""
+
+        if startup_reason not in {"sandbox_unavailable", "unknown"}:
+            raise ValueError("unsupported WebDriver session startup reason")
+        self.startup_reason = startup_reason
+        super().__init__("WebDriver error: session not created: response details redacted")
+
+
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
 
@@ -99,6 +113,15 @@ def _webdriver_path(session_id: str, suffix: str) -> str:
     if "://" in suffix or any(char in suffix for char in "\r\n"):
         raise RuntimeError("invalid WebDriver path suffix")
     return f"/session/{safe_session}{suffix}"
+
+
+def _classify_webdriver_session_startup_reason(error_value: dict[str, Any]) -> str:
+    """Map reviewed ChromeDriver startup text to a closed credential-safe reason."""
+
+    message = error_value.get("message")
+    if isinstance(message, str) and "no usable sandbox" in message.casefold():
+        return "sandbox_unavailable"
+    return "unknown"
 
 
 def _json_request(
@@ -148,6 +171,13 @@ def _json_request(
                 raise _WebDriverNoSuchWindowError(
                     "WebDriver error: no such window: response details redacted"
                 )
+            if (
+                isinstance(error_value, dict)
+                and error_value.get("error") == "session not created"
+            ):
+                raise _WebDriverSessionNotCreatedError(
+                    _classify_webdriver_session_startup_reason(error_value)
+                )
             raise RuntimeError(f"WebDriver HTTP {response.status}")
     finally:
         connection.close()
@@ -160,6 +190,10 @@ def _json_request(
         if value.get("error") == "no such window":
             raise _WebDriverNoSuchWindowError(
                 "WebDriver error: no such window: response details redacted"
+            )
+        if value.get("error") == "session not created":
+            raise _WebDriverSessionNotCreatedError(
+                _classify_webdriver_session_startup_reason(value)
             )
         raise RuntimeError("WebDriver returned an error response")
     return decoded
@@ -2321,6 +2355,8 @@ def _run_agent_task_browser_crash_browser_pass(
 def _classify_agent_task_browser_crash_reason(error: BaseException) -> str:
     """Map crash failures onto a closed reason vocabulary without retaining messages."""
 
+    if isinstance(error, _WebDriverSessionNotCreatedError):
+        return error.error_code
     if isinstance(error, subprocess.TimeoutExpired):
         return "timeout"
     if isinstance(error, json.JSONDecodeError):
@@ -2423,6 +2459,7 @@ def _run_agent_task_browser_crash_trial(
     failure_type: str | None = None
     failure_stage: str | None = None
     reason_code: str | None = None
+    startup_reason: str | None = None
     session_cleanup_failure_type: str | None = None
     cleanup_failure_type: str | None = None
     with tempfile.TemporaryDirectory(
@@ -2451,6 +2488,8 @@ def _run_agent_task_browser_crash_trial(
             failure_type = type(primary_error).__name__
             failure_stage = _classify_agent_task_browser_crash_stage(primary_error)
             reason_code = _classify_agent_task_browser_crash_reason(primary_error)
+            if isinstance(primary_error, _WebDriverSessionNotCreatedError):
+                startup_reason = primary_error.startup_reason
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(
@@ -2476,6 +2515,8 @@ def _run_agent_task_browser_crash_trial(
             )
         if cleanup_failure_type is not None:
             failure_evidence["cleanup_failure_type"] = cleanup_failure_type
+        if startup_reason is not None:
+            failure_evidence["startup_reason"] = startup_reason
         return failure_evidence
     if result is None:
         raise RuntimeError("Agent Task browser-crash browser pass returned no result")
