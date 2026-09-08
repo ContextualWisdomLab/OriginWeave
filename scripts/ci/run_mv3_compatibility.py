@@ -674,6 +674,21 @@ def _run_agent_task_browser_pass(
         )
         if submit_role != "button" or submit_name != "Submit task":
             raise RuntimeError("Agent Task submit semantic evidence mismatch")
+        pre_click_state = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(
+                session_id,
+                pre_action_result_element,
+                "/attribute/data-state",
+            ),
+        ).get("value")
+        pre_click_text = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(session_id, pre_action_result_element, "/text"),
+        ).get("value")
+        _validate_agent_task_pre_action_state(pre_click_state, pre_click_text)
         _json_request(
             driver_port,
             "POST",
@@ -705,6 +720,7 @@ def _run_agent_task_browser_pass(
         return {
             "browser_version": browser_version,
             "pre_action_baseline_verified": True,
+            "pre_click_baseline_verified": True,
             "post_condition": True,
             "input_echo_verified": True,
             "url_unchanged": url_unchanged,
@@ -774,6 +790,7 @@ def _run_agent_task_trial(
         "passed": True,
         "browser_version": result["browser_version"],
         "pre_action_baseline_verified": result["pre_action_baseline_verified"],
+        "pre_click_baseline_verified": result["pre_click_baseline_verified"],
         "post_condition": result["post_condition"],
         "input_echo_verified": result["input_echo_verified"],
         "url_unchanged": result["url_unchanged"],
@@ -793,6 +810,7 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
     return all(
         trial.get("passed") is True
         and trial.get("pre_action_baseline_verified") is True
+        and trial.get("pre_click_baseline_verified") is True
         and trial.get("post_condition") is True
         and trial.get("input_echo_verified") is True
         and trial.get("url_unchanged") is True
