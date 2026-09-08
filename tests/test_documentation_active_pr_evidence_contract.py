@@ -89,11 +89,18 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
         self.assertIn("on 2026-09-05", refresh_line)
-        current = bounded_section(
+        latest_cut = bounded_section(
             self.baseline,
-            "#### Published session-end reply binding: 05:35 UTC",
-            "#### Published status-response repair: 04:45 UTC",
+            "### Latest verified cut: 2026-09-08",
+            "### Historical verified cut: 2026-09-07",
         )
+        current = bounded_section(
+            latest_cut,
+            "#### Transport-closure verification and test-integrity repair",
+            "### Historical verified cut: 2026-09-07",
+        ) if "### Historical verified cut: 2026-09-07" in latest_cut else latest_cut.split(
+            "#### Transport-closure verification and test-integrity repair", 1
+        )[1]
         queue_counts = re.findall(
             r"\*\*(\d+) open pull requests: (\d+) Ready/non-draft and (\d+) Draft; "
             r"(\d+) open non-PR issues\*\*",
@@ -126,11 +133,22 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
 
     def test_latest_inventory_drift_cannot_be_hidden_by_historical_counts(self) -> None:
         """Changing only the newest count must invalidate an unchanged changelog."""
+        latest = bounded_section(
+            self.baseline,
+            "### Latest verified cut: 2026-09-08",
+            "### Historical verified cut: 2026-09-07",
+        )
+        self.assertIn("126 open pull requests", latest)
+        mutated_latest = latest.replace(
+            "126 open pull requests",
+            "127 open pull requests",
+            1,
+        )
+        self.assertNotEqual(latest, mutated_latest)
         probe = ActivePullRequestDocumentationContractTests(
             "test_baseline_refresh_changelog_matches_the_live_snapshot"
         )
-        probe.baseline = self.baseline.replace("125 open", "126 open", 1)
-        self.assertNotEqual(self.baseline, probe.baseline)
+        probe.baseline = self.baseline.replace(latest, mutated_latest, 1)
         probe.changelog = self.changelog
         with self.assertRaises(AssertionError):
             probe.test_baseline_refresh_changelog_matches_the_live_snapshot()
