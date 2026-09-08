@@ -10,7 +10,10 @@
 //! binds received fragmented text to one exact verified connection, classifies
 //! complete local-end JSON envelopes, tracks bounded command-response correlation,
 //! transports narrowly typed pointer-click and node-bound non-secret text-input
-//! actions and fixed sandboxed text-value observations, admits typed correlated protocol responses, sends a context-bound committed-navigation subscription and retains
+//! actions and fixed sandboxed text-value observations, admits typed correlated
+//! protocol responses, binds positive text-value evidence to a sender-minted
+//! acknowledged typed-input intent, sends a context-bound committed-navigation
+//! subscription and retains
 //! its typed bounded correlated identifier, binds navigation-event admission to
 //! that active command/receipt lifecycle with bounded fail-closed navigation replay
 //! prevention, explicitly unsubscribes that exact
@@ -49,7 +52,10 @@ mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_session_teardown;
+mod webdriver_bidi_text_value_observation_response;
 mod webdriver_bidi_text_value_observation_transport;
+mod webdriver_bidi_text_value_postcondition;
+mod webdriver_bidi_type_text_intent;
 mod webdriver_bidi_type_text_response;
 mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
@@ -60,6 +66,8 @@ mod webdriver_bidi_websocket_transport_closure;
 
 #[cfg(test)]
 mod webdriver_bidi_json_envelope_public_boundary_tests;
+#[cfg(test)]
+mod webdriver_bidi_text_value_observation_public_boundary_tests;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
@@ -147,8 +155,21 @@ pub use webdriver_bidi_session_teardown::{
     WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
     WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
 };
+pub use webdriver_bidi_text_value_observation_response::{
+    WebDriverBiDiTextValueObservationProjectionError,
+    WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
+};
 pub use webdriver_bidi_text_value_observation_transport::{
     WebDriverBiDiTextValueObservationSendError, send_webdriver_bidi_text_value_observation,
+};
+pub use webdriver_bidi_text_value_postcondition::{
+    WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError,
+    verify_webdriver_bidi_text_value_postcondition,
+};
+pub use webdriver_bidi_type_text_intent::{
+    WebDriverBiDiAcknowledgedTypeTextIntent, WebDriverBiDiTypeTextIntentAcknowledgementError,
+    WebDriverBiDiTypeTextIntentWitness, acknowledge_webdriver_bidi_type_text_intent,
+    send_webdriver_bidi_type_text_with_postcondition_intent,
 };
 pub use webdriver_bidi_type_text_response::{
     WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,

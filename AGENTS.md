@@ -81,6 +81,8 @@ The organization currently documents a **solo-maintainer** governance condition.
 
 ## Testing expectations
 
+For an ACK coverage deficit, trace every pre-consumption guard and the lower correlation result before adding tests. Remove a duplicate post-check only when the same validated envelope and exact-id correlation make its failure impossible. Cover reachable malformed, event, remote-error, wrong-id and foreign-connection paths with real receipts, assert pending-state counts, and compare opaque diagnostics without exposing text. Keep reusable test helpers public only within integration-test crates; never widen production provenance access to make a fixture compile.
+
 Use realistic cases, including:
 
 - malformed origins, IPv4/IPv6 loopback, user information, paths, ports, and Unicode/control input;
