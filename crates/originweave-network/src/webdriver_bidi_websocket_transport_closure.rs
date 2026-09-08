@@ -62,10 +62,11 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
     /// The caller supplies independent fresh masking keys for each pre-Close Ping response and
     /// the required Close response. Up to 64 pre-Close Ping/Pong frames are admitted as a local
     /// resource limit. Pings consume keys in slice order; unsolicited Pongs consume no key.
-    /// Exhausted keys, excess control traffic, application data, timeout, partial EOF, malformed frames, write
-    /// failures, a server-sent client-only status 1010, or any post-Close frame fail closed. Peer Close alone is never success: after the
-    /// masked response this boundary requires zero-byte TCP EOF within one operation-wide
-    /// deadline covering all reads and writes. Evidence arriving after that deadline is rejected.
+    /// Exhausted keys, excess control traffic, application data, timeout, partial EOF, malformed
+    /// frames, write failures, a server-sent client-only status 1010, or any post-Close frame fail
+    /// closed. Peer Close alone is never success: after the masked response this boundary requires
+    /// zero-byte TCP EOF within one operation-wide deadline covering all reads and writes. Evidence
+    /// arriving after that deadline is rejected.
     pub fn observe(
         established: WebDriverBiDiWebSocketEstablished,
         pong_masking_keys: &[WebDriverBiDiWebSocketMaskKey],
@@ -151,11 +152,11 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
                     .get(..2)
                     .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]));
                 if peer_close_status_code == Some(1010) {
-                    return Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
-                        source: WebDriverBiDiWebSocketFrameError::MalformedFrame {
-                            reason: "Close status 1010 is reserved for clients",
+                    return Err(
+                        WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
+                            status_code: 1010,
                         },
-                    });
+                    );
                 }
                 let established = established
                     .write_close_frame(
@@ -240,6 +241,11 @@ pub enum WebDriverBiDiWebSocketTransportClosureError {
     PongMaskingKeysExhausted,
     /// The operation-wide deadline expired before transport-closure evidence was admitted.
     DeadlineExpired,
+    /// The server sent a wire-valid Close status whose meaning is reserved for clients.
+    PeerCloseStatusNotAllowed {
+        /// Exact peer-supplied Close status rejected by the known client/server role boundary.
+        status_code: u16,
+    },
     /// The peer sent a valid WebSocket frame outside the bounded closing state machine.
     UnexpectedFrame {
         /// Exact validated RFC 6455 opcode observed instead of admissible bounded closing traffic.
@@ -263,6 +269,8 @@ impl fmt::Display for WebDriverBiDiWebSocketTransportClosureError {
             Self::DeadlineExpired => {
                 formatter.write_str("WebDriver BiDi transport closure deadline expired")
             }
+            Self::PeerCloseStatusNotAllowed { .. } => formatter
+                .write_str("WebDriver BiDi server sent a Close status reserved for clients"),
             Self::UnexpectedFrame { .. } => formatter
                 .write_str("WebDriver BiDi peer sent non-closure traffic instead of closing"),
             Self::Frame { .. } => {
@@ -278,7 +286,8 @@ impl Error for WebDriverBiDiWebSocketTransportClosureError {
             Self::UnexpectedFrame { .. }
             | Self::DeadlineExpired
             | Self::ControlFrameLimitExceeded
-            | Self::PongMaskingKeysExhausted => None,
+            | Self::PongMaskingKeysExhausted
+            | Self::PeerCloseStatusNotAllowed { .. } => None,
             Self::Frame { source } => Some(source),
         }
     }
@@ -465,10 +474,17 @@ mod tests {
             &mut || now,
         )
         .expect_err("server Close 1010 must fail");
+        assert!(matches!(
+            error,
+            WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
+                status_code: 1010
+            }
+        ));
         assert_eq!(
-            format!("{error:?}"),
-            "Frame { source: MalformedFrame { reason: \"Close status 1010 is reserved for clients\" } }"
+            error.to_string(),
+            "WebDriver BiDi server sent a Close status reserved for clients"
         );
+        assert!(error.source().is_none());
         let mut reply = [0];
         assert_eq!(peer.read(&mut reply).expect("peer EOF"), 0);
     }
