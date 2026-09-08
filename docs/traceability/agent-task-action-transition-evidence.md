@@ -4,38 +4,43 @@
 - **Canonical browser-domain owner:** OriginWeave
 - **Active PR:** #288
 - **Protected base:** `main@87c4daa1830bac5a5228b6036752ad5633232085`
-- **Causal observation repair:** `8b7aa28ecf7acb1e3f3b2dcadd4cb3cbf59ea01f`
-- **Causal acceptance repair:** `e1dd50999cd3a52977179047e8d5d77a2e85aef9`
+- **Initial causal observation repair:** `8b7aa28ecf7acb1e3f3b2dcadd4cb3cbf59ea01f`
+- **Initial causal acceptance repair:** `e1dd50999cd3a52977179047e8d5d77a2e85aef9`
+- **Immediate pre-click RED:** `07540f0cdb3178998d305382d9176cccaeabce57`
+- **Immediate pre-click repair:** `942e4c1a44119384d01ee4c7ec4168e6c5ab38b5`
 - **Workflow/sandbox owner:** #212
 - **WebDriver protocol-diagnostic owner:** #148
 
 ## Problem
 
-The controlled Agent Task lane already used browser-computed role/name evidence, native WebDriver clear/type/click commands, a page-observed `submitted` state, exact synthetic text echo, URL stability, and profile cleanup. That sequence still admitted one evidence-validity ambiguity: it did not prove that the claimed success surfaces were false before the native action.
+The controlled Agent Task lane already used browser-computed role/name evidence, native WebDriver clear/type/click commands, a page-observed `submitted` state, exact synthetic text echo, URL stability, and profile cleanup. The first causal repair added an `idle` / `idle` observation before the input sequence, preventing a fixture that was already successful at navigation time from satisfying the buyer gate.
 
-A pre-fired fixture or regression could therefore expose `data-state="submitted"` and the expected result text before the click. The existing post-action checks would then confirm a successful-looking state without establishing that the WebDriver action caused the transition. A command acknowledgement was not being treated as success, but the evidence still lacked an observed causal baseline.
+That was still insufficient to attribute the final transition specifically to the submit click. A fixture regression could remain idle at the first observation, mutate `#task-result` while the WebDriver value command types the synthetic input, and then present `submitted` plus the expected echo before the click. The later post-condition would still look successful even though the click did not cause the transition.
 
 ## Decision
 
-The controlled fixture has one canonical pre-action state: `#task-result` is `data-state="idle"` and rendered text `idle`. Before typing or clicking, the runner reads both surfaces through WebDriver and requires that exact baseline with `_validate_agent_task_pre_action_state`.
+The controlled fixture has one canonical unsuccessful state: `#task-result` is `data-state="idle"` and rendered text `idle`. The runner now observes that state twice through WebDriver: once before clear/type and again after typing plus submit-target semantic verification, immediately before the native click. Both observations reuse `_validate_agent_task_pre_action_state`, so unexpected page-controlled values fail closed without being serialized into diagnostics.
 
-Only after that browser-observed baseline succeeds does the runner continue with the existing native clear/type/click sequence. The post-action acceptance remains unchanged: URL stability, `data-state="submitted"`, and exact echo of the synthetic task input must all be observed. Successful trial evidence carries `pre_action_baseline_verified: true`, and `_agent_task_surfaces_complete` now requires that witness in every successful trial. A post-condition-only record can no longer satisfy the buyer gate.
+Only after the second browser-observed baseline succeeds does the runner issue the WebDriver click. The post-click acceptance remains unchanged: URL stability, `data-state="submitted"`, and exact echo of the synthetic task input must all be observed. Successful trial evidence carries both `pre_action_baseline_verified: true` and `pre_click_baseline_verified: true`, and `_agent_task_surfaces_complete` requires both witnesses in every successful trial. This establishes the stronger observed sequence `idle before input → idle immediately before click → click → submitted/exact echo`, rather than inferring success from command acknowledgement or from a post-condition that may already have been true.
 
-The baseline values are used only for local comparison. Unexpected page-controlled state or text is never serialized into CI diagnostics; the bounded failure is `Agent Task pre-action baseline was already satisfied`.
+The baseline values are used only for local comparison. Unexpected page-controlled state or text is never serialized into CI diagnostics; the bounded failure remains `Agent Task pre-action baseline was already satisfied`.
 
 ## Test-first evidence
 
 The regression sequence is intentionally non-destructive:
 
-- `b9707975a605347b573b992cfe178150feda6a95` introduced the causal-transition contract.
+- `b9707975a605347b573b992cfe178150feda6a95` introduced the original causal-transition contract.
 - `651d7fe89a1e6ebd811607683eb50f3b17a5822e` pinned the fixture's actual `idle` / `idle` baseline.
 - `4d61c2f82a82048727980f6638b7e95e93699fd6` first required the baseline witness to propagate into per-trial evidence without changing the existing gate.
-- `8b7aa28ecf7acb1e3f3b2dcadd4cb3cbf59ea01f` added the minimum runner observation repair: two pre-action observations, one closed validator, and one credential-free evidence field.
-- `42a9a129ff80edc698c3c097a049246d538c63bc` strengthened the regression so a trial lacking the baseline witness must fail surface completeness.
-- `ed6af6ebf825a1571f16aaf1bc1d1bfdea4327a4` aligned the existing successful-trial test doubles with that explicit witness.
-- `e1dd50999cd3a52977179047e8d5d77a2e85aef9` made `pre_action_baseline_verified is True` a mandatory `_agent_task_surfaces_complete` condition.
+- `8b7aa28ecf7acb1e3f3b2dcadd4cb3cbf59ea01f` added the first runner observation repair.
+- `42a9a129ff80edc698c3c097a049246d538c63bc` strengthened the regression so a trial lacking that baseline witness cannot satisfy surface completeness.
+- `ed6af6ebf825a1571f16aaf1bc1d1bfdea4327a4` aligned the then-current successful-trial doubles.
+- `e1dd50999cd3a52977179047e8d5d77a2e85aef9` made `pre_action_baseline_verified is True` mandatory in `_agent_task_surfaces_complete`.
+- `07540f0cdb3178998d305382d9176cccaeabce57` adds the next test-first RED: a second baseline validator call must occur after the WebDriver value command and before the click, and `pre_click_baseline_verified` must be required by the buyer gate.
+- `942e4c1a44119384d01ee4c7ec4168e6c5ab38b5` performs the minimum production repair by re-observing the existing result element immediately before click, reusing the closed validator, threading the new witness through trial evidence, and requiring it in surface completeness.
+- `3d3166ec1e3a7c5aaee1f2dae92f09a7acc294f4` and `efca7d69c3bbc459bc218b9142a6dd4e58828076` align successful evidence doubles with the stronger two-baseline contract instead of weakening the predicate.
 
-These commits do not change browser version, trial denominator, native action sequence, URL check, post-condition, cleanup, workflow, sandbox configuration, or #148 protocol-diagnostic authority.
+These commits do not change browser version, trial denominator, native clear/type/click commands, URL check, post-condition, cleanup, workflow, sandbox configuration, extension-isolation semantics, or #148 protocol-diagnostic authority.
 
 Because #288 is Draft, CI and Manifest V3 Compatibility may skip before executing this exact lineage. A source-semantic/test-first RED or code inspection is not a substitute for a fresh pinned-Chromium run. Browser acceptance still requires the #212 workflow/sandbox owner path to execute the unchanged three-trial lane on the exact successor head.
 
@@ -43,7 +48,7 @@ Because #288 is Draft, CI and Manifest V3 Compatibility may skip before executin
 
 The current published WebDriver 2 draft is **W3C Working Draft, 2 July 2026**. It defines WebDriver as an out-of-process browser-control protocol and separately defines element interaction and element-state retrieval commands. The controlled Agent Task lane uses those commands as transport-level observation and interaction mechanisms; OriginWeave's stronger causal acceptance rule is a product evidence invariant layered above the protocol. WebDriver command completion alone does not establish OriginWeave task success.
 
-The `GET /session/{session id}/element/{element id}/text` endpoint is the standard Get Element Text command. The runner uses element retrieval before and after the native action to demonstrate an observed state transition, rather than inferring success from the click response.
+The `GET /session/{session id}/element/{element id}/text` endpoint is the standard Get Element Text command. The runner uses element retrieval before the action sequence, again immediately before the submit click, and after the click so acceptance is based on an observed state transition rather than the click response alone.
 
 ### APA 7th
 
