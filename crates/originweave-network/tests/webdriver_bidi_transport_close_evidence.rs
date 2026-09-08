@@ -537,3 +537,24 @@ fn reused_close_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn E
     let _ = server.join();
     Ok(())
 }
+
+#[test]
+fn reused_close_mask_key_on_peer_close_preserves_typed_frame_failure() -> Result<(), Box<dyn Error>>
+{
+    let (established, server) = established_with_server_frame(Some(&[0x88, 0x02, 0x03, 0xe8]))?;
+    let reused = WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY);
+    let established = established.write_text_frame("{}", reused, Duration::from_millis(500))?;
+
+    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        reused,
+        Duration::from_millis(500),
+    );
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame { .. })
+    ));
+    let _ = server.join();
+    Ok(())
+}
