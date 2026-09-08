@@ -261,6 +261,21 @@ impl WebDriverBiDiCommandCorrelation {
         }
     }
 
+    pub(crate) fn correlate_response_for_connection(
+        &mut self,
+        envelope: &WebDriverBiDiJsonEnvelope,
+        expected_kind: WebDriverBiDiCommandKind,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
+        let (command_id, outcome) = response_route(envelope)?;
+        self.complete_on_connection(
+            command_id,
+            expected_kind,
+            outcome,
+            received_connection_generation,
+        )
+    }
+
     fn require_command_kind(
         &self,
         command_id: u64,
