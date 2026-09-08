@@ -8,6 +8,33 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-08
 
+#### Published deadline and Close-code repairs
+
+Published #255 head
+[`8716b9d441960a112446c1f89ab417ad9abe28d2`](https://github.com/ContextualWisdomLab/OriginWeave/commit/8716b9d441960a112446c1f89ab417ad9abe28d2)
+retains parent #252 `363a78e36e7690e9ed5bf49829567e00e2ec5d59` and is **not shipped**.
+One operation-wide monotonic deadline now covers the complete closure exchange.
+A delayed real-peer test first reproduced budget renewal; controlled-clock tests
+then verified every deadline transition and final evidence admission.
+
+The shared Close validator also rejects unassigned protocol codes **1016–2999**
+against the current IANA registry, while preserving application/private ranges.
+The boundary test first failed on 1016; real peers now verify no reply or closure
+evidence for 1016, 2000, and 2999. Local functions/lines/regions/branches are
+**1101/11492/14662/1218**, all 100%. All **18 closure** integration tests,
+**142 repository** contracts, strict Clippy, doctests and warnings-denied rustdoc pass.
+Hosted [run 34183766437](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34183766437)
+is pending at this checkpoint: local verification is **not hosted acceptance**.
+
+The fresh inventory remains 126 open PRs (12 Ready, all BLOCKED; 114 Draft),
+14 issues and zero releases; protected main remains
+`87c4daa1830bac5a5228b6036752ad5633232085`. The current rule still requires one
+counted approval and seven central workflows. Remaining #255 work is **repeated Ping/Pong**
+with fresh masking keys; browser **process exit** and **profile cleanup** remain unproven.
+Publication still requires protected source, an explicit version and complete release
+artifacts/evidence. The earlier checkpoint below records its own earlier state,
+not the current implementation gaps.
+
 #### Transport-closure verification and test-integrity repair
 
 The latest inventory contains **126 open pull requests: 12 Ready/non-draft and

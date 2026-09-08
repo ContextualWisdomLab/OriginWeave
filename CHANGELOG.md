@@ -123,6 +123,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Refreshed the delivery checkpoint for completed local shutdown-deadline and reserved-code repairs while keeping hosted acceptance and release gaps explicit.
+
 - Made the open non-PR issue count reproducible in the baseline evidence procedure and corrected the historical exact heads for PRs #53 and #217.
 - Revalidated the active ruleset inventory at 7 required workflows from the live branch-rules API by adding `codeql-pr`; `close-empty-pr` remains useful repository automation but is not a current protected-main requirement.
 

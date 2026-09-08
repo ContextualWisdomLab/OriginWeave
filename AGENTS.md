@@ -1,5 +1,7 @@
 # Agent Development Contract
 
+When a follow-up closes a documented gap, add a bounded current checkpoint and label the predecessor as historical. Pin new local metrics and hosted run separately; do not leave an earlier pending implementation claim as the current next action.
+
 This file is authoritative for humans and automated contributors working in OriginWeave.
 
 ## Product objective
