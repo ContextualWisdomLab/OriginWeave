@@ -475,7 +475,7 @@ mod tests {
         )
         .expect_err("server Close 1010 must fail");
         assert!(matches!(
-            error,
+            &error,
             WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
                 status_code: 1010
             }
