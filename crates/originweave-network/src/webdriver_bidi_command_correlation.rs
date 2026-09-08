@@ -32,6 +32,25 @@ struct OutstandingCommand {
     connection_generation: Option<WebDriverBiDiConnectionGeneration>,
 }
 
+fn response_route(
+    envelope: &WebDriverBiDiJsonEnvelope,
+) -> Result<(u64, WebDriverBiDiCorrelatedResponseOutcome), WebDriverBiDiCommandCorrelationError> {
+    match envelope.routing() {
+        WebDriverBiDiJsonEnvelopeRouting::Event => {
+            Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
+        }
+        WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+            Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
+        }
+        WebDriverBiDiJsonEnvelopeRouting::CommandError {
+            command_id: Some(command_id),
+        } => Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Error)),
+        WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => {
+            Ok((command_id, WebDriverBiDiCorrelatedResponseOutcome::Success))
+        }
+    }
+}
+
 /// Outcome of a response after it has consumed the matching outstanding command identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiCorrelatedResponseOutcome {
