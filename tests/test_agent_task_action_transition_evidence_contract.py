@@ -56,6 +56,21 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         self.assertLess(pre_click_baseline, native_click)
         self.assertIn('"pre_click_baseline_verified": True', source)
 
+    def test_url_stability_is_observed_through_the_accepted_post_condition(self) -> None:
+        """A delayed navigation must not escape the accepted action-outcome boundary."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_final_url_order")
+        source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        native_click = source.index('"/click"')
+        post_condition = source.index("_validate_agent_task_submitted_state", native_click)
+        exact_echo = source.index("if text != AGENT_TASK_INPUT_VALUE", post_condition)
+        final_url_read = source.find('"/url"', exact_echo)
+        success_evidence = source.index("return {", exact_echo)
+        self.assertNotEqual(final_url_read, -1)
+        self.assertLess(exact_echo, final_url_read)
+        self.assertLess(final_url_read, success_evidence)
+        self.assertIn("Agent Task URL changed before accepted outcome", source)
+
     def test_surface_completeness_requires_transition_baseline_evidence(self) -> None:
         """Post-condition evidence must include both sequence and immediate click baselines."""
 
