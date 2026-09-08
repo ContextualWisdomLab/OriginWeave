@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Restored the simple frame-timeout validation after correcting coverage diagnosis; direct Close-writer tests verify invalid deadlines send no bytes and return the expected error.
 - Kept exact invalid-deadline error checks without compound test-only guards in the coverage measurement.
+- Verified literal masked Close bytes with and without a status code, and that a reused masking key emits no Close bytes after the preceding text frame.
 
 - Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
 - Integrated the current teardown prerequisites into transport-closure observation, including the previously uncollected release-record check, while retaining the unresolved connection-provenance finding and its downstream repair ownership.

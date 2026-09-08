@@ -827,15 +827,57 @@ mod tests {
     use super::*;
 
     #[test]
-    fn close_writer_rejects_invalid_deadline_without_emitting_bytes() {
+    fn close_writer_checks_deadlines_masks_and_exact_wire_bytes() {
         use crate::WebDriverBiDiTcpConnectionPlan;
         use originweave_core::WebDriverBiDiWebSocketEndpoint;
         use std::net::{TcpListener, TcpStream};
         use std::thread;
 
-        for timeout in [
-            Duration::ZERO,
-            MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+        let excessive = MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1);
+        for (timeout, status, seed_text, expected_bytes, expected_result) in [
+            (
+                Duration::ZERO,
+                Some(1000),
+                false,
+                vec![],
+                Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                    frame_timeout: Duration::ZERO,
+                    maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                }),
+            ),
+            (
+                excessive,
+                Some(1000),
+                false,
+                vec![],
+                Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                    frame_timeout: excessive,
+                    maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                }),
+            ),
+            (
+                Duration::from_secs(1),
+                Some(1000),
+                false,
+                vec![0x88, 0x82, 1, 2, 3, 4, 2, 0xea],
+                Ok(()),
+            ),
+            (
+                Duration::from_secs(1),
+                None,
+                false,
+                vec![0x88, 0x80, 1, 2, 3, 4],
+                Ok(()),
+            ),
+            (
+                Duration::from_secs(1),
+                Some(1000),
+                true,
+                vec![0x81, 0x82, 1, 2, 3, 4, 0x7a, 0x7f],
+                Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: REUSED_CLIENT_MASK_KEY_REASON,
+                }),
+            ),
         ] {
             let listener = TcpListener::bind("127.0.0.1:0").expect("bind peer");
             let address = listener.local_addr().expect("peer address");
@@ -851,6 +893,11 @@ mod tests {
                     request.push(byte[0]);
                 }
                 stream.write_all(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n").expect("opening response");
+                let mut received = vec![0; expected_bytes.len()];
+                stream
+                    .read_exact(&mut received)
+                    .expect("expected client frame");
+                assert_eq!(received, expected_bytes);
                 let mut byte = [0];
                 assert_eq!(
                     TcpStream::read(&mut stream, &mut byte).expect("client EOF"),
@@ -878,23 +925,25 @@ mod tests {
                 .expect("write opening")
                 .read_opening_response(Duration::from_secs(1))
                 .expect("read opening");
-            let error = established
+            let established = if seed_text {
+                established
+                    .write_text_frame(
+                        "{}",
+                        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                        timeout,
+                    )
+                    .expect("seed text frame")
+            } else {
+                established
+            };
+            let result = established
                 .write_close_frame(
-                    Some(1000),
+                    status,
                     WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
                     timeout,
                 )
-                .expect_err("reject deadline");
-            assert_eq!(
-                format!("{error:?}"),
-                format!(
-                    "{:?}",
-                    WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
-                        frame_timeout: timeout,
-                        maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
-                    }
-                )
-            );
+                .map(drop);
+            assert_eq!(format!("{result:?}"), format!("{expected_result:?}"));
             peer.join().expect("peer completed");
         }
     }
