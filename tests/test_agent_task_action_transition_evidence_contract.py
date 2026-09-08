@@ -21,9 +21,9 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         self.assertIn("_validate_agent_task_pre_action_state", namespace)
         validate = namespace["_validate_agent_task_pre_action_state"]
 
-        validate("idle", "")
+        validate("idle", "idle")
         hostile = "buyer-secret-marker-must-not-reach-ci"
-        for state, text in (("submitted", ""), ("idle", hostile)):
+        for state, text in (("submitted", "idle"), ("idle", hostile)):
             with self.subTest(state=state, text=text), self.assertRaisesRegex(
                 RuntimeError,
                 r"^Agent Task pre-action baseline was already satisfied$",
