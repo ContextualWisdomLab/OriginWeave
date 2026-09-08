@@ -44,35 +44,10 @@ impl WebDriverBidiBrowsingContext {
     }
 }
 
-/// Caller-supplied attestation that one browsing context is disposable and exclusively owned by
-/// the presentation lifecycle that will clear its complete media-feature override configuration.
-///
-/// This adapter does not discover or mint browser-session ownership. A later Browser Session owner
-/// must create this attestation only after establishing the corresponding exclusive context/profile
-/// invariant and must destroy that owned boundary if post-cleanup state cannot be proved.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExclusivePresentationContext(WebDriverBidiBrowsingContext);
-
-impl ExclusivePresentationContext {
-    /// Bind an already validated browsing context to an explicit exclusive-ownership assertion.
-    ///
-    /// The caller remains responsible for proving that assertion at the Browser Session boundary.
-    #[must_use]
-    pub fn new(context: WebDriverBidiBrowsingContext) -> Self {
-        Self(context)
-    }
-
-    /// Return the exact browsing context covered by the ownership assertion.
-    #[must_use]
-    pub fn context(&self) -> &WebDriverBidiBrowsingContext {
-        &self.0
-    }
-}
-
 /// Typed standard-BiDi presentation command intent for one explicit browsing context.
 ///
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
-/// prove an acknowledgement, or establish page-observed presentation evidence.
+/// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WebDriverBidiPresentationCommand {
     /// Set viewport dimensions and device-pixel ratio together.
@@ -94,6 +69,9 @@ pub enum WebDriverBidiPresentationCommand {
         timezone: String,
     },
     /// Set the reduced-motion media feature.
+    ///
+    /// The pinned standard can express this command, but it is intentionally excluded from the
+    /// reusable default plan because standard media cleanup cannot selectively restore prior state.
     SetReducedMotion {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
@@ -110,21 +88,21 @@ pub enum WebDriverBidiPresentationCommand {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
     },
-    /// Clear the complete media-feature override configuration for an exclusively owned context.
-    ResetMediaFeatures {
-        /// Exact target browsing context.
-        context: WebDriverBidiBrowsingContext,
-    },
 }
 
-/// Plan the three typed standard-BiDi commands covering the four admitted surfaces.
+/// Plan the reversible standard-BiDi presentation commands safe for a reusable browsing context.
 ///
-/// Screen, hardware concurrency, platform, and ordered languages are intentionally absent.
+/// Viewport/device-pixel-ratio and time-zone state each have a non-destructive nullable reset in the
+/// pinned Working Draft. Reduced motion remains an expressible protocol capability, but the default
+/// reusable plan does not install it because `features: null` clears the complete media-feature
+/// configuration rather than restoring only OriginWeave's prior `prefers-reduced-motion` value.
+/// A Browser Session owner must first bind media mutation to a genuinely disposable lifecycle or a
+/// complete snapshot/restore path before constructing and sending `SetReducedMotion`.
 #[must_use]
 pub fn plan_standard_presentation_commands(
     context: &WebDriverBidiBrowsingContext,
     profile: &PresentationProfile,
-) -> [WebDriverBidiPresentationCommand; 3] {
+) -> [WebDriverBidiPresentationCommand; 2] {
     [
         WebDriverBidiPresentationCommand::SetViewport {
             context: context.clone(),
@@ -136,10 +114,6 @@ pub fn plan_standard_presentation_commands(
             context: context.clone(),
             timezone: profile.timezone().iana_name().to_owned(),
         },
-        WebDriverBidiPresentationCommand::SetReducedMotion {
-            context: context.clone(),
-            reduce: profile.reduced_motion(),
-        },
     ]
 }
 
@@ -147,7 +121,7 @@ pub fn plan_standard_presentation_commands(
 ///
 /// The pinned Working Draft provides independently nullable reset paths for viewport/DPR and
 /// time-zone state, so these two resets are safe to plan for a reusable browsing context. Media
-/// cleanup is deliberately excluded because `features: null` clears the complete media-feature
+/// cleanup is deliberately absent because `features: null` clears the complete media-feature
 /// override configuration rather than selectively undoing `prefers-reduced-motion`.
 #[must_use]
 pub fn plan_standard_presentation_cleanup(
@@ -161,20 +135,6 @@ pub fn plan_standard_presentation_cleanup(
             context: context.clone(),
         },
     ]
-}
-
-/// Plan destructive media-feature cleanup only for an explicitly exclusive presentation context.
-///
-/// `emulation.setMediaFeaturesOverride` with `features: null` unsets the target's complete
-/// media-feature override configuration. Reusable-context callers must not use this intent to
-/// impersonate snapshot/restore semantics that the standard command does not provide.
-#[must_use]
-pub fn plan_exclusive_presentation_media_cleanup(
-    context: &ExclusivePresentationContext,
-) -> WebDriverBidiPresentationCommand {
-    WebDriverBidiPresentationCommand::ResetMediaFeatures {
-        context: context.context().clone(),
-    }
 }
 
 /// Published WebDriver BiDi Working Draft revision used by this capability map.
@@ -201,8 +161,8 @@ const WEBDRIVER_BIDI_PRESENTATION_SURFACES: [PresentationSurface; 4] = [
 ///
 /// Complete screen and ordered-language surfaces, hardware concurrency, and the
 /// Chromium platform/User-Agent Client Hints surface are intentionally absent.
-/// Those remain version-pinned Chromium-adapter responsibilities rather than
-/// ambient standard-BiDi authority.
+/// Reduced motion is listed as protocol capability even though reusable default application leaves
+/// media state untouched until a Browser Session owner supplies a restorable lifecycle.
 #[must_use]
 pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSurface] {
     &WEBDRIVER_BIDI_PRESENTATION_SURFACES
@@ -256,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn standard_commands_bind_complete_surfaces_to_one_context_without_claiming_success() {
+    fn reusable_standard_commands_bind_only_symmetrically_restorable_state() {
         let error = WebDriverBidiCommandError::InvalidBrowsingContext;
         assert_eq!(error.to_string(), "invalid WebDriver BiDi browsing context");
         assert!(Error::source(&error).is_none());
@@ -298,11 +258,17 @@ mod tests {
                     context: context.clone(),
                     timezone: "UTC".to_owned(),
                 },
-                WebDriverBidiPresentationCommand::SetReducedMotion {
-                    context,
-                    reduce: true,
-                },
             ]
+        );
+        assert_eq!(
+            WebDriverBidiPresentationCommand::SetReducedMotion {
+                context: context.clone(),
+                reduce: profile.reduced_motion(),
+            },
+            WebDriverBidiPresentationCommand::SetReducedMotion {
+                context,
+                reduce: true,
+            }
         );
     }
 
@@ -318,16 +284,9 @@ mod tests {
                     context: context.clone(),
                 },
                 WebDriverBidiPresentationCommand::ResetTimezone {
-                    context: context.clone(),
+                    context,
                 },
             ]
-        );
-
-        let exclusive = ExclusivePresentationContext::new(context.clone());
-        assert_eq!(exclusive.context(), &context);
-        assert_eq!(
-            plan_exclusive_presentation_media_cleanup(&exclusive),
-            WebDriverBidiPresentationCommand::ResetMediaFeatures { context }
         );
     }
 }
