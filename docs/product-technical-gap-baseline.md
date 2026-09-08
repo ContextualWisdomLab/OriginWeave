@@ -43,17 +43,20 @@ is terminal SUCCESS: Rust contracts and Production coverage both pass on that
 exact head. The Draft is CLEAN, but this remains neither protected-main nor
 shipped behavior.
 
-Draft #293 now publishes exact head
-`6b5241c164f5283f8dd51b1846ef0e4dacec0b29` on parent #229. Its executed RED
+Draft #293 advanced from visually inspected predecessor
+`6b5241c164f5283f8dd51b1846ef0e4dacec0b29` to exact head
+`30941dc0d0b2640f14c9b66ff32b05ea58082d38` on parent #229. Its executed RED
 showed that standard BiDi was overstating complete Screen and Languages
 support. The minimal repair retains only Viewport, DevicePixelRatio, TimeZone
-and ReducedMotion. Exact local coverage is **587/4886/5881/748**, all 100%; 159
+and ReducedMotion. The current head binds three typed command intents for those
+four surfaces to one bounded opaque browsing context without sending them or
+minting evidence. Exact local coverage is **592/4960/5966/754**, all 100%; 159
 repository contracts, strict Clippy, formatting, doctests and warnings-denied
-rustdoc pass. Actual Edge inspection of the GitHub-rendered exact-head diff
-showed the four admitted surfaces and exclusion contract with no clipping or overlap.
-Generated-rustdoc visual acceptance remains unproven because browser safety policy
-blocked the local page and prohibited an indirect workaround. The Draft is CLEAN;
-real Chromium application and page-observed evidence remain in #292.
+rustdoc pass. Exact-head Edge inspection was attempted, but the extension
+session repeatedly timed out; current-head visual acceptance is unproven.
+Generated-rustdoc inspection is separately blocked by local-file browser policy.
+The Draft is CLEAN; real Chromium application and page-observed evidence remain
+in #292.
 
 Both source writer leases are released. Inventory remains 126 open PRs, 14
 issues and zero releases. Earlier sections below retain dated evidence, not the

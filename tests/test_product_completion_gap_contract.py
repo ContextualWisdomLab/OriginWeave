@@ -31,9 +31,10 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "6b6c90ed3919ea84b69527ab688a087eeb45224d",
             "1105/11574/14787/1218", "34188785932", "server-sent",
             "RED", "1010", "1011", "Actual Edge", "terminal SUCCESS",
-            "6b5241c164f5283f8dd51b1846ef0e4dacec0b29",
-            "587/4886/5881/748", "#293", "GitHub-rendered exact-head",
-            "no clipping or overlap", "rustdoc visual acceptance remains unproven",
+            "6b5241c164f5283f8dd51b1846ef0e4dacec0b29", "predecessor",
+            "30941dc0d0b2640f14c9b66ff32b05ea58082d38",
+            "592/4960/5966/754", "#293", "three typed command intents",
+            "current-head visual acceptance is unproven",
             "Viewport", "DevicePixelRatio", "TimeZone", "ReducedMotion",
         ):
             self.assertIn(marker, current)

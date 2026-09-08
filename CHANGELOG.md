@@ -4,7 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Recorded #255 exact-head hosted success and #293's narrow standard-BiDi capability repair with an actual Edge diff inspection, preserving the blocked rustdoc-view and real-browser evidence gaps.
+- Recorded #255 exact-head hosted success and #293's narrow standard-BiDi capability and typed-command planning progress, preserving exact-head visual, rustdoc-view, transport, and real-browser evidence gaps.
 
 - Recorded the server Close-role RED-to-GREEN repair with exact local coverage and visual evidence, keeping queued hosted checks and release acceptance separate.
 
