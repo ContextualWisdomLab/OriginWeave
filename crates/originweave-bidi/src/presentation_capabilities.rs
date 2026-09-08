@@ -123,13 +123,17 @@ pub fn plan_standard_presentation_cleanup(
 }
 
 /// Published WebDriver BiDi Working Draft revision used by this capability map.
-pub const WEBDRIVER_BIDI_PRESENTATION_REVISION: &str = "2026-08-18";
+pub const WEBDRIVER_BIDI_PRESENTATION_REVISION: &str = "2026-09-03";
 
-/// Immutable upstream source commit used to doctor same-day emulation semantics.
+/// Immutable W3C dated-TR identity used for this capability map.
+pub const WEBDRIVER_BIDI_PRESENTATION_SPEC_URI: &str =
+    "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/";
+
+/// Auxiliary upstream source commit retained as historical doctoring evidence.
 ///
-/// The dated W3C Working Draft remains the publication identity. This commit records the exact
-/// `w3c/webdriver-bidi` source snapshot used when interpreting same-day media-feature capability
-/// details, including `prefers-reduced-motion`; it is not treated as a second protocol version.
+/// The dated W3C Working Draft remains the publication identity. This older commit records
+/// supporting `w3c/webdriver-bidi` history for media-feature semantics; it is not treated as a
+/// same-day source snapshot or a second protocol version.
 pub const WEBDRIVER_BIDI_PRESENTATION_DOCTORING_SOURCE_COMMIT: &str =
     "1e5e36c43adbe24f2a4052c2ec091635c006c352";
 
@@ -171,7 +175,11 @@ mod tests {
 
     #[test]
     fn pinned_revision_tracks_current_published_working_draft() {
-        assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-08-18");
+        assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-09-03");
+        assert_eq!(
+            WEBDRIVER_BIDI_PRESENTATION_SPEC_URI,
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        );
         assert_eq!(
             WEBDRIVER_BIDI_PRESENTATION_DOCTORING_SOURCE_COMMIT,
             "1e5e36c43adbe24f2a4052c2ec091635c006c352"

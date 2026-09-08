@@ -48,8 +48,8 @@ object with enumerated architecture/bitness/platform tokens, an at-most-32
 ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
 that a non-mobile user agent reports an empty model (see ADR 0112).
 
-The pinned 18 August 2026 WebDriver BiDi Working Draft and same-day source
-snapshot expose locale, media, screen, user-agent, viewport, and time-zone
+The pinned 3 September 2026 WebDriver BiDi Working Draft and its immutable dated-TR identity
+expose locale, media, screen, user-agent, viewport, and time-zone
 emulation commands. The screen shape contains width and height but not color
 depth, and locale accepts one value rather than an ordered language list, so
 neither proves the corresponding complete OriginWeave surface. The draft also
