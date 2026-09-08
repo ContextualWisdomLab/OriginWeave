@@ -83,6 +83,18 @@ class ChromeDriverProcessDiagnosticContractTests(unittest.TestCase):
         self.assertNotIn("private-profile", repr(diagnostic))
         self.assertNotIn("super-secret", repr(diagnostic))
 
+    def test_text_stream_drain_supports_existing_process_doubles_without_retention(self) -> None:
+        diagnostic_type = self.runner["_ChromeDriverStartupDiagnostic"]
+        drain = self.runner["_drain_chromedriver_diagnostics"]
+        diagnostic = diagnostic_type()
+        sensitive = "prefix /tmp/private-profile No usable sandbox! bearer-super-secret"
+
+        drain(io.StringIO(sensitive), diagnostic)
+
+        self.assertEqual(diagnostic.startup_reason, "sandbox_unavailable")
+        self.assertNotIn("private-profile", repr(diagnostic))
+        self.assertNotIn("super-secret", repr(diagnostic))
+
     def test_all_chromedriver_launches_stream_instead_of_discarding_output(self) -> None:
         source = RUNNER_PATH.read_text(encoding="utf-8")
 
