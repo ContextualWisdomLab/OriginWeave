@@ -6,6 +6,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Browser transport shutdown now shares one time budget across control replies and final connection closure; late closure cannot become successful completion evidence.
+
 - Restored the simple frame-timeout validation after correcting coverage diagnosis; direct Close-writer tests verify invalid deadlines send no bytes and return the expected error.
 - Kept exact invalid-deadline error checks without compound test-only guards in the coverage measurement.
 - Verified literal masked Close bytes with and without a status code, and that a reused masking key emits no Close bytes after the preceding text frame.

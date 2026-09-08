@@ -18,6 +18,16 @@ UTS #39 Revision 32 is the current Unicode security-mechanisms standard and mark
 
 RFC 6455 carries the WebSocket opening handshake over HTTP/1.1, and RFC 9110 permits `obs-text` octets (`%x80-FF`) in field values while retaining ASCII field-name and delimiter syntax. RFC 6455 also specifies that unknown opening-handshake header fields are ignored. OriginWeave therefore treats unknown extension-field values as opaque compatibility data rather than requiring the entire opening response to be UTF-8, while keeping the authority-bearing `Upgrade`, `Connection`, and `Sec-WebSocket-Accept` checks fail closed: opaque replacement material cannot satisfy the reviewed ASCII token or exact accept-value contracts. Ignoring an unknown field never grants browser, network, secret, approval, or Agent authority. RFC 6455 section 5.3 additionally requires every client-to-server frame to use a fresh unpredictable 32-bit masking key derived from strong entropy. OriginWeave's frame owner enforces that normative masking requirement and also rejects immediate reuse of the preceding key as a local fail-closed stuck-randomness defense; the adjacent-reuse rule is stronger local policy, not an RFC 6455 requirement.
 
+### Transport closure deadline
+
+The experimental BiDi transport-closure observer applies one local operation-wide
+deadline across pre-Close control traffic, the masked Close response, and final TCP
+EOF. This is an OriginWeave resource policy, not an RFC 6455 timeout value. Each I/O
+step receives only the remaining budget, and final closure evidence is rejected if
+the monotonic deadline has expired. It prevents per-frame budget renewal without
+claiming a hard real-time bound on host scheduling or proving process exit/profile
+cleanup. Tests combine a delayed real peer with deterministic clock transitions.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.

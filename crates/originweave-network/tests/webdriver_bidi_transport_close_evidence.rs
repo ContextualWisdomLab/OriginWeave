@@ -290,6 +290,31 @@ fn observe(
 }
 
 #[test]
+fn close_exchange_cannot_restart_the_operation_deadline() -> Result<(), Box<dyn Error>> {
+    let (start_sender, start_receiver) = std::sync::mpsc::channel();
+    let (established, server) = established_with_peer_script(move |stream| {
+        start_receiver.recv().map_err(io::Error::other)?;
+        thread::sleep(Duration::from_millis(750));
+        stream.write_all(&[0x88, 0x02, 0x03, 0xe8])?;
+        assert_eq!(read_masked_control_frame(stream, 0x08)?, [0x03, 0xe8]);
+        thread::sleep(Duration::from_millis(750));
+        Ok(())
+    })?;
+    start_sender.send(())?;
+    let result = observe(established, Duration::from_secs(1));
+    server
+        .join()
+        .map_err(|_| io::Error::other("deadline peer panicked"))??;
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
+            source: WebDriverBiDiWebSocketFrameError::FrameReadTimedOut { bytes_read: 0, .. }
+        })
+    ));
+    Ok(())
+}
+
+#[test]
 fn ping_before_close_requires_masked_pong_and_still_waits_for_tcp_closure()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_ping_then_held_open_peer_close()?;

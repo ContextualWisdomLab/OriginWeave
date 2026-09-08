@@ -115,6 +115,8 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 
 ### Coverage diagnosis lesson
 
+For a multi-step socket deadline, reproduce a sequence whose individual waits fit the limit but whose sum does not. Carry one monotonic expiry through every step and recheck before admitting final evidence. Pair real delayed-peer tests with a controlled clock at each read/write/evidence transition; a pre-I/O check alone cannot reject late completion. This is not a hard real-time host scheduling guarantee.
+
 Aggregate LLVM code regions by source coordinates across function instantiations before identifying a missing path. An invalid-input test at a public entry point may stop at an earlier guard; it does not prove a later private writer's error return executed. Exercise that writer directly, assert the exact error, and verify the peer received no bytes. Do not rewrite production predicates based only on a file-level coverage deficit.
 
 Coordinate union alone does not reproduce LLVM's region summary: `RegionCoverageInfo::merge` takes maximum covered/total counts across instantiations. Complementary unit-test and integration-test executions can therefore leave a deficit. Exercise successful status-bearing and empty Close writes, invalid deadlines, and adjacent masking-key rejection in the same unit-test binary; compare literal wire bytes and join the peer. Reference: LLVM Project. (n.d.). *CoverageSummaryInfo.h* [Source code]. https://github.com/llvm/llvm-project/blob/main/llvm/tools/llvm-cov/CoverageSummaryInfo.h
