@@ -55,7 +55,6 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("SetTimezone", text)
         self.assertIn("ResetTimezone", text)
         self.assertIn("SetReducedMotion", text)
-        self.assertIn("ResetMediaFeatures", text)
 
     def test_presentation_documentation_tracks_published_wd_and_cleanup_symmetry(self) -> None:
         """Architecture, changelog, and doctoring must describe the same pinned adapter contract."""
@@ -74,17 +73,26 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
                 self.assertIn("media", text.lower())
                 self.assertIn("cleanup", text.lower())
 
-    def test_media_cleanup_requires_explicit_exclusive_context_authority(self) -> None:
-        """Generic cleanup must not erase unrelated media overrides in a reusable context."""
+    def test_reusable_apply_and_cleanup_do_not_mutate_unrestorable_media_state(self) -> None:
+        """A reusable default plan must not install media state that generic cleanup cannot undo."""
         source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
         text = source.read_text(encoding="utf-8")
 
-        self.assertIn("ExclusivePresentationContext", text)
-        self.assertIn("plan_exclusive_presentation_media_cleanup", text)
+        self.assertNotIn("ExclusivePresentationContext", text)
+        self.assertNotIn("plan_exclusive_presentation_media_cleanup", text)
+        self.assertIn("plan_standard_presentation_commands", text)
         self.assertIn("plan_standard_presentation_cleanup", text)
+        self.assertIn("SetReducedMotion", text)
+
+        standard_apply = text.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
+        standard_apply = standard_apply.split(
+            "pub fn plan_standard_presentation_cleanup", maxsplit=1
+        )[0]
+        self.assertNotIn("SetReducedMotion", standard_apply)
+
         standard_cleanup = text.split("pub fn plan_standard_presentation_cleanup", maxsplit=1)[1]
         standard_cleanup = standard_cleanup.split(
-            "pub fn plan_exclusive_presentation_media_cleanup", maxsplit=1
+            "pub const WEBDRIVER_BIDI_PRESENTATION_REVISION", maxsplit=1
         )[0]
         self.assertNotIn("ResetMediaFeatures", standard_cleanup)
 
