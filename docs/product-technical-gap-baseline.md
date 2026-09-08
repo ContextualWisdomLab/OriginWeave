@@ -8,6 +8,34 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-08
 
+#### Published intent acknowledgment verification
+
+Published #271 head
+[`46db0045904f0289738df843d0a2f179c26673d3`](https://github.com/ContextualWisdomLab/OriginWeave/commit/46db0045904f0289738df843d0a2f179c26673d3)
+retains parent #270 `8eda96915dbbe4cc617f834267c7464689c2844d` and is **not shipped**.
+The previous head's formatter and coverage failures were reproduced. The repair
+retains connection and command pre-consumption guards, removes only a proven
+unreachable duplicate check, and tests genuine socket replies, pending-request
+preservation and private-text-safe diagnostics.
+
+Frozen-source local coverage is **1406/14894/19018/1552**
+(functions/lines/regions/branches), all 100%. Nine focused integration tests,
+148 repository contracts, complete workspace coverage tests, strict Clippy,
+formatting, five doctests and warnings-denied rustdoc pass. Actual Edge visual
+inspection verified the rendered acknowledgment contract and readable layout.
+Hosted [run 34186280263](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34186280263)
+is queued at this checkpoint: local verification is **not hosted acceptance**.
+Both review threads remain unresolved pending current-head hosted verification;
+protected-parent adoption and real browser outcome evidence remain required.
+
+Separately, #255 advanced to test-only head
+`10d5e1ff78d46bbad004d4e0971d0ffceac757fa`, preserving the prior repair and
+testing rejection of server Close 1010. Its predecessor run 34184829970 was
+cancelled because it was superseded, not because the new head failed.
+That independent writer retains the source lease. Inventory remains 126 open
+PRs, 14 issues and zero releases. Earlier sections below retain dated evidence,
+not the current status of their superseded runs.
+
 #### Published repeated-control repair
 
 Published #255 head
