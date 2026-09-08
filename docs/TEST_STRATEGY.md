@@ -91,14 +91,22 @@ mandatory in repeatability surface completeness. This prevents both a fixture
 that was pre-fired at navigation time and a regression that pre-satisfies the
 post-condition during typing from being accepted as click-caused success.
 
-The two baselines and the post-condition are compared locally and unexpected
-page-controlled values are not echoed into CI diagnostics. The lane remains
-active-PR fixture evidence, not a shipped OriginWeave browser adapter. CSS
-locators are harness selectors; the work does not establish OriginWeave semantic
-node authority, policy-authorized production dispatch, WebDriver BiDi/CDP
-authority translation, or protected-main runtime acceptance. Workflow/sandbox
-activation remains #212 authority and ChromeDriver process/protocol diagnostics
-remain #148 authority. Draft-policy-skipped CI/MV3 runs are not browser GREEN.
+URL stability is sampled immediately after the native click and again only after
+the submitted-state and exact synthetic-echo post-condition has been observed.
+The trial may emit `url_unchanged: true` only when both observations equal the
+original controlled fixture URL. This keeps a delayed navigation from escaping
+the accepted outcome boundary merely because an earlier post-click URL sample
+was still unchanged.
+
+The two baselines, post-condition and URL observations are compared locally and
+unexpected page-controlled values are not echoed into CI diagnostics. The lane
+remains active-PR fixture evidence, not a shipped OriginWeave browser adapter.
+CSS locators are harness selectors; the work does not establish OriginWeave
+semantic node authority, policy-authorized production dispatch, WebDriver
+BiDi/CDP authority translation, or protected-main runtime acceptance.
+Workflow/sandbox activation remains #212 authority and ChromeDriver
+process/protocol diagnostics remain #148 authority. Draft-policy-skipped CI/MV3
+runs are not browser GREEN.
 
 ### 3.5 Buyer acceptance
 
