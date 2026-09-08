@@ -91,6 +91,12 @@ class ChromeDriverProcessDiagnosticContractTests(unittest.TestCase):
         self.assertEqual(source.count("_start_chromedriver("), 5)
         self.assertEqual(source.count("_create_chromedriver_session("), 5)
 
+    def test_shared_launch_enables_verbose_diagnostics_without_log_file(self) -> None:
+        source = RUNNER_PATH.read_text(encoding="utf-8")
+
+        self.assertIn('"--verbose"', source)
+        self.assertNotIn("--log-path", source)
+
 
 if __name__ == "__main__":
     unittest.main()
