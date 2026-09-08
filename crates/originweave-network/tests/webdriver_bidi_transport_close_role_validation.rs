@@ -9,9 +9,9 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketTransportClosureError,
-    WebDriverBiDiWebSocketTransportClosureKind, WebDriverBiDiWebSocketTransportClosureObservation,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketTransportClosureError, WebDriverBiDiWebSocketTransportClosureKind,
+    WebDriverBiDiWebSocketTransportClosureObservation,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -134,8 +134,8 @@ fn server_close_1010_is_rejected_before_reply_or_closure_evidence() -> Result<()
     );
     assert!(matches!(
         result,
-        Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
-            source: WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+        Err(WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
+            status_code: 1010
         })
     ));
     Ok(())
