@@ -347,12 +347,12 @@ mod tests {
                 "WebDriver BiDi transport closure requires another Pong masking key",
             ),
             (
-                [vec![0x8a, 0].repeat(64), vec![0x89, 0]].concat(),
+                [[0x8a, 0].repeat(64), vec![0x89, 0]].concat(),
                 ControlFrameLimitExceeded,
                 "WebDriver BiDi transport closure control-frame limit exceeded",
             ),
             (
-                vec![0x8a, 0].repeat(65),
+                [0x8a, 0].repeat(65),
                 ControlFrameLimitExceeded,
                 "WebDriver BiDi transport closure control-frame limit exceeded",
             ),
@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn exact_control_budget_allows_close_with_fresh_ping_keys() {
         for opcode in [0x9, 0xa] {
-            let frames = [vec![0x80 | opcode, 0].repeat(64), vec![0x88, 0]].concat();
+            let frames = [[0x80 | opcode, 0].repeat(64), vec![0x88, 0]].concat();
             let (established, _peer) = established_peer(&frames);
             let keys: Vec<_> = (0..64)
                 .map(|index| WebDriverBiDiWebSocketMaskKey::new([index, 1, 2, 3]))
