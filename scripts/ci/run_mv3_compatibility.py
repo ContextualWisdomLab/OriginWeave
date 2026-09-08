@@ -7,10 +7,10 @@ can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
 commands, side-panel, bookmarks, history, real browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
-with extensions disabled in a fresh profile, verifies browser-computed role/name
-for the controlled action targets, performs real WebDriver input and click
-operations, verifies the observable post-condition, and proves profile cleanup
-without treating page content as instruction or authority.
+while requesting extensions disabled in a fresh profile, verifies browser-computed
+role/name for the controlled action targets, performs real WebDriver input and
+click operations, verifies the observable post-condition, and proves profile
+cleanup without treating page content as instruction or authority.
 """
 
 from __future__ import annotations
@@ -686,7 +686,7 @@ def _run_agent_task_browser_pass(
             "url_unchanged": url_unchanged,
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
-            "extensions_disabled": True,
+            "extensions_disabled_requested": True,
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
     finally:
@@ -754,14 +754,14 @@ def _run_agent_task_trial(
         "url_unchanged": result["url_unchanged"],
         "input_semantics_verified": result["input_semantics_verified"],
         "submit_semantics_verified": result["submit_semantics_verified"],
-        "extensions_disabled": result["extensions_disabled"],
+        "extensions_disabled_requested": result["extensions_disabled_requested"],
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
     }
 
 
 def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bool:
-    """Require every recorded Agent Task trial to contain every success surface."""
+    """Require every recorded Agent Task trial to contain every observed success surface."""
 
     if not agent_task_trials:
         return False
@@ -772,7 +772,6 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
         and trial.get("url_unchanged") is True
         and trial.get("input_semantics_verified") is True
         and trial.get("submit_semantics_verified") is True
-        and trial.get("extensions_disabled") is True
         and trial.get("profile_cleaned") is True
         for trial in agent_task_trials
     )
