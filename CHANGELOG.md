@@ -123,6 +123,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Updated the delivery checkpoint for bounded repeated keepalive handling, retaining the distinction between local verification, hosted acceptance and operational completion.
+
 - Refreshed the delivery checkpoint for completed local shutdown-deadline and reserved-code repairs while keeping hosted acceptance and release gaps explicit.
 
 - Made the open non-PR issue count reproducible in the baseline evidence procedure and corrected the historical exact heads for PRs #53 and #217.

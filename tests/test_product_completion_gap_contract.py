@@ -16,6 +16,20 @@ BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 class ProductCompletionGapContractTests(unittest.TestCase):
     """Keep the exact repository snapshot and completion tracks reviewable."""
 
+    def test_repeated_control_checkpoint_keeps_operational_gaps_open(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published repeated-control repair",
+            "#### Published deadline and Close-code repairs",
+        )
+        for marker in (
+            "3a8e6f4f89db2f53c144adb3351c153d89adca58", "34184829970",
+            "1104/11553/14758/1216", "20 closure", "64", "65th",
+            "not hosted acceptance", "process exit", "profile cleanup",
+            "not shipped", "fresh", "exhausted", "reused",
+        ):
+            self.assertIn(marker, current)
+
     def test_close_code_checkpoint_does_not_claim_hosted_acceptance(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),

@@ -8,6 +8,31 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-08
 
+#### Published repeated-control repair
+
+Published #255 head
+[`3a8e6f4f89db2f53c144adb3351c153d89adca58`](https://github.com/ContextualWisdomLab/OriginWeave/commit/3a8e6f4f89db2f53c144adb3351c153d89adca58)
+retains parent #252 `363a78e36e7690e9ed5bf49829567e00e2ec5d59` and is **not shipped**.
+The two-Pong real-peer case first failed. The observer now handles up to **64**
+pre-Close Ping/Pong frames under one total deadline, with fresh caller-supplied keys
+consumed only by Ping responses. A separate key remains reserved for Close.
+Tests prove exact-budget success, **65th** control rejection, exhausted and reused
+key rejection without an extra reply, and literal separately masked Pong payloads.
+
+Frozen-final-source local coverage is **1104/11553/14758/1216**
+(functions/lines/regions/branches), all 100%. All **20 closure** integration tests,
+six controlled-clock tests, 142 repository contracts, strict Clippy, doctests, and
+warnings-denied rustdoc pass. Actual Edge inspection verified the rendered key-slice
+API, local resource limit and total-deadline contract. Hosted
+[run 34184829970](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34184829970)
+is queued at this checkpoint: local verification is **not hosted acceptance**.
+
+The repeated-control implementation gap is closed locally, not released. Current-head
+review/check acceptance and protected-parent adoption remain required; **process exit**
+and **profile cleanup** still lack runtime evidence. Inventory remains 126 open PRs,
+14 issues and zero releases. The following same-day sections preserve earlier
+checkpoints; their pending implementation claims are superseded by this section.
+
 #### Published deadline and Close-code repairs
 
 Published #255 head
