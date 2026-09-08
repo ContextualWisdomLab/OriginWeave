@@ -813,7 +813,7 @@ fn validate_close_frame(
         });
     }
     let status_code = u16::from_be_bytes([frame.payload()[0], frame.payload()[1]]);
-    if !(1000..=4999).contains(&status_code) || matches!(status_code, 1004 | 1005 | 1006 | 1015) {
+    if !(1000..=4999).contains(&status_code) || matches!(status_code, 1004..=1006 | 1015..=2999) {
         return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
             reason: "Close frame status code is not valid on the wire",
         });
@@ -1457,16 +1457,30 @@ mod tests {
             payload: vec![0x03, 0xe8, 0xff],
         };
         assert!(validate_close_frame(&invalid_utf8).is_err());
-        for status in [999_u16, 1004, 1005, 1006, 1015, 5000] {
+        for status in [
+            0_u16,
+            999,
+            1004,
+            1005,
+            1006,
+            1015,
+            1016,
+            2000,
+            2999,
+            5000,
+            u16::MAX,
+        ] {
             let payload = status.to_be_bytes().to_vec();
             let frame = WebDriverBiDiWebSocketFrame {
                 fin: true,
                 opcode: 8,
                 payload,
             };
-            assert!(validate_close_frame(&frame).is_err());
+            assert!(validate_close_frame(&frame).is_err(), "status {status}");
         }
-        for status in [1000_u16, 3000, 4000] {
+        for status in [
+            1000_u16, 1003, 1007, 1011, 1012, 1013, 1014, 3000, 3999, 4000, 4999,
+        ] {
             let mut payload = status.to_be_bytes().to_vec();
             payload.extend_from_slice(b"ok");
             let frame = WebDriverBiDiWebSocketFrame {

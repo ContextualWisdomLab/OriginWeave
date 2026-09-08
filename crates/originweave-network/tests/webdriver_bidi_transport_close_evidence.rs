@@ -542,6 +542,28 @@ fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result
 }
 
 #[test]
+fn unassigned_protocol_close_codes_emit_no_reply_or_evidence() -> Result<(), Box<dyn Error>> {
+    for status_code in [1016_u16, 2000, 2999] {
+        let (established, server) = established_with_peer_script(move |stream| {
+            let [high, low] = status_code.to_be_bytes();
+            stream.write_all(&[0x88, 0x02, high, low])?;
+            let mut reply = [0_u8; 1];
+            assert_eq!(stream.read(&mut reply)?, 0, "invalid Close was echoed");
+            Ok(())
+        })?;
+        let result = observe(established, Duration::from_millis(500));
+        server
+            .join()
+            .map_err(|_| io::Error::other("reserved-code test server panicked"))??;
+        assert_eq!(
+            format!("{result:?}"),
+            "Err(Frame { source: MalformedFrame { reason: \"Close frame status code is not valid on the wire\" } })"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn malformed_close_frame_remains_a_typed_frame_failure() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(Some(&[0x88, 0x01, 0x00]))?;
 

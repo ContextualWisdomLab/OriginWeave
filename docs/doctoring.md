@@ -28,6 +28,24 @@ the monotonic deadline has expired. It prevents per-frame budget renewal without
 claiming a hard real-time bound on host scheduling or proving process exit/profile
 cleanup. Tests combine a delayed real peer with deterministic clock transitions.
 
+### WebSocket Close code admission
+
+RFC 6455 section 7.4.2 reserves 1000–2999 for protocol and extension definitions.
+The IANA registry retrieved on 8 September 2026 lists 1016–2999 as unassigned;
+1012, 1013, and 1014 are assigned. The current adapter therefore rejects the
+unassigned protocol range alongside 1004–1006 and 1015, which cannot appear as
+ordinary wire status codes. It retains 3000–3999 for application codes and
+4000–4999 for private use without interpreting their meanings or treating them
+as proof of successful browser work. This is a reviewed static admission policy,
+not an online registry check. New protocol assignments require a reviewed update.
+The shared frame validator runs before any Close echo or closure evidence.
+
+Internet Assigned Numbers Authority. (2026). *WebSocket protocol registries*.
+Retrieved September 8, 2026, from https://www.iana.org/assignments/websocket
+
+Fette, I., & Melnikov, A. (2011). *The WebSocket protocol* (RFC 6455, § 7.4.2).
+Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
