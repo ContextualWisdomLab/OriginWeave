@@ -217,6 +217,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                     {
                         "trial_number": 1,
                         "passed": True,
+                        "pre_action_baseline_verified": True,
                         "post_condition": True,
                         "input_echo_verified": True,
                         "url_unchanged": True,
@@ -281,6 +282,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         """A cleanup failure for one fixture must not skip the other fixture."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="fixture_shutdown_contract")
+
         class FakeServer:
             server_port = 9515
 
@@ -314,10 +316,12 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "surfaces": {"worker": True},
             }
         )
+
         def successful_agent_task_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
             return {
                 "trial_number": 1,
                 "passed": True,
+                "pre_action_baseline_verified": True,
                 "post_condition": True,
                 "input_echo_verified": True,
                 "url_unchanged": True,
