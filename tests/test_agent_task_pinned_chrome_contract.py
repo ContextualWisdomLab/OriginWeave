@@ -222,7 +222,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                         "url_unchanged": True,
                         "input_semantics_verified": True,
                         "submit_semantics_verified": True,
-                        "extensions_disabled": True,
+                        "extensions_disabled_requested": True,
                         "profile_cleaned": True,
                     }
                 ]
@@ -323,7 +323,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "url_unchanged": True,
                 "input_semantics_verified": True,
                 "submit_semantics_verified": True,
-                "extensions_disabled": True,
+                "extensions_disabled_requested": True,
                 "profile_cleaned": True,
             }
 
