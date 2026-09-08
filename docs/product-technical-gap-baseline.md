@@ -6,7 +6,44 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 This volatile section is refreshed from live GitHub state and is authoritative only for the exact observations recorded here. The dated snapshot below remains historical evidence and is not promoted to current acceptance evidence. Live GitHub PR/base/head/check APIs are authoritative over PR bodies and prior maintenance prose; a body that still names an older head is stale evidence, not merge evidence.
 
-### Latest verified cut: 2026-09-07
+### Latest verified cut: 2026-09-08
+
+#### Transport-closure verification and test-integrity repair
+
+The latest inventory contains **126 open pull requests: 12 Ready/non-draft and
+114 Draft; 14 open non-PR issues**. All 12 Ready candidates remain BLOCKED.
+Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`, with
+no package release. These counts do not establish review-thread resolution.
+
+PR #255 has adopted parent #252 at
+`363a78e36e7690e9ed5bf49829567e00e2ec5d59`; the previous instruction to perform
+that adoption is now historical. It remains Draft and is not protected-main acceptance.
+
+- Verified predecessor: [`d126242c7198c447d0fab7983d529441340fd1c9`](https://github.com/ContextualWisdomLab/OriginWeave/commit/d126242c7198c447d0fab7983d529441340fd1c9)
+  passed both Rust contracts and Production coverage in
+  [run 34179452950](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34179452950).
+  Full local functions/lines/regions/branches were **1090/11218/14328/1210**, all 100%.
+- Published follow-up: [`07ef43ec71b6dbd8540629bf1df5a63b81541ee4`](https://github.com/ContextualWisdomLab/OriginWeave/commit/07ef43ec71b6dbd8540629bf1df5a63b81541ee4)
+  corrects three masking-rejection test peers. Propagating peer failures first
+  reproduced two false-green fixtures; all 16 closure tests and the full workspace
+  suite including doctests then passed. Hosted
+  [run 34180304951](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34180304951)
+  was queued at this checkpoint; predecessor coverage does not prove this head passed.
+
+The direct writer tests compare literal Close bytes with and without a status code,
+invalid deadlines, and adjacent masking-key rejection. The repaired observer fixtures
+consume the real preceding text/Pong before testing reuse and verify no rejected
+response bytes. Broad transport errors with ignored server failures were insufficient.
+
+Remaining buyer-visible gap: repeated Ping/Pong traffic and an operation-wide deadline
+still need implementation and acceptance; unassigned Close status handling needs
+protocol review. Browser-process exit and profile cleanup remain unproven. The next
+source work belongs to #255 before downstream adoption; no PR is closed as a substitute
+for carrying its delta. Actual Edge inspection verified the PR page and corrected
+evidence presentation, not the OriginWeave product browser. Package publication remains
+withheld until protected-source, version, artifact and release requirements are met.
+
+### Historical verified cut: 2026-09-07
 
 #### Published session-end reply binding: 05:35 UTC
 

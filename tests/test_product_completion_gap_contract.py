@@ -16,6 +16,23 @@ BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 class ProductCompletionGapContractTests(unittest.TestCase):
     """Keep the exact repository snapshot and completion tracks reviewable."""
 
+    def test_closure_checkpoint_separates_verified_and_pending_heads(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "### Latest verified cut: 2026-09-08",
+            "### Historical verified cut: 2026-09-07",
+        )
+        for marker in (
+            "d126242c7198c447d0fab7983d529441340fd1c9",
+            "07ef43ec71b6dbd8540629bf1df5a63b81541ee4",
+            "363a78e36e7690e9ed5bf49829567e00e2ec5d59",
+            "34179452950", "34180304951", "1090/11218/14328/1210",
+            "126 open pull requests", "114 Draft", "14 open non-PR issues",
+            "not protected-main acceptance", "operation-wide deadline",
+            "repeated Ping/Pong", "no package release",
+        ):
+            self.assertIn(marker, current)
+
     def test_end_reply_checkpoint_binds_published_evidence(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),

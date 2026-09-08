@@ -127,6 +127,8 @@ A release requires all current-head checks, complete coverage and docs, updated 
 
 ## Verified maintenance lessons
 
+- When updating a delivery checkpoint, separate a verified predecessor from a newer pending head. A passing coverage summary does not validate a fixture that ignores peer errors; preserve the failing reproduction and the repaired wire-level assertions in the evidence trail.
+
 - Add concise, reproducible lessons here as work establishes them. Keep transient heads, job IDs and incident snapshots in PR evidence, not permanent instructions; never record secret values.
 - Retained receipt recovery is not live-stream recovery. State whether a fixture keeps the original connection open and uses the same endpoint; claim live recovery only when a synchronized test reads and completes the original request after rejecting the replacement reply.
 - For coverage repairs, inspect uncovered regions in each linked crate instance and prefer the existing public integration path. Reuse shared validation before adding test-only authority accessors; keep validation before state consumption. Do not weaken coverage exclusions or production lint gates to hide uncovered fixture or production paths.
