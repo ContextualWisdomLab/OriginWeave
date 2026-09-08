@@ -26,7 +26,7 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             manifest_text,
         )
 
-    def test_2026_09_03_bidi_capabilities_fail_closed_for_complete_profile(self) -> None:
+    def test_2026_08_18_bidi_capabilities_fail_closed_for_complete_profile(self) -> None:
         """Standard BiDi must not pretend to own Chromium-only presentation surfaces."""
         source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
         self.assertTrue(
@@ -34,9 +34,9 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             "RED: #292 has no version-pinned BiDi presentation capability map",
         )
         text = source.read_text(encoding="utf-8")
-        self.assertIn('"2026-09-03"', text)
+        self.assertIn('"2026-08-18"', text)
         self.assertIn(
-            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/",
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/",
             text,
         )
         self.assertIn("PresentationSurface::Screen", text)
