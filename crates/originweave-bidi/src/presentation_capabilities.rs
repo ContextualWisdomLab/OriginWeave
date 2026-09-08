@@ -123,11 +123,9 @@ pub fn plan_standard_presentation_cleanup(
 }
 
 /// Published WebDriver BiDi Working Draft revision used by this capability map.
+/// The immutable dated-TR identity is
+/// `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`.
 pub const WEBDRIVER_BIDI_PRESENTATION_REVISION: &str = "2026-09-03";
-
-/// Immutable W3C dated-TR identity used for this capability map.
-pub const WEBDRIVER_BIDI_PRESENTATION_SPEC_URI: &str =
-    "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/";
 
 /// Auxiliary upstream source commit retained as historical doctoring evidence.
 ///
@@ -176,10 +174,6 @@ mod tests {
     #[test]
     fn pinned_revision_tracks_current_published_working_draft() {
         assert_eq!(WEBDRIVER_BIDI_PRESENTATION_REVISION, "2026-09-03");
-        assert_eq!(
-            WEBDRIVER_BIDI_PRESENTATION_SPEC_URI,
-            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
-        );
         assert_eq!(
             WEBDRIVER_BIDI_PRESENTATION_DOCTORING_SOURCE_COMMIT,
             "1e5e36c43adbe24f2a4052c2ec091635c006c352"

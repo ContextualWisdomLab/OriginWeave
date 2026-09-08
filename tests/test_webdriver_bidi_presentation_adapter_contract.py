@@ -36,7 +36,7 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         text = source.read_text(encoding="utf-8")
         self.assertIn('"2026-09-03"', text)
         self.assertIn(
-            '"https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"',
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/",
             text,
         )
         self.assertIn("PresentationSurface::Screen", text)
