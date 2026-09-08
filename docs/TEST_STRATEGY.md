@@ -81,14 +81,17 @@ session creation
 Draft PR #288 carries the current controlled Agent Task fixture lane on pinned
 Chrome for Testing without owning the workflow that activates Chromium. The lane
 uses browser-computed role/name evidence, real WebDriver clear/type/click,
-URL-stability observation, exact synthetic echo and profile cleanup. It now also
-requires a browser-observed pre-action `#task-result` baseline (`data-state=idle`
-and rendered `idle`) before the native action and requires the resulting
-`pre_action_baseline_verified` witness in repeatability surface completeness.
-This prevents a pre-fired fixture from satisfying a post-action success state
-without an observed baseline→action→post-condition transition.
+URL-stability observation, exact synthetic echo and profile cleanup. It requires
+a browser-observed `#task-result` baseline (`data-state=idle` and rendered
+`idle`) before clear/type, then observes that same idle baseline again after
+typing and submit-target semantic verification, immediately before the native
+click. Successful evidence therefore carries both
+`pre_action_baseline_verified` and `pre_click_baseline_verified`, and both are
+mandatory in repeatability surface completeness. This prevents both a fixture
+that was pre-fired at navigation time and a regression that pre-satisfies the
+post-condition during typing from being accepted as click-caused success.
 
-The baseline and post-condition values are compared locally and unexpected
+The two baselines and the post-condition are compared locally and unexpected
 page-controlled values are not echoed into CI diagnostics. The lane remains
 active-PR fixture evidence, not a shipped OriginWeave browser adapter. CSS
 locators are harness selectors; the work does not establish OriginWeave semantic
