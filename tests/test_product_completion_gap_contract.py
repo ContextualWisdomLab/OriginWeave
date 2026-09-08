@@ -28,6 +28,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "1406/14894/19018/1552", "pre-consumption", "unresolved",
             "not hosted acceptance", "not shipped", "148 repository",
             "10d5e1ff78d46bbad004d4e0971d0ffceac757fa", "superseded",
+            "6b6c90ed3919ea84b69527ab688a087eeb45224d",
+            "1105/11574/14787/1218", "34188785932", "server-sent",
+            "RED", "1010", "1011", "Actual Edge",
         ):
             self.assertIn(marker, current)
 

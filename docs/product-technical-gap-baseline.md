@@ -28,13 +28,20 @@ is queued at this checkpoint: local verification is **not hosted acceptance**.
 Both review threads remain unresolved pending current-head hosted verification;
 protected-parent adoption and real browser outcome evidence remain required.
 
-Separately, #255 advanced to test-only head
-`10d5e1ff78d46bbad004d4e0971d0ffceac757fa`, preserving the prior repair and
-testing rejection of server Close 1010. Its predecessor run 34184829970 was
-cancelled because it was superseded, not because the new head failed.
-That independent writer retains the source lease. Inventory remains 126 open
-PRs, 14 issues and zero releases. Earlier sections below retain dated evidence,
-not the current status of their superseded runs.
+Separately, #255 advanced from superseded test-only head
+`10d5e1ff78d46bbad004d4e0971d0ffceac757fa` to published repair
+`6b6c90ed3919ea84b69527ab688a087eeb45224d`. A real server-sent Close 1010
+first reproduced RED because the client mirrored the client-only code. The
+role guard now rejects it before reply or closure evidence while the paired
+server 1011 control remains valid. Exact-head local coverage is
+**1105/11574/14787/1218**, all 100%; 142 repository contracts, strict Clippy,
+formatting, doctests and warnings-denied rustdoc pass. Actual Edge inspection
+verified the rendered role, masking-key, control-budget and deadline contract.
+Hosted [run 34188785932](https://github.com/ContextualWisdomLab/OriginWeave/actions/runs/34188785932)
+is queued, so this is not hosted acceptance or shipped behavior. The source
+writer lease is released. Inventory remains 126 open PRs, 14 issues and zero
+releases. Earlier sections below retain dated evidence, not the current status
+of their superseded runs.
 
 #### Published repeated-control repair
 
