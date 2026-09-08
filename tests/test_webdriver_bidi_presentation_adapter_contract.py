@@ -74,6 +74,20 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
                 self.assertIn("media", text.lower())
                 self.assertIn("cleanup", text.lower())
 
+    def test_media_cleanup_requires_explicit_exclusive_context_authority(self) -> None:
+        """Generic cleanup must not erase unrelated media overrides in a reusable context."""
+        source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
+        text = source.read_text(encoding="utf-8")
+
+        self.assertIn("ExclusivePresentationContext", text)
+        self.assertIn("plan_exclusive_presentation_media_cleanup", text)
+        self.assertIn("plan_standard_presentation_cleanup", text)
+        standard_cleanup = text.split("pub fn plan_standard_presentation_cleanup", maxsplit=1)[1]
+        standard_cleanup = standard_cleanup.split(
+            "pub fn plan_exclusive_presentation_media_cleanup", maxsplit=1
+        )[0]
+        self.assertNotIn("ResetMediaFeatures", standard_cleanup)
+
 
 if __name__ == "__main__":
     unittest.main()
