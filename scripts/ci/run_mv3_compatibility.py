@@ -324,9 +324,7 @@ return {
             ):
                 return latest
         time.sleep(0.1)
-    raise RuntimeError(
-        f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}"
-    )
+    raise RuntimeError("MV3 fixture did not converge")
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
@@ -346,7 +344,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
         _element_command_path(session_id, safe_output, "/text"),
     ).get("value")
     if text != "clicked":
-        raise RuntimeError(f"real click post-condition failed: {text!r}")
+        raise RuntimeError("real click post-condition failed")
     return str(text)
 
 
