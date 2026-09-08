@@ -408,6 +408,18 @@ fn repeated_pong_frames_remain_fail_closed_under_fixed_read_budget() -> Result<(
 }
 
 #[test]
+fn ping_after_pre_close_pong_remains_fail_closed() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_server_frame(Some(&[0x8a, 0x00, 0x89, 0x00]))?;
+    let result = observe(established, Duration::from_millis(500));
+    let _ = server.join();
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame { opcode: 0x9 })
+    ));
+    Ok(())
+}
+
+#[test]
 fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(None)?;
