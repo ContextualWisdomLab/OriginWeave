@@ -57,6 +57,23 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("SetReducedMotion", text)
         self.assertIn("ResetMediaFeatures", text)
 
+    def test_presentation_documentation_tracks_published_wd_and_cleanup_symmetry(self) -> None:
+        """Architecture, changelog, and doctoring must describe the same pinned adapter contract."""
+        documents = {
+            "ARCHITECTURE.md": (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8"),
+            "CHANGELOG.md": (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+            "docs/doctoring.md": (ROOT / "docs/doctoring.md").read_text(encoding="utf-8"),
+        }
+        dated_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        stale_publication = "18 August 2026 published W3C Working Draft"
+        for path, text in documents.items():
+            with self.subTest(path=path):
+                self.assertNotIn(stale_publication, text)
+                self.assertIn(dated_uri, text)
+                self.assertIn("timezone", text.lower())
+                self.assertIn("media", text.lower())
+                self.assertIn("cleanup", text.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
