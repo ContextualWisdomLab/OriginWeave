@@ -78,17 +78,24 @@ session creation
 -> task close/recovery
 ```
 
-Active PR #70 exercises the controlled local Agent Task fixture on the pinned
-Chrome for Testing build through real WebDriver input, same-document
-post-condition observation and ephemeral-profile cleanup. That lane proves
-browser-level fixture execution only; it does not replace the OriginWeave
-BiDi/CDP authority adapter, semantic node contract, policy dispatch or
-protected-main runtime acceptance required by issue #28.
+Draft PR #288 carries the current controlled Agent Task fixture lane on pinned
+Chrome for Testing without owning the workflow that activates Chromium. The lane
+uses browser-computed role/name evidence, real WebDriver clear/type/click,
+URL-stability observation, exact synthetic echo and profile cleanup. It now also
+requires a browser-observed pre-action `#task-result` baseline (`data-state=idle`
+and rendered `idle`) before the native action and requires the resulting
+`pre_action_baseline_verified` witness in repeatability surface completeness.
+This prevents a pre-fired fixture from satisfying a post-action success state
+without an observed baseline→action→post-condition transition.
 
-Active PR #71 additionally verifies browser-computed role/name for the
-controlled input and submit target before the real WebDriver action. CSS remains
-a fixture-harness locator; this does not establish OriginWeave node authority,
-semantic provenance or policy dispatch.
+The baseline and post-condition values are compared locally and unexpected
+page-controlled values are not echoed into CI diagnostics. The lane remains
+active-PR fixture evidence, not a shipped OriginWeave browser adapter. CSS
+locators are harness selectors; the work does not establish OriginWeave semantic
+node authority, policy-authorized production dispatch, WebDriver BiDi/CDP
+authority translation, or protected-main runtime acceptance. Workflow/sandbox
+activation remains #212 authority and ChromeDriver process/protocol diagnostics
+remain #148 authority. Draft-policy-skipped CI/MV3 runs are not browser GREEN.
 
 ### 3.5 Buyer acceptance
 
