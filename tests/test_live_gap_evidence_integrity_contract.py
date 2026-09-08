@@ -1,6 +1,7 @@
 """Fail-closed contracts for the current product-gap evidence procedure."""
 
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -59,6 +60,16 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
         current_evidence = self.baseline.split("## Evidence commands", 1)[1]
         self.assertIn("scripts/ci/collect_live_merge_evidence.sh", current_evidence)
 
+    def test_evidence_collector_is_valid_bash(self) -> None:
+        result = subprocess.run(
+            ["bash", "-n", str(EVIDENCE_SCRIPT)],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_current_change_requests_block_the_approval_verdict(self) -> None:
         self.assertIn("as $current_change_requests", self.evidence)
         self.assertIn("blocking_change_requests: $current_change_requests", self.evidence)
@@ -80,6 +91,15 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.evidence)
         self.assertIn("workflow_runs_without_exact_pr_base_provenance", self.evidence)
+
+    def test_verdict_materializes_only_after_head_and_base_stabilize(self) -> None:
+        for marker in (
+            'RECHECKED_HEAD_SHA=$(gh api "repos/$REPOSITORY/pulls/$PR"',
+            "RECHECKED_BASE_SHA=$(jq -r '.base.sha' \"$RECHECKED_PR_JSON\")",
+            '[[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.evidence)
 
 
 if __name__ == "__main__":
