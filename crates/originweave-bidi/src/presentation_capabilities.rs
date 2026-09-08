@@ -44,6 +44,31 @@ impl WebDriverBidiBrowsingContext {
     }
 }
 
+/// Caller-supplied attestation that one browsing context is disposable and exclusively owned by
+/// the presentation lifecycle that will clear its complete media-feature override configuration.
+///
+/// This adapter does not discover or mint browser-session ownership. A later Browser Session owner
+/// must create this attestation only after establishing the corresponding exclusive context/profile
+/// invariant and must destroy that owned boundary if post-cleanup state cannot be proved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExclusivePresentationContext(WebDriverBidiBrowsingContext);
+
+impl ExclusivePresentationContext {
+    /// Bind an already validated browsing context to an explicit exclusive-ownership assertion.
+    ///
+    /// The caller remains responsible for proving that assertion at the Browser Session boundary.
+    #[must_use]
+    pub fn new(context: WebDriverBidiBrowsingContext) -> Self {
+        Self(context)
+    }
+
+    /// Return the exact browsing context covered by the ownership assertion.
+    #[must_use]
+    pub fn context(&self) -> &WebDriverBidiBrowsingContext {
+        &self.0
+    }
+}
+
 /// Typed standard-BiDi presentation command intent for one explicit browsing context.
 ///
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
@@ -85,7 +110,7 @@ pub enum WebDriverBidiPresentationCommand {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
     },
-    /// Remove media-feature overrides set for this presentation plan.
+    /// Clear the complete media-feature override configuration for an exclusively owned context.
     ResetMediaFeatures {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
@@ -118,15 +143,16 @@ pub fn plan_standard_presentation_commands(
     ]
 }
 
-/// Plan explicit cleanup for every standard-BiDi override emitted by this presentation plan.
+/// Plan cleanup that is non-destructive to unrelated media-feature overrides.
 ///
-/// The pinned Working Draft removes viewport/DPR, time-zone, and media-feature overrides with
-/// nullable command values. Planning these intents does not prove transport, acknowledgement, or
-/// page-observed cleanup.
+/// The pinned Working Draft provides independently nullable reset paths for viewport/DPR and
+/// time-zone state, so these two resets are safe to plan for a reusable browsing context. Media
+/// cleanup is deliberately excluded because `features: null` clears the complete media-feature
+/// override configuration rather than selectively undoing `prefers-reduced-motion`.
 #[must_use]
 pub fn plan_standard_presentation_cleanup(
     context: &WebDriverBidiBrowsingContext,
-) -> [WebDriverBidiPresentationCommand; 3] {
+) -> [WebDriverBidiPresentationCommand; 2] {
     [
         WebDriverBidiPresentationCommand::ResetViewport {
             context: context.clone(),
@@ -134,10 +160,21 @@ pub fn plan_standard_presentation_cleanup(
         WebDriverBidiPresentationCommand::ResetTimezone {
             context: context.clone(),
         },
-        WebDriverBidiPresentationCommand::ResetMediaFeatures {
-            context: context.clone(),
-        },
     ]
+}
+
+/// Plan destructive media-feature cleanup only for an explicitly exclusive presentation context.
+///
+/// `emulation.setMediaFeaturesOverride` with `features: null` unsets the target's complete
+/// media-feature override configuration. Reusable-context callers must not use this intent to
+/// impersonate snapshot/restore semantics that the standard command does not provide.
+#[must_use]
+pub fn plan_exclusive_presentation_media_cleanup(
+    context: &ExclusivePresentationContext,
+) -> WebDriverBidiPresentationCommand {
+    WebDriverBidiPresentationCommand::ResetMediaFeatures {
+        context: context.context().clone(),
+    }
 }
 
 /// Published WebDriver BiDi Working Draft revision used by this capability map.
@@ -270,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_plan_resets_every_override_emitted_by_the_standard_plan() {
+    fn reusable_cleanup_does_not_clear_unrelated_media_feature_state() {
         let context =
             WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
 
@@ -283,8 +320,14 @@ mod tests {
                 WebDriverBidiPresentationCommand::ResetTimezone {
                     context: context.clone(),
                 },
-                WebDriverBidiPresentationCommand::ResetMediaFeatures { context },
             ]
+        );
+
+        let exclusive = ExclusivePresentationContext::new(context.clone());
+        assert_eq!(exclusive.context(), &context);
+        assert_eq!(
+            plan_exclusive_presentation_media_cleanup(&exclusive),
+            WebDriverBidiPresentationCommand::ResetMediaFeatures { context }
         );
     }
 }
