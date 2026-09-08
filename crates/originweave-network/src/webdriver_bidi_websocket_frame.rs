@@ -493,14 +493,8 @@ impl Error for WebDriverBiDiWebSocketFrameError {
 }
 
 fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
-    let invalid = match (
-        frame_timeout.is_zero(),
-        frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT,
-    ) {
-        (true, _) | (false, true) => true,
-        (false, false) => false,
-    };
-    if invalid {
+    let valid = !frame_timeout.is_zero() & (frame_timeout <= MAX_WEBSOCKET_FRAME_TIMEOUT);
+    if !valid {
         return Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
             frame_timeout,
             maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
