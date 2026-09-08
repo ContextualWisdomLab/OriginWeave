@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Require the controlled Agent Task lane to observe the canonical idle result baseline before native clear/type/click and to carry that baseline witness into repeatability surface completeness, preventing a pre-fired fixture from being accepted as an action-caused success.
 - Separate Agent Task extension-isolation launch intent from verified browser surfaces: `--disable-extensions` is recorded as requested configuration only and no longer counts toward observed success completeness.
 - Keep page-derived browser post-condition text, observed URLs, and extension/page datasets out of CI exception payloads while preserving their local comparison role and fail-closed browser evidence semantics.
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
