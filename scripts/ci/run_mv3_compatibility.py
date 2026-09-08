@@ -531,6 +531,13 @@ def _validate_agent_task_submitted_state(state: object) -> None:
         raise RuntimeError("Agent Task state post-condition failed")
 
 
+def _validate_agent_task_pre_action_state(state: object, text: object) -> None:
+    """Require the controlled idle baseline without echoing page-controlled data."""
+
+    if state != "idle" or text != "idle":
+        raise RuntimeError("Agent Task pre-action baseline was already satisfied")
+
+
 def _cleanup_agent_task_browser_session(driver_port: int, session_id: str) -> None:
     """Delete one Agent Task WebDriver session without suppressing cleanup failures."""
 
@@ -627,6 +634,22 @@ def _run_agent_task_browser_pass(
         )
         if input_role != "textbox" or input_name != "Task text":
             raise RuntimeError("Agent Task input semantic evidence mismatch")
+        pre_action_result_element = _find_element(driver_port, session_id, "#task-result")
+        pre_action_state = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(
+                session_id,
+                pre_action_result_element,
+                "/attribute/data-state",
+            ),
+        ).get("value")
+        pre_action_text = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(session_id, pre_action_result_element, "/text"),
+        ).get("value")
+        _validate_agent_task_pre_action_state(pre_action_state, pre_action_text)
         _json_request(
             driver_port,
             "POST",
@@ -681,6 +704,7 @@ def _run_agent_task_browser_pass(
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
         return {
             "browser_version": browser_version,
+            "pre_action_baseline_verified": True,
             "post_condition": True,
             "input_echo_verified": True,
             "url_unchanged": url_unchanged,
@@ -749,6 +773,7 @@ def _run_agent_task_trial(
         "trial_number": trial_number,
         "passed": True,
         "browser_version": result["browser_version"],
+        "pre_action_baseline_verified": result["pre_action_baseline_verified"],
         "post_condition": result["post_condition"],
         "input_echo_verified": result["input_echo_verified"],
         "url_unchanged": result["url_unchanged"],
