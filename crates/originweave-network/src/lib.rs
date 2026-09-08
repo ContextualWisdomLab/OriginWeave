@@ -38,6 +38,14 @@ mod webdriver_bidi_websocket_transport_closure;
 #[cfg(test)]
 mod webdriver_bidi_json_envelope_public_boundary_tests;
 
+// LLVM coverage keeps the crate unit-test instantiation separate from integration-test binaries,
+// so compile the same realistic 1010/1011 loopback contract here instead of maintaining a copy.
+#[cfg(test)]
+extern crate self as originweave_network;
+#[cfg(test)]
+#[path = "../tests/webdriver_bidi_transport_close_role_validation.rs"]
+mod webdriver_bidi_transport_close_role_validation_unit;
+
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
     NetworkError, SocketConnectionEvidence,
