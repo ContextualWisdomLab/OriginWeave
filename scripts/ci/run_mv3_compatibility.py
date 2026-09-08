@@ -792,6 +792,7 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
         return False
     return all(
         trial.get("passed") is True
+        and trial.get("pre_action_baseline_verified") is True
         and trial.get("post_condition") is True
         and trial.get("input_echo_verified") is True
         and trial.get("url_unchanged") is True
