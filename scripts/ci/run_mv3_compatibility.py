@@ -717,6 +717,14 @@ def _run_agent_task_browser_pass(
         _validate_agent_task_submitted_state(state)
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
+        accepted_outcome_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        url_unchanged = url_unchanged and accepted_outcome_url == initial_url
+        if not url_unchanged:
+            raise RuntimeError("Agent Task URL changed before accepted outcome")
         return {
             "browser_version": browser_version,
             "pre_action_baseline_verified": True,
