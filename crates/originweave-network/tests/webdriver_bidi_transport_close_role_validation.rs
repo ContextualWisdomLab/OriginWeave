@@ -123,7 +123,7 @@ fn observe(
 #[test]
 fn server_close_1010_is_rejected_before_reply_or_closure_evidence() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_close(1010)?;
-    let result = observe(established);
+    let error = observe(established).expect_err("server Close 1010 must be role-rejected");
     let reply = server
         .join()
         .map_err(|_| io::Error::other("role-invalid Close peer panicked"))??;
@@ -133,11 +133,16 @@ fn server_close_1010_is_rejected_before_reply_or_closure_evidence() -> Result<()
         "server Close(1010) was mirrored by the client"
     );
     assert!(matches!(
-        result,
-        Err(WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
+        &error,
+        WebDriverBiDiWebSocketTransportClosureError::PeerCloseStatusNotAllowed {
             status_code: 1010
-        })
+        }
     ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi server sent a Close status reserved for clients"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
 
