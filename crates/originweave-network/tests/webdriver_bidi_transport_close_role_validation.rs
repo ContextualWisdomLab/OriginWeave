@@ -123,7 +123,12 @@ fn observe(
 #[test]
 fn server_close_1010_is_rejected_before_reply_or_closure_evidence() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_close(1010)?;
-    let error = observe(established).expect_err("server Close 1010 must be role-rejected");
+    let error = match observe(established) {
+        Ok(_) => {
+            return Err(io::Error::other("server Close 1010 produced closure evidence").into());
+        }
+        Err(error) => error,
+    };
     let reply = server
         .join()
         .map_err(|_| io::Error::other("role-invalid Close peer panicked"))??;
