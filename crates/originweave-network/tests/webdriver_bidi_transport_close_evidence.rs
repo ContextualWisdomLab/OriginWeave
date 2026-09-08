@@ -283,7 +283,7 @@ fn observe(
 > {
     WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
-        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        &[WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY)],
         WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
         frame_timeout,
     )
@@ -415,40 +415,104 @@ fn one_unsolicited_pong_before_close_does_not_block_closure_observation()
 }
 
 #[test]
-fn repeated_pong_frames_remain_fail_closed_under_fixed_read_budget() -> Result<(), Box<dyn Error>> {
+fn repeated_pong_frames_preserve_clean_eof_observation() -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(Some(&[0x8a, 0x00, 0x8a, 0x00]))?;
 
-    let Err(error) = observe(established, Duration::from_millis(500)) else {
-        return Err(io::Error::other(
-            "repeated Pong frames unexpectedly became transport-closure evidence",
-        )
-        .into());
-    };
+    let result = observe(established, Duration::from_millis(500));
 
     server
         .join()
         .map_err(|_| io::Error::other("repeated-pong test server panicked"))??;
-    assert!(matches!(
-        &error,
-        WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame { opcode: 0xa }
-    ));
     assert_eq!(
-        error.to_string(),
-        "WebDriver BiDi peer sent non-closure traffic instead of closing"
+        result?.kind(),
+        WebDriverBiDiWebSocketTransportClosureKind::PeerEof
     );
-    assert!(error.source().is_none());
     Ok(())
 }
 
 #[test]
-fn ping_after_pre_close_pong_remains_fail_closed() -> Result<(), Box<dyn Error>> {
-    let (established, server) = established_with_server_frame(Some(&[0x8a, 0x00, 0x89, 0x00]))?;
+fn ping_after_pre_close_pong_is_answered_before_closure() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_peer_script(|stream| {
+        stream.write_all(&[0x8a, 0x00, 0x89, 0x01, b'p'])?;
+        assert_eq!(read_masked_control_frame(stream, 0xa)?, b"p");
+        stream.write_all(&[0x88, 0])?;
+        assert_eq!(read_masked_control_frame(stream, 0x8)?, b"");
+        Ok(())
+    })?;
     let result = observe(established, Duration::from_millis(500));
-    let _ = server.join();
-    assert!(matches!(
-        result,
-        Err(WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame { opcode: 0x9 })
-    ));
+    server
+        .join()
+        .map_err(|_| io::Error::other("Pong/Ping peer panicked"))??;
+    assert_eq!(
+        result?.kind(),
+        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof
+    );
+    Ok(())
+}
+
+#[test]
+fn repeated_pings_use_distinct_keys_without_pong_consuming_one() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_peer_script(|stream| {
+        stream.write_all(&[0x89, 1, b'p'])?;
+        let mut reply = [0; 7];
+        stream.read_exact(&mut reply)?;
+        assert_eq!(reply, [0x8a, 0x81, 5, 6, 7, 8, 0x75]);
+        stream.write_all(&[0x8a, 0, 0x89, 1, b'q'])?;
+        stream.read_exact(&mut reply)?;
+        assert_eq!(reply, [0x8a, 0x81, 13, 14, 15, 16, 0x7c]);
+        stream.write_all(&[0x88, 0])?;
+        assert_eq!(read_masked_control_frame(stream, 0x8)?, b"");
+        Ok(())
+    })?;
+    let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        &[
+            WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+            WebDriverBiDiWebSocketMaskKey::new([13, 14, 15, 16]),
+        ],
+        WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
+        Duration::from_millis(500),
+    );
+    server
+        .join()
+        .map_err(|_| io::Error::other("repeated Ping peer panicked"))??;
+    assert_eq!(
+        result?.kind(),
+        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof
+    );
+    Ok(())
+}
+
+#[test]
+fn repeated_ping_rejects_missing_or_reused_keys_without_second_reply() -> Result<(), Box<dyn Error>>
+{
+    let key = WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY);
+    for (keys, expected) in [
+        (vec![key], "PongMaskingKeysExhausted"),
+        (
+            vec![key, key],
+            "Frame { source: MalformedFrame { reason: \"client masking key was reused for consecutive frames on this established WebSocket\" } }",
+        ),
+    ] {
+        let (established, server) = established_with_peer_script(|stream| {
+            stream.write_all(&[0x89, 1, b'p'])?;
+            assert_eq!(read_masked_control_frame(stream, 0xa)?, b"p");
+            stream.write_all(&[0x89, 1, b'q'])?;
+            let mut reply = [0];
+            assert_eq!(stream.read(&mut reply)?, 0);
+            Ok(())
+        })?;
+        let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+            established,
+            &keys,
+            WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
+            Duration::from_millis(500),
+        );
+        server
+            .join()
+            .map_err(|_| io::Error::other("missing/reused key peer panicked"))??;
+        assert_eq!(format!("{result:?}"), format!("Err({expected})"));
+    }
     Ok(())
 }
 
@@ -605,7 +669,7 @@ fn reused_pong_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn Er
 
     let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
-        reused,
+        &[reused],
         WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
         Duration::from_millis(500),
     );
@@ -639,7 +703,7 @@ fn reused_close_mask_key_preserves_typed_frame_failure() -> Result<(), Box<dyn E
 
     let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
-        reused,
+        &[reused],
         reused,
         Duration::from_millis(500),
     );
@@ -674,7 +738,7 @@ fn reused_close_mask_key_on_peer_close_preserves_typed_frame_failure() -> Result
 
     let result = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
-        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        &[WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY)],
         reused,
         Duration::from_millis(500),
     );

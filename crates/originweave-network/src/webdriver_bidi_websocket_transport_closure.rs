@@ -9,6 +9,8 @@ use crate::{
     WebDriverBiDiWebSocketMaskKey, webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
+const MAX_PRE_CLOSE_CONTROL_FRAMES: usize = 64;
+
 struct ClosureDeadline<'a> {
     expires_at: Instant,
     now: &'a mut dyn FnMut() -> Instant,
@@ -57,21 +59,22 @@ pub struct WebDriverBiDiWebSocketTransportClosureObservation {
 impl WebDriverBiDiWebSocketTransportClosureObservation {
     /// Consume one established connection and prove bounded transport closure.
     ///
-    /// The caller supplies independent fresh masking keys for the only pre-Close Ping response and
-    /// the required Close response. At most one pre-Close Ping or unsolicited Pong is admitted;
-    /// additional control traffic, application data, timeout, partial EOF, malformed frames, write
+    /// The caller supplies independent fresh masking keys for each pre-Close Ping response and
+    /// the required Close response. Up to 64 pre-Close Ping/Pong frames are admitted as a local
+    /// resource limit. Pings consume keys in slice order; unsolicited Pongs consume no key.
+    /// Exhausted keys, excess control traffic, application data, timeout, partial EOF, malformed frames, write
     /// failures, or any post-Close frame fail closed. Peer Close alone is never success: after the
     /// masked response this boundary requires zero-byte TCP EOF within one operation-wide
     /// deadline covering all reads and writes. Evidence arriving after that deadline is rejected.
     pub fn observe(
         established: WebDriverBiDiWebSocketEstablished,
-        pong_masking_key: WebDriverBiDiWebSocketMaskKey,
+        pong_masking_keys: &[WebDriverBiDiWebSocketMaskKey],
         close_masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         Self::observe_with_clock(
             established,
-            pong_masking_key,
+            pong_masking_keys,
             close_masking_key,
             frame_timeout,
             &mut Instant::now,
@@ -80,7 +83,7 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
 
     fn observe_with_clock(
         established: WebDriverBiDiWebSocketEstablished,
-        pong_masking_key: WebDriverBiDiWebSocketMaskKey,
+        pong_masking_keys: &[WebDriverBiDiWebSocketMaskKey],
         close_masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
         now: &mut dyn FnMut() -> Instant,
@@ -94,45 +97,51 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
         let connection_generation = established.transport_evidence().connection_generation();
         Self::observe_pre_close(
             established,
-            pong_masking_key,
+            pong_masking_keys,
             close_masking_key,
             &mut deadline,
-            true,
+            MAX_PRE_CLOSE_CONTROL_FRAMES,
             connection_generation,
         )
     }
 
     fn observe_pre_close(
         established: WebDriverBiDiWebSocketEstablished,
-        pong_masking_key: WebDriverBiDiWebSocketMaskKey,
+        pong_masking_keys: &[WebDriverBiDiWebSocketMaskKey],
         close_masking_key: WebDriverBiDiWebSocketMaskKey,
         deadline: &mut ClosureDeadline<'_>,
-        allow_pre_close_control: bool,
+        remaining_control_frames: usize,
         connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         match established.read_frame(deadline.remaining()?) {
-            Ok((established, frame)) if frame.opcode() == 0xa && allow_pre_close_control => {
-                Self::observe_pre_close(
-                    established,
-                    pong_masking_key,
-                    close_masking_key,
-                    deadline,
-                    false,
-                    connection_generation,
-                )
+            Ok((_established, frame))
+                if matches!(frame.opcode(), 0x9 | 0xa) && remaining_control_frames == 0 =>
+            {
+                Err(WebDriverBiDiWebSocketTransportClosureError::ControlFrameLimitExceeded)
             }
-            Ok((established, frame)) if frame.opcode() == 0x9 && allow_pre_close_control => {
+            Ok((established, frame)) if frame.opcode() == 0xa => Self::observe_pre_close(
+                established,
+                pong_masking_keys,
+                close_masking_key,
+                deadline,
+                remaining_control_frames - 1,
+                connection_generation,
+            ),
+            Ok((established, frame)) if frame.opcode() == 0x9 => {
+                let (pong_masking_key, remaining_keys) = pong_masking_keys
+                    .split_first()
+                    .ok_or(WebDriverBiDiWebSocketTransportClosureError::PongMaskingKeysExhausted)?;
                 let established = established
-                    .write_pong_frame(frame.payload(), pong_masking_key, deadline.remaining()?)
+                    .write_pong_frame(frame.payload(), *pong_masking_key, deadline.remaining()?)
                     .map_err(
                         |source| WebDriverBiDiWebSocketTransportClosureError::Frame { source },
                     )?;
                 Self::observe_pre_close(
                     established,
-                    pong_masking_key,
+                    remaining_keys,
                     close_masking_key,
                     deadline,
-                    false,
+                    remaining_control_frames - 1,
                     connection_generation,
                 )
             }
@@ -218,6 +227,10 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
 /// Fail-closed errors while converting one established BiDi transport into closure evidence.
 #[derive(Debug)]
 pub enum WebDriverBiDiWebSocketTransportClosureError {
+    /// More than 64 pre-Close Ping/Pong frames exceeded the local resource budget.
+    ControlFrameLimitExceeded,
+    /// A Ping required another caller-supplied masking key; no response was emitted for it.
+    PongMaskingKeysExhausted,
     /// The operation-wide deadline expired before transport-closure evidence was admitted.
     DeadlineExpired,
     /// The peer sent a valid WebSocket frame outside the bounded closing state machine.
@@ -235,6 +248,11 @@ pub enum WebDriverBiDiWebSocketTransportClosureError {
 impl fmt::Display for WebDriverBiDiWebSocketTransportClosureError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ControlFrameLimitExceeded => {
+                formatter.write_str("WebDriver BiDi transport closure control-frame limit exceeded")
+            }
+            Self::PongMaskingKeysExhausted => formatter
+                .write_str("WebDriver BiDi transport closure requires another Pong masking key"),
             Self::DeadlineExpired => {
                 formatter.write_str("WebDriver BiDi transport closure deadline expired")
             }
@@ -250,7 +268,10 @@ impl fmt::Display for WebDriverBiDiWebSocketTransportClosureError {
 impl Error for WebDriverBiDiWebSocketTransportClosureError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::UnexpectedFrame { .. } | Self::DeadlineExpired => None,
+            Self::UnexpectedFrame { .. }
+            | Self::DeadlineExpired
+            | Self::ControlFrameLimitExceeded
+            | Self::PongMaskingKeysExhausted => None,
             Self::Frame { source } => Some(source),
         }
     }
@@ -315,6 +336,72 @@ mod tests {
     }
 
     #[test]
+    fn control_budget_and_key_exhaustion_preserve_exact_failures() {
+        use WebDriverBiDiWebSocketTransportClosureError::{
+            ControlFrameLimitExceeded, PongMaskingKeysExhausted,
+        };
+        for (frames, expected, message) in [
+            (
+                vec![0x89, 0],
+                PongMaskingKeysExhausted,
+                "WebDriver BiDi transport closure requires another Pong masking key",
+            ),
+            (
+                [vec![0x8a, 0].repeat(64), vec![0x89, 0]].concat(),
+                ControlFrameLimitExceeded,
+                "WebDriver BiDi transport closure control-frame limit exceeded",
+            ),
+            (
+                vec![0x8a, 0].repeat(65),
+                ControlFrameLimitExceeded,
+                "WebDriver BiDi transport closure control-frame limit exceeded",
+            ),
+        ] {
+            let (established, mut peer) = established_peer(&frames);
+            let now = Instant::now();
+            let error = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
+                established,
+                &[],
+                WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+                Duration::from_secs(1),
+                &mut || now,
+            )
+            .expect_err("control traffic must stay bounded");
+            assert_eq!(format!("{error:?}"), format!("{expected:?}"));
+            assert_eq!(error.to_string(), message);
+            assert!(error.source().is_none());
+            let mut reply = [0];
+            use std::io::Read;
+            assert_eq!(peer.read(&mut reply).expect("peer EOF"), 0);
+        }
+    }
+
+    #[test]
+    fn exact_control_budget_allows_close_with_fresh_ping_keys() {
+        for opcode in [0x9, 0xa] {
+            let frames = [vec![0x80 | opcode, 0].repeat(64), vec![0x88, 0]].concat();
+            let (established, _peer) = established_peer(&frames);
+            let keys: Vec<_> = (0..64)
+                .map(|index| WebDriverBiDiWebSocketMaskKey::new([index, 1, 2, 3]))
+                .collect();
+            let now = Instant::now();
+            let observation =
+                WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
+                    established,
+                    &keys,
+                    WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+                    Duration::from_secs(1),
+                    &mut || now,
+                )
+                .expect("Close after exactly 64 controls");
+            assert_eq!(
+                observation.kind(),
+                WebDriverBiDiWebSocketTransportClosureKind::PeerCloseThenEof
+            );
+        }
+    }
+
+    #[test]
     fn fixed_clock_accepts_complete_closure_before_deadline() {
         for (frames, kind, status) in [
             (
@@ -348,7 +435,7 @@ mod tests {
             let observation =
                 WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
                     established,
-                    WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                    &[WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4])],
                     WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
                     Duration::from_secs(1),
                     &mut || now,
@@ -373,7 +460,7 @@ mod tests {
             let mut clock_calls = 0;
             let result = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
                 established,
-                WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                &[WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4])],
                 WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
                 timeout,
                 &mut || {
@@ -421,7 +508,7 @@ mod tests {
             };
             let error = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
                 established,
-                WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+                &[WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4])],
                 WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
                 Duration::from_secs(1),
                 &mut now,
@@ -509,7 +596,7 @@ mod tests {
             let now = Instant::now();
             let error = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
                 established,
-                WebDriverBiDiWebSocketMaskKey::new(pong_key),
+                &[WebDriverBiDiWebSocketMaskKey::new(pong_key)],
                 WebDriverBiDiWebSocketMaskKey::new(close_key),
                 Duration::from_secs(1),
                 &mut || now,

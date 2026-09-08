@@ -28,6 +28,17 @@ the monotonic deadline has expired. It prevents per-frame budget renewal without
 claiming a hard real-time bound on host scheduling or proving process exit/profile
 cleanup. Tests combine a delayed real peer with deterministic clock transitions.
 
+RFC 6455 sections 5.5.2–5.5.3 permit repeated Ping and unsolicited Pong traffic;
+a Ping response preserves its exact payload and an unsolicited Pong needs no reply.
+The closure observer now admits up to 64 pre-Close Ping/Pong frames under the same
+deadline. This count is a local resource budget, not a protocol limit. The caller
+supplies a borrowed masking-key slice consumed once per Ping and a separate Close
+key; no entropy provider or callback runs inside the observer. Missing keys fail
+before the corresponding response and the existing adjacent-key guard still applies.
+The unpublished `observe` API now accepts that slice instead of a single Pong key;
+all in-tree consumers are migrated. Boundary tests cover exactly 64 controls, the
+65th control, mixed Ping/Pong, exhaustion, and literal independently masked replies.
+
 ### WebSocket Close code admission
 
 RFC 6455 section 7.4.2 reserves 1000–2999 for protocol and extension definitions.

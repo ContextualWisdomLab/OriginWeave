@@ -6,6 +6,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Browser transport shutdown now handles repeated keepalive traffic within one time budget, using a separate supplied key for each reply and rejecting exhausted keys or excess traffic without reporting completion.
+
 - Browser transport shutdown rejects unassigned protocol close codes before replying or recording completion; application and private-use code ranges remain supported.
 
 - Browser transport shutdown now shares one time budget across control replies and final connection closure; late closure cannot become successful completion evidence.

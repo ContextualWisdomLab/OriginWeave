@@ -200,7 +200,7 @@ fn observed_transport_closure(
 ) -> Result<WebDriverBiDiWebSocketTransportClosureObservation, Box<dyn Error>> {
     let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
-        WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY),
+        &[WebDriverBiDiWebSocketMaskKey::new(PONG_MASK_KEY)],
         WebDriverBiDiWebSocketMaskKey::new(CLOSE_MASK_KEY),
         Duration::from_millis(500),
     )?;
