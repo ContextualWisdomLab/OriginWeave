@@ -76,6 +76,37 @@ class _WebDriverSessionNotCreatedError(RuntimeError):
         super().__init__("WebDriver error: session not created: response details redacted")
 
 
+class _ChromeDriverStartupDiagnostic:
+    """Retain only a closed startup reason while continuously discarding process output."""
+
+    __slots__ = ("_marker_index", "startup_reason")
+    _MARKER = b"no usable sandbox"
+
+    def __init__(self) -> None:
+        """Start with no reviewed process-level startup reason."""
+
+        self._marker_index = 0
+        self.startup_reason = "unknown"
+
+    def feed(self, chunk: bytes) -> None:
+        """Scan one output chunk without retaining raw ChromeDriver-controlled bytes."""
+
+        if not isinstance(chunk, bytes):
+            raise TypeError("ChromeDriver diagnostic chunks must be bytes")
+        if self.startup_reason == "sandbox_unavailable":
+            return
+        for raw_byte in chunk:
+            byte = raw_byte + 32 if 65 <= raw_byte <= 90 else raw_byte
+            if byte == self._MARKER[self._marker_index]:
+                self._marker_index += 1
+                if self._marker_index == len(self._MARKER):
+                    self.startup_reason = "sandbox_unavailable"
+                    self._marker_index = 0
+                    return
+            else:
+                self._marker_index = 1 if byte == self._MARKER[0] else 0
+
+
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
 
@@ -218,6 +249,64 @@ def _wait_for_driver(driver_port: int) -> None:
             last_error = exc
         time.sleep(0.1)
     raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+
+
+def _drain_chromedriver_diagnostics(
+    stream: Any,
+    diagnostic: _ChromeDriverStartupDiagnostic,
+) -> None:
+    """Continuously drain ChromeDriver output while retaining only reviewed reason state."""
+
+    while True:
+        chunk = stream.read(8_192)
+        if not chunk:
+            return
+        if not isinstance(chunk, bytes):
+            raise TypeError("ChromeDriver diagnostic stream must be binary")
+        diagnostic.feed(chunk)
+
+
+def _start_chromedriver(
+    chromedriver_bin: pathlib.Path,
+    driver_port: int,
+) -> tuple[subprocess.Popen[Any], _ChromeDriverStartupDiagnostic]:
+    """Start one local ChromeDriver and continuously drain its credential-bearing output."""
+
+    diagnostic = _ChromeDriverStartupDiagnostic()
+    driver = subprocess.Popen(
+        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if driver.stdout is None:
+        driver.terminate()
+        driver.wait(timeout=PROCESS_EXIT_TIMEOUT_SECONDS)
+        raise RuntimeError("ChromeDriver diagnostic pipe was unavailable")
+    threading.Thread(
+        target=_drain_chromedriver_diagnostics,
+        args=(driver.stdout, diagnostic),
+        daemon=True,
+    ).start()
+    return driver, diagnostic
+
+
+def _create_chromedriver_session(
+    driver_port: int,
+    payload: dict[str, Any],
+    diagnostic: _ChromeDriverStartupDiagnostic,
+) -> dict[str, Any]:
+    """Create one session while allowing only reviewed process startup evidence to refine errors."""
+
+    _wait_for_driver(driver_port)
+    try:
+        return _json_request(driver_port, "POST", "/session", payload)
+    except _WebDriverSessionNotCreatedError as error:
+        if (
+            error.startup_reason == "unknown"
+            and diagnostic.startup_reason == "sandbox_unavailable"
+        ):
+            raise _WebDriverSessionNotCreatedError("sandbox_unavailable") from None
+        raise
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
@@ -1106,18 +1195,10 @@ def _run_browser_pass(
     driver_port = _free_loopback_port()
     session_id: str | None = None
     primary_error: BaseException | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -1139,6 +1220,7 @@ def _run_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver session response is malformed")
@@ -1359,18 +1441,10 @@ def _run_agent_task_browser_pass(
     driver_cleanup_failure_type: str | None = None
     driver_kill_fallback_used = False
     result: dict[str, Any] | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -1395,6 +1469,7 @@ def _run_agent_task_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver Agent Task session response is malformed")
@@ -1832,18 +1907,10 @@ def _run_agent_task_forced_close_browser_pass(
     driver_cleanup_failure_type: str | None = None
     driver_kill_fallback_used = False
     result: dict[str, Any] | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -1864,6 +1931,7 @@ def _run_agent_task_forced_close_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver forced-close session response is malformed")
@@ -2221,18 +2289,10 @@ def _run_agent_task_browser_crash_browser_pass(
     chromium_process_identities: tuple[tuple[int, int], ...] | None = None
     browser_version: str | None = None
     browser_process_crash_detected = False
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -2257,6 +2317,7 @@ def _run_agent_task_browser_crash_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver browser-crash session response is malformed")
