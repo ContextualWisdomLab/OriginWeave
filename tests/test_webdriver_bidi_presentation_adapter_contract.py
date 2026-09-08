@@ -53,7 +53,9 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("SetViewport", text)
         self.assertIn("ResetViewport", text)
         self.assertIn("SetTimezone", text)
+        self.assertIn("ResetTimezone", text)
         self.assertIn("SetReducedMotion", text)
+        self.assertIn("ResetMediaFeatures", text)
 
 
 if __name__ == "__main__":
