@@ -12,7 +12,7 @@ RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 
 
 class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
-    """Require a false pre-action baseline before accepting a post-action success state."""
+    """Require false baselines before accepting an action-caused success state."""
 
     def test_pre_action_baseline_validator_is_closed_and_non_echoing(self) -> None:
         """A pre-fired fixture must fail without echoing page-controlled state or text."""
@@ -43,8 +43,21 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         self.assertLess(native_click, post_condition)
         self.assertIn('"pre_action_baseline_verified": True', source)
 
+    def test_pre_click_baseline_happens_after_typing_and_before_click(self) -> None:
+        """Typing must not be able to pre-satisfy the submit post-condition."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_pre_click_order")
+        source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        typing = source.index('"/value"')
+        pre_click_baseline = source.find("_validate_agent_task_pre_action_state", typing)
+        native_click = source.index('"/click"')
+        self.assertNotEqual(pre_click_baseline, -1)
+        self.assertLess(typing, pre_click_baseline)
+        self.assertLess(pre_click_baseline, native_click)
+        self.assertIn('"pre_click_baseline_verified": True', source)
+
     def test_surface_completeness_requires_transition_baseline_evidence(self) -> None:
-        """A post-condition without a pre-action baseline must not satisfy the buyer gate."""
+        """Post-condition evidence must include both sequence and immediate click baselines."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_transition_surface")
         complete = namespace["_agent_task_surfaces_complete"]
@@ -60,6 +73,8 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         }
         self.assertFalse(complete([trial]))
         trial["pre_action_baseline_verified"] = True
+        self.assertFalse(complete([trial]))
+        trial["pre_click_baseline_verified"] = True
         self.assertTrue(complete([trial]))
 
 
