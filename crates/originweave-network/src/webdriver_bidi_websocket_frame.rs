@@ -299,7 +299,9 @@ impl WebDriverBiDiWebSocketEstablished {
         validate_frame_timeout(frame_timeout)?;
         self.client_mask_keys.reserve(masking_key)?;
         let status_bytes = peer_close_status_code.map(u16::to_be_bytes);
-        let payload = status_bytes.as_ref().map_or(&[][..], |bytes| bytes.as_slice());
+        let payload = status_bytes
+            .as_ref()
+            .map_or(&[][..], |bytes| bytes.as_slice());
         let frame = serialize_client_frame(0x8, payload, masking_key);
         let mut now = Instant::now;
         write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
