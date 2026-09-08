@@ -6,7 +6,7 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ### Browser automation and interoperability
 
-The 18 August 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model. The 3 September 2026 `w3c.github.io/webdriver-bidi/` document is an Editor's Draft and is tracked separately from the published Working Draft provenance.
+The 3 September 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. OriginWeave pins this publication to the immutable dated TR `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`; the mutable `w3c.github.io/webdriver-bidi/` Editor's Draft is tracked separately and cannot silently redefine the adapter contract. Because the standard remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
@@ -48,24 +48,35 @@ object with enumerated architecture/bitness/platform tokens, an at-most-32
 ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
 that a non-mobile user agent reports an empty model (see ADR 0112).
 
-The pinned 18 August 2026 published WebDriver BiDi Working Draft exposes locale,
-media, screen, user-agent, viewport, and time-zone emulation commands. The
-3 September 2026 Editor's Draft is useful current-development evidence but is
-not labeled as the published Working Draft or used as the immutable publication
-identity. The screen shape contains width and height but not color depth, and
-locale accepts one value rather than an ordered language list, so neither proves
-the corresponding complete OriginWeave surface. The draft also does not define
-a hardware-concurrency override. Chromium's tip-of-tree DevTools Protocol exposes
+The pinned 3 September 2026 WebDriver BiDi Working Draft exposes locale, media,
+screen, user-agent, viewport, and time-zone emulation commands under the immutable
+publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. The screen
+shape contains width and height but not color depth, and locale accepts one value
+rather than an ordered language list, so neither proves the corresponding complete
+OriginWeave surface. The draft also does not define a hardware-concurrency
+override. Chromium's tip-of-tree DevTools Protocol exposes
 `Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
 tip-of-tree commands can change without notice. OriginWeave therefore records
 required presentation surfaces in a protocol-neutral Rust admission contract;
 the adapter maps the four complete standard surfaces to three typed command
-intents bound to one bounded opaque browsing context. Because the specification
-does not clear device-pixel-ratio overrides when the final session ends, the
-adapter also plans an explicit viewport/DPR reset using null values. Constructing
-those values performs no transport I/O and cannot be treated as acknowledgement,
-successful cleanup, or presentation evidence. A later pinned Chromium adapter must capability-negotiate every surface and
-fail closed before claiming a complete profile.
+intents bound to one bounded opaque browsing context.
+
+Cleanup authority is asymmetric. Nullable viewport and timezone operations can
+restore those adapter-owned overrides on a reusable context, so generic cleanup
+plans reset viewport/DPR and timezone. By contrast,
+`emulation.setMediaFeaturesOverride` with `features: null` unsets the target's
+complete media-feature override configuration rather than selectively reversing
+only `prefers-reduced-motion`. Generic reusable-context cleanup therefore does
+not emit a media reset. A complete media reset is exposed only through the
+caller-supplied `ExclusivePresentationContext` path, which is an explicit
+attestation and not proof that the Browser Session owner established exclusive
+ownership or will dispose of the context. Constructing application or cleanup
+intents performs no transport I/O and cannot be treated as acknowledgement,
+successful cleanup, ownership evidence, or page-observed presentation evidence.
+A later pinned Chromium adapter must capability-negotiate every surface, observe
+post-conditions after apply and cleanup, and either prove exclusive disposable
+context ownership or restore the complete pre-existing media configuration
+before reusing the browser boundary.
 
 ### Extension-to-Agent grant origin binding
 
@@ -255,9 +266,9 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 
 World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
 
-World Wide Web Consortium. (2026, August 18). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/webdriver-bidi/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
-World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (Editor's Draft). https://w3c.github.io/webdriver-bidi/
+World Wide Web Consortium. (2026). *WebDriver BiDi* (Editor's Draft). https://w3c.github.io/webdriver-bidi/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 
