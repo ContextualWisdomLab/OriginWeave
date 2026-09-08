@@ -64,6 +64,56 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
         self.assertEqual(str(captured.exception), "MV3 fixture did not converge")
         self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
 
+    def test_agent_task_initial_url_mismatch_does_not_echo_observed_url(self) -> None:
+        """A browser-observed URL mismatch must not serialize page-controlled URL data."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_url_diagnostic_contract")
+        browser_pass = namespace["_run_agent_task_browser_pass"]
+        request_count = 0
+        hostile_url = f"https://example.invalid/?value={HOSTILE_PAGE_VALUE}"
+
+        class FakeDriver:
+            def terminate(self) -> None:
+                return None
+
+            def wait(self, *, timeout: float) -> int:
+                del timeout
+                return 0
+
+        def json_request(*_args: object, **_kwargs: object) -> dict[str, object]:
+            nonlocal request_count
+            request_count += 1
+            if request_count == 1:
+                return {
+                    "value": {
+                        "sessionId": "session-1",
+                        "capabilities": {"browserVersion": namespace["PINNED_CHROME_VERSION"]},
+                    }
+                }
+            if request_count == 2:
+                return {"value": None}
+            return {"value": hostile_url}
+
+        browser_pass.__globals__["_wait_for_driver"] = lambda *_args, **_kwargs: None
+        browser_pass.__globals__["_json_request"] = json_request
+        browser_pass.__globals__["_cleanup_browser_session_preserving_primary"] = (
+            lambda *_args, **_kwargs: None
+        )
+        subprocess_module = browser_pass.__globals__["subprocess"]
+
+        with patch.object(subprocess_module, "Popen", return_value=FakeDriver()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            browser_pass(
+                pathlib.Path("/controlled/chrome"),
+                pathlib.Path("/controlled/chromedriver"),
+                "http://127.0.0.1:8080/index.html",
+                "/controlled/profile",
+            )
+
+        self.assertEqual(str(captured.exception), "Agent Task initial URL mismatch")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
