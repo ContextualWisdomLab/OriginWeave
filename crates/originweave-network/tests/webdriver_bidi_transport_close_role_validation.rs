@@ -18,6 +18,10 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const CLOSE_MASK_KEY: [u8; 4] = [9, 10, 11, 12];
+type EstablishedPeer = (
+    originweave_network::WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<Option<Vec<u8>>>>,
+);
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -77,15 +81,7 @@ fn read_optional_masked_close(stream: &mut TcpStream) -> io::Result<Option<Vec<u
     Ok(Some(payload))
 }
 
-fn established_with_server_close(
-    status_code: u16,
-) -> Result<
-    (
-        originweave_network::WebDriverBiDiWebSocketEstablished,
-        thread::JoinHandle<io::Result<Option<Vec<u8>>>>,
-    ),
-    Box<dyn Error>,
-> {
+fn established_with_server_close(status_code: u16) -> Result<EstablishedPeer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<Option<Vec<u8>>> {
@@ -132,7 +128,10 @@ fn server_close_1010_is_rejected_before_reply_or_closure_evidence() -> Result<()
         .join()
         .map_err(|_| io::Error::other("role-invalid Close peer panicked"))??;
 
-    assert!(reply.is_none(), "server Close(1010) was mirrored by the client");
+    assert!(
+        reply.is_none(),
+        "server Close(1010) was mirrored by the client"
+    );
     assert!(matches!(
         result,
         Err(WebDriverBiDiWebSocketTransportClosureError::Frame {

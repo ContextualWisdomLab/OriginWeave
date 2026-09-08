@@ -115,6 +115,11 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 
 ### Coverage diagnosis lesson
 
+Keep generic wire-code validation separate from endpoint-role validation. For
+WebSocket Close, reject server-sent client-only 1010 in the client closure state
+machine before echoing it, and pair that RED case with valid server 1011 so a
+blanket rejection cannot satisfy the regression.
+
 Repeated control-frame support must preserve the total deadline and per-write masking authority. Supply a separate caller-owned key per Ping, consume none for unsolicited Pong, and keep the Close key independent. Test exact-budget success, budget overflow, exhausted keys, and reused keys with a peer that verifies no rejected reply. The 64-control budget is local resource policy, not an RFC limit.
 
 For Close-code validation, check the current IANA registry as well as RFC 6455: the protocol-reserved range is not an allowance for unassigned values. Keep application/private ranges separate, test assigned and reserved boundaries, and verify rejected peer codes produce neither an echo nor closure evidence. Record the registry date; future assignments need a reviewed update, not ambient network lookup during frame parsing.

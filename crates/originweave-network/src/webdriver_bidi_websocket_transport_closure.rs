@@ -63,7 +63,7 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
     /// the required Close response. Up to 64 pre-Close Ping/Pong frames are admitted as a local
     /// resource limit. Pings consume keys in slice order; unsolicited Pongs consume no key.
     /// Exhausted keys, excess control traffic, application data, timeout, partial EOF, malformed frames, write
-    /// failures, or any post-Close frame fail closed. Peer Close alone is never success: after the
+    /// failures, a server-sent client-only status 1010, or any post-Close frame fail closed. Peer Close alone is never success: after the
     /// masked response this boundary requires zero-byte TCP EOF within one operation-wide
     /// deadline covering all reads and writes. Evidence arriving after that deadline is rejected.
     pub fn observe(
@@ -150,6 +150,13 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
                     .payload()
                     .get(..2)
                     .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]));
+                if peer_close_status_code == Some(1010) {
+                    return Err(WebDriverBiDiWebSocketTransportClosureError::Frame {
+                        source: WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                            reason: "Close status 1010 is reserved for clients",
+                        },
+                    });
+                }
                 let established = established
                     .write_close_frame(
                         peer_close_status_code,
@@ -444,6 +451,26 @@ mod tests {
             assert_eq!(observation.kind(), kind);
             assert_eq!(observation.peer_close_status_code(), status);
         }
+    }
+
+    #[test]
+    fn client_only_close_status_is_rejected_before_reply() {
+        let (established, mut peer) = established_peer(&[0x88, 2, 3, 0xf2]);
+        let now = Instant::now();
+        let error = WebDriverBiDiWebSocketTransportClosureObservation::observe_with_clock(
+            established,
+            &[],
+            WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+            Duration::from_secs(1),
+            &mut || now,
+        )
+        .expect_err("server Close 1010 must fail");
+        assert_eq!(
+            format!("{error:?}"),
+            "Frame { source: MalformedFrame { reason: \"Close status 1010 is reserved for clients\" } }"
+        );
+        let mut reply = [0];
+        assert_eq!(peer.read(&mut reply).expect("peer EOF"), 0);
     }
 
     #[test]

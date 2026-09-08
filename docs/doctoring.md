@@ -49,12 +49,15 @@ ordinary wire status codes. It retains 3000–3999 for application codes and
 4000–4999 for private use without interpreting their meanings or treating them
 as proof of successful browser work. This is a reviewed static admission policy,
 not an online registry check. New protocol assignments require a reviewed update.
-The shared frame validator runs before any Close echo or closure evidence.
+The shared frame validator runs before role-specific handling. RFC 6455 section
+7.4.1 assigns status 1010 to clients and says servers do not use it, so the
+client-side transport-closure state machine rejects a peer 1010 before any
+Close echo or closure evidence. Server status 1011 remains admissible.
 
 Internet Assigned Numbers Authority. (2026). *WebSocket protocol registries*.
 Retrieved September 8, 2026, from https://www.iana.org/assignments/websocket
 
-Fette, I., & Melnikov, A. (2011). *The WebSocket protocol* (RFC 6455, § 7.4.2).
+Fette, I., & Melnikov, A. (2011). *The WebSocket protocol* (RFC 6455, §§ 7.4.1–7.4.2).
 Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
 
 ### Browser origin equivalence
