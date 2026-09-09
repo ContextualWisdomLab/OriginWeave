@@ -538,6 +538,13 @@ def _validate_agent_task_pre_action_state(state: object, text: object) -> None:
         raise RuntimeError("Agent Task pre-action baseline was already satisfied")
 
 
+def _validate_agent_task_typed_value(value: object) -> None:
+    """Require the browser-observed typed value without echoing page-controlled data."""
+
+    if value != AGENT_TASK_INPUT_VALUE:
+        raise RuntimeError("Agent Task typed input verification failed")
+
+
 def _cleanup_agent_task_browser_session(driver_port: int, session_id: str) -> None:
     """Delete one Agent Task WebDriver session without suppressing cleanup failures."""
 
@@ -662,6 +669,12 @@ def _run_agent_task_browser_pass(
             _element_command_path(session_id, input_element, "/value"),
             {"text": AGENT_TASK_INPUT_VALUE, "value": list(AGENT_TASK_INPUT_VALUE)},
         )
+        typed_value = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(session_id, input_element, "/property/value"),
+        ).get("value")
+        _validate_agent_task_typed_value(typed_value)
         submit_element = _find_element(
             driver_port,
             session_id,
@@ -728,6 +741,7 @@ def _run_agent_task_browser_pass(
         return {
             "browser_version": browser_version,
             "pre_action_baseline_verified": True,
+            "input_value_verified": True,
             "pre_click_baseline_verified": True,
             "post_condition": True,
             "input_echo_verified": True,
@@ -798,6 +812,7 @@ def _run_agent_task_trial(
         "passed": True,
         "browser_version": result["browser_version"],
         "pre_action_baseline_verified": result["pre_action_baseline_verified"],
+        "input_value_verified": result["input_value_verified"],
         "pre_click_baseline_verified": result["pre_click_baseline_verified"],
         "post_condition": result["post_condition"],
         "input_echo_verified": result["input_echo_verified"],
@@ -818,6 +833,7 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
     return all(
         trial.get("passed") is True
         and trial.get("pre_action_baseline_verified") is True
+        and trial.get("input_value_verified") is True
         and trial.get("pre_click_baseline_verified") is True
         and trial.get("post_condition") is True
         and trial.get("input_echo_verified") is True
