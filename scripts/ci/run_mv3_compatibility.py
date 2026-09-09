@@ -59,8 +59,15 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
 class BrowserSessionCleanupError(RuntimeError):
     """Report bounded WebDriver-session cleanup failure without echoing remote text."""
 
-    def __init__(self, cleanup_error: BaseException) -> None:
+    def __init__(
+        self,
+        cleanup_error: BaseException,
+        primary_error: BaseException | None = None,
+    ) -> None:
         self.cleanup_error_type = type(cleanup_error).__name__
+        self.primary_error_type = (
+            type(primary_error).__name__ if primary_error is not None else None
+        )
         super().__init__(
             "WebDriver session cleanup failed; see the chained causal browser failure"
         )
@@ -69,8 +76,15 @@ class BrowserSessionCleanupError(RuntimeError):
 class BrowserProfileCleanupError(RuntimeError):
     """Report bounded profile cleanup failure without exposing filesystem details."""
 
-    def __init__(self, cleanup_error: BaseException) -> None:
+    def __init__(
+        self,
+        cleanup_error: BaseException,
+        primary_error: BaseException | None = None,
+    ) -> None:
         self.cleanup_error_type = type(cleanup_error).__name__
+        self.primary_error_type = (
+            type(primary_error).__name__ if primary_error is not None else None
+        )
         super().__init__(
             "browser profile cleanup failed; see the chained causal browser failure"
         )
@@ -138,7 +152,7 @@ def _json_request(
     if method not in {"GET", "POST", "DELETE"}:
         raise ValueError("unsupported ChromeDriver method")
     if not path.startswith("/") or "://" in path or any(char in path for char in "\r\n"):
-        raise ValueError("invalid ChromeDriver path")
+        raise ValueError("invalid WebDriver path")
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
@@ -373,7 +387,7 @@ def _cleanup_browser_session_preserving_primary(
         http.client.HTTPException,
         json.JSONDecodeError,
     ) as cleanup_error:
-        bounded_error = BrowserSessionCleanupError(cleanup_error)
+        bounded_error = BrowserSessionCleanupError(cleanup_error, primary_error)
         if primary_error is None:
             raise bounded_error from cleanup_error
         raise bounded_error from primary_error
@@ -952,7 +966,7 @@ def _run_agent_task_trial(
         try:
             temporary_profile.cleanup()
         except OSError as cleanup_error:
-            bounded_error = BrowserProfileCleanupError(cleanup_error)
+            bounded_error = BrowserProfileCleanupError(cleanup_error, primary_error)
             if primary_error is None:
                 raise bounded_error from cleanup_error
             raise bounded_error from primary_error
@@ -1135,6 +1149,13 @@ def main() -> int:
                 }
                 if isinstance(error, AgentTaskSessionStartError):
                     failed_trial["failure_cause_type"] = error.session_error_type
+                elif isinstance(
+                    error,
+                    (BrowserSessionCleanupError, BrowserProfileCleanupError),
+                ):
+                    failed_trial["cleanup_error_type"] = error.cleanup_error_type
+                    if error.primary_error_type is not None:
+                        failed_trial["failure_cause_type"] = error.primary_error_type
                 agent_task_trials.append(failed_trial)
 
         agent_task_successful_trials = sum(
