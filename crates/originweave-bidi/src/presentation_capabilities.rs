@@ -1,8 +1,8 @@
 use std::{error::Error, fmt};
 
 use originweave_fingerprint::{
-    DevicePixelRatio, PresentationError, PresentationSurface, PresentationTimeZone, ViewportBounds,
-    require_presentation_surfaces,
+    DevicePixelRatio, PresentationError, PresentationSurface, PresentationTimeZone, ScreenMetrics,
+    ViewportBounds, require_presentation_surfaces,
 };
 
 const MAX_BROWSING_CONTEXT_BYTES: usize = 256;
@@ -50,11 +50,20 @@ impl WebDriverBidiBrowsingContext {
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
 /// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
 /// Presentation payloads retain the validated fingerprint value objects so a transport adapter cannot
-/// bypass their bounds by constructing raw viewport, DPR, or time-zone values. This reusable-boundary
-/// enum deliberately exposes no media-feature mutation command because this crate has no ownership or
-/// snapshot witness that would make such mutation reversibly safe.
+/// bypass their bounds by constructing raw screen, viewport, DPR, or time-zone values. Screen-area
+/// commands project only width and height from [`ScreenMetrics`]; they do not control its color-depth
+/// field and therefore do not satisfy the complete `PresentationSurface::Screen` contract. This
+/// reusable-boundary enum deliberately exposes no media-feature mutation command because this crate
+/// has no ownership or snapshot witness that would make such mutation reversibly safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WebDriverBidiPresentationCommand {
+    /// Set web-exposed screen width and height without claiming color-depth control.
+    SetScreenArea {
+        /// Exact target browsing context.
+        context: WebDriverBidiBrowsingContext,
+        /// Validated screen metrics whose width and height form the protocol screen area.
+        screen: ScreenMetrics,
+    },
     /// Set viewport dimensions and device-pixel ratio together.
     SetViewport {
         /// Exact target browsing context.
@@ -71,6 +80,11 @@ pub enum WebDriverBidiPresentationCommand {
         /// Validated presentation time-zone identity.
         timezone: PresentationTimeZone,
     },
+    /// Remove the web-exposed screen-area override for the exact browsing context.
+    ResetScreenArea {
+        /// Exact target browsing context.
+        context: WebDriverBidiBrowsingContext,
+    },
     /// Restore the implementation-defined viewport and remove the device-pixel-ratio override.
     ResetViewport {
         /// Exact target browsing context.
@@ -85,10 +99,12 @@ pub enum WebDriverBidiPresentationCommand {
 
 /// Plan the reversible standard-BiDi presentation commands safe for a reusable browsing context.
 ///
-/// Viewport/device-pixel-ratio and time-zone state each have a non-destructive nullable reset in the
-/// pinned Working Draft. Reduced motion remains an expressible protocol capability, but this reusable
-/// planning boundary neither installs nor exposes a media-mutation command because `features: null`
-/// clears the complete media-feature configuration rather than restoring only OriginWeave's prior
+/// Screen-area, viewport/device-pixel-ratio, and time-zone state each have a non-destructive nullable
+/// reset in the pinned Working Draft. Screen-area application covers only width and height, so it does
+/// not promote the complete `Screen` presentation surface while page-observable color depth remains
+/// uncontrolled. Reduced motion remains an expressible protocol capability, but this reusable planning
+/// boundary neither installs nor exposes a media-mutation command because `features: null` clears the
+/// complete media-feature configuration rather than restoring only OriginWeave's prior
 /// `prefers-reduced-motion` value. The explicit arguments make this a partial-plan API: it cannot be
 /// mistaken for application of a complete [`originweave_fingerprint::PresentationProfile`]. A later
 /// Browser Session-owned adapter may introduce reduced-motion application only after it can prove a
@@ -96,11 +112,16 @@ pub enum WebDriverBidiPresentationCommand {
 #[must_use]
 pub fn plan_standard_presentation_commands(
     context: &WebDriverBidiBrowsingContext,
+    screen: &ScreenMetrics,
     viewport: &ViewportBounds,
     device_pixel_ratio: DevicePixelRatio,
     timezone: PresentationTimeZone,
-) -> [WebDriverBidiPresentationCommand; 2] {
+) -> [WebDriverBidiPresentationCommand; 3] {
     [
+        WebDriverBidiPresentationCommand::SetScreenArea {
+            context: context.clone(),
+            screen: *screen,
+        },
         WebDriverBidiPresentationCommand::SetViewport {
             context: context.clone(),
             viewport: *viewport,
@@ -113,17 +134,20 @@ pub fn plan_standard_presentation_commands(
     ]
 }
 
-/// Plan cleanup that is non-destructive to unrelated media-feature overrides.
+/// Plan cleanup that is non-destructive to unrelated presentation or media overrides.
 ///
-/// The pinned Working Draft provides independently nullable reset paths for viewport/DPR and
-/// time-zone state, so these two resets are safe to plan for a reusable browsing context. Media
-/// cleanup is deliberately absent because `features: null` clears the complete media-feature
-/// override configuration rather than selectively undoing `prefers-reduced-motion`.
+/// The pinned Working Draft provides independently nullable context-scoped reset paths for screen
+/// area, viewport/DPR, and time-zone state, so these three resets are safe to plan for a reusable
+/// browsing context. Media cleanup is deliberately absent because `features: null` clears the complete
+/// media-feature override configuration rather than selectively undoing `prefers-reduced-motion`.
 #[must_use]
 pub fn plan_standard_presentation_cleanup(
     context: &WebDriverBidiBrowsingContext,
-) -> [WebDriverBidiPresentationCommand; 2] {
+) -> [WebDriverBidiPresentationCommand; 3] {
     [
+        WebDriverBidiPresentationCommand::ResetScreenArea {
+            context: context.clone(),
+        },
         WebDriverBidiPresentationCommand::ResetViewport {
             context: context.clone(),
         },
@@ -153,13 +177,14 @@ const WEBDRIVER_BIDI_PRESENTATION_SURFACES: [PresentationSurface; 4] = [
     PresentationSurface::ReducedMotion,
 ];
 
-/// Return presentation surfaces expressible through the pinned standard BiDi contract.
+/// Return complete presentation surfaces expressible through the pinned standard BiDi contract.
 ///
-/// Complete screen and ordered-language surfaces, hardware concurrency, and the
-/// Chromium platform/User-Agent Client Hints surface are intentionally absent.
-/// Reduced motion is listed as protocol capability even though reusable application leaves media
-/// state untouched until a Browser Session owner supplies a restorable lifecycle and corresponding
-/// command authority.
+/// The protocol can now plan screen width/height through `emulation.setScreenSettingsOverride`, but
+/// OriginWeave's `Screen` surface also includes color depth, so it remains intentionally absent until
+/// that observable is controlled. Ordered-language surfaces, hardware concurrency, and the Chromium
+/// platform/User-Agent Client Hints surface are also absent. Reduced motion is listed as protocol
+/// capability even though reusable application leaves media state untouched until a Browser Session
+/// owner supplies a restorable lifecycle and corresponding command authority.
 #[must_use]
 pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSurface] {
     &WEBDRIVER_BIDI_PRESENTATION_SURFACES
@@ -167,9 +192,10 @@ pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSur
 
 /// Require the pinned standard BiDi capability set to satisfy the complete profile.
 ///
-/// The current result is fail-closed with
-/// `PresentationError::MissingSurface(PresentationSurface::Screen)`.
-/// Callers must not translate that result into ambient-host fallback.
+/// The current result remains fail-closed with
+/// `PresentationError::MissingSurface(PresentationSurface::Screen)` because screen-area geometry does
+/// not control the `ScreenMetrics` color-depth field. Callers must not translate that result into
+/// ambient-host fallback.
 pub fn require_complete_presentation_profile() -> Result<(), PresentationError> {
     require_presentation_surfaces(webdriver_bidi_presentation_surfaces())
 }
@@ -245,11 +271,16 @@ mod tests {
         assert_eq!(
             plan_standard_presentation_commands(
                 &context,
+                profile.screen(),
                 profile.viewport(),
                 profile.device_pixel_ratio(),
                 profile.timezone(),
             ),
             [
+                WebDriverBidiPresentationCommand::SetScreenArea {
+                    context: context.clone(),
+                    screen: *profile.screen(),
+                },
                 WebDriverBidiPresentationCommand::SetViewport {
                     context: context.clone(),
                     viewport: *profile.viewport(),
@@ -271,6 +302,9 @@ mod tests {
         assert_eq!(
             plan_standard_presentation_cleanup(&context),
             [
+                WebDriverBidiPresentationCommand::ResetScreenArea {
+                    context: context.clone(),
+                },
                 WebDriverBidiPresentationCommand::ResetViewport {
                     context: context.clone(),
                 },
