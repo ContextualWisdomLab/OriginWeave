@@ -298,7 +298,7 @@ def _read_presentation_probe(driver_port: int, session_id: str) -> dict[str, str
         value = _json_request(
             driver_port,
             "GET",
-            _element_command_path(session_id, element_id, "/text"),
+            _element_command_path(session_id, element_id, "/property/textContent"),
         ).get("value")
         if not isinstance(value, str):
             raise RuntimeError("presentation probe observation was malformed")
