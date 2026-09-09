@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import pathlib
 import runpy
 import unittest
@@ -349,6 +350,16 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
             "profile",
         )
         self.assertEqual(classify(HOSTILE_PAGE_VALUE), "unclassified")
+
+    def test_agent_task_driver_diagnostics_stay_local_and_verbose(self) -> None:
+        """The next closed category needs the driver log without sending it to CI."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_driver_log_contract")
+        browser_pass_source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+
+        self.assertIn('"--verbose"', browser_pass_source)
+        self.assertIn('"--log-path=', browser_pass_source)
+        self.assertIn("driver_log_path.unlink(missing_ok=True)", browser_pass_source)
 
     def test_driver_readiness_timeout_does_not_echo_last_exception(self) -> None:
         """Startup timeout must not serialize the last remote diagnostic into CI text."""

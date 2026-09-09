@@ -722,6 +722,7 @@ def _run_agent_task_browser_pass(
                 str(chromedriver_bin),
                 f"--port={driver_port}",
                 "--allowed-ips=127.0.0.1",
+                "--verbose",
                 f"--log-path={driver_log_path}",
             ],
             stdout=subprocess.DEVNULL,
