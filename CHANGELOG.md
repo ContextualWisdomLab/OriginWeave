@@ -48,6 +48,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Kept ChromeDriver startup diagnosis fail-closed when verbose output races session creation: only a reviewed startup marker can complete the bounded handoff early, while ordinary process output waits for the existing expiry before retaining `unknown`.
+
 - Controlled browser-crash compatibility evidence now credits a crash only after the exact PID/start-time identity is signalled through a revalidated Linux pidfd and that same pidfd becomes readable within the bounded deadline; generic WebDriver transport failures no longer substitute for process-termination proof, while sampled Chromium process-set teardown remains a separate recovery boundary and the pidfd runtime contract remains mandatory on Linux CI.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.

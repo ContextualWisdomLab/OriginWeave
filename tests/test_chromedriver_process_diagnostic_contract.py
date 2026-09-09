@@ -147,6 +147,37 @@ class ChromeDriverProcessDiagnosticContractTests(unittest.TestCase):
         self.assertFalse(feeder.is_alive())
         self.assertEqual(captured.exception.startup_reason, "sandbox_unavailable")
 
+    def test_session_creation_waits_past_unreviewed_output_for_delayed_marker(self) -> None:
+        """An earlier verbose chunk cannot end the reviewed-reason handoff."""
+
+        diagnostic_type = self.runner["_ChromeDriverStartupDiagnostic"]
+        create_session = self.runner["_create_chromedriver_session"]
+        session_error_type = self.runner["_WebDriverSessionNotCreatedError"]
+        diagnostic = diagnostic_type()
+        diagnostic.feed(b"ordinary ChromeDriver startup line")
+        session_started = threading.Event()
+
+        def delayed_marker() -> None:
+            session_started.wait(timeout=1.0)
+            time.sleep(0.01)
+            diagnostic.feed(b"No usable sandbox")
+
+        def rejected_session(*_args: object, **_kwargs: object) -> dict[str, object]:
+            session_started.set()
+            raise session_error_type("unknown")
+
+        feeder = threading.Thread(target=delayed_marker)
+        feeder.start()
+        with patch.dict(
+            create_session.__globals__,
+            {"_wait_for_driver": lambda _port: None, "_json_request": rejected_session},
+        ), self.assertRaises(session_error_type) as captured:
+            create_session(9515, {}, diagnostic)
+        feeder.join(timeout=1.0)
+
+        self.assertFalse(feeder.is_alive())
+        self.assertEqual(captured.exception.startup_reason, "sandbox_unavailable")
+
     def test_all_chromedriver_launches_stream_instead_of_discarding_output(self) -> None:
         source = RUNNER_PATH.read_text(encoding="utf-8")
 

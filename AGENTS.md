@@ -22,7 +22,7 @@ For every change:
 Do not bypass required checks, branch protection, or any review authority actually required by current GitHub rules or an explicit operationally satisfiable OriginWeave/CWL governance rule. Waiting checks are not permission to weaken tests; continue with a non-conflicting next task.
 
 - ChromeDriver diagnostic drains must continuously discard bytes, accept existing text-mode process doubles by immediate UTF-8 replacement encoding, and silently stop on an unrecognized chunk; only the reviewed startup reason may survive. Shared ChromeDriver launch owns `--verbose` and never writes a diagnostic log file.
-- A `session not created` result may race the asynchronous ChromeDriver drain. Wait only for the bounded diagnostic-handoff event before choosing a closed startup reason; process exit and arbitrary sleeps are not acceptable handoff signals.
+- A `session not created` result may race the asynchronous ChromeDriver drain. Wait only for a reviewed startup-reason event or bounded handoff expiry before choosing a closed reason; unreviewed output, process exit, and arbitrary sleeps are not acceptable handoff signals.
 
 ## Work-conserving autonomous maintenance
 

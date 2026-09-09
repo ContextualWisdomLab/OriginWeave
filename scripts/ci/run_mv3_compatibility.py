@@ -80,14 +80,14 @@ class _WebDriverSessionNotCreatedError(RuntimeError):
 class _ChromeDriverStartupDiagnostic:
     """Retain only a closed startup reason while continuously discarding process output."""
 
-    __slots__ = ("_marker_index", "_observed", "startup_reason")
+    __slots__ = ("_marker_index", "_reviewed_reason", "startup_reason")
     _MARKER = b"no usable sandbox"
 
     def __init__(self) -> None:
         """Start with no reviewed process-level startup reason."""
 
         self._marker_index = 0
-        self._observed = threading.Event()
+        self._reviewed_reason = threading.Event()
         self.startup_reason = "unknown"
 
     def feed(self, chunk: bytes) -> None:
@@ -95,7 +95,6 @@ class _ChromeDriverStartupDiagnostic:
 
         if not isinstance(chunk, bytes):
             raise TypeError("ChromeDriver diagnostic chunks must be bytes")
-        self._observed.set()
         if self.startup_reason == "sandbox_unavailable":
             return
         for raw_byte in chunk:
@@ -104,6 +103,7 @@ class _ChromeDriverStartupDiagnostic:
                 self._marker_index += 1
                 if self._marker_index == len(self._MARKER):
                     self.startup_reason = "sandbox_unavailable"
+                    self._reviewed_reason.set()
                     self._marker_index = 0
                     return
             else:
@@ -112,7 +112,7 @@ class _ChromeDriverStartupDiagnostic:
     def wait_for_observation(self) -> None:
         """Bound the handoff from asynchronous process draining to session classification."""
 
-        self._observed.wait(timeout=DIAGNOSTIC_HANDOFF_TIMEOUT_SECONDS)
+        self._reviewed_reason.wait(timeout=DIAGNOSTIC_HANDOFF_TIMEOUT_SECONDS)
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):

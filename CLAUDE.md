@@ -12,5 +12,5 @@ Additional constraints:
 - Do not add hostname reconnect, proxy-environment inheritance, dangerous certificate-verifier hooks, Common Name fallback, TLS 0-RTT, key logging, or secret extraction to a production TLS path.
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - ChromeDriver process output is a redaction boundary: support text-mode test doubles by encoding and discard unrecognized chunks without retaining them; emit only the closed diagnostic reason.
-- For concurrent session failure, use the bounded diagnostic-observation event rather than an arbitrary sleep or process-exit wait before reading the closed reason.
+- For concurrent session failure, use a reviewed startup-reason event or bounded handoff expiry rather than arbitrary output, a sleep, or process-exit wait before reading the closed reason.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
