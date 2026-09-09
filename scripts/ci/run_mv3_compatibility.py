@@ -87,12 +87,17 @@ class BrowserProfileCleanupError(RuntimeError):
             if isinstance(primary_error, BrowserSessionCleanupError)
             else None
         )
-        self.primary_error_type = (
-            primary_error.primary_error_type
-            if isinstance(primary_error, BrowserSessionCleanupError)
+        if (
+            isinstance(primary_error, BrowserSessionCleanupError)
             and primary_error.primary_error_type is not None
-            else type(primary_error).__name__ if primary_error is not None else None
-        )
+        ):
+            self.primary_error_type = primary_error.primary_error_type
+        elif isinstance(primary_error, AgentTaskSessionStartError):
+            self.primary_error_type = primary_error.session_error_type
+        else:
+            self.primary_error_type = (
+                type(primary_error).__name__ if primary_error is not None else None
+            )
         super().__init__(
             "browser profile cleanup failed; see the chained causal browser failure"
         )
