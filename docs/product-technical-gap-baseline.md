@@ -6,7 +6,35 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 This volatile section is refreshed from live GitHub state and is authoritative only for the exact observations recorded here. The dated snapshot below remains historical evidence and is not promoted to current acceptance evidence. Live GitHub PR/base/head/check APIs are authoritative over PR bodies and prior maintenance prose; a body that still names an older head is stale evidence, not merge evidence.
 
-### Latest verified cut: 2026-09-08
+### Latest verified cut: 2026-09-09
+
+#### Presentation identity and controlled-browser evidence
+
+At `2026-09-09T08:45:00Z`, the live inventory was **130 open pull requests:
+13 Ready/non-draft and 117 Draft; 14 open non-PR issues**. Protected `main`
+remains `87c4daa1830bac5a5228b6036752ad5633232085`; no GitHub Release exists.
+Ruleset `18156473` still requires one counted approval and seven central required
+workflows. Queued reviewer evidence is non-passing: discard queued, skipped,
+cancelled, absent, predecessor, synthetic, status-only, and model-only evidence.
+
+Issue #292 remains the buyer-visible presentation-identity gap. Draft #293 is
+at exact head `6855e2578ae94279cc9ab4a14527b016e8c049ee` on Ready #229
+`024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`. Its reusable lifecycle deliberately
+does not apply reduced motion without a complete restore or disposable-context
+owner. Thus command planning cannot be presented as full profile application.
+Pinned Chromium application, page-observed post-conditions, and cleanup evidence
+remain unimplemented and unreleased. Issue #212 owns the sandbox-helper contract;
+the product branch must consume it rather than copy or weaken workflow behavior.
+
+#### Transport-closure verification and test-integrity repair
+
+The current queue also leaves Ready #287 at
+`3975daf48e01a5e9d1cf9fb104a3be1aa03b0402` with exact-head native and central
+checks queued. Its prior CodeQL dispatch outcome was an absent central verdict,
+not a classifier-source finding. No release, protected-main shipment, or approval
+is inferred from local work, a child merge, or queued checks.
+
+### Previous verified cut: 2026-09-08
 
 #### Published intent acknowledgment verification
 

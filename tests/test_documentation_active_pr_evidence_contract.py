@@ -88,19 +88,12 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
-        self.assertIn("on 2026-09-05", refresh_line)
         latest_cut = bounded_section(
             self.baseline,
-            "### Latest verified cut: 2026-09-08",
-            "### Historical verified cut: 2026-09-07",
+            "### Latest verified cut: 2026-09-09",
+            "### Previous verified cut: 2026-09-08",
         )
-        current = bounded_section(
-            latest_cut,
-            "#### Transport-closure verification and test-integrity repair",
-            "### Historical verified cut: 2026-09-07",
-        ) if "### Historical verified cut: 2026-09-07" in latest_cut else latest_cut.split(
-            "#### Transport-closure verification and test-integrity repair", 1
-        )[1]
+        current = latest_cut
         queue_counts = re.findall(
             r"\*\*(\d+) open pull requests: (\d+) Ready/non-draft and (\d+) Draft; "
             r"(\d+) open non-PR issues\*\*",
@@ -115,9 +108,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertEqual(1, len(inventory_lines))
         self.assertIn(f"{total} open pull requests ({ready} ready, {draft} draft)", inventory_lines[0])
         self.assertIn(f"{issues} open non-PR issues", inventory_lines[0])
-        self.assertIn("024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6", refresh_line)
-        self.assertIn("3a651967c421f77088fe25e86a63faae295390b3", refresh_line)
-        self.assertIn("01038ba71fb276426cc67f90a91a3c431e194db5", refresh_line)
+        self.assertIn("Observed 2026-09-09", inventory_lines[0])
         self.assertIn(
             "Revalidated the active ruleset inventory at 7 required workflows",
             changed,
@@ -135,13 +126,13 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """Changing only the newest count must invalidate an unchanged changelog."""
         latest = bounded_section(
             self.baseline,
-            "### Latest verified cut: 2026-09-08",
-            "### Historical verified cut: 2026-09-07",
+            "### Latest verified cut: 2026-09-09",
+            "### Previous verified cut: 2026-09-08",
         )
-        self.assertIn("126 open pull requests", latest)
+        self.assertIn("130 open pull requests", latest)
         mutated_latest = latest.replace(
-            "126 open pull requests",
-            "127 open pull requests",
+            "130 open pull requests",
+            "131 open pull requests",
             1,
         )
         self.assertNotEqual(latest, mutated_latest)

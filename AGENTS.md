@@ -99,6 +99,7 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 ## Documentation and research
 
 - Update `docs/doctoring.md` when a standard or research claim affects design.
+- Refreshing the volatile product-gap baseline requires paginated live PR and issue counts, full exact heads, and the matching `CHANGELOG.md` inventory line; run its documentation contracts before publication. A local browser policy that blocks loopback or file rendering is not visual evidence—inspect the GitHub-rendered exact head after push instead.
 - Use primary specifications, official documentation, or peer-reviewed/primary papers.
 - Format references in APA 7th style.
 - Update an ADR for binding architectural changes.
