@@ -13,15 +13,16 @@ FINGERPRINT_SOURCE = ROOT / "crates/originweave-fingerprint/src/lib.rs"
 class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
     """Keep screen geometry typed without silently widening page-observable authority."""
 
-    def test_adapter_exposes_explicit_screen_settings_override(self) -> None:
-        """The qualified BiDi adapter must expose the standard operation as explicit partial intent."""
+    def test_adapter_exposes_screen_area_value_without_unowned_mutation_intent(self) -> None:
+        """Geometry may be typed before Browser Session proves authority to mutate it."""
         text = SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("ScreenMetrics", text)
         self.assertIn("WebDriverBidiScreenArea", text)
-        self.assertIn("SetScreenArea", text)
-        self.assertIn("plan_explicit_screen_area_override", text)
-        self.assertIn("plan_explicit_screen_area_cleanup", text)
+        self.assertNotIn("SetScreenArea", text)
+        self.assertNotIn("ResetScreenArea", text)
+        self.assertNotIn("plan_explicit_screen_area_override", text)
+        self.assertNotIn("plan_explicit_screen_area_cleanup", text)
 
     def test_profile_derived_plan_cannot_silently_mutate_available_screen_area(self) -> None:
         """A profile-derived reusable plan must not change an unmodelled page observable."""
@@ -48,7 +49,7 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
             planner,
             "WebDriver BiDi screen settings override also changes screen.availWidth/availHeight; "
             "the reusable profile-derived plan must model those observables or keep the override "
-            "behind a separately explicit partial intent",
+            "behind Browser Session ownership",
         )
         self.assertNotIn(
             "ResetScreenArea",
@@ -57,16 +58,17 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
             "not own or install",
         )
 
-    def test_explicit_cleanup_uses_context_scoped_screen_area_reset(self) -> None:
-        """The explicit screen-area cleanup must use the command's nullable context-scoped reset."""
+    def test_screen_area_mutation_requires_browser_session_ownership(self) -> None:
+        """A context identifier alone cannot authorize replacing or clearing another owner's override."""
         text = SOURCE.read_text(encoding="utf-8")
 
-        self.assertIn("ResetScreenArea", text)
-        self.assertIn("plan_explicit_screen_area_cleanup", text)
-        self.assertNotIn("ResetMediaFeatures", text)
+        self.assertNotIn("SetScreenArea", text)
+        self.assertNotIn("ResetScreenArea", text)
+        self.assertNotIn("plan_explicit_screen_area_override", text)
+        self.assertNotIn("plan_explicit_screen_area_cleanup", text)
 
     def test_screen_surface_remains_fail_closed_until_complete_observables_are_controlled(self) -> None:
-        """Screen-area intent cannot satisfy the complete page-observable Screen contract."""
+        """Screen-area representation cannot satisfy the complete page-observable Screen contract."""
         text = SOURCE.read_text(encoding="utf-8")
         surfaces = text.split(
             "const WEBDRIVER_BIDI_PRESENTATION_SURFACES", maxsplit=1
@@ -79,7 +81,7 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
         )
 
     def test_screen_area_payload_does_not_carry_color_depth(self) -> None:
-        """The command intent must not imply authority over an unapplied screen observable."""
+        """The protocol value must not imply authority over an unapplied screen observable."""
         text = SOURCE.read_text(encoding="utf-8")
         screen_area = text.split("pub struct WebDriverBidiScreenArea", maxsplit=1)[1]
         screen_area = screen_area.split("pub enum WebDriverBidiPresentationCommand", maxsplit=1)[0]
