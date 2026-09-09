@@ -18,6 +18,8 @@ After the existing five-second `join`, `_stop_fixture_server` now checks `thread
 
 A focused regression uses a stalled thread double to prove that `shutdown()`, `server_close()`, and the bounded join are attempted but are not accepted as successful cleanup unless liveness becomes false. A companion success case proves that an observed stopped thread is accepted.
 
+This follows Python's documented `Thread.join(timeout)` contract: `join()` returns `None` whether the target terminated or the timeout expired, so callers must inspect `is_alive()` after a timed join to determine whether the timeout occurred.
+
 ## Alternatives rejected
 
 An unbounded `join()` was rejected because a failed fixture server could hang the CI lane indefinitely. Repeating `shutdown()` or sleeping before a second join was rejected because it would obscure the causal cleanup defect and add timing-dependent behavior. Silently recording the thread as cleaned after a timed join was rejected because command completion is not a post-condition.
@@ -30,7 +32,11 @@ The new check can turn a previously silent helper-thread leak into an explicit t
 
 - Test-first commit: `586bf780a6ebeb565feb0e5325afae3053937496`.
 - Minimal production repair: `aed62d356721ee5abf3cc84414c87bea15eaa09e`.
-- Compare from prior checkpoint `037d2fc45fba99c0c375be4f8431df44bdcc94f7` is two ordinary commits ahead and zero behind; before this documentation commit, the only changed paths are `tests/test_fixture_server_shutdown_postcondition_contract.py` and `scripts/ci/run_mv3_compatibility.py`, with the production delta limited to two added lines.
+- Compare from prior checkpoint `037d2fc45fba99c0c375be4f8431df44bdcc94f7` is two ordinary commits ahead and zero behind; before this documentation lineage, the only changed paths are `tests/test_fixture_server_shutdown_postcondition_contract.py` and `scripts/ci/run_mv3_compatibility.py`, with the production delta limited to two added lines.
+
+## Primary runtime reference
+
+Python Software Foundation. (2026). *threading — Thread-based parallelism* (Python 3.14.7 documentation). https://docs.python.org/3/library/threading.html#threading.Thread.join
 
 ## Follow-up acceptance
 
