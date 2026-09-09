@@ -75,6 +75,10 @@ The organization currently documents a **solo-maintainer** governance condition.
 
 ## Rust quality contract
 
+### Verified maintenance lessons
+
+- Run `cargo fmt --all -- --check` before publishing a Rust slice: a formatting-only diff can fail Rust contracts before tests, Clippy, and rustdoc run.
+
 - Rust 1.97.1 is the supported build baseline unless an ADR changes it.
 - `unsafe` is forbidden in first-party crates unless a narrowly scoped ADR, safety proof, and dedicated test suite are approved.
 - Every public module, type, variant, field, trait, and function has useful rustdoc.
