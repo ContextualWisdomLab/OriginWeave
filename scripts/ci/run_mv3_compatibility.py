@@ -77,13 +77,10 @@ class BrowserProfileCleanupError(RuntimeError):
 
 
 class AgentTaskSessionStartError(RuntimeError):
-    """Classify a failed Agent Task browser session without exposing driver text."""
+    """Record a failed Agent Task browser session without exposing driver text."""
 
-    def __init__(
-        self, session_error: BaseException, diagnostic_category: str = "unclassified"
-    ) -> None:
+    def __init__(self, session_error: BaseException) -> None:
         self.session_error_type = type(session_error).__name__
-        self.diagnostic_category = diagnostic_category
         super().__init__("Agent Task browser session failed to start")
 
 
@@ -92,31 +89,6 @@ class WebDriverSessionNotCreatedError(RuntimeError):
 
     def __init__(self) -> None:
         super().__init__("WebDriver could not create a browser session")
-
-
-def _classify_chromedriver_startup_diagnostic(driver_log: str) -> str:
-    """Map transient ChromeDriver text to one closed CI-safe startup category."""
-
-    normalized_log = driver_log.lower()
-    if "sandbox" in normalized_log:
-        return "sandbox"
-    if "devtoolsactiveport" in normalized_log:
-        return "browser_startup"
-    if "user data directory" in normalized_log:
-        return "profile"
-    return "unclassified"
-
-
-def _read_chromedriver_startup_diagnostic(driver_log_path: pathlib.Path) -> str:
-    """Classify a bounded local ChromeDriver log without emitting its contents."""
-
-    try:
-        with driver_log_path.open("rb") as driver_log:
-            return _classify_chromedriver_startup_diagnostic(
-                driver_log.read(MAX_WEBDRIVER_RESPONSE_BYTES).decode("utf-8", "replace")
-            )
-    except OSError:
-        return "unclassified"
 
 
 def _free_loopback_port() -> int:
@@ -711,27 +683,16 @@ def _run_agent_task_browser_pass(
     started = time.monotonic()
     driver_port = _free_loopback_port()
     session_id: str | None = None
-    driver_log_file = tempfile.NamedTemporaryFile(
-        prefix="originweave-chromedriver-", suffix=".log", delete=False
+    driver = subprocess.Popen(
+        [
+            str(chromedriver_bin),
+            f"--port={driver_port}",
+            "--allowed-ips=127.0.0.1",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
-    driver_log_path = pathlib.Path(driver_log_file.name)
-    driver_log_file.close()
-    try:
-        driver = subprocess.Popen(
-            [
-                str(chromedriver_bin),
-                f"--port={driver_port}",
-                "--allowed-ips=127.0.0.1",
-                "--verbose",
-                f"--log-path={driver_log_path}",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-    except BaseException:
-        driver_log_path.unlink(missing_ok=True)
-        raise
     try:
         _wait_for_driver(driver_port)
         try:
@@ -767,10 +728,7 @@ def _run_agent_task_browser_pass(
             http.client.HTTPException,
             json.JSONDecodeError,
         ) as session_error:
-            raise AgentTaskSessionStartError(
-                session_error,
-                _read_chromedriver_startup_diagnostic(driver_log_path),
-            ) from session_error
+            raise AgentTaskSessionStartError(session_error) from session_error
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver Agent Task session response is malformed")
         raw_session_id = session.get("sessionId")
@@ -957,15 +915,12 @@ def _run_agent_task_browser_pass(
                     primary_error,
                 )
         finally:
+            driver.terminate()
             try:
-                driver.terminate()
-                try:
-                    driver.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    driver.kill()
-                    driver.wait(timeout=5)
-            finally:
-                driver_log_path.unlink(missing_ok=True)
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 def _run_agent_task_trial(
@@ -1180,7 +1135,6 @@ def main() -> int:
                 }
                 if isinstance(error, AgentTaskSessionStartError):
                     failed_trial["failure_cause_type"] = error.session_error_type
-                    failed_trial["failure_diagnostic_category"] = error.diagnostic_category
                 agent_task_trials.append(failed_trial)
 
         agent_task_successful_trials = sum(

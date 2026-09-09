@@ -60,8 +60,8 @@ The organization currently documents a **solo-maintainer** governance condition.
 - Keep Blink, V8, Skia, Viz, Dawn, Chromium sandboxing, Site Isolation, and Manifest V3 compatibility upstream-aligned.
 - Pinned-Chromium presentation evidence may use only fixed CDP commands and declared static-fixture DOM outputs; page-provided scripts must never select commands or supply evaluation text.
 - For hidden fixture outputs, read the bounded `textContent` property rather than rendered element text, and reject a probe baseline that already equals its target so an ACK cannot masquerade as a causal presentation transition.
-- Browser-session failures may retain only closed, credential-free WebDriver and local ChromeDriver startup categories (`sandbox`, `browser_startup`, `profile`, or `unclassified`); never emit remote or local diagnostic text into CI evidence.
-- A hosted Ubuntu `sandbox` category is a canonical `.github` sandbox-helper workflow-contract dependency: do not add `--no-sandbox` or copy workflow setup into a product PR; adopt the reviewed immutable owner release and rerun the three browser trials.
+- Browser-session failures may retain only a closed, credential-free WebDriver category; ChromeDriver startup/process diagnostics belong to their canonical owner lane and must not be captured here. Never emit remote or local diagnostic text into CI evidence.
+- Hosted Ubuntu sandbox remediation is a canonical `.github` sandbox-helper workflow-contract dependency: do not add `--no-sandbox` or copy workflow setup into a product PR; adopt the reviewed immutable owner release and rerun the three browser trials.
 - New product logic belongs in Rust control-plane modules behind narrow adapters.
 - Rust crates must remain independently understandable and reusable.
 - Keep logical origin, resolved destination, operating-system TCP peer, TLS service identity, proxy route, and HTTP semantics as separate authority boundaries.

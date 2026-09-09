@@ -4,7 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Record a closed ChromeDriver startup category from a bounded local log when Agent Task session creation fails, then remove that log before trial completion; CI still exposes no diagnostic text.
+- Keep Agent Task evidence to the standard bounded WebDriver session-creation category; ChromeDriver startup/process diagnostics remain with their canonical owner.
 - Preserve the bounded standard WebDriver session-creation failure category in Agent Task evidence while continuing to redact remote driver diagnostics.
 - Recognize the standard session-creation category from a ChromeDriver HTTP error response before applying the generic HTTP failure boundary.
 - Added a pinned-Chromium presentation probe to the controlled Agent Task evidence lane. It records a baseline, applies fixed viewport/DPR/timezone overrides before the observed navigation, then resets and proves the baseline returns through declared fixture DOM outputs. Hosted browser evidence remains required.

@@ -13,6 +13,6 @@ Additional constraints:
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - Browser presentation probes use fixed CDP commands and static-fixture DOM observations only; never turn page content into executable input.
 - Read hidden fixture observations through the bounded `textContent` property, and require every pre-override value to differ from its target before accepting a presentation transition.
-- Preserve only closed WebDriver and local ChromeDriver startup categories (`sandbox`, `browser_startup`, `profile`, or `unclassified`) in browser evidence; never serialize diagnostic text.
-- Treat a hosted Ubuntu `sandbox` category as a `.github` workflow-owner dependency; preserve Chromium sandboxing and require a released helper contract before rerunning browser evidence.
+- Preserve only a closed WebDriver category in browser evidence; ChromeDriver startup/process diagnostics remain in their canonical owner lane, and diagnostic text is never serialized.
+- Treat hosted Ubuntu sandbox remediation as a `.github` workflow-owner dependency; preserve Chromium sandboxing and require a released helper contract before rerunning browser evidence.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
