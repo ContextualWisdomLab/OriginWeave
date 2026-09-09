@@ -2,8 +2,23 @@
 set -euo pipefail
 
 REPOSITORY="${ORIGINWEAVE_REPOSITORY:-ContextualWisdomLab/OriginWeave}"
-EVIDENCE_DIR="${1:-$(mktemp -d /tmp/originweave-evidence.XXXXXX)}"
-mkdir -p "$EVIDENCE_DIR"
+if [[ $# -gt 0 ]]; then
+  EVIDENCE_DIR="$1"
+  if [[ -e "$EVIDENCE_DIR" ]]; then
+    if [[ ! -d "$EVIDENCE_DIR" ]]; then
+      printf 'Evidence path is not a directory: %s\n' "$EVIDENCE_DIR" >&2
+      exit 1
+    fi
+    if [[ -n "$(find "$EVIDENCE_DIR" -mindepth 1 -print -quit)" ]]; then
+      printf 'Evidence directory must be empty: %s\n' "$EVIDENCE_DIR" >&2
+      exit 1
+    fi
+  else
+    mkdir -p "$EVIDENCE_DIR"
+  fi
+else
+  EVIDENCE_DIR="$(mktemp -d /tmp/originweave-evidence.XXXXXX)"
+fi
 printf 'Evidence directory: %s\n' "$EVIDENCE_DIR" >&2
 
 gh api --paginate --slurp "repos/$REPOSITORY/pulls?state=open&per_page=100" \
@@ -37,6 +52,8 @@ jq '[.[][]]' "$EVIDENCE_DIR/collaborator-pages.json" \
 
 jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
   STABLE_HEAD=false
+  INVENTORY_DRAFT=$(jq -r --argjson pr "$PR" \
+    '.[] | select(.number == $pr) | .draft' "$EVIDENCE_DIR/open-prs.json")
   for ATTEMPT in 1 2 3; do
     VERDICT_PATH="$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"
     VERDICT_TMP="$EVIDENCE_DIR/pr-${PR}-merge-verdict.json.tmp"
@@ -47,7 +64,16 @@ jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
     gh api "repos/$REPOSITORY/pulls/$PR" > "$PR_JSON"
     HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
     BASE_SHA=$(jq -r '.base.sha' "$PR_JSON")
+    BASE_REF=$(jq -r '.base.ref' "$PR_JSON")
+    PR_STATE=$(jq -r '.state' "$PR_JSON")
+    PR_DRAFT=$(jq -r '.draft' "$PR_JSON")
+    BASE_REF_ENCODED=$(jq -rn --arg value "$BASE_REF" '$value | @uri')
 
+    gh api --paginate --slurp \
+      "repos/$REPOSITORY/rules/branches/$BASE_REF_ENCODED?per_page=100" \
+      > "$EVIDENCE_DIR/pr-${PR}-branch-rule-pages.json"
+    jq '[.[][]]' "$EVIDENCE_DIR/pr-${PR}-branch-rule-pages.json" \
+      > "$EVIDENCE_DIR/pr-${PR}-branch-rules.json"
     gh api --paginate --slurp \
       "repos/$REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100" \
       > "$EVIDENCE_DIR/pr-${PR}-check-runs.json"
@@ -84,7 +110,7 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
       --slurpfile statuses "$EVIDENCE_DIR/pr-${PR}-statuses.json" \
       --slurpfile reviews "$EVIDENCE_DIR/pr-${PR}-reviews.json" \
       --slurpfile workflow_runs "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json" \
-      --slurpfile rules "$EVIDENCE_DIR/main-branch-rules.json" \
+      --slurpfile rules "$EVIDENCE_DIR/pr-${PR}-branch-rules.json" \
       --slurpfile collaborators "$EVIDENCE_DIR/collaborators.json" \
       --slurpfile threads "$EVIDENCE_DIR/pr-${PR}-review-threads.json" \
       '(
@@ -177,7 +203,16 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
       | tee "$RECHECKED_PR_JSON" \
       | jq -r '.head.sha')
     RECHECKED_BASE_SHA=$(jq -r '.base.sha' "$RECHECKED_PR_JSON")
-    if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]; then
+    RECHECKED_BASE_REF=$(jq -r '.base.ref' "$RECHECKED_PR_JSON")
+    RECHECKED_STATE=$(jq -r '.state' "$RECHECKED_PR_JSON")
+    RECHECKED_DRAFT=$(jq -r '.draft' "$RECHECKED_PR_JSON")
+    if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && \
+          "$RECHECKED_BASE_SHA" == "$BASE_SHA" && \
+          "$RECHECKED_BASE_REF" == "$BASE_REF" && \
+          "$PR_STATE" == "open" && \
+          "$RECHECKED_STATE" == "$PR_STATE" && \
+          "$RECHECKED_DRAFT" == "$PR_DRAFT" && \
+          "$PR_DRAFT" == "$INVENTORY_DRAFT" ]]; then
       mv "$VERDICT_TMP" "$VERDICT_PATH"
       mv "$RECHECKED_PR_JSON" "$PR_JSON"
       STABLE_HEAD=true
@@ -185,13 +220,14 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
     fi
 
     rm -f "$VERDICT_TMP" "$RECHECKED_PR_JSON"
-    printf 'Discarding moving head/base evidence for PR #%s (head %s -> %s, base %s -> %s) and retrying.\n' \
-      "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" "$BASE_SHA" "$RECHECKED_BASE_SHA" >&2
+    printf 'Discarding moving PR evidence for #%s (head %s -> %s, base %s/%s -> %s/%s, state %s -> %s, draft %s -> %s, inventory draft %s) and retrying.\n' \
+      "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" "$BASE_REF" "$BASE_SHA" "$RECHECKED_BASE_REF" "$RECHECKED_BASE_SHA" \
+      "$PR_STATE" "$RECHECKED_STATE" "$PR_DRAFT" "$RECHECKED_DRAFT" "$INVENTORY_DRAFT" >&2
   done
 
   if [[ "$STABLE_HEAD" != true ]]; then
     rm -f "$EVIDENCE_DIR"/pr-${PR}-*.json
-    printf 'Unable to collect stable exact-head/base evidence for PR #%s after 3 attempts.\n' "$PR" >&2
+    printf 'Unable to collect stable exact PR evidence for #%s after 3 attempts.\n' "$PR" >&2
     exit 1
   fi
 done
