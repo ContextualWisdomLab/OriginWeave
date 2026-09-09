@@ -81,15 +81,19 @@ session creation
 Draft PR #288 carries the current controlled Agent Task fixture lane on pinned
 Chrome for Testing without owning the workflow that activates Chromium. The lane
 uses browser-computed role/name evidence, real WebDriver clear/type/click,
-URL-stability observation, exact synthetic echo and profile cleanup. It requires
-a browser-observed `#task-result` baseline (`data-state=idle` and rendered
-`idle`) before clear/type, then observes that same idle baseline again after
-typing and submit-target semantic verification, immediately before the native
-click. Successful evidence therefore carries both
-`pre_action_baseline_verified` and `pre_click_baseline_verified`, and both are
-mandatory in repeatability surface completeness. This prevents both a fixture
-that was pre-fired at navigation time and a regression that pre-satisfies the
-post-condition during typing from being accepted as click-caused success.
+browser-observed input value, URL-stability observation, exact synthetic echo and
+profile cleanup. It requires a browser-observed `#task-result` baseline
+(`data-state=idle` and rendered `idle`) before clear/type. After the native
+WebDriver value command, it reads the controlled input's `value` property back
+from the browser and requires an exact match to the synthetic input before it can
+continue. The lane then observes the same idle result baseline again after typing
+and submit-target semantic verification, immediately before the native click.
+Successful evidence therefore carries `pre_action_baseline_verified`,
+`input_value_verified`, and `pre_click_baseline_verified`, and all three are
+mandatory in repeatability surface completeness. This prevents a pre-fired
+fixture, a failed/partial send-keys operation accepted only from command ACK, or a
+regression that pre-satisfies the post-condition during typing from being accepted
+as click-caused success.
 
 URL stability is sampled immediately after the native click and again only after
 the submitted-state and exact synthetic-echo post-condition has been observed.
@@ -98,15 +102,15 @@ original controlled fixture URL. This keeps a delayed navigation from escaping
 the accepted outcome boundary merely because an earlier post-click URL sample
 was still unchanged.
 
-The two baselines, post-condition and URL observations are compared locally and
-unexpected page-controlled values are not echoed into CI diagnostics. The lane
-remains active-PR fixture evidence, not a shipped OriginWeave browser adapter.
-CSS locators are harness selectors; the work does not establish OriginWeave
-semantic node authority, policy-authorized production dispatch, WebDriver
-BiDi/CDP authority translation, or protected-main runtime acceptance.
-Workflow/sandbox activation remains #212 authority and ChromeDriver
-process/protocol diagnostics remain #148 authority. Draft-policy-skipped CI/MV3
-runs are not browser GREEN.
+The two idle baselines, browser-observed input value, post-condition and URL
+observations are compared locally and unexpected page-controlled values are not
+echoed into CI diagnostics. The lane remains active-PR fixture evidence, not a
+shipped OriginWeave browser adapter. CSS locators are harness selectors; the work
+does not establish OriginWeave semantic node authority, policy-authorized
+production dispatch, WebDriver BiDi/CDP authority translation, or protected-main
+runtime acceptance. Workflow/sandbox activation remains #212 authority and
+ChromeDriver process/protocol diagnostics remain #148 authority.
+Draft-policy-skipped CI/MV3 runs are not browser GREEN.
 
 ### 3.5 Buyer acceptance
 
