@@ -7,7 +7,7 @@ import pathlib
 import runpy
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
@@ -21,7 +21,7 @@ class FixtureServerEvidencePublicationContractTests(unittest.TestCase):
         *,
         fail_agent_cleanup: bool = False,
         fail_trials: bool = False,
-    ) -> tuple[list[str], BaseException | None]:
+    ) -> tuple[list[str], Exception | None]:
         namespace = runpy.run_path(
             str(RUNNER),
             run_name="fixture_evidence_publication_contract",
@@ -80,13 +80,13 @@ class FixtureServerEvidencePublicationContractTests(unittest.TestCase):
         namespace["_agent_task_surfaces_complete"] = lambda _trials: not fail_trials
         namespace["print"] = lambda *_args, **_kwargs: events.append("evidence")
 
-        error: BaseException | None = None
+        error: Exception | None = None
         with tempfile.TemporaryDirectory() as temp_dir:
             chrome_bin = pathlib.Path(temp_dir) / "chrome"
             chromedriver_bin = pathlib.Path(temp_dir) / "chromedriver"
             chrome_bin.touch()
             chromedriver_bin.touch()
-            with mock.patch.dict(
+            with unittest.mock.patch.dict(
                 os.environ,
                 {
                     "CHROME_BIN": str(chrome_bin),
@@ -95,7 +95,7 @@ class FixtureServerEvidencePublicationContractTests(unittest.TestCase):
             ):
                 try:
                     self.assertEqual(namespace["main"](), 0)
-                except BaseException as caught:
+                except Exception as caught:
                     error = caught
         return events, error
 
