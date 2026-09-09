@@ -1,5 +1,7 @@
 # Agent Development Contract
 
+When a follow-up closes a documented gap, add a bounded current checkpoint and label the predecessor as historical. Pin new local metrics and hosted run separately; do not leave an earlier pending implementation claim as the current next action.
+
 This file is authoritative for humans and automated contributors working in OriginWeave.
 
 ## Product objective
@@ -97,6 +99,7 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 ## Documentation and research
 
 - Update `docs/doctoring.md` when a standard or research claim affects design.
+- Refreshing the volatile product-gap baseline requires paginated live PR and issue counts, full exact heads, and the matching `CHANGELOG.md` inventory line; run its documentation contracts before publication. A local browser policy that blocks loopback or file rendering is not visual evidence—inspect the GitHub-rendered exact head after push instead.
 - Use primary specifications, official documentation, or peer-reviewed/primary papers.
 - Format references in APA 7th style.
 - Update an ADR for binding architectural changes.
@@ -116,3 +119,26 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 ## Release contract
 
 A release requires all current-head checks, complete coverage and docs, updated `CHANGELOG.md`, SBOM and provenance, reproducible artifacts, compatibility evidence, security review, and an explicit version decision. Pre-alpha commits are not releases.
+
+## Package Manager
+
+- Use the pinned Rust toolchain and Cargo workspace with the checked-in `Cargo.lock`; use `--locked` for release verification.
+
+## Commit Attribution
+
+- AI-assisted commits include `Co-Authored-By` with the actual agent identity; never attribute work to an agent that did not contribute.
+
+## Verified maintenance lessons
+
+- When updating a delivery checkpoint, separate a verified predecessor from a newer pending head. A passing coverage summary does not validate a fixture that ignores peer errors; preserve the failing reproduction and the repaired wire-level assertions in the evidence trail.
+- A live-inventory contract must update its dated baseline, `CHANGELOG.md`, and full exact SHA together. Use `scripts/ci/collect_live_merge_evidence.sh` for reusable head/base evidence; do not infer current state from an abbreviated SHA or a historical inventory line.
+- A regression that verifies a dated baseline cut must select that named cut, not assume it remains the latest heading after a newer live cut is added; run the full Python repository contract suite after changing cut markers.
+- Keep the delivery baseline decision-sized: GitHub truncates large Markdown code blocks. Link the canonical executable evidence collector instead of copying it into the rendered baseline, and keep its contract test pointed at that executable source.
+
+- Add concise, reproducible lessons here as work establishes them. Keep transient heads, job IDs and incident snapshots in PR evidence, not permanent instructions; never record secret values.
+- Retained receipt recovery is not live-stream recovery. State whether a fixture keeps the original connection open and uses the same endpoint; claim live recovery only when a synchronized test reads and completes the original request after rejecting the replacement reply.
+- For coverage repairs, inspect uncovered regions in each linked crate instance and prefer the existing public integration path. Reuse shared validation before adding test-only authority accessors; keep validation before state consumption. Do not weaken coverage exclusions or production lint gates to hide uncovered fixture or production paths.
+- Resume the existing process after a tool observation timeout; inspect its terminal status and logs before starting another copy. A timeout waiting for output is not a failed test.
+- For rustdoc visual inspection, use `RUSTDOCFLAGS='-D warnings' cargo doc --workspace` when `--no-deps` leaves cross-crate references unlinked. Inspect the actual rendered page and open the link destinations before claiming success; do not patch valid source links to hide a build artifact.
+- In parent adoption, preserve the child's behavior and tests, and compare inherited security boundaries against the exact parent. A rejected replacement reply must preserve pending work and prove that the original connection can still complete its own request.
+- Secret availability is not release readiness. Verify the intended package, registry, version, protected revision and release evidence before publishing. Inspect only secret metadata; an empty repository list does not prove organization or environment secrets are absent. Do not remove `publish = false` merely to make a publish command succeed.

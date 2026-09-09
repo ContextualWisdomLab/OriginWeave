@@ -9,6 +9,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPOSITORY_ROOT / "docs"
 ADR_ROOT = DOCS_ROOT / "adr"
 UML_ROOT = DOCS_ROOT / "uml"
+MCP_TRACEABILITY = DOCS_ROOT / "traceability" / "mcp-authority-route.md"
 
 ADR_STATUSES = {"Proposed", "Accepted", "Superseded", "Deprecated", "Rejected"}
 
@@ -176,6 +177,34 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", traceability)
         self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", traceability)
         self.assertIn("Active-PR behavior is never protected-main truth", traceability)
+
+    def test_protected_main_mcp_route_is_indexed_with_executable_evidence(self) -> None:
+        """A protected-main MCP maturity claim must be discoverable and test-backed."""
+        index = (DOCS_ROOT / "traceability" / "README.md").read_text(encoding="utf-8")
+        route = MCP_TRACEABILITY.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "[`mcp-authority-route.md`](mcp-authority-route.md)",
+            index,
+        )
+        self.assertIn("`tools/list`", route)
+        self.assertIn("`tools/list` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`", route)
+        self.assertIn("**Discovery refinement:** merged PR #170", route)
+        self.assertIn("crates/originweave-core/tests/mcp_tools_list_cache.rs", route)
+        self.assertTrue(
+            (REPOSITORY_ROOT / "crates/originweave-core/tests/mcp_tools_list_cache.rs").is_file()
+        )
+
+    def test_readme_separates_mcp_policy_from_discovery(self) -> None:
+        """The architecture summary must not claim policy evaluation for discovery."""
+        readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "`originweave-policy` binding for the MCP `2026-07-28` `tools/call` boundary",
+            readme,
+        )
+        self.assertIn("`originweave-core` `tools/list` discovery contract", readme)
+        self.assertNotIn("policy` binding for the MCP `2026-07-28` `tools/call` and `tools/list`", readme)
 
     def test_semantic_observation_lane_stays_non_shipped_and_provenance_bound(self) -> None:
         """The semantic observation value object must stay active-only and distinct from browser I/O."""
