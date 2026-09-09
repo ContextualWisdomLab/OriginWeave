@@ -54,7 +54,8 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("ResetViewport", text)
         self.assertIn("SetTimezone", text)
         self.assertIn("ResetTimezone", text)
-        self.assertIn("SetReducedMotion", text)
+        self.assertIn("PresentationSurface::ReducedMotion", text)
+        self.assertNotIn("SetReducedMotion", text)
 
     def test_presentation_documentation_tracks_published_wd_and_cleanup_symmetry(self) -> None:
         """Architecture, changelog, and doctoring must describe the same pinned adapter contract."""
@@ -82,7 +83,8 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertNotIn("plan_exclusive_presentation_media_cleanup", text)
         self.assertIn("plan_standard_presentation_commands", text)
         self.assertIn("plan_standard_presentation_cleanup", text)
-        self.assertIn("SetReducedMotion", text)
+        self.assertIn("PresentationSurface::ReducedMotion", text)
+        self.assertNotIn("SetReducedMotion", text)
 
         standard_apply = text.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
         standard_apply = standard_apply.split(
