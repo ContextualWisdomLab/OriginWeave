@@ -8,6 +8,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 ARCHIVE = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09.md"
+ARCHIVE_CHANGELOG = ROOT / "docs/evidence/CHANGELOG-through-2026-09-09.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
+LOADER = ROOT / "tests/_historical_baseline_contract_loader.py"
 
 
 class ProductGapBaselineNavigationContractTests(unittest.TestCase):
@@ -35,6 +38,20 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertIn("includes this #309 Draft successor", text)
         self.assertIn("Live GitHub state supersedes this cut after 2026-09-09 12:57 UTC.", text)
 
+    def test_live_changelog_uses_the_same_dated_inventory_receipt(self) -> None:
+        changelog = CHANGELOG.read_text(encoding="utf-8")
+        inventory = [
+            line
+            for line in changelog.splitlines()
+            if line.startswith("- Current delivery inventory:")
+        ]
+
+        self.assertEqual(1, len(inventory))
+        self.assertIn("130 open pull requests (12 ready, 118 draft)", inventory[0])
+        self.assertIn("14 open non-PR issues", inventory[0])
+        self.assertIn("Observed 2026-09-09 12:57 UTC", inventory[0])
+        self.assertNotIn("131 open pull requests (14 ready, 117 draft)", inventory[0])
+
     def test_historical_dossier_is_preserved_outside_the_decision_surface(self) -> None:
         self.assertTrue(ARCHIVE.is_file())
         archive = ARCHIVE.read_text(encoding="utf-8")
@@ -43,6 +60,17 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertIn("### Previous verified cut: 2026-09-08", archive)
         self.assertIn("## Observed snapshot: 2026-08-29", archive)
         self.assertIn("#### Published session-end reply binding: 05:35 UTC", archive)
+
+    def test_legacy_changelog_input_is_immutable_and_separate_from_live_changelog(self) -> None:
+        self.assertTrue(ARCHIVE_CHANGELOG.is_file())
+        archived = ARCHIVE_CHANGELOG.read_text(encoding="utf-8")
+        live = CHANGELOG.read_text(encoding="utf-8")
+        loader = LOADER.read_text(encoding="utf-8")
+
+        self.assertIn("131 open pull requests (14 ready, 117 draft)", archived)
+        self.assertIn("130 open pull requests (12 ready, 118 draft)", live)
+        self.assertIn("ARCHIVE_CHANGELOG", loader)
+        self.assertIn("module.CHANGELOG = ARCHIVE_CHANGELOG", loader)
 
 
 if __name__ == "__main__":
