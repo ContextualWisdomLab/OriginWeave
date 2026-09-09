@@ -22,8 +22,10 @@ at exact head `6855e2578ae94279cc9ab4a14527b016e8c049ee` on Ready #229
 `024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`. Its reusable lifecycle deliberately
 does not apply reduced motion without a complete restore or disposable-context
 owner. Thus command planning cannot be presented as full profile application.
-Pinned Chromium application, page-observed post-conditions, and cleanup evidence
-remain unimplemented and unreleased. Issue #212 owns the sandbox-helper contract;
+An active controlled evidence harness is implemented, but it does not establish a
+product Browser Session adapter: its exact browser lane failed 0/3 at session
+creation before navigation, so application, page-observed post-conditions, cleanup
+acceptance, and release remain unproven. Issue #212 owns the sandbox-helper contract;
 the product branch must consume it rather than copy or weaken workflow behavior.
 
 #### Transport-closure verification and test-integrity repair

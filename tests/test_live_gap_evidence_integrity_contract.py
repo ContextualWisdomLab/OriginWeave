@@ -58,6 +58,12 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
         self.assertIn(full_sha, self.latest)
         self.assertNotIn("to exact head\n`6855e257`", self.latest)
 
+    def test_active_presentation_harness_is_not_described_as_unimplemented(self) -> None:
+        normalized = " ".join(self.latest.split())
+        self.assertIn("active controlled evidence harness is implemented", normalized)
+        self.assertIn("failed 0/3 at session creation before navigation", normalized)
+        self.assertIn("product Browser Session adapter", normalized)
+
     def test_documented_current_evidence_collector_is_executable(self) -> None:
         current_evidence = self.baseline.split("## Evidence commands", 1)[1]
         self.assertIn("scripts/ci/collect_live_merge_evidence.sh", current_evidence)
