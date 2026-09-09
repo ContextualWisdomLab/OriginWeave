@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- OS-CSPRNG-backed RFC 6455 WebDriver BiDi opening-request client-key generation for a fresh redacted 16-byte `Sec-WebSocket-Key` nonce; deterministic injected keys remain limited to fixture-oriented APIs.
 - OS-CSPRNG-backed WebDriver BiDi WebSocket text and Pong writes that acquire a fresh redacted RFC 6455 masking key before any frame bytes are emitted; entropy failure fails closed and deterministic injected keys remain limited to the existing fixture-oriented APIs.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
