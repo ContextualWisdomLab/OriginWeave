@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs" / "product-technical-gap-baseline.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
+AGENTS = ROOT / "AGENTS.md"
 EVIDENCE_SCRIPT = ROOT / "scripts" / "ci" / "collect_live_merge_evidence.sh"
 
 
@@ -28,6 +29,7 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.baseline = BASELINE.read_text(encoding="utf-8")
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
+        cls.agents = AGENTS.read_text(encoding="utf-8")
         cls.evidence = EVIDENCE_SCRIPT.read_text(encoding="utf-8")
         cls.latest = bounded(
             cls.baseline,
@@ -58,7 +60,8 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
 
     def test_baseline_names_the_executable_current_evidence_collector(self) -> None:
         current_evidence = self.baseline.split("## Evidence commands", 1)[1]
-        self.assertIn("scripts/ci/collect_live_merge_evidence.sh", current_evidence)
+        self.assertIn("bash scripts/ci/collect_live_merge_evidence.sh", current_evidence)
+        self.assertIn("bash scripts/ci/collect_live_merge_evidence.sh", self.agents)
 
     def test_evidence_collector_is_valid_bash(self) -> None:
         result = subprocess.run(
@@ -92,11 +95,40 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
                 self.assertIn(marker, self.evidence)
         self.assertIn("workflow_runs_without_exact_pr_base_provenance", self.evidence)
 
-    def test_verdict_materializes_only_after_head_and_base_stabilize(self) -> None:
+    def test_rules_are_evaluated_for_each_pull_requests_actual_base(self) -> None:
         for marker in (
-            'RECHECKED_HEAD_SHA=$(gh api "repos/$REPOSITORY/pulls/$PR"',
-            "RECHECKED_BASE_SHA=$(jq -r '.base.sha' \"$RECHECKED_PR_JSON\")",
-            '[[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]',
+            "BASE_REF=$(jq -r '.base.ref' \"$PR_JSON\")",
+            'BASE_REF_ENCODED=$(jq -rn --arg value "$BASE_REF" \'$value | @uri\')',
+            '"repos/$REPOSITORY/rules/branches/$BASE_REF_ENCODED?per_page=100"',
+            '--slurpfile rules "$EVIDENCE_DIR/pr-${PR}-branch-rules.json"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.evidence)
+        self.assertNotIn(
+            '--slurpfile rules "$EVIDENCE_DIR/main-branch-rules.json"',
+            self.evidence,
+        )
+
+    def test_verdict_materializes_only_after_inventory_and_final_state_stabilize(self) -> None:
+        for marker in (
+            "INVENTORY_DRAFT=$(jq -r --argjson pr \"$PR\"",
+            "PR_STATE=$(jq -r '.state' \"$PR_JSON\")",
+            "PR_DRAFT=$(jq -r '.draft' \"$PR_JSON\")",
+            "RECHECKED_STATE=$(jq -r '.state' \"$RECHECKED_PR_JSON\")",
+            "RECHECKED_DRAFT=$(jq -r '.draft' \"$RECHECKED_PR_JSON\")",
+            '"$PR_STATE" == "open"',
+            '"$RECHECKED_STATE" == "$PR_STATE"',
+            '"$RECHECKED_DRAFT" == "$PR_DRAFT"',
+            '"$PR_DRAFT" == "$INVENTORY_DRAFT"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.evidence)
+
+    def test_explicit_evidence_directory_must_start_empty(self) -> None:
+        for marker in (
+            'if [[ $# -gt 0 ]]; then',
+            'find "$EVIDENCE_DIR" -mindepth 1 -print -quit',
+            'Evidence directory must be empty:',
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.evidence)
