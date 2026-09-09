@@ -23,6 +23,8 @@ import json
 import math
 import os
 import pathlib
+import select
+import signal
 import socket
 import string
 import subprocess
@@ -43,6 +45,7 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 PROCESS_EXIT_TIMEOUT_SECONDS = 5.0
+DIAGNOSTIC_HANDOFF_TIMEOUT_SECONDS = 0.25
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
 MAX_PROC_STAT_CHARACTERS = 65_536
@@ -54,6 +57,62 @@ MAX_AGENT_TASK_SEMANTIC_OBSERVATION_BYTES = 4_096
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
+
+
+class _WebDriverNoSuchWindowError(RuntimeError):
+    """Identify reviewed ChromeDriver no-such-window evidence without masking other failures."""
+
+
+class _WebDriverSessionNotCreatedError(RuntimeError):
+    """Retain only closed ChromeDriver startup evidence from a rejected session."""
+
+    error_code = "session_not_created"
+
+    def __init__(self, startup_reason: str) -> None:
+        """Build one redacted typed failure with an allowlisted startup reason."""
+
+        if startup_reason not in {"sandbox_unavailable", "unknown"}:
+            raise ValueError("unsupported WebDriver session startup reason")
+        self.startup_reason = startup_reason
+        super().__init__("WebDriver error: session not created: response details redacted")
+
+
+class _ChromeDriverStartupDiagnostic:
+    """Retain only a closed startup reason while continuously discarding process output."""
+
+    __slots__ = ("_marker_index", "_reviewed_reason", "startup_reason")
+    _MARKER = b"no usable sandbox"
+
+    def __init__(self) -> None:
+        """Start with no reviewed process-level startup reason."""
+
+        self._marker_index = 0
+        self._reviewed_reason = threading.Event()
+        self.startup_reason = "unknown"
+
+    def feed(self, chunk: bytes) -> None:
+        """Scan one output chunk without retaining raw ChromeDriver-controlled bytes."""
+
+        if not isinstance(chunk, bytes):
+            raise TypeError("ChromeDriver diagnostic chunks must be bytes")
+        if self.startup_reason == "sandbox_unavailable":
+            return
+        for raw_byte in chunk:
+            byte = raw_byte + 32 if 65 <= raw_byte <= 90 else raw_byte
+            if byte == self._MARKER[self._marker_index]:
+                self._marker_index += 1
+                if self._marker_index == len(self._MARKER):
+                    self.startup_reason = "sandbox_unavailable"
+                    self._reviewed_reason.set()
+                    self._marker_index = 0
+                    return
+            else:
+                self._marker_index = 1 if byte == self._MARKER[0] else 0
+
+    def wait_for_observation(self) -> None:
+        """Bound the handoff from asynchronous process draining to session classification."""
+
+        self._reviewed_reason.wait(timeout=DIAGNOSTIC_HANDOFF_TIMEOUT_SECONDS)
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -93,6 +152,15 @@ def _webdriver_path(session_id: str, suffix: str) -> str:
     if "://" in suffix or any(char in suffix for char in "\r\n"):
         raise RuntimeError("invalid WebDriver path suffix")
     return f"/session/{safe_session}{suffix}"
+
+
+def _classify_webdriver_session_startup_reason(error_value: dict[str, Any]) -> str:
+    """Map reviewed ChromeDriver startup text to a closed credential-safe reason."""
+
+    message = error_value.get("message")
+    if isinstance(message, str) and "no usable sandbox" in message.casefold():
+        return "sandbox_unavailable"
+    return "unknown"
 
 
 def _json_request(
@@ -139,8 +207,15 @@ def _json_request(
                 isinstance(error_value, dict)
                 and error_value.get("error") == "no such window"
             ):
-                raise RuntimeError(
+                raise _WebDriverNoSuchWindowError(
                     "WebDriver error: no such window: response details redacted"
+                )
+            if (
+                isinstance(error_value, dict)
+                and error_value.get("error") == "session not created"
+            ):
+                raise _WebDriverSessionNotCreatedError(
+                    _classify_webdriver_session_startup_reason(error_value)
                 )
             raise RuntimeError(f"WebDriver HTTP {response.status}")
     finally:
@@ -152,8 +227,12 @@ def _json_request(
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
         if value.get("error") == "no such window":
-            raise RuntimeError(
+            raise _WebDriverNoSuchWindowError(
                 "WebDriver error: no such window: response details redacted"
+            )
+        if value.get("error") == "session not created":
+            raise _WebDriverSessionNotCreatedError(
+                _classify_webdriver_session_startup_reason(value)
             )
         raise RuntimeError("WebDriver returned an error response")
     return decoded
@@ -178,6 +257,73 @@ def _wait_for_driver(driver_port: int) -> None:
             last_error = exc
         time.sleep(0.1)
     raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+
+
+def _drain_chromedriver_diagnostics(
+    stream: Any,
+    diagnostic: _ChromeDriverStartupDiagnostic,
+) -> None:
+    """Continuously drain ChromeDriver output while retaining only reviewed reason state."""
+
+    while True:
+        chunk = stream.read(8_192)
+        if not chunk:
+            return
+        if isinstance(chunk, str):
+            chunk = chunk.encode("utf-8", "replace")
+        elif not isinstance(chunk, bytes):
+            return
+        diagnostic.feed(chunk)
+
+
+def _start_chromedriver(
+    chromedriver_bin: pathlib.Path,
+    driver_port: int,
+) -> tuple[subprocess.Popen[Any], _ChromeDriverStartupDiagnostic]:
+    """Start one local ChromeDriver and continuously drain its credential-bearing output."""
+
+    diagnostic = _ChromeDriverStartupDiagnostic()
+    driver = subprocess.Popen(
+        [
+            str(chromedriver_bin),
+            f"--port={driver_port}",
+            "--allowed-ips=127.0.0.1",
+            "--verbose",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if driver.stdout is None:
+        driver.terminate()
+        driver.wait(timeout=PROCESS_EXIT_TIMEOUT_SECONDS)
+        raise RuntimeError("ChromeDriver diagnostic pipe was unavailable")
+    threading.Thread(
+        target=_drain_chromedriver_diagnostics,
+        args=(driver.stdout, diagnostic),
+        daemon=True,
+    ).start()
+    return driver, diagnostic
+
+
+def _create_chromedriver_session(
+    driver_port: int,
+    payload: dict[str, Any],
+    diagnostic: _ChromeDriverStartupDiagnostic,
+) -> dict[str, Any]:
+    """Create one session while allowing only reviewed process startup evidence to refine errors."""
+
+    _wait_for_driver(driver_port)
+    try:
+        return _json_request(driver_port, "POST", "/session", payload)
+    except _WebDriverSessionNotCreatedError as error:
+        if error.startup_reason == "unknown":
+            diagnostic.wait_for_observation()
+        if (
+            error.startup_reason == "unknown"
+            and diagnostic.startup_reason == "sandbox_unavailable"
+        ):
+            raise _WebDriverSessionNotCreatedError("sandbox_unavailable") from None
+        raise
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
@@ -479,7 +625,7 @@ def _read_linux_proc_stat_process_identity(process_id: int) -> tuple[int, int] |
     try:
         with stat_path.open("r", encoding="utf-8", errors="strict") as stat_file:
             stat_text = stat_file.read(MAX_PROC_STAT_CHARACTERS + 1)
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return None
     if len(stat_text) > MAX_PROC_STAT_CHARACTERS:
         raise RuntimeError("Linux proc stat exceeded the bounded text limit")
@@ -487,6 +633,111 @@ def _read_linux_proc_stat_process_identity(process_id: int) -> tuple[int, int] |
     if identity[0] != process_id:
         raise RuntimeError("Linux proc stat identity did not match its directory")
     return identity
+
+
+def _signal_linux_process_identity(
+    process_identity: tuple[int, int],
+    signal_number: int,
+) -> bool:
+    """Signal only one exact Linux PID/start-time identity through a pidfd."""
+
+    if not isinstance(process_identity, tuple) or len(process_identity) != 2:
+        raise ValueError("invalid Linux process identity")
+    process_id, start_time_ticks = process_identity
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    if (
+        isinstance(start_time_ticks, bool)
+        or not isinstance(start_time_ticks, int)
+        or start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux process start time")
+    if isinstance(signal_number, bool) or not isinstance(signal_number, int) or signal_number <= 0:
+        raise ValueError("invalid Linux process signal")
+
+    expected_identity = (process_id, start_time_ticks)
+    if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+        return False
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+    if not callable(pidfd_open) or not callable(pidfd_send_signal):
+        raise RuntimeError("Linux pidfd signalling is unavailable")
+    try:
+        pidfd = pidfd_open(process_id, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+            return False
+        try:
+            pidfd_send_signal(pidfd, signal_number)
+        except ProcessLookupError:
+            return False
+        return True
+    finally:
+        os.close(pidfd)
+
+
+def _signal_and_wait_for_linux_process_identity_termination(
+    process_identity: tuple[int, int],
+    signal_number: int,
+    *,
+    timeout_seconds: float = PROCESS_EXIT_TIMEOUT_SECONDS,
+) -> bool:
+    """Signal one exact Linux identity and await termination on that same pidfd."""
+
+    if not isinstance(process_identity, tuple) or len(process_identity) != 2:
+        raise ValueError("invalid Linux process identity")
+    process_id, start_time_ticks = process_identity
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    if (
+        isinstance(start_time_ticks, bool)
+        or not isinstance(start_time_ticks, int)
+        or start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux process start time")
+    if (
+        isinstance(signal_number, bool)
+        or not isinstance(signal_number, int)
+        or signal_number <= 0
+    ):
+        raise ValueError("invalid Linux process signal")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or timeout_seconds < 0
+        or not math.isfinite(timeout_seconds)
+    ):
+        raise ValueError("invalid Linux process termination timeout")
+
+    expected_identity = (process_id, start_time_ticks)
+    if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+        return False
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+    if not callable(pidfd_open) or not callable(pidfd_send_signal):
+        raise RuntimeError("Linux pidfd signalling is unavailable")
+    try:
+        pidfd = pidfd_open(process_id, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+            return False
+        try:
+            pidfd_send_signal(pidfd, signal_number)
+        except ProcessLookupError:
+            return False
+        readable, _writable, _exceptional = select.select(
+            [pidfd],
+            [],
+            [],
+            float(timeout_seconds),
+        )
+        return bool(readable)
+    finally:
+        os.close(pidfd)
 
 
 def _wait_for_linux_process_identity_exit(
@@ -961,18 +1212,10 @@ def _run_browser_pass(
     driver_port = _free_loopback_port()
     session_id: str | None = None
     primary_error: BaseException | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -986,7 +1229,6 @@ def _run_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",
@@ -995,6 +1237,7 @@ def _run_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver session response is malformed")
@@ -1215,18 +1458,10 @@ def _run_agent_task_browser_pass(
     driver_cleanup_failure_type: str | None = None
     driver_kill_fallback_used = False
     result: dict[str, Any] | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -1244,7 +1479,6 @@ def _run_agent_task_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 "--disable-extensions",
                                 f"--user-data-dir={profile_dir}",
                             ],
@@ -1252,6 +1486,7 @@ def _run_agent_task_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver Agent Task session response is malformed")
@@ -1696,18 +1931,10 @@ def _run_agent_task_forced_close_browser_pass(
     driver_cleanup_failure_type: str | None = None
     driver_kill_fallback_used = False
     result: dict[str, Any] | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
     try:
-        _wait_for_driver(driver_port)
-        session = _json_request(
+        session = _create_chromedriver_session(
             driver_port,
-            "POST",
-            "/session",
             {
                 "capabilities": {
                     "alwaysMatch": {
@@ -1721,7 +1948,6 @@ def _run_agent_task_forced_close_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 "--disable-extensions",
                                 f"--user-data-dir={profile_dir}",
                             ],
@@ -1729,6 +1955,7 @@ def _run_agent_task_forced_close_browser_pass(
                     }
                 }
             },
+            startup_diagnostic,
         ).get("value", {})
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver forced-close session response is malformed")
@@ -2035,6 +2262,361 @@ def _run_agent_task_forced_close_trial(
     }
 
 
+def _cleanup_crashed_browser_session(driver_port: int, session_id: str | None) -> None:
+    """Delete a crash session while ignoring only reviewed post-crash transport loss."""
+
+    if session_id is None:
+        return
+    try:
+        _json_request(
+            driver_port,
+            "DELETE",
+            _webdriver_path(session_id, ""),
+            {},
+        )
+    except (
+        OSError,
+        _WebDriverNoSuchWindowError,
+        json.JSONDecodeError,
+        http.client.IncompleteRead,
+    ):
+        return
+
+
+def _stop_crashed_driver(driver: subprocess.Popen[Any]) -> None:
+    """Reap ChromeDriver without re-signalling a child that already exited."""
+
+    if driver.poll() is not None:
+        driver.wait(timeout=5)
+        return
+    driver.terminate()
+    try:
+        driver.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        driver.kill()
+        driver.wait(timeout=5)
+
+
+def _run_agent_task_browser_crash_browser_pass(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    profile_dir: str,
+) -> dict[str, Any]:
+    """Kill one exact browser root and prove crash detection plus sampled teardown."""
+
+    _require_pristine_agent_task_profile(profile_dir)
+    driver_port = _free_loopback_port()
+    session_id: str | None = None
+    browser_process_id: int | None = None
+    browser_process_start_time_ticks: int | None = None
+    chromium_process_identities: tuple[tuple[int, int], ...] | None = None
+    browser_version: str | None = None
+    browser_process_crash_detected = False
+    driver, startup_diagnostic = _start_chromedriver(chromedriver_bin, driver_port)
+    try:
+        session = _create_chromedriver_session(
+            driver_port,
+            {
+                "capabilities": {
+                    "alwaysMatch": {
+                        "browserName": "chrome",
+                        "goog:chromeOptions": {
+                            "binary": str(chrome_bin),
+                            "prefs": {
+                                "credentials_enable_service": False,
+                                "profile.password_manager_enabled": False,
+                            },
+                            "args": [
+                                "--headless=new",
+                                "--no-first-run",
+                                "--disable-default-apps",
+                                "--disable-component-update",
+                                "--disable-sync",
+                                "--disable-dev-shm-usage",
+                                "--disable-extensions",
+                                f"--user-data-dir={profile_dir}",
+                            ],
+                        },
+                    }
+                }
+            },
+            startup_diagnostic,
+        ).get("value", {})
+        if not isinstance(session, dict):
+            raise RuntimeError("ChromeDriver browser-crash session response is malformed")
+        raw_session_id = session.get("sessionId")
+        capabilities = session.get("capabilities", {})
+        if not isinstance(raw_session_id, str):
+            raise RuntimeError("ChromeDriver did not return a browser-crash session id")
+        if not isinstance(capabilities, dict):
+            raise RuntimeError("ChromeDriver browser-crash capabilities are malformed")
+        session_id = _path_token(raw_session_id, "session identifier")
+        browser_version = capabilities.get("browserVersion")
+        browser_process_id = capabilities.get("goog:processID")
+        if browser_version != PINNED_CHROME_VERSION:
+            raise RuntimeError(
+                f"unexpected browser-crash Chrome version: expected {PINNED_CHROME_VERSION}, "
+                f"got {browser_version!r}"
+            )
+        if (
+            isinstance(browser_process_id, bool)
+            or not isinstance(browser_process_id, int)
+            or browser_process_id <= 0
+        ):
+            raise RuntimeError("ChromeDriver did not return a valid browser-crash process id")
+        browser_process_identity = _read_linux_proc_stat_process_identity(browser_process_id)
+        if browser_process_identity is None:
+            raise RuntimeError("Agent Task browser-crash process identity disappeared")
+        browser_process_start_time_ticks = browser_process_identity[1]
+
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        loaded_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        if loaded_url != fixture_url:
+            raise RuntimeError("Agent Task browser-crash probe did not load its fixture URL")
+
+        process_evidence = _snapshot_linux_process_evidence()
+        chromium_process_ids = _discover_linux_process_tree_ids(
+            browser_process_id,
+            process_evidence,
+        )
+        chromium_process_identities, _pre_shutdown_exit_count = (
+            _read_linux_process_identity_set(
+                chromium_process_ids,
+                required_root_identity=browser_process_identity,
+            )
+        )
+        if not _signal_and_wait_for_linux_process_identity_termination(
+            browser_process_identity,
+            signal.SIGKILL,
+        ):
+            raise RuntimeError(
+                "Agent Task browser process was not observed terminated after crash signal"
+            )
+        browser_process_crash_detected = True
+    finally:
+        try:
+            _cleanup_crashed_browser_session(driver_port, session_id)
+        finally:
+            _stop_crashed_driver(driver)
+
+    if (
+        browser_process_id is None
+        or browser_process_start_time_ticks is None
+        or chromium_process_identities is None
+        or browser_version is None
+    ):
+        raise RuntimeError("Agent Task browser-crash teardown identities were not captured")
+    browser_process_terminated, chromium_process_set_terminated = (
+        _wait_for_linux_process_teardown(
+            browser_process_id,
+            browser_process_start_time_ticks,
+            chromium_process_identities,
+        )
+    )
+    if not browser_process_crash_detected:
+        raise RuntimeError("Agent Task browser-process crash was not detected")
+    if not browser_process_terminated:
+        raise RuntimeError("Agent Task browser-crash root process did not terminate")
+    if not chromium_process_set_terminated:
+        raise RuntimeError("Agent Task browser-crash Chromium process set did not terminate")
+    return {
+        "browser_version": browser_version,
+        "browser_process_crash_detected": True,
+        "browser_process_terminated": True,
+        "chromium_process_set_terminated": True,
+    }
+
+
+def _classify_agent_task_browser_crash_reason(error: BaseException) -> str:
+    """Map crash failures onto a closed reason vocabulary without retaining messages."""
+
+    if isinstance(error, _WebDriverSessionNotCreatedError):
+        return error.error_code
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "timeout"
+    if isinstance(error, json.JSONDecodeError):
+        return "invalid_json"
+    if isinstance(error, ValueError):
+        return "invalid_value"
+    if isinstance(error, OSError):
+        return "os_error"
+    return "runtime_error"
+
+
+def _classify_agent_task_browser_crash_stage(error: BaseException) -> str:
+    """Classify one crash failure from bounded traceback structure and pass state."""
+
+    traceback_cursor = error.__traceback__
+    pass_locals: dict[str, Any] | None = None
+    function_names: set[str] = set()
+    while traceback_cursor is not None:
+        frame = traceback_cursor.tb_frame
+        function_name = frame.f_code.co_name
+        function_names.add(function_name)
+        if function_name == "_run_agent_task_browser_crash_browser_pass":
+            pass_locals = dict(frame.f_locals)
+        traceback_cursor = traceback_cursor.tb_next
+
+    if "_wait_for_driver" in function_names:
+        return "driver_ready"
+    if "_cleanup_crashed_browser_session" in function_names:
+        return "session_cleanup"
+    if "_stop_crashed_driver" in function_names:
+        return "driver_teardown"
+    if "_signal_and_wait_for_linux_process_identity_termination" in function_names:
+        return "crash_signal"
+    if "_wait_for_linux_process_teardown" in function_names:
+        return "post_crash_teardown"
+    if function_names.intersection(
+        {
+            "_snapshot_linux_process_evidence",
+            "_discover_linux_process_tree_ids",
+            "_read_linux_process_identity_set",
+        }
+    ):
+        return "process_tree_capture"
+
+    if pass_locals is None:
+        return "browser_pass"
+    if "driver" not in pass_locals:
+        return "driver_start"
+    if pass_locals.get("session_id") is None:
+        return "session_create"
+    if pass_locals.get("browser_process_id") is None:
+        return "session_identity"
+    if pass_locals.get("browser_process_start_time_ticks") is None:
+        return "browser_identity"
+    if pass_locals.get("chromium_process_identities") is None:
+        return "fixture_navigation"
+    if pass_locals.get("browser_process_crash_detected") is not True:
+        return "crash_signal"
+    return "post_crash_teardown"
+
+
+def _partition_agent_task_browser_crash_failure(
+    error: BaseException,
+) -> tuple[BaseException, str | None, str | None]:
+    """Preserve the first crash failure while retaining typed secondary cleanup evidence."""
+
+    primary_error = error
+    session_cleanup_failure_type: str | None = None
+    driver_cleanup_failure_type: str | None = None
+    visited: set[int] = set()
+    while id(primary_error) not in visited:
+        visited.add(id(primary_error))
+        stage = _classify_agent_task_browser_crash_stage(primary_error)
+        context = primary_error.__context__
+        if context is None:
+            break
+        if stage == "driver_teardown":
+            driver_cleanup_failure_type = type(primary_error).__name__
+            primary_error = context
+            continue
+        if stage == "session_cleanup":
+            session_cleanup_failure_type = type(primary_error).__name__
+            primary_error = context
+            continue
+        break
+    return primary_error, session_cleanup_failure_type, driver_cleanup_failure_type
+
+
+def _run_agent_task_browser_crash_trial(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    trial_number: int,
+) -> dict[str, Any]:
+    """Run one isolated browser-root crash trial and retain cleanup evidence."""
+
+    trial_started = time.monotonic()
+    profile_path: pathlib.Path
+    result: dict[str, Any] | None = None
+    failure_type: str | None = None
+    failure_stage: str | None = None
+    reason_code: str | None = None
+    startup_reason: str | None = None
+    session_cleanup_failure_type: str | None = None
+    cleanup_failure_type: str | None = None
+    with tempfile.TemporaryDirectory(
+        prefix=f"originweave-agent-task-browser-crash-{trial_number}-"
+    ) as profile_dir:
+        profile_path = pathlib.Path(profile_dir)
+        try:
+            result = _run_agent_task_browser_crash_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+            )
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
+            (
+                primary_error,
+                session_cleanup_failure_type,
+                cleanup_failure_type,
+            ) = _partition_agent_task_browser_crash_failure(exc)
+            failure_type = type(primary_error).__name__
+            failure_stage = _classify_agent_task_browser_crash_stage(primary_error)
+            reason_code = _classify_agent_task_browser_crash_reason(primary_error)
+            if isinstance(primary_error, _WebDriverSessionNotCreatedError):
+                startup_reason = primary_error.startup_reason
+    profile_cleaned = not profile_path.exists()
+    if not profile_cleaned:
+        raise RuntimeError(
+            f"Agent Task browser-crash profile cleanup failed in trial {trial_number}"
+        )
+
+    duration_ms = round((time.monotonic() - trial_started) * 1000)
+    if failure_type is not None:
+        if failure_stage is None or reason_code is None:
+            raise RuntimeError("Agent Task browser-crash failure classification was incomplete")
+        failure_evidence: dict[str, Any] = {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": failure_type,
+            "failure_stage": failure_stage,
+            "reason_code": reason_code,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
+        if session_cleanup_failure_type is not None:
+            failure_evidence["session_cleanup_failure_type"] = (
+                session_cleanup_failure_type
+            )
+        if cleanup_failure_type is not None:
+            failure_evidence["cleanup_failure_type"] = cleanup_failure_type
+        if startup_reason is not None:
+            failure_evidence["startup_reason"] = startup_reason
+        return failure_evidence
+    if result is None:
+        raise RuntimeError("Agent Task browser-crash browser pass returned no result")
+    return {
+        "trial_number": trial_number,
+        "passed": True,
+        "browser_version": result["browser_version"],
+        "browser_process_crash_detected": result["browser_process_crash_detected"],
+        "browser_process_terminated": result["browser_process_terminated"],
+        "chromium_process_set_terminated": result["chromium_process_set_terminated"],
+        "profile_cleaned": True,
+        "duration_ms": duration_ms,
+    }
+
+
 def _start_fixture_server(
     directory: pathlib.Path,
 ) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
@@ -2170,6 +2752,26 @@ def main() -> int:
                     }
                 )
 
+        browser_crash_trials: list[dict[str, Any]] = []
+        for trial_number in range(1, AGENT_TASK_REPEATABILITY_TRIALS + 1):
+            try:
+                browser_crash_trials.append(
+                    _run_agent_task_browser_crash_trial(
+                        chrome_bin,
+                        chromedriver_bin,
+                        agent_task_url,
+                        trial_number,
+                    )
+                )
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+                browser_crash_trials.append(
+                    {
+                        "trial_number": trial_number,
+                        "passed": False,
+                        "failure_type": type(exc).__name__,
+                    }
+                )
+
         agent_task_successful_trials = sum(
             1 for trial in agent_task_trials if trial.get("passed") is True
         )
@@ -2241,6 +2843,20 @@ def main() -> int:
             for trial in forced_close_trials
             if trial.get("passed") is True
         )
+        browser_crash_successful_trials = sum(
+            1 for trial in browser_crash_trials if trial.get("passed") is True
+        )
+        browser_crash_profiles_cleaned = all(
+            trial.get("profile_cleaned") is True for trial in browser_crash_trials
+        )
+        browser_crash_surfaces_complete = all(
+            trial.get("browser_process_crash_detected") is True
+            and trial.get("browser_process_terminated") is True
+            and trial.get("chromium_process_set_terminated") is True
+            and trial.get("profile_cleaned") is True
+            for trial in browser_crash_trials
+            if trial.get("passed") is True
+        )
 
         evidence = {
             "chrome_version": PINNED_CHROME_VERSION,
@@ -2268,6 +2884,12 @@ def main() -> int:
                     "successful_trials": forced_close_successful_trials,
                     "profiles_cleaned": forced_close_profiles_cleaned,
                     "trial_results": forced_close_trials,
+                },
+                "browser_crash": {
+                    "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
+                    "successful_trials": browser_crash_successful_trials,
+                    "profiles_cleaned": browser_crash_profiles_cleaned,
+                    "trial_results": browser_crash_trials,
                 },
             },
             "duration_ms": round((time.monotonic() - started) * 1000),
@@ -2303,6 +2925,17 @@ def main() -> int:
             raise RuntimeError(
                 "Agent Task forced-close recovery gate failed: "
                 f"{forced_close_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
+                "trials passed"
+            )
+        if not browser_crash_profiles_cleaned:
+            raise RuntimeError("Agent Task browser-crash profile cleanup gate failed")
+        if (
+            browser_crash_successful_trials != AGENT_TASK_REPEATABILITY_TRIALS
+            or not browser_crash_surfaces_complete
+        ):
+            raise RuntimeError(
+                "Agent Task browser-crash recovery gate failed: "
+                f"{browser_crash_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
                 "trials passed"
             )
         return 0
