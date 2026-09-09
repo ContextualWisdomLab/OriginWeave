@@ -12,3 +12,4 @@ Additional constraints:
 - Do not add hostname reconnect, proxy-environment inheritance, dangerous certificate-verifier hooks, Common Name fallback, TLS 0-RTT, key logging, or secret extraction to a production TLS path.
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
+- When refreshing live delivery evidence, update the dated baseline, `CHANGELOG.md`, and full exact SHA atomically; use `scripts/ci/collect_live_merge_evidence.sh` rather than an abbreviated SHA or historical count.
