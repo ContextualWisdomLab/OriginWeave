@@ -143,8 +143,9 @@ def _json_request(
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
-            detail = raw.decode("utf-8", errors="replace")
-            raise RuntimeError(f"WebDriver HTTP {response.status}: {detail}")
+            raise RuntimeError(
+                f"WebDriver HTTP request failed with status {response.status}"
+            )
     finally:
         connection.close()
 
@@ -153,7 +154,7 @@ def _json_request(
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError(f"WebDriver error: {value.get('error')}: {value.get('message')}")
+        raise RuntimeError("WebDriver command failed")
     return decoded
 
 
@@ -161,16 +162,15 @@ def _wait_for_driver(driver_port: int) -> None:
     """Wait for the exact local ChromeDriver process to become ready."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
             if status.get("value", {}).get("ready") is True:
                 return
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-            last_error = exc
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            pass
         time.sleep(0.1)
-    raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+    raise RuntimeError("ChromeDriver did not become ready")
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
