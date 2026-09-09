@@ -11,4 +11,5 @@ Additional constraints:
 - Do not merge logical origin, destination authorization, direct TCP peer proof, TLS service identity, proxy routing, or HTTP resource policy into one ambient authority.
 - Do not add hostname reconnect, proxy-environment inheritance, dangerous certificate-verifier hooks, Common Name fallback, TLS 0-RTT, key logging, or secret extraction to a production TLS path.
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
+- For partial browser-emulation plans, require only the named restorable fields; do not accept a complete profile unless every requested surface has an explicit application witness.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.

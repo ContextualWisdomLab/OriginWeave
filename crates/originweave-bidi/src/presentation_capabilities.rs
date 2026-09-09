@@ -1,7 +1,8 @@
 use std::{error::Error, fmt};
 
 use originweave_fingerprint::{
-    PresentationError, PresentationProfile, PresentationSurface, require_presentation_surfaces,
+    DevicePixelRatio, PresentationError, PresentationSurface, PresentationTimeZone, ViewportBounds,
+    require_presentation_surfaces,
 };
 
 const MAX_BROWSING_CONTEXT_BYTES: usize = 256;
@@ -96,23 +97,27 @@ pub enum WebDriverBidiPresentationCommand {
 /// pinned Working Draft. Reduced motion remains an expressible protocol capability, but the default
 /// reusable plan does not install it because `features: null` clears the complete media-feature
 /// configuration rather than restoring only OriginWeave's prior `prefers-reduced-motion` value.
-/// A Browser Session owner must first bind media mutation to a genuinely disposable lifecycle or a
-/// complete snapshot/restore path before constructing and sending `SetReducedMotion`.
+/// The explicit arguments make this a partial-plan API: it cannot be mistaken for application of
+/// a complete [`originweave_fingerprint::PresentationProfile`]. A Browser Session owner must first
+/// bind media mutation to a genuinely disposable lifecycle or a complete snapshot/restore path
+/// before constructing and sending `SetReducedMotion`.
 #[must_use]
 pub fn plan_standard_presentation_commands(
     context: &WebDriverBidiBrowsingContext,
-    profile: &PresentationProfile,
+    viewport: &ViewportBounds,
+    device_pixel_ratio: DevicePixelRatio,
+    timezone: PresentationTimeZone,
 ) -> [WebDriverBidiPresentationCommand; 2] {
     [
         WebDriverBidiPresentationCommand::SetViewport {
             context: context.clone(),
-            width: profile.viewport().width(),
-            height: profile.viewport().height(),
-            device_pixel_ratio: profile.device_pixel_ratio().value(),
+            width: viewport.width(),
+            height: viewport.height(),
+            device_pixel_ratio: device_pixel_ratio.value(),
         },
         WebDriverBidiPresentationCommand::SetTimezone {
             context: context.clone(),
-            timezone: profile.timezone().iana_name().to_owned(),
+            timezone: timezone.iana_name().to_owned(),
         },
     ]
 }
@@ -246,7 +251,12 @@ mod tests {
         assert_eq!(context.as_str(), "context-17");
 
         assert_eq!(
-            plan_standard_presentation_commands(&context, &profile),
+            plan_standard_presentation_commands(
+                &context,
+                profile.viewport(),
+                profile.device_pixel_ratio(),
+                profile.timezone(),
+            ),
             [
                 WebDriverBidiPresentationCommand::SetViewport {
                     context: context.clone(),
@@ -283,9 +293,7 @@ mod tests {
                 WebDriverBidiPresentationCommand::ResetViewport {
                     context: context.clone(),
                 },
-                WebDriverBidiPresentationCommand::ResetTimezone {
-                    context,
-                },
+                WebDriverBidiPresentationCommand::ResetTimezone { context },
             ]
         );
     }

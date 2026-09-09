@@ -96,6 +96,19 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         )[0]
         self.assertNotIn("ResetMediaFeatures", standard_cleanup)
 
+    def test_reusable_plan_cannot_be_mistaken_for_complete_profile_application(self) -> None:
+        """The reusable planner must require the explicitly admitted fields only."""
+
+        source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
+        text = source.read_text(encoding="utf-8")
+        standard_apply = text.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
+        standard_apply = standard_apply.split(") ->", maxsplit=1)[0]
+
+        self.assertNotIn("profile: &PresentationProfile", standard_apply)
+        self.assertIn("viewport: &ViewportBounds", standard_apply)
+        self.assertIn("device_pixel_ratio: DevicePixelRatio", standard_apply)
+        self.assertIn("timezone: PresentationTimeZone", standard_apply)
+
 
 if __name__ == "__main__":
     unittest.main()
