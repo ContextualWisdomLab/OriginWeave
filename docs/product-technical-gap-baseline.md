@@ -10,6 +10,7 @@ Fresh repository reads on 2026-09-09 establish the following delivery state:
 
 - Protected-main truth remains signed-valid `87c4daa1830bac5a5228b6036752ad5633232085`.
 - The live queue contains **129 open pull requests: 12 Ready/non-draft and 117 Draft; 14 open non-PR issues**. Search results were complete.
+- Open issues: the 14 non-PR items above remain separate from the 129-PR delivery queue and are not counted as shipped product behavior.
 - Ruleset `18156473` is active. It requires one approving review, dismissal of stale reviews after push, review-thread resolution, an extra approval for unattributed changes, seven central required workflows, and blocks deletion/non-fast-forward updates.
 - GitHub Release and tag inventories are empty. There is no immutable OriginWeave release to treat as commercial acceptance.
 - The baseline owner branch was exact `16098a0eecc57bfc545d22ce632d95d1ffccfe67` when this navigation repair started. That generation preserved the former 186,500-byte baseline as implementation evidence but still placed the buyer gap matrix behind extensive dated history.
