@@ -145,8 +145,8 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
         self.assertEqual(str(captured.exception), "WebDriver HTTP request failed with status 500")
         self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
 
-    def test_webdriver_protocol_failure_does_not_echo_remote_error_text(self) -> None:
-        """A W3C error response must not retain the remote error code or message."""
+    def test_error_shaped_success_response_does_not_echo_remote_error_text(self) -> None:
+        """A defensive error-shaped success response must not retain remote error text."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="webdriver_protocol_diagnostic_contract")
         json_request = namespace["_json_request"]
