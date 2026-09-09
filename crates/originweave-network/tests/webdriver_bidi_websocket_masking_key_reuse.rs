@@ -18,6 +18,7 @@ const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const REUSED_MASK_REASON: &str =
     "client masking key was reused for consecutive frames on this established WebSocket";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
+type MaskedFramePair = ([u8; 4], Vec<u8>, [u8; 4], Vec<u8>);
 
 fn connect(
     endpoint: &str,
@@ -55,7 +56,10 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_frame(stream: &mut TcpStream, expected_opcode: u8) -> io::Result<Vec<u8>> {
+fn read_masked_frame_with_key(
+    stream: &mut TcpStream,
+    expected_opcode: u8,
+) -> io::Result<([u8; 4], Vec<u8>)> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
@@ -79,7 +83,11 @@ fn read_masked_frame(stream: &mut TcpStream, expected_opcode: u8) -> io::Result<
     for (index, byte) in payload.iter_mut().enumerate() {
         *byte ^= mask[index % mask.len()];
     }
-    Ok(payload)
+    Ok((mask, payload))
+}
+
+fn read_masked_frame(stream: &mut TcpStream, expected_opcode: u8) -> io::Result<Vec<u8>> {
+    read_masked_frame_with_key(stream, expected_opcode).map(|(_mask, payload)| payload)
 }
 
 fn read_masked_text(stream: &mut TcpStream) -> io::Result<String> {
@@ -235,6 +243,35 @@ fn established_stream_round_trips_pong_and_unmasked_server_text() -> Result<(), 
         .join()
         .map_err(|_| io::Error::other("WebSocket frame round-trip test server panicked"))??;
     assert_eq!(pong_payload, b"probe");
+    Ok(())
+}
+
+#[test]
+fn established_stream_uses_os_random_masks_for_text_and_pong() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<MaskedFramePair> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let (text_mask, text_payload) = read_masked_frame_with_key(&mut stream, 0x1)?;
+        let (pong_mask, pong_payload) = read_masked_frame_with_key(&mut stream, 0x0a)?;
+        Ok((text_mask, text_payload, pong_mask, pong_payload))
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let established = establish(&endpoint)?;
+    let established = established
+        .write_text_frame_with_random_masking_key("random-text", Duration::from_millis(500))?;
+    let _established = established
+        .write_pong_frame_with_random_masking_key(b"random-pong", Duration::from_millis(500))?;
+
+    let (text_mask, text_payload, pong_mask, pong_payload) = server
+        .join()
+        .map_err(|_| io::Error::other("random-mask test server panicked"))??;
+    assert_ne!(text_mask, pong_mask);
+    assert_eq!(text_payload, b"random-text");
+    assert_eq!(pong_payload, b"random-pong");
     Ok(())
 }
 
