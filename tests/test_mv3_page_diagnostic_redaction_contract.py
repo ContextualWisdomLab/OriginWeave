@@ -114,6 +114,85 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
         self.assertEqual(str(captured.exception), "Agent Task initial URL mismatch")
         self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
 
+    def test_mv3_version_mismatch_does_not_echo_remote_capability(self) -> None:
+        """A remote browserVersion mismatch must remain local comparison state."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_version_diagnostic_contract")
+        browser_pass = namespace["_run_browser_pass"]
+
+        class FakeDriver:
+            def terminate(self) -> None:
+                return None
+
+            def wait(self, *, timeout: float) -> int:
+                del timeout
+                return 0
+
+        browser_pass.__globals__["_wait_for_driver"] = lambda *_args, **_kwargs: None
+        browser_pass.__globals__["_json_request"] = lambda *_args, **_kwargs: {
+            "value": {
+                "sessionId": "session-1",
+                "capabilities": {"browserVersion": HOSTILE_PAGE_VALUE},
+            }
+        }
+        browser_pass.__globals__["_cleanup_browser_session_preserving_primary"] = (
+            lambda *_args, **_kwargs: None
+        )
+        subprocess_module = browser_pass.__globals__["subprocess"]
+
+        with patch.object(subprocess_module, "Popen", return_value=FakeDriver()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            browser_pass(
+                pathlib.Path("/controlled/chrome"),
+                pathlib.Path("/controlled/chromedriver"),
+                "http://127.0.0.1:8080/page.html",
+                "/controlled/profile",
+                "initialized",
+            )
+
+        self.assertEqual(str(captured.exception), "unexpected Chrome version")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
+    def test_agent_task_version_mismatch_does_not_echo_remote_capability(self) -> None:
+        """Agent Task version gating must not serialize remote capability data."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_version_diagnostic_contract")
+        browser_pass = namespace["_run_agent_task_browser_pass"]
+
+        class FakeDriver:
+            def terminate(self) -> None:
+                return None
+
+            def wait(self, *, timeout: float) -> int:
+                del timeout
+                return 0
+
+        browser_pass.__globals__["_wait_for_driver"] = lambda *_args, **_kwargs: None
+        browser_pass.__globals__["_json_request"] = lambda *_args, **_kwargs: {
+            "value": {
+                "sessionId": "session-1",
+                "capabilities": {"browserVersion": HOSTILE_PAGE_VALUE},
+            }
+        }
+        browser_pass.__globals__["_cleanup_browser_session_preserving_primary"] = (
+            lambda *_args, **_kwargs: None
+        )
+        subprocess_module = browser_pass.__globals__["subprocess"]
+
+        with patch.object(subprocess_module, "Popen", return_value=FakeDriver()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            browser_pass(
+                pathlib.Path("/controlled/chrome"),
+                pathlib.Path("/controlled/chromedriver"),
+                "http://127.0.0.1:8080/index.html",
+                "/controlled/profile",
+            )
+
+        self.assertEqual(str(captured.exception), "unexpected Agent Task Chrome version")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
     def test_webdriver_http_failure_does_not_echo_remote_body(self) -> None:
         """A non-success HTTP response may select failure but must not become CI payload."""
 
