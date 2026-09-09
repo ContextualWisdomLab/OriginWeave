@@ -13,3 +13,4 @@ Additional constraints:
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
 - For production WebSocket client frames, use the OS-CSPRNG helper on the established stream. Keep injected mask bytes only in deterministic fixtures; `getrandom 0.2` error values are not `std::error::Error` in this pinned build.
+- For production RFC 6455 opening requests, use `WebDriverBiDiWebSocketClientKey::random`; retain `new` only for deterministic fixture nonces.
