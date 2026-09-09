@@ -538,6 +538,13 @@ def _validate_agent_task_pre_action_state(state: object, text: object) -> None:
         raise RuntimeError("Agent Task pre-action baseline was already satisfied")
 
 
+def _validate_agent_task_cleared_value(value: object) -> None:
+    """Require the browser-observed clear post-condition without echoing input data."""
+
+    if value != "":
+        raise RuntimeError("Agent Task clear verification failed")
+
+
 def _validate_agent_task_typed_value(value: object) -> None:
     """Require the browser-observed typed value without echoing page-controlled data."""
 
@@ -663,6 +670,12 @@ def _run_agent_task_browser_pass(
             _element_command_path(session_id, input_element, "/clear"),
             {},
         )
+        cleared_value = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(session_id, input_element, "/property/value"),
+        ).get("value")
+        _validate_agent_task_cleared_value(cleared_value)
         _json_request(
             driver_port,
             "POST",
@@ -741,6 +754,7 @@ def _run_agent_task_browser_pass(
         return {
             "browser_version": browser_version,
             "pre_action_baseline_verified": True,
+            "clear_value_verified": True,
             "input_value_verified": True,
             "pre_click_baseline_verified": True,
             "post_condition": True,
@@ -812,6 +826,7 @@ def _run_agent_task_trial(
         "passed": True,
         "browser_version": result["browser_version"],
         "pre_action_baseline_verified": result["pre_action_baseline_verified"],
+        "clear_value_verified": result["clear_value_verified"],
         "input_value_verified": result["input_value_verified"],
         "pre_click_baseline_verified": result["pre_click_baseline_verified"],
         "post_condition": result["post_condition"],
@@ -833,6 +848,7 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
     return all(
         trial.get("passed") is True
         and trial.get("pre_action_baseline_verified") is True
+        and trial.get("clear_value_verified") is True
         and trial.get("input_value_verified") is True
         and trial.get("pre_click_baseline_verified") is True
         and trial.get("post_condition") is True
