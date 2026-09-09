@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Keep WebDriver remote HTTP bodies, W3C error/message text, and last-response startup detail out of CI exception strings while preserving fail-closed command/readiness decisions and the response-size bound.
 - Publish success-shaped MV3/Agent Task compatibility JSON only after both owned loopback fixture servers complete their shutdown post-conditions; browser/trial gate failures still emit bounded diagnostic evidence before raising.
 - Require loopback fixture-server cleanup to observe helper-thread termination after the bounded join, so a timed join cannot be treated as cleanup success while an owned server thread remains live.
 - Require the controlled Agent Task lane to observe an empty input `value` after native WebDriver Element Clear and before Send Keys, so clear command acknowledgement cannot substitute for browser-observed action evidence.
