@@ -25,6 +25,7 @@
 - [Product and technical gap baseline](product-technical-gap-baseline.md)
 - [Research and standards](doctoring.md)
   - [Browser and Agent protocol standards evidence](doctoring/browser-agent-protocols.md)
+  - [Rust toolchain freshness and reproducibility](doctoring/rust-toolchain-freshness.md)
 - [Current product-baseline standards addendum](doctoring/product-documentation-baseline.md)
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
@@ -90,9 +91,10 @@ The second group exists only on this documentation branch until the branch integ
 ### Proposed decisions introduced by active feature work
 
 - [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
+- [ADR 0115: Rust stable toolchain baseline](adr/0115-rust-stable-toolchain-baseline.md)
 
-ADR 0016 is owned by this active BAP lifecycle feature branch and remains Proposed. Its presence here makes the branch documentation graph complete without presenting the decision or implementation as protected-main truth before integration.
+ADR 0016 is owned by the active BAP lifecycle feature branch. ADR 0115 is owned by the active Rust `1.98.1` baseline-repair lineage. Both remain Proposed. Their presence here keeps the branch documentation graph complete without presenting either decision or implementation as protected-main truth before integration.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 or ADR 0115 from Proposed or assert implementation maturity.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
