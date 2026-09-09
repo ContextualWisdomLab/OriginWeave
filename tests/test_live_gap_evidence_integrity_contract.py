@@ -58,10 +58,11 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
         self.assertIn(full_sha, self.latest)
         self.assertNotIn("to exact head\n`0c077445`", self.latest)
 
-    def test_baseline_names_the_executable_current_evidence_collector(self) -> None:
+    def test_documented_current_evidence_collector_is_executable(self) -> None:
         current_evidence = self.baseline.split("## Evidence commands", 1)[1]
-        self.assertIn("bash scripts/ci/collect_live_merge_evidence.sh", current_evidence)
-        self.assertIn("bash scripts/ci/collect_live_merge_evidence.sh", self.agents)
+        self.assertIn("scripts/ci/collect_live_merge_evidence.sh", current_evidence)
+        self.assertIn("scripts/ci/collect_live_merge_evidence.sh", self.agents)
+        self.assertNotEqual(0, EVIDENCE_SCRIPT.stat().st_mode & 0o111)
 
     def test_evidence_collector_is_valid_bash(self) -> None:
         result = subprocess.run(
