@@ -5,7 +5,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 ## Live continuity note: 2026-09-09
 
 - The next #292 evidence slice is stacked on the existing pinned-Chrome Agent Task owner. It uses fixed Chromium CDP viewport/DPR/timezone commands, static fixture DOM observations, an observed pre-override baseline, and observed explicit-reset restoration. It is active-PR evidence only until the exact Chrome for Testing job succeeds.
-- A failed Agent Task session start records only the standard closed failure category, never ChromeDriver's remote diagnostic text, so the next exact-head run can distinguish session creation from later browser evidence failure without leaking host-controlled data.
+- A failed Agent Task session start records only standard closed failure categories plus one local ChromeDriver startup category (`sandbox`, `browser_startup`, `profile`, or `unclassified`); it reads at most the bounded local log and deletes it, never emitting ChromeDriver diagnostic text. The next exact-head run can therefore select a root-cause repair without leaking host-controlled data.
 - This runner proves a narrow browser-evidence contract, not a product Browser Session implementation. It does not transfer #293's standard-BiDi capability boundary into protected main or claim full-profile admission.
 
 ## Observed snapshot: 2026-08-26

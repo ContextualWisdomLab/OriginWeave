@@ -330,6 +330,26 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
         self.assertEqual(type(captured.exception).__name__, "WebDriverSessionNotCreatedError")
         self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
 
+    def test_chromedriver_startup_diagnostic_is_closed_category(self) -> None:
+        """Driver logs may select a fixed cause category without becoming CI text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_start_category_contract")
+        classify = namespace["_classify_chromedriver_startup_diagnostic"]
+
+        self.assertEqual(
+            classify(f"sandbox setup failed: {HOSTILE_PAGE_VALUE}"),
+            "sandbox",
+        )
+        self.assertEqual(
+            classify(f"DevToolsActivePort file does not exist: {HOSTILE_PAGE_VALUE}"),
+            "browser_startup",
+        )
+        self.assertEqual(
+            classify(f"user data directory is already in use: {HOSTILE_PAGE_VALUE}"),
+            "profile",
+        )
+        self.assertEqual(classify(HOSTILE_PAGE_VALUE), "unclassified")
+
     def test_driver_readiness_timeout_does_not_echo_last_exception(self) -> None:
         """Startup timeout must not serialize the last remote diagnostic into CI text."""
 
