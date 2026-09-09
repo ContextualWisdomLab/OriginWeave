@@ -49,9 +49,10 @@ impl WebDriverBidiBrowsingContext {
 /// `emulation.setScreenSettingsOverride`.
 ///
 /// WebDriver BiDi applies one rectangle to both the web-exposed total screen area and available
-/// screen area. Construction therefore remains an explicit partial capability: it projects width and
-/// height from validated [`ScreenMetrics`] but does not claim that the presentation profile models the
-/// resulting `screen.availWidth` / `screen.availHeight` observables or screen color depth.
+/// screen area. This value deliberately represents geometry only: a browsing-context identifier does
+/// not prove that OriginWeave owns the existing override and therefore cannot authorize replacing or
+/// clearing it. A Browser Session owner must establish an exclusive/disposable context or equivalent
+/// ownership witness before a transport adapter may materialize the mutation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WebDriverBidiScreenArea {
     width_px: u32,
@@ -61,9 +62,10 @@ pub struct WebDriverBidiScreenArea {
 impl WebDriverBidiScreenArea {
     /// Project the protocol-owned rectangle from validated presentation screen metrics.
     ///
-    /// The returned value intentionally means that total and available screen areas will be coupled to
-    /// the same rectangle. It must not be inserted into a profile-derived reusable plan unless the
-    /// presentation schema has first modelled and authorized those available-area observables.
+    /// The returned value intentionally means that total and available screen areas would be coupled
+    /// to the same rectangle if an authorized Browser Session later applies it. Constructing this
+    /// value grants no mutation or cleanup authority and does not claim that the presentation profile
+    /// models `screen.availWidth`, `screen.availHeight`, or screen color depth.
     #[must_use]
     pub const fn from_screen(screen: &ScreenMetrics) -> Self {
         Self {
@@ -72,13 +74,13 @@ impl WebDriverBidiScreenArea {
         }
     }
 
-    /// Return the width applied to both total and available web-exposed screen areas.
+    /// Return the width represented for both total and available web-exposed screen areas.
     #[must_use]
     pub const fn width(&self) -> u32 {
         self.width_px
     }
 
-    /// Return the height applied to both total and available web-exposed screen areas.
+    /// Return the height represented for both total and available web-exposed screen areas.
     #[must_use]
     pub const fn height(&self) -> u32 {
         self.height_px
@@ -90,20 +92,12 @@ impl WebDriverBidiScreenArea {
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
 /// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
 /// Presentation payloads retain validated value objects so a transport adapter cannot reopen raw
-/// screen, viewport, DPR, or time-zone validation. Screen-area commands couple total and available
-/// screen geometry, do not control color depth, and therefore do not satisfy the complete
-/// `PresentationSurface::Screen` contract. This reusable-boundary enum deliberately exposes no
-/// media-feature mutation command because this crate has no ownership or snapshot witness that would
-/// make such mutation reversibly safe.
+/// viewport, DPR, or time-zone validation. Screen-area mutation is intentionally absent: the standard
+/// operation replaces or removes context state, while this adapter has no ownership or snapshot
+/// witness proving that such state belongs to OriginWeave. This reusable-boundary enum deliberately
+/// exposes no media-feature mutation command for the same non-destructive-cleanup reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WebDriverBidiPresentationCommand {
-    /// Set total and available web-exposed screen width and height together.
-    SetScreenArea {
-        /// Exact target browsing context.
-        context: WebDriverBidiBrowsingContext,
-        /// Exact coupled standard-BiDi screen-area payload derived from validated screen metrics.
-        screen_area: WebDriverBidiScreenArea,
-    },
     /// Set viewport dimensions and device-pixel ratio together.
     SetViewport {
         /// Exact target browsing context.
@@ -120,11 +114,6 @@ pub enum WebDriverBidiPresentationCommand {
         /// Validated presentation time-zone identity.
         timezone: PresentationTimeZone,
     },
-    /// Remove the coupled total-and-available screen-area override for the exact browsing context.
-    ResetScreenArea {
-        /// Exact target browsing context.
-        context: WebDriverBidiBrowsingContext,
-    },
     /// Restore the implementation-defined viewport and remove the device-pixel-ratio override.
     ResetViewport {
         /// Exact target browsing context.
@@ -137,46 +126,17 @@ pub enum WebDriverBidiPresentationCommand {
     },
 }
 
-/// Plan one explicit partial screen-area override for a bounded browsing context.
-///
-/// WebDriver BiDi uses the same rectangle for both total and available screen areas. This operation is
-/// deliberately separate from [`plan_standard_presentation_commands`] because the current
-/// `PresentationProfile` does not model `screen.availWidth` or `screen.availHeight`; callers must not
-/// mistake this explicit coupled operation for application of the complete profile.
-#[must_use]
-pub fn plan_explicit_screen_area_override(
-    context: &WebDriverBidiBrowsingContext,
-    screen: &ScreenMetrics,
-) -> WebDriverBidiPresentationCommand {
-    WebDriverBidiPresentationCommand::SetScreenArea {
-        context: context.clone(),
-        screen_area: WebDriverBidiScreenArea::from_screen(screen),
-    }
-}
-
-/// Plan cleanup for one explicitly applied coupled screen-area override.
-///
-/// The pinned Working Draft defines `screenArea: null` as removal of that exact context-scoped
-/// override. Planning the reset does not prove transport execution or post-cleanup page observation.
-#[must_use]
-pub fn plan_explicit_screen_area_cleanup(
-    context: &WebDriverBidiBrowsingContext,
-) -> WebDriverBidiPresentationCommand {
-    WebDriverBidiPresentationCommand::ResetScreenArea {
-        context: context.clone(),
-    }
-}
-
 /// Plan the reversible standard-BiDi presentation commands safe for a reusable browsing context.
 ///
 /// Viewport/device-pixel-ratio and time-zone state each have a non-destructive nullable reset in the
-/// pinned Working Draft. The screen-settings override is excluded from this profile-derived plan even
-/// though it is reversible because it also changes the unmodelled page-observable available screen
-/// area. Reduced motion remains an expressible protocol capability, but this reusable planning boundary
-/// neither installs nor exposes a media-mutation command because `features: null` clears the complete
-/// media-feature configuration rather than restoring only OriginWeave's prior `prefers-reduced-motion`
-/// value. The explicit arguments make this a partial-plan API: it cannot be mistaken for application of
-/// a complete [`originweave_fingerprint::PresentationProfile`].
+/// pinned Working Draft. Screen-area mutation is excluded even as an explicit context-only command:
+/// setting a rectangle can replace another owner's override and `screenArea: null` removes the current
+/// override rather than restoring a prior value. Reduced motion remains an expressible protocol
+/// capability, but this reusable planning boundary neither installs nor exposes a media-mutation
+/// command because `features: null` clears the complete media-feature configuration rather than
+/// restoring only OriginWeave's prior `prefers-reduced-motion` value. The explicit arguments make this
+/// a partial-plan API: it cannot be mistaken for application of a complete
+/// [`originweave_fingerprint::PresentationProfile`].
 #[must_use]
 pub fn plan_standard_presentation_commands(
     context: &WebDriverBidiBrowsingContext,
@@ -201,8 +161,8 @@ pub fn plan_standard_presentation_commands(
 ///
 /// The pinned Working Draft provides independently nullable context-scoped reset paths for viewport/DPR
 /// and time-zone state, so these two resets are safe to plan for a reusable browsing context. Screen-area
-/// cleanup is deliberately separate because this reusable plan does not install the coupled total-and-
-/// available screen override. Media cleanup is absent because `features: null` clears the complete
+/// cleanup is absent because this boundary cannot prove ownership of the current screen override or
+/// restore a predecessor value. Media cleanup is absent because `features: null` clears the complete
 /// media-feature override configuration rather than selectively undoing `prefers-reduced-motion`.
 #[must_use]
 pub fn plan_standard_presentation_cleanup(
@@ -243,10 +203,12 @@ const WEBDRIVER_BIDI_PRESENTATION_SURFACES: [PresentationSurface; 4] = [
 /// The protocol can explicitly couple total and available screen width/height through
 /// `emulation.setScreenSettingsOverride`, but OriginWeave's `Screen` surface also includes color depth
 /// and the current profile does not model the available screen rectangle. `Screen` therefore remains
-/// intentionally absent. Ordered-language surfaces, hardware concurrency, and the Chromium
-/// platform/User-Agent Client Hints surface are also absent. Reduced motion is listed as protocol
-/// capability even though reusable application leaves media state untouched until a Browser Session
-/// owner supplies a restorable lifecycle and corresponding command authority.
+/// intentionally absent. This adapter additionally withholds screen-area mutation until Browser
+/// Session proves ownership of the affected override lifecycle. Ordered-language surfaces, hardware
+/// concurrency, and the Chromium platform/User-Agent Client Hints surface are also absent. Reduced
+/// motion is listed as protocol capability even though reusable application leaves media state
+/// untouched until a Browser Session owner supplies a restorable lifecycle and corresponding command
+/// authority.
 #[must_use]
 pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSurface] {
     &WEBDRIVER_BIDI_PRESENTATION_SURFACES
@@ -255,9 +217,10 @@ pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSur
 /// Require the pinned standard BiDi capability set to satisfy the complete profile.
 ///
 /// The current result remains fail-closed with
-/// `PresentationError::MissingSurface(PresentationSurface::Screen)` because the explicit screen-area
-/// command does not control color depth and additionally couples an available-screen observable absent
-/// from the current profile. Callers must not translate that result into ambient-host fallback.
+/// `PresentationError::MissingSurface(PresentationSurface::Screen)` because the standard screen-area
+/// value does not control color depth, the profile does not model available-screen geometry, and this
+/// adapter has no Browser Session ownership witness for mutating existing screen-settings state.
+/// Callers must not translate that result into ambient-host fallback.
 pub fn require_complete_presentation_profile() -> Result<(), PresentationError> {
     require_presentation_surfaces(webdriver_bidi_presentation_surfaces())
 }
@@ -301,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_screen_area_command_preserves_the_protocol_coupling_boundary() {
+    fn screen_area_value_preserves_protocol_coupling_without_mutation_authority() {
         let profile = PresentationProfile::new(
             ScreenMetrics::new(1920, 1080).expect("valid screen"),
             ViewportBounds::new(1440, 900).expect("valid viewport"),
@@ -313,23 +276,10 @@ mod tests {
             true,
         )
         .expect("consistent profile");
-        let context =
-            WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
         let screen_area = WebDriverBidiScreenArea::from_screen(profile.screen());
 
         assert_eq!(screen_area.width(), 1920);
         assert_eq!(screen_area.height(), 1080);
-        assert_eq!(
-            plan_explicit_screen_area_override(&context, profile.screen()),
-            WebDriverBidiPresentationCommand::SetScreenArea {
-                context: context.clone(),
-                screen_area,
-            }
-        );
-        assert_eq!(
-            plan_explicit_screen_area_cleanup(&context),
-            WebDriverBidiPresentationCommand::ResetScreenArea { context }
-        );
     }
 
     #[test]
