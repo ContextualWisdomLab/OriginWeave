@@ -50,7 +50,9 @@ impl WebDriverBidiBrowsingContext {
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
 /// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
 /// Presentation payloads retain the validated fingerprint value objects so a transport adapter cannot
-/// bypass their bounds by constructing raw viewport, DPR, or time-zone values.
+/// bypass their bounds by constructing raw viewport, DPR, or time-zone values. This reusable-boundary
+/// enum deliberately exposes no media-feature mutation command because this crate has no ownership or
+/// snapshot witness that would make such mutation reversibly safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WebDriverBidiPresentationCommand {
     /// Set viewport dimensions and device-pixel ratio together.
@@ -69,16 +71,6 @@ pub enum WebDriverBidiPresentationCommand {
         /// Validated presentation time-zone identity.
         timezone: PresentationTimeZone,
     },
-    /// Set the reduced-motion media feature.
-    ///
-    /// The pinned standard can express this command, but it is intentionally excluded from the
-    /// reusable default plan because standard media cleanup cannot selectively restore prior state.
-    SetReducedMotion {
-        /// Exact target browsing context.
-        context: WebDriverBidiBrowsingContext,
-        /// Whether `prefers-reduced-motion` is `reduce`.
-        reduce: bool,
-    },
     /// Restore the implementation-defined viewport and remove the device-pixel-ratio override.
     ResetViewport {
         /// Exact target browsing context.
@@ -94,13 +86,13 @@ pub enum WebDriverBidiPresentationCommand {
 /// Plan the reversible standard-BiDi presentation commands safe for a reusable browsing context.
 ///
 /// Viewport/device-pixel-ratio and time-zone state each have a non-destructive nullable reset in the
-/// pinned Working Draft. Reduced motion remains an expressible protocol capability, but the default
-/// reusable plan does not install it because `features: null` clears the complete media-feature
-/// configuration rather than restoring only OriginWeave's prior `prefers-reduced-motion` value.
-/// The explicit arguments make this a partial-plan API: it cannot be mistaken for application of
-/// a complete [`originweave_fingerprint::PresentationProfile`]. A Browser Session owner must first
-/// bind media mutation to a genuinely disposable lifecycle or a complete snapshot/restore path
-/// before constructing and sending `SetReducedMotion`.
+/// pinned Working Draft. Reduced motion remains an expressible protocol capability, but this reusable
+/// planning boundary neither installs nor exposes a media-mutation command because `features: null`
+/// clears the complete media-feature configuration rather than restoring only OriginWeave's prior
+/// `prefers-reduced-motion` value. The explicit arguments make this a partial-plan API: it cannot be
+/// mistaken for application of a complete [`originweave_fingerprint::PresentationProfile`]. A later
+/// Browser Session-owned adapter may introduce reduced-motion application only after it can prove a
+/// genuinely disposable lifecycle or a complete snapshot/restore path.
 #[must_use]
 pub fn plan_standard_presentation_commands(
     context: &WebDriverBidiBrowsingContext,
@@ -165,8 +157,9 @@ const WEBDRIVER_BIDI_PRESENTATION_SURFACES: [PresentationSurface; 4] = [
 ///
 /// Complete screen and ordered-language surfaces, hardware concurrency, and the
 /// Chromium platform/User-Agent Client Hints surface are intentionally absent.
-/// Reduced motion is listed as protocol capability even though reusable default application leaves
-/// media state untouched until a Browser Session owner supplies a restorable lifecycle.
+/// Reduced motion is listed as protocol capability even though reusable application leaves media
+/// state untouched until a Browser Session owner supplies a restorable lifecycle and corresponding
+/// command authority.
 #[must_use]
 pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSurface] {
     &WEBDRIVER_BIDI_PRESENTATION_SURFACES
@@ -263,20 +256,10 @@ mod tests {
                     device_pixel_ratio: profile.device_pixel_ratio(),
                 },
                 WebDriverBidiPresentationCommand::SetTimezone {
-                    context: context.clone(),
+                    context,
                     timezone: profile.timezone(),
                 },
             ]
-        );
-        assert_eq!(
-            WebDriverBidiPresentationCommand::SetReducedMotion {
-                context: context.clone(),
-                reduce: profile.reduced_motion(),
-            },
-            WebDriverBidiPresentationCommand::SetReducedMotion {
-                context,
-                reduce: true,
-            }
         );
     }
 
