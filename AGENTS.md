@@ -116,3 +116,7 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 ## Release contract
 
 A release requires all current-head checks, complete coverage and docs, updated `CHANGELOG.md`, SBOM and provenance, reproducible artifacts, compatibility evidence, security review, and an explicit version decision. Pre-alpha commits are not releases.
+
+## Reusable verification notes
+
+- RFC 6455 client-frame masks must come from the OS CSPRNG in production paths. Keep deterministic `WebDriverBiDiWebSocketMaskKey::new` values for fixtures only; exercise the live loopback write path with `cargo test -p originweave-network --test webdriver_bidi_websocket_masking_key_reuse --locked`. In this pinned dependency set, `getrandom 0.2` exposes `getrandom::getrandom` but its error does not implement `std::error::Error`; retain it in the typed frame error without manufacturing an error-chain source.

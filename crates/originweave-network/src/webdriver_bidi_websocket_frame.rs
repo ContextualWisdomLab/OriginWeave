@@ -46,6 +46,23 @@ impl WebDriverBiDiWebSocketMaskKey {
         Self(value)
     }
 
+    /// Obtain one fresh four-byte frame masking key from the operating-system CSPRNG.
+    ///
+    /// The key remains redacted in diagnostics. Callers that need deterministic fixture bytes may
+    /// use [`Self::new`] instead; production frame writes should use the random-key convenience
+    /// methods on [`WebDriverBiDiWebSocketEstablished`].
+    pub fn random() -> Result<Self, getrandom::Error> {
+        Self::from_random_fill(getrandom::getrandom)
+    }
+
+    fn from_random_fill(
+        fill_random_bytes: fn(&mut [u8]) -> Result<(), getrandom::Error>,
+    ) -> Result<Self, getrandom::Error> {
+        let mut value = [0_u8; 4];
+        fill_random_bytes(&mut value)?;
+        Ok(Self(value))
+    }
+
     /// Borrow the exact four-byte key used by the reviewed framing boundary.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 4] {
@@ -261,6 +278,19 @@ impl WebDriverBiDiWebSocketEstablished {
         write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
     }
 
+    /// Write one final masked UTF-8 text frame using a fresh OS-CSPRNG masking key.
+    ///
+    /// Entropy acquisition happens before any frame bytes are written. A failure leaves no
+    /// reusable stream and never substitutes predictable key material.
+    pub fn write_text_frame_with_random_masking_key(
+        self,
+        text: &str,
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        random_masking_key()
+            .and_then(|masking_key| self.write_text_frame(text, masking_key, frame_timeout))
+    }
+
     /// Write one final masked RFC 6455 Pong control frame on this verified stream.
     ///
     /// Payloads above 125 bytes fail closed. The same adjacent masking-key guard used for text
@@ -282,6 +312,19 @@ impl WebDriverBiDiWebSocketEstablished {
         let frame = serialize_client_frame(0xa, payload, masking_key);
         let mut now = Instant::now;
         write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
+    }
+
+    /// Write one final masked RFC 6455 Pong frame using a fresh OS-CSPRNG masking key.
+    ///
+    /// Entropy acquisition happens before any frame bytes are written. A failure leaves no
+    /// reusable stream and never substitutes predictable key material.
+    pub fn write_pong_frame_with_random_masking_key(
+        self,
+        payload: &[u8],
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        random_masking_key()
+            .and_then(|masking_key| self.write_pong_frame(payload, masking_key, frame_timeout))
     }
 
     /// Read one bounded RFC 6455 frame from this verified stream.
@@ -332,6 +375,11 @@ impl WebDriverBiDiWebSocketFrame {
 /// Fail-closed errors while reading or writing one bounded WebSocket frame.
 #[derive(Debug)]
 pub enum WebDriverBiDiWebSocketFrameError {
+    /// The operating-system CSPRNG could not provide a client frame masking key.
+    MaskingKeyGenerationFailed {
+        /// Underlying operating-system entropy error.
+        source: getrandom::Error,
+    },
     /// The requested frame I/O deadline was zero or above the reviewed resource ceiling.
     InvalidFrameTimeout {
         /// Rejected caller-supplied deadline.
@@ -411,6 +459,9 @@ pub enum WebDriverBiDiWebSocketFrameError {
 impl fmt::Display for WebDriverBiDiWebSocketFrameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MaskingKeyGenerationFailed { .. } => {
+                formatter.write_str("failed to obtain a WebSocket client masking key")
+            }
             Self::InvalidFrameTimeout { .. } => formatter
                 .write_str("WebDriver BiDi WebSocket frame timeout is outside the reviewed bound"),
             Self::FrameTooLarge { .. } => {
@@ -453,6 +504,7 @@ impl fmt::Display for WebDriverBiDiWebSocketFrameError {
 impl Error for WebDriverBiDiWebSocketFrameError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::MaskingKeyGenerationFailed { .. } => None,
             Self::FrameReadModeConfigurationFailed { source }
             | Self::FrameReadTimedOut { source, .. }
             | Self::FrameReadFailed { source, .. }
@@ -467,6 +519,16 @@ impl Error for WebDriverBiDiWebSocketFrameError {
             | Self::FrameWriteZero { .. } => None,
         }
     }
+}
+
+fn random_masking_key() -> Result<WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketFrameError> {
+    map_masking_key_generation(WebDriverBiDiWebSocketMaskKey::random())
+}
+
+fn map_masking_key_generation(
+    result: Result<WebDriverBiDiWebSocketMaskKey, getrandom::Error>,
+) -> Result<WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketFrameError> {
+    result.map_err(|source| WebDriverBiDiWebSocketFrameError::MaskingKeyGenerationFailed { source })
 }
 
 fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
@@ -939,6 +1001,35 @@ mod tests {
     }
 
     #[test]
+    fn mask_key_random_fill_is_redacted_and_propagates_entropy_failure() {
+        fn fill_test_bytes(value: &mut [u8]) -> Result<(), getrandom::Error> {
+            value.copy_from_slice(&[9, 8, 7, 6]);
+            Ok(())
+        }
+
+        fn reject_random_fill(_value: &mut [u8]) -> Result<(), getrandom::Error> {
+            Err(getrandom::Error::UNSUPPORTED)
+        }
+
+        let generated = WebDriverBiDiWebSocketMaskKey::from_random_fill(fill_test_bytes)
+            .expect("test entropy source succeeds");
+        assert_eq!(generated.as_bytes(), &[9, 8, 7, 6]);
+        assert_eq!(format!("{generated:?}"), "<redacted WebSocket masking key>");
+        assert_eq!(
+            WebDriverBiDiWebSocketMaskKey::from_random_fill(reject_random_fill),
+            Err(getrandom::Error::UNSUPPORTED)
+        );
+        assert!(random_masking_key().is_ok());
+        let frame_error = map_masking_key_generation(Err(getrandom::Error::UNSUPPORTED))
+            .expect_err("entropy failure maps to a frame error");
+        assert_eq!(
+            frame_error.to_string(),
+            "failed to obtain a WebSocket client masking key"
+        );
+        assert!(frame_error.source().is_none());
+    }
+
+    #[test]
     fn serializer_uses_minimal_lengths_and_masks_payloads() {
         let key = WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
         let small = serialize_client_frame(0x1, b"abc", key);
@@ -1334,6 +1425,9 @@ mod tests {
     #[test]
     fn frame_errors_have_stable_messages_and_sources() {
         let errors = [
+            WebDriverBiDiWebSocketFrameError::MaskingKeyGenerationFailed {
+                source: getrandom::Error::UNSUPPORTED,
+            },
             WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
                 frame_timeout: Duration::ZERO,
                 maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
@@ -1373,7 +1467,7 @@ mod tests {
             },
         ];
         for (error, has_source) in errors.iter().zip([
-            false, false, true, true, true, false, false, true, true, true, false, true,
+            false, false, false, true, true, true, false, false, true, true, true, false, true,
         ]) {
             assert!(!error.to_string().is_empty());
             assert_eq!(error.source().is_some(), has_source);

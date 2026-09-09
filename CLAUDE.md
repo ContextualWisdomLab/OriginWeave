@@ -12,3 +12,4 @@ Additional constraints:
 - Do not add hostname reconnect, proxy-environment inheritance, dangerous certificate-verifier hooks, Common Name fallback, TLS 0-RTT, key logging, or secret extraction to a production TLS path.
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
+- For production WebSocket client frames, use the OS-CSPRNG helper on the established stream. Keep injected mask bytes only in deterministic fixtures; `getrandom 0.2` error values are not `std::error::Error` in this pinned build.
