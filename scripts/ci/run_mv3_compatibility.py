@@ -886,6 +886,8 @@ def _stop_fixture_server(
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
+    if thread.is_alive():
+        raise RuntimeError("fixture server thread did not stop")
 
 
 def main() -> int:
