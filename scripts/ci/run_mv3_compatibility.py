@@ -404,10 +404,7 @@ def _run_browser_pass(
             capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
         )
         if browser_version != PINNED_CHROME_VERSION:
-            raise RuntimeError(
-                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, "
-                f"got {browser_version!r}"
-            )
+            raise RuntimeError("unexpected Chrome version")
 
         _json_request(
             driver_port,
@@ -622,10 +619,7 @@ def _run_agent_task_browser_pass(
             capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
         )
         if browser_version != PINNED_CHROME_VERSION:
-            raise RuntimeError(
-                f"unexpected Agent Task Chrome version: expected {PINNED_CHROME_VERSION}, "
-                f"got {browser_version!r}"
-            )
+            raise RuntimeError("unexpected Agent Task Chrome version")
 
         _json_request(
             driver_port,
