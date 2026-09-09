@@ -29,24 +29,32 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
         self.assertIn("runtime-qualified 3 September 2026", adr)
         self.assertIn("latest published 9 September 2026", adr)
 
-    def test_architecture_and_doctoring_separate_latest_publication_from_runtime_pin(self) -> None:
-        """Top-level architecture and doctoring must state both dates without implying a repin."""
-        documents = {
-            "ARCHITECTURE.md": (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8"),
-            "docs/doctoring.md": (ROOT / "docs/doctoring.md").read_text(
-                encoding="utf-8"
-            ),
-        }
+    def test_publication_freshness_is_single_sourced_from_runtime_qualification_docs(self) -> None:
+        """Architecture and doctoring stay qualification records; the receipt owns latest-publication churn."""
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        receipt = (
+            ROOT / "docs/traceability/webdriver-bidi-publication-current.md"
+        ).read_text(encoding="utf-8")
 
-        for path, text in documents.items():
+        runtime_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/"
+
+        for path, text in {
+            "ARCHITECTURE.md": architecture,
+            "docs/doctoring.md": doctoring,
+        }.items():
             with self.subTest(path=path):
-                self.assertIn(
-                    "docs/traceability/webdriver-bidi-publication-current.md",
-                    text,
-                )
-                self.assertIn("runtime-qualified 3 September 2026", text)
-                self.assertIn("latest published 9 September 2026", text)
-                self.assertNotIn("PR #293 is a separate active, stacked", text)
+                self.assertIn(runtime_uri, text)
+                self.assertNotIn(latest_uri, text)
+
+        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
+        self.assertIn("Latest published Working Draft: `2026-09-09`", receipt)
+        self.assertIn(latest_uri, receipt)
+        self.assertIn(
+            "PR #229, which has inherited merged PR #293",
+            receipt,
+        )
 
 
 if __name__ == "__main__":
