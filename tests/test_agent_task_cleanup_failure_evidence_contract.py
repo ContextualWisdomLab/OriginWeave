@@ -20,13 +20,37 @@ class AgentTaskCleanupFailureEvidenceContractTests(unittest.TestCase):
 
     def _assert_cleanup_failure_evidence(
         self,
-        cleanup_failure: RuntimeError,
+        cleanup_kind: str,
         *,
         expected_failure_type: str,
         expected_cleanup_type: str,
     ) -> None:
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_cleanup_evidence")
         main_globals = namespace["main"].__globals__
+        primary = RuntimeError("buyer-secret-primary-detail")
+
+        if cleanup_kind == "session":
+            cleanup = namespace["_cleanup_browser_session_preserving_primary"]
+            cleanup_error_type = namespace["BrowserSessionCleanupError"]
+
+            def failed_cleanup(*_args: object, **_kwargs: object) -> None:
+                raise OSError("buyer-secret-cleanup-detail")
+
+            cleanup.__globals__["_cleanup_browser_session"] = failed_cleanup
+            try:
+                cleanup(9515, "session-1", primary)
+            except cleanup_error_type as raised:
+                cleanup_failure = raised
+            else:
+                self.fail("session cleanup double did not fail")
+        elif cleanup_kind == "profile":
+            cleanup_error_type = namespace["BrowserProfileCleanupError"]
+            cleanup_failure = cleanup_error_type(
+                OSError("buyer-secret-cleanup-detail"),
+                primary,
+            )
+        else:
+            self.fail("unsupported cleanup evidence test kind")
 
         class FakeServer:
             server_port = 9515
@@ -72,20 +96,8 @@ class AgentTaskCleanupFailureEvidenceContractTests(unittest.TestCase):
     def test_session_cleanup_failure_retains_bounded_primary_and_cleanup_types(self) -> None:
         """Durable evidence must retain the primary browser type across DELETE failure."""
 
-        namespace = runpy.run_path(str(RUNNER), run_name="session_cleanup_failure_factory")
-        cleanup = namespace["_cleanup_browser_session_preserving_primary"]
-        cleanup_error_type = namespace["BrowserSessionCleanupError"]
-        primary = RuntimeError("buyer-secret-primary-detail")
-
-        def failed_cleanup(*_args: object, **_kwargs: object) -> None:
-            raise OSError("buyer-secret-cleanup-detail")
-
-        cleanup.__globals__["_cleanup_browser_session"] = failed_cleanup
-        with self.assertRaises(cleanup_error_type) as raised:
-            cleanup(9515, "session-1", primary)
-
         self._assert_cleanup_failure_evidence(
-            raised.exception,
+            "session",
             expected_failure_type="BrowserSessionCleanupError",
             expected_cleanup_type="OSError",
         )
@@ -93,16 +105,8 @@ class AgentTaskCleanupFailureEvidenceContractTests(unittest.TestCase):
     def test_profile_cleanup_failure_retains_bounded_primary_and_cleanup_types(self) -> None:
         """Durable evidence must retain the primary browser type across profile cleanup."""
 
-        namespace = runpy.run_path(str(RUNNER), run_name="profile_cleanup_failure_factory")
-        cleanup_error_type = namespace["BrowserProfileCleanupError"]
-        primary = RuntimeError("buyer-secret-primary-detail")
-        cleanup_failure = cleanup_error_type(
-            OSError("buyer-secret-cleanup-detail"),
-            primary,
-        )
-
         self._assert_cleanup_failure_evidence(
-            cleanup_failure,
+            "profile",
             expected_failure_type="BrowserProfileCleanupError",
             expected_cleanup_type="OSError",
         )
