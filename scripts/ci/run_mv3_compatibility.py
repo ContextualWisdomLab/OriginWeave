@@ -84,6 +84,13 @@ class AgentTaskSessionStartError(RuntimeError):
         super().__init__("Agent Task browser session failed to start")
 
 
+class WebDriverSessionNotCreatedError(RuntimeError):
+    """Report the standard session-creation failure without remote diagnostics."""
+
+    def __init__(self) -> None:
+        super().__init__("WebDriver could not create a browser session")
+
+
 def _free_loopback_port() -> int:
     """Reserve and release one loopback TCP port for a short-lived local service."""
 
@@ -157,6 +164,8 @@ def _json_request(
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
+    if isinstance(value, dict) and value.get("error") == "session not created":
+        raise WebDriverSessionNotCreatedError()
     if isinstance(value, dict) and value.get("error"):
         raise RuntimeError("WebDriver command failed")
     return decoded
@@ -1101,13 +1110,14 @@ def main() -> int:
                 http.client.HTTPException,
                 json.JSONDecodeError,
             ) as error:
-                agent_task_trials.append(
-                    {
-                        "trial_number": trial_number,
-                        "passed": False,
-                        "failure_type": type(error).__name__,
-                    }
-                )
+                failed_trial: dict[str, Any] = {
+                    "trial_number": trial_number,
+                    "passed": False,
+                    "failure_type": type(error).__name__,
+                }
+                if isinstance(error, AgentTaskSessionStartError):
+                    failed_trial["failure_cause_type"] = error.session_error_type
+                agent_task_trials.append(failed_trial)
 
         agent_task_successful_trials = sum(
             1 for trial in agent_task_trials if trial.get("passed") is True

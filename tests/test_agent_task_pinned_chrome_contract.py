@@ -206,6 +206,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         evidence = json.loads(output.getvalue())
         failed_trial = evidence["agent_task"]["trial_results"][0]
         self.assertEqual(failed_trial["failure_type"], "AgentTaskSessionStartError")
+        self.assertEqual(failed_trial["failure_cause_type"], "RuntimeError")
         self.assertNotIn("host-controlled browser detail", output.getvalue())
 
     def test_unexpected_cleanup_programming_failure_is_not_normalized(self) -> None:

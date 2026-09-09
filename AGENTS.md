@@ -60,6 +60,7 @@ The organization currently documents a **solo-maintainer** governance condition.
 - Keep Blink, V8, Skia, Viz, Dawn, Chromium sandboxing, Site Isolation, and Manifest V3 compatibility upstream-aligned.
 - Pinned-Chromium presentation evidence may use only fixed CDP commands and declared static-fixture DOM outputs; page-provided scripts must never select commands or supply evaluation text.
 - For hidden fixture outputs, read the bounded `textContent` property rather than rendered element text, and reject a probe baseline that already equals its target so an ACK cannot masquerade as a causal presentation transition.
+- Browser-session failures may retain only a closed, credential-free WebDriver error category; never emit remote diagnostic text into CI evidence.
 - New product logic belongs in Rust control-plane modules behind narrow adapters.
 - Rust crates must remain independently understandable and reusable.
 - Keep logical origin, resolved destination, operating-system TCP peer, TLS service identity, proxy route, and HTTP semantics as separate authority boundaries.
