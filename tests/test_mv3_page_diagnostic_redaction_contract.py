@@ -114,6 +114,94 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
         self.assertEqual(str(captured.exception), "Agent Task initial URL mismatch")
         self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
 
+    def test_webdriver_http_failure_does_not_echo_remote_body(self) -> None:
+        """A non-success HTTP response may select failure but must not become CI payload."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_http_diagnostic_contract")
+        json_request = namespace["_json_request"]
+
+        class FakeResponse:
+            status = 500
+
+            def read(self, _limit: int) -> bytes:
+                return f'{{"value":{{"message":"{HOSTILE_PAGE_VALUE}"}}}}'.encode()
+
+        class FakeConnection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return FakeResponse()
+
+            def close(self) -> None:
+                return None
+
+        http_client = json_request.__globals__["http"].client
+        with patch.object(http_client, "HTTPConnection", return_value=FakeConnection()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            json_request(9515, "GET", "/status")
+
+        self.assertEqual(str(captured.exception), "WebDriver HTTP request failed with status 500")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
+    def test_webdriver_protocol_failure_does_not_echo_remote_error_text(self) -> None:
+        """A W3C error response must not retain the remote error code or message."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_protocol_diagnostic_contract")
+        json_request = namespace["_json_request"]
+
+        class FakeResponse:
+            status = 200
+
+            def read(self, _limit: int) -> bytes:
+                return (
+                    '{"value":{"error":"javascript error","message":"'
+                    + HOSTILE_PAGE_VALUE
+                    + '"}}'
+                ).encode()
+
+        class FakeConnection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return FakeResponse()
+
+            def close(self) -> None:
+                return None
+
+        http_client = json_request.__globals__["http"].client
+        with patch.object(http_client, "HTTPConnection", return_value=FakeConnection()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            json_request(9515, "POST", "/session", {})
+
+        self.assertEqual(str(captured.exception), "WebDriver command failed")
+        self.assertNotIn("javascript error", str(captured.exception))
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
+    def test_driver_readiness_timeout_does_not_echo_last_exception(self) -> None:
+        """Startup timeout must not serialize the last remote diagnostic into CI text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_startup_diagnostic_contract")
+        wait_for_driver = namespace["_wait_for_driver"]
+        wait_for_driver.__globals__["STARTUP_TIMEOUT_SECONDS"] = 0.5
+        wait_for_driver.__globals__["_json_request"] = (
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(HOSTILE_PAGE_VALUE))
+        )
+        time_module = wait_for_driver.__globals__["time"]
+
+        with patch.object(time_module, "monotonic", side_effect=(0.0, 0.0, 1.0)), patch.object(
+            time_module,
+            "sleep",
+            return_value=None,
+        ), self.assertRaises(RuntimeError) as captured:
+            wait_for_driver(9515)
+
+        self.assertEqual(str(captured.exception), "ChromeDriver did not become ready")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
