@@ -81,6 +81,8 @@ The organization currently documents a **solo-maintainer** governance condition.
 
 ## Testing expectations
 
+- When tests import repository-root `scripts` modules, keep the root `pytest.ini` import-path declaration; do not rely on a shell-local `PYTHONPATH` workaround that CI may omit.
+
 Use realistic cases, including:
 
 - malformed origins, IPv4/IPv6 loopback, user information, paths, ports, and Unicode/control input;
