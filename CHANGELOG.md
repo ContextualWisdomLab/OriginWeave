@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Require the controlled Agent Task lane to read the browser-observed input value after native WebDriver typing and before click, so send-keys command acknowledgement cannot substitute for evidence that the synthetic input actually reached the controlled field.
 - Require controlled Agent Task success to re-observe the browser URL after submitted-state and exact-echo verification, so URL stability is proven through the accepted outcome boundary rather than only immediately after click.
 - Require the controlled Agent Task lane to observe the canonical idle result baseline before native clear/type/click and to carry that baseline witness into repeatability surface completeness, preventing a pre-fired fixture from being accepted as an action-caused success.
 - Separate Agent Task extension-isolation launch intent from verified browser surfaces: `--disable-extensions` is recorded as requested configuration only and no longer counts toward observed success completeness.
