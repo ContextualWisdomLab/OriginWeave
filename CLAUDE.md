@@ -13,3 +13,4 @@ Additional constraints:
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
 - When refreshing live delivery evidence, update the dated baseline, `CHANGELOG.md`, and full exact SHA atomically; use `scripts/ci/collect_live_merge_evidence.sh` rather than an abbreviated SHA or historical count.
+- Keep rendered delivery evidence concise: link the canonical collector rather than embedding its long shell body, because GitHub truncates oversized code blocks.

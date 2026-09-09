@@ -719,29 +719,34 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("Issue or signal", table)
 
     def test_evidence_commands_reproduce_inventory_checks_and_review_state(self) -> None:
-        """The evidence procedure must paginate the queue and inspect each exact PR head."""
+        """The baseline links to the executable procedure without duplicating it."""
         text = BASELINE.read_text(encoding="utf-8")
         evidence = text.split("## Evidence commands", 1)[1].split("\n## ", 1)[0]
-        shell = evidence.split("```bash", 1)[1].split("```", 1)[0]
+        script = (ROOT / "scripts" / "ci" / "collect_live_merge_evidence.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("[collect_live_merge_evidence.sh]", evidence)
+        self.assertNotIn("```bash", evidence)
 
         for phrase in (
-            "--paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100'",
+            '"repos/$REPOSITORY/pulls?state=open&per_page=100"',
             "set -euo pipefail",
             'EVIDENCE_DIR="$(mktemp -d /tmp/originweave-evidence.XXXXXX)"',
             '"$EVIDENCE_DIR/open-pr-pages.json"',
             "jq '[.[][]]' \"$EVIDENCE_DIR/open-pr-pages.json\"",
-            "--paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/issues?state=open&per_page=100'",
+            '"repos/$REPOSITORY/issues?state=open&per_page=100"',
             '"$EVIDENCE_DIR/open-issue-pages.json"',
             'map(select(has("pull_request") | not))',
             "open_non_pr_issues",
-            '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR"',
-            '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100"',
-            '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100"',
-            '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
-            '"repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
+            '"repos/$REPOSITORY/pulls/$PR"',
+            '"repos/$REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100"',
+            '"repos/$REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100"',
+            '"repos/$REPOSITORY/pulls/$PR/reviews?per_page=100"',
+            '"repos/$REPOSITORY/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
             "check_runs: [$checks[][].check_runs[]?],",
             "legacy_statuses: [$statuses[][][]?]",
-            "workflow_runs: [$workflow_runs[][].workflow_runs[]?],",
+            "workflow_runs: $exact_pr_base_workflow_runs,",
             "reviewThreads(first: 100, after: $endCursor)",
             "rules/branches/main?per_page=100",
             '"$EVIDENCE_DIR/main-branch-rule-pages.json"',
@@ -756,7 +761,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "require_last_push_approval",
             "last_push_approval_authority",
             '"github_rule_evaluation_required"',
-            "if $pull_request_parameters.require_last_push_approval == true then false",
+            "if $require_last_push_approval == true then false",
             "$pr[0].user.login",
             '.type == "workflows"',
             ".parameters.workflows",
@@ -765,20 +770,20 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "for ATTEMPT in 1 2 3; do",
             "RECHECKED_HEAD_SHA=",
             "RECHECKED_BASE_SHA=",
-            'if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]; then',
+            '"$RECHECKED_BASE_SHA" == "$BASE_SHA" &&',
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, shell)
+                self.assertIn(phrase, script)
 
-        self.assertNotIn("while :; do", shell)
-        self.assertNotIn("/tmp/originweave-open-pr", shell)
-        self.assertNotIn("check_runs: [$checks[]?.check_runs[]?],", shell)
-        self.assertNotIn("legacy_statuses: [$statuses[][]?]", shell)
-        self.assertNotIn("workflow_runs: [$workflow_runs[]?.workflow_runs[]?],", shell)
-        self.assertNotIn("$reviews[][]?\n          | select(.state", shell)
-        self.assertNotIn("head-commit.json", shell)
-        self.assertNotIn("$head_commit[0].committer.login", shell)
-        self.assertNotIn("$head_commit[0].author.login", shell)
+        self.assertNotIn("while :; do", script)
+        self.assertNotIn("/tmp/originweave-open-pr", script)
+        self.assertNotIn("check_runs: [$checks[]?.check_runs[]?],", script)
+        self.assertNotIn("legacy_statuses: [$statuses[][]?]", script)
+        self.assertNotIn("workflow_runs: [$workflow_runs[]?.workflow_runs[]?],", script)
+        self.assertNotIn("$reviews[][]?\n          | select(.state", script)
+        self.assertNotIn("head-commit.json", script)
+        self.assertNotIn("$head_commit[0].committer.login", script)
+        self.assertNotIn("$head_commit[0].author.login", script)
 
 
 if __name__ == "__main__":
