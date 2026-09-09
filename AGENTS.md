@@ -132,6 +132,7 @@ A release requires all current-head checks, complete coverage and docs, updated 
 
 - When updating a delivery checkpoint, separate a verified predecessor from a newer pending head. A passing coverage summary does not validate a fixture that ignores peer errors; preserve the failing reproduction and the repaired wire-level assertions in the evidence trail.
 - A live-inventory contract must update its dated baseline, `CHANGELOG.md`, and full exact SHA together. Use `scripts/ci/collect_live_merge_evidence.sh` for reusable head/base evidence; do not infer current state from an abbreviated SHA or a historical inventory line.
+- A regression that verifies a dated baseline cut must select that named cut, not assume it remains the latest heading after a newer live cut is added; run the full Python repository contract suite after changing cut markers.
 
 - Add concise, reproducible lessons here as work establishes them. Keep transient heads, job IDs and incident snapshots in PR evidence, not permanent instructions; never record secret values.
 - Retained receipt recovery is not live-stream recovery. State whether a fixture keeps the original connection open and uses the same endpoint; claim live recovery only when a synchronized test reads and completes the original request after rejecting the replacement reply.

@@ -14,3 +14,4 @@ Additional constraints:
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
 - For volatile gap-baseline refreshes, bind the dated inventory, full PR heads, and `CHANGELOG.md` line to the same live observation; if local rendering is blocked, visually inspect the GitHub-rendered exact head after push.
 - When refreshing live delivery evidence, update the dated baseline, `CHANGELOG.md`, and full exact SHA atomically; use `scripts/ci/collect_live_merge_evidence.sh` rather than an abbreviated SHA or historical count.
+- Date-bound baseline tests must locate their named checkpoint rather than assuming it remains the newest cut; run the complete Python contract suite after changing checkpoint markers.
