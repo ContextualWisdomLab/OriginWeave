@@ -45,24 +45,58 @@ impl WebDriverBidiBrowsingContext {
     }
 }
 
+/// Screen-area fields representable by `emulation.setScreenSettingsOverride`.
+///
+/// Construction accepts only an already validated [`ScreenMetrics`] value and deliberately projects
+/// width and height without carrying color depth. The type therefore cannot be mistaken for the
+/// complete OriginWeave `PresentationSurface::Screen` contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WebDriverBidiScreenArea {
+    width_px: u32,
+    height_px: u32,
+}
+
+impl WebDriverBidiScreenArea {
+    /// Project the protocol-owned width and height from validated presentation screen metrics.
+    #[must_use]
+    pub const fn from_screen(screen: &ScreenMetrics) -> Self {
+        Self {
+            width_px: screen.width(),
+            height_px: screen.height(),
+        }
+    }
+
+    /// Return the web-exposed screen width in CSS pixels.
+    #[must_use]
+    pub const fn width(&self) -> u32 {
+        self.width_px
+    }
+
+    /// Return the web-exposed screen height in CSS pixels.
+    #[must_use]
+    pub const fn height(&self) -> u32 {
+        self.height_px
+    }
+}
+
 /// Typed standard-BiDi presentation command intent for one explicit browsing context.
 ///
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
 /// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
-/// Presentation payloads retain the validated fingerprint value objects so a transport adapter cannot
-/// bypass their bounds by constructing raw screen, viewport, DPR, or time-zone values. Screen-area
-/// commands project only width and height from [`ScreenMetrics`]; they do not control its color-depth
-/// field and therefore do not satisfy the complete `PresentationSurface::Screen` contract. This
-/// reusable-boundary enum deliberately exposes no media-feature mutation command because this crate
-/// has no ownership or snapshot witness that would make such mutation reversibly safe.
+/// Presentation payloads retain validated value objects so a transport adapter cannot reopen raw
+/// screen, viewport, DPR, or time-zone validation. Screen-area commands carry only width and height;
+/// they do not control color depth and therefore do not satisfy the complete
+/// `PresentationSurface::Screen` contract. This reusable-boundary enum deliberately exposes no
+/// media-feature mutation command because this crate has no ownership or snapshot witness that would
+/// make such mutation reversibly safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WebDriverBidiPresentationCommand {
     /// Set web-exposed screen width and height without claiming color-depth control.
     SetScreenArea {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
-        /// Validated screen metrics whose width and height form the protocol screen area.
-        screen: ScreenMetrics,
+        /// Exact standard-BiDi screen-area payload derived from validated screen metrics.
+        screen_area: WebDriverBidiScreenArea,
     },
     /// Set viewport dimensions and device-pixel ratio together.
     SetViewport {
@@ -120,7 +154,7 @@ pub fn plan_standard_presentation_commands(
     [
         WebDriverBidiPresentationCommand::SetScreenArea {
             context: context.clone(),
-            screen: *screen,
+            screen_area: WebDriverBidiScreenArea::from_screen(screen),
         },
         WebDriverBidiPresentationCommand::SetViewport {
             context: context.clone(),
@@ -179,7 +213,7 @@ const WEBDRIVER_BIDI_PRESENTATION_SURFACES: [PresentationSurface; 4] = [
 
 /// Return complete presentation surfaces expressible through the pinned standard BiDi contract.
 ///
-/// The protocol can now plan screen width/height through `emulation.setScreenSettingsOverride`, but
+/// The protocol can plan screen width/height through `emulation.setScreenSettingsOverride`, but
 /// OriginWeave's `Screen` surface also includes color depth, so it remains intentionally absent until
 /// that observable is controlled. Ordered-language surfaces, hardware concurrency, and the Chromium
 /// platform/User-Agent Client Hints surface are also absent. Reduced motion is listed as protocol
@@ -268,6 +302,9 @@ mod tests {
             WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
         assert_eq!(context.as_str(), "context-17");
 
+        let screen_area = WebDriverBidiScreenArea::from_screen(profile.screen());
+        assert_eq!(screen_area.width(), 1920);
+        assert_eq!(screen_area.height(), 1080);
         assert_eq!(
             plan_standard_presentation_commands(
                 &context,
@@ -279,7 +316,7 @@ mod tests {
             [
                 WebDriverBidiPresentationCommand::SetScreenArea {
                     context: context.clone(),
-                    screen: *profile.screen(),
+                    screen_area,
                 },
                 WebDriverBidiPresentationCommand::SetViewport {
                     context: context.clone(),
