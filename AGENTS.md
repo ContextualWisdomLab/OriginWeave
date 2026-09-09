@@ -58,6 +58,13 @@ The organization currently documents a **solo-maintainer** governance condition.
 ## Architecture constraints
 
 - Keep Blink, V8, Skia, Viz, Dawn, Chromium sandboxing, Site Isolation, and Manifest V3 compatibility upstream-aligned.
+- Map browser presentation capabilities only when the protocol proves the complete canonical surface: width and height do not prove screen color depth, and one locale does not prove ordered languages.
+- Keep browser command planning distinct from execution evidence: a typed command intent bound to a validated context has not been sent, acknowledged, or observed by a page.
+- A reusable presentation planner must accept only the explicitly restorable fields, never a complete `PresentationProfile` whose omitted surfaces could be mistaken for applied.
+- When a protocol capability remains discoverable but its unsafe reusable command is removed, update every source-contract assertion to require capability presence and command absence together.
+- Marking a draft Ready can enqueue a new exact-head run; do not merge from an earlier green result until that new run is terminal and re-fetched.
+- Do not assume browser/session teardown removed presentation overrides; model explicit cleanup for every override a presentation plan emits and require post-cleanup observation before reusing a browser boundary.
+- Pin protocol provenance to the immutable dated W3C TR URI; a mutable latest page or lagging index must not silently redefine the capability contract.
 - New product logic belongs in Rust control-plane modules behind narrow adapters.
 - Rust crates must remain independently understandable and reusable.
 - Keep logical origin, resolved destination, operating-system TCP peer, TLS service identity, proxy route, and HTTP semantics as separate authority boundaries.
@@ -70,6 +77,10 @@ The organization currently documents a **solo-maintainer** governance condition.
 - Persistent database objects use two-or-more-word `snake_case` names.
 
 ## Rust quality contract
+
+### Verified maintenance lessons
+
+- Run `cargo fmt --all -- --check` before publishing a Rust slice: a formatting-only diff can fail Rust contracts before tests, Clippy, and rustdoc run.
 
 - Rust 1.97.1 is the supported build baseline unless an ADR changes it.
 - `unsafe` is forbidden in first-party crates unless a narrowly scoped ADR, safety proof, and dedicated test suite are approved.

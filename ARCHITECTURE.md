@@ -145,6 +145,10 @@ claim that the browser presents the profile. A versioned Chromium adapter must
 apply every released surface before page script and prove that unsupported
 surfaces do not silently fall back to ambient host values.
 
+### `originweave-bidi`
+
+Owns the narrow WebDriver BiDi adapter contract that is expressible by one explicit specification revision. The active slice pins the W3C WebDriver BiDi Working Draft published on 3 September 2026 at `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/` and delegates complete-profile admission back to `originweave-fingerprint`. Standard BiDi covers viewport, device-pixel-ratio, timezone, and reduced-motion surfaces. Its width/height screen command cannot prove the kernel's complete screen-and-color-depth surface, and its single locale cannot prove ordered language preferences; hardware concurrency and the complete Chromium platform/User-Agent Client Hints surface also remain outside the standard set. The adapter therefore fails first on `Screen` rather than inheriting ambient Chromium values. It can plan two typed reusable-context commands—viewport/DPR and timezone—for one bounded opaque browsing-context identifier. Reduced motion remains an expressible protocol capability, but the reusable plan does not install it because `features: null` removes the target's complete media-feature override configuration rather than restoring prior state. Generic cleanup therefore resets only viewport/DPR and timezone. No caller-mintable exclusive-reset type is exposed; a Browser Session owner must instead prove a disposable context lifecycle or restore the complete prior media configuration. Planning sends nothing and proves neither acknowledgement, cleanup, ownership, nor page-visible state. Transport, post-condition observation, and reusable-context media restoration require the pinned Chromium/BiDi path and, for Chromium-only surfaces, a separate versioned `originweave-cdp` adapter.
+
 ## 6. Planned modules
 
 ```text
@@ -154,7 +158,6 @@ originweave-http          request, response, redirect, and elapsed-time budgets
 originweave-observation   AX + DOM + layout + network semantic snapshots
 originweave-action        typed browser actions and post-condition verification
 originweave-secret        opaque secret broker and trusted fill channel
-originweave-bidi          WebDriver BiDi adapter
 originweave-cdp           versioned Chromium DevTools Protocol adapter
 originweave-mcp           external MCP server
 originweave-protocol      Browser Agent Protocol schemas and compatibility

@@ -44,17 +44,21 @@ Neither protected main nor PR #170 implements Streamable HTTP transport parsing,
 
 The version boundary is explicit: the protected-main routing foundation and active discovery refinement accept only MCP `2026-07-28`; neither infers compatibility with later protocol generations. OriginWeave Protocol versioning remains independent and cannot be changed by MCP metadata.
 
+PR #293 is a separate active, stacked browser-adapter slice on top of presentation-identity prerequisite #229. It introduces a narrow `originweave-bidi` capability boundary pinned to the immutable 3 September 2026 published WebDriver BiDi Working Draft URI. The capability map delegates complete-profile admission to `originweave-fingerprint` and intentionally excludes `Screen`, `Languages`, `HardwareConcurrency`, and `Platform`: the standard screen command omits color depth, while the locale command cannot prove ordered language preferences. Standard BiDi alone must therefore return the kernel's first `MissingSurface(Screen)` result rather than accept ambient host values. The branch can derive typed viewport/DPR and timezone command intents plus matching cleanup intents for one bounded reusable browsing-context identifier. Reduced motion remains an expressible protocol capability but is excluded from the reusable plan because the standard cannot selectively restore prior media state; no caller-mintable exclusive-reset type substitutes for Browser Session lifecycle evidence. Planning does not send a command, create an acknowledgement, apply or prove cleanup of a profile, or produce page-observed evidence. Those remain #292 follow-up work and require exact-head verification plus a version-pinned Chromium/CDP adapter for the remainder.
+
 ## Consequences
 
 OriginWeave carries adapter maintenance and version negotiation but gains a durable customer API. Multiple browser/control transports can coexist. New upstream capabilities do not silently change risk or action semantics. Compatibility matrices become release artifacts.
 
 ## Failure and degraded behavior
 
-Adapter negotiation failure disables only affected capabilities. Unsupported or schema-incompatible messages fail closed with typed errors. OriginWeave must not bypass a failed adapter by exposing raw CDP or arbitrary JavaScript to an autonomous model. A standards adapter may fall back to a pinned vendor adapter only when the same OriginWeave semantic and security contract is proven.
+Adapter negotiation failure disables only affected capabilities. Unsupported or schema-incompatible messages fail closed with typed errors. OriginWeave must not bypass a failed adapter by exposing raw CDP or arbitrary JavaScript to an autonomous model. A standards adapter may fall back to a pinned vendor adapter only when the same OriginWeave semantic and security contract is proven. A partial presentation-emulation capability set is unsupported for complete-profile admission; it cannot be completed with ambient browser values.
 
 ## Security / privacy / governance impact
 
 Protocol validation occurs before messages influence policy. Tool/page-provided strings remain untrusted. Method and tool routing metadata is shape-bounded before correlation, preventing malformed or oversized untrusted routing strings from being reinterpreted through mismatch handling. Secret handles never become raw secret protocol payloads; only the separately authorized trusted broker-to-browser delivery path may materialize the value, and that value does not pass through MCP, WebMCP, BiDi observation, or model-visible CDP output. Adapter version/provenance is recorded for audit and incident reconstruction.
+
+For presentation emulation, protocol availability is not presentation evidence. The adapter must bind its capability claim to an explicit protocol/browser revision, fail closed on missing required surfaces, clear every override that its presentation plan establishes before reuse is treated as clean, and later prove page-visible state after application and cleanup. Neither a protocol command acknowledgement nor an unobserved browser setting is sufficient evidence.
 
 ## Tests and acceptance evidence
 
@@ -62,13 +66,15 @@ Require version-negotiation tests, schema/property tests, malformed-message test
 
 For the protected-main `tools/call` foundation, acceptance includes deterministic method and tool-name bounds/syntax, exact header/body method and tool-name correlation only after both sides are bounded, explicit invalid-method/invalid-tool-name/unknown-tool rejection, one unambiguous tool-to-action registry, independent capability/risk expectations, route/action mismatch denial before ordinary policy evaluation, exact 100% owned-production coverage, and integrated review evidence from PR #168. For active PR #170, exact-current acceptance additionally requires bounded protocol metadata before cross-field comparison, required client-capabilities presence, bounded `tools/list` method correlation, rejection of unissued cursors, deterministic result/cache semantics, exact 100% owned-production coverage, and unchanged-head CI/security/review evidence. These checks do not substitute for complete transport or adapter conformance.
 
+For PR #293, acceptance of this first capability-boundary slice requires a regression that fails on #229 because no `originweave-bidi` bounded context or pinned presentation-capability map exists, a cleanup regression that refuses to leave any override emitted by the standard presentation plan behind, then exact-head Rust/Python/rustdoc/Clippy/coverage verification that the minimal adapter compiles and that the pinned standard set fails with the canonical fingerprint-kernel missing-surface error. This is not acceptance of #292 as a whole. Real pinned-Chromium application, page-observed post-condition evidence, navigation/renderer/crash/cleanup behavior, and the Chromium-only CDP remainder still require realistic browser E2E.
+
 ## Migration and rollback
 
 Adapters are independently versioned and can be canaried. Clients migrate through OriginWeave Protocol compatibility rules, not upstream protocol rewrites. Rollback pins a previously supported adapter/browser/protocol pair and records that pair in provenance.
 
 ## Open follow-ups
 
-Define internal protocol versioning rules, adapter capability descriptors, minimum supported BiDi level, CDP pin policy, complete MCP Streamable HTTP/request-metadata validation, MCP transport serialization, authenticated deployment, and MCP/WebMCP schema isolation.
+Define internal protocol versioning rules, complete MCP Streamable HTTP/request-metadata validation, MCP transport serialization, authenticated deployment, and MCP/WebMCP schema isolation. For presentation identity, implement the exact pinned Chromium/BiDi command path, a narrow version-pinned `originweave-cdp` capability owner for required non-BiDi surfaces, post-application and post-cleanup page observation, navigation/renderer invalidation, crash/cleanup behavior, and release compatibility evidence.
 
 ## Supersession / reversal conditions
 
@@ -76,7 +82,9 @@ Supersede if one mature standard gains all required capabilities, stable compati
 
 ## References
 
-Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol — latest (tip-of-tree)*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
+Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol — latest (tip-of-tree)*. Chromium. Retrieved September 7, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
+
+Chrome DevTools Protocol. (2026). *Emulation domain*. Chromium. Retrieved September 7, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/Emulation/
 
 Chrome DevTools Protocol. (2026). *WebMCP domain*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/
 
@@ -84,7 +92,7 @@ Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://mo
 
 Parra, D. S., & Delimarsky, D. (2026, July 28). *The 2026-07-28 specification*. Model Context Protocol Blog. https://blog.modelcontextprotocol.io/posts/2026-07-28/
 
-World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
 ## Related documents
 
