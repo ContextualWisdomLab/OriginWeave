@@ -54,7 +54,8 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("ResetViewport", text)
         self.assertIn("SetTimezone", text)
         self.assertIn("ResetTimezone", text)
-        self.assertIn("SetReducedMotion", text)
+        self.assertIn("PresentationSurface::ReducedMotion", text)
+        self.assertNotIn("SetReducedMotion", text)
 
     def test_presentation_documentation_tracks_published_wd_and_cleanup_symmetry(self) -> None:
         """Architecture, changelog, and doctoring must describe the same pinned adapter contract."""
@@ -82,7 +83,8 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertNotIn("plan_exclusive_presentation_media_cleanup", text)
         self.assertIn("plan_standard_presentation_commands", text)
         self.assertIn("plan_standard_presentation_cleanup", text)
-        self.assertIn("SetReducedMotion", text)
+        self.assertIn("PresentationSurface::ReducedMotion", text)
+        self.assertNotIn("SetReducedMotion", text)
 
         standard_apply = text.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
         standard_apply = standard_apply.split(
@@ -95,6 +97,53 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             "pub const WEBDRIVER_BIDI_PRESENTATION_REVISION", maxsplit=1
         )[0]
         self.assertNotIn("ResetMediaFeatures", standard_cleanup)
+
+    def test_reusable_plan_cannot_be_mistaken_for_complete_profile_application(self) -> None:
+        """The reusable planner must require the explicitly admitted fields only."""
+
+        source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
+        text = source.read_text(encoding="utf-8")
+        standard_apply = text.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
+        standard_apply = standard_apply.split(") ->", maxsplit=1)[0]
+
+        self.assertNotIn("profile: &PresentationProfile", standard_apply)
+        self.assertIn("viewport: &ViewportBounds", standard_apply)
+        self.assertIn("device_pixel_ratio: DevicePixelRatio", standard_apply)
+        self.assertIn("timezone: PresentationTimeZone", standard_apply)
+
+    def test_public_command_intents_carry_validated_presentation_value_objects(self) -> None:
+        """Public command construction must not reopen validation already owned by the kernel."""
+
+        source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
+        text = source.read_text(encoding="utf-8")
+        command_enum = text.split("pub enum WebDriverBidiPresentationCommand", maxsplit=1)[1]
+        command_enum = command_enum.split(
+            "pub fn plan_standard_presentation_commands", maxsplit=1
+        )[0]
+
+        self.assertIn("viewport: ViewportBounds", command_enum)
+        self.assertIn("device_pixel_ratio: DevicePixelRatio", command_enum)
+        self.assertIn("timezone: PresentationTimeZone", command_enum)
+        self.assertNotIn("width: u32", command_enum)
+        self.assertNotIn("height: u32", command_enum)
+        self.assertNotIn("device_pixel_ratio: f64", command_enum)
+        self.assertNotIn("timezone: String", command_enum)
+
+    def test_top_level_docs_distinguish_planning_boundary_from_live_bidi_transport(self) -> None:
+        """Active-branch planning code must not be documented as either absent or live transport."""
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "docs/product-roadmap.md").read_text(encoding="utf-8")
+
+        self.assertIn("`originweave-bidi` capability and command-planning boundary", readme)
+        self.assertIn("live WebDriver BiDi transport remains planned", readme)
+        self.assertNotIn(
+            "Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped",
+            readme,
+        )
+        self.assertIn("live WebDriver BiDi transport", roadmap)
+        self.assertIn("version-pinned capability and command-planning boundary", roadmap)
+        self.assertNotIn("- WebDriver BiDi adapter behind a versioned interface;", roadmap)
 
 
 if __name__ == "__main__":

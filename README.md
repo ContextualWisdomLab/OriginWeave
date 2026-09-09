@@ -4,7 +4,7 @@
 
 OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, accepting an unauthenticated web service, or losing the evidence required to explain what happened.
 
-> Project status: pre-alpha. The current protected repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, authenticated TLS service-identity, and bounded MCP `2026-07-28` stateless `tools/call` routing/policy foundations. Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped. Active PR #170 implements only conservative `tools/list` discovery metadata on top of the protected-main MCP catalog; it remains non-shipped active-PR evidence and does not make the complete MCP adapter available.
+> Project status: pre-alpha. The current protected repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, authenticated TLS service-identity, and bounded MCP `2026-07-28` stateless `tools/call` routing/policy foundations. Live Chromium control, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped. This active branch adds an `originweave-bidi` capability and command-planning boundary for a pinned standard revision; live WebDriver BiDi transport remains planned, and open-PR code is not protected-main shipment. Active PR #170 implements only conservative `tools/list` discovery metadata on top of the protected-main MCP catalog; it remains non-shipped active-PR evidence and does not make the complete MCP adapter available.
 
 ## Why OriginWeave
 
@@ -37,6 +37,7 @@ The repository is organized as independently consumable Rust crates:
 - `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-network`: direct-only, single-use TCP connection plans that bind an approved canonical address to the exact operating-system peer and emit credential-free evidence.
 - `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
+- `originweave-bidi`: active-branch, version-pinned capability and command-planning boundary for validated reusable viewport/DPR and timezone intents. It performs no live protocol transport and does not turn command construction into acknowledgement or page-observed evidence.
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 

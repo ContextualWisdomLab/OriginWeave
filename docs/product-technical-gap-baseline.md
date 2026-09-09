@@ -2,6 +2,12 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
+## Live continuity note: 2026-09-09
+
+- Protected `main` was re-fetched at `87c4daa1830bac5a5228b6036752ad5633232085`. Issue #292 remains open; its buyer-visible acceptance is still pinned Chromium application followed by page-observed and post-cleanup evidence.
+- Draft #293 (`476a8e09aa1aa7ab2e87cf7452a8ecfca47bf9c1`) is only the versioned standard-BiDi capability boundary. Its reusable command API previously accepted a complete profile despite planning only viewport/DPR and timezone. The active successor makes that partiality explicit at the type boundary; it is not Chromium runtime evidence or protected-main behavior.
+- The next executable owner path remains the existing pinned-Chrome Agent Task lane, not a second browser runner: apply admitted overrides before navigation, read the controlled fixture's declared observations through bounded DOM endpoints, then prove explicit reset or owned-boundary destruction. Command acknowledgement and session teardown alone remain non-passing.
+
 ## Observed snapshot: 2026-08-26
 
 ### Protected-main truth
