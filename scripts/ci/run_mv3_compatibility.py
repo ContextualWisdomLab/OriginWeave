@@ -82,8 +82,16 @@ class BrowserProfileCleanupError(RuntimeError):
         primary_error: BaseException | None = None,
     ) -> None:
         self.cleanup_error_type = type(cleanup_error).__name__
+        self.session_cleanup_error_type = (
+            primary_error.cleanup_error_type
+            if isinstance(primary_error, BrowserSessionCleanupError)
+            else None
+        )
         self.primary_error_type = (
-            type(primary_error).__name__ if primary_error is not None else None
+            primary_error.primary_error_type
+            if isinstance(primary_error, BrowserSessionCleanupError)
+            and primary_error.primary_error_type is not None
+            else type(primary_error).__name__ if primary_error is not None else None
         )
         super().__init__(
             "browser profile cleanup failed; see the chained causal browser failure"
@@ -1154,6 +1162,13 @@ def main() -> int:
                     (BrowserSessionCleanupError, BrowserProfileCleanupError),
                 ):
                     failed_trial["cleanup_error_type"] = error.cleanup_error_type
+                    if (
+                        isinstance(error, BrowserProfileCleanupError)
+                        and error.session_cleanup_error_type is not None
+                    ):
+                        failed_trial["session_cleanup_error_type"] = (
+                            error.session_cleanup_error_type
+                        )
                     if error.primary_error_type is not None:
                         failed_trial["failure_cause_type"] = error.primary_error_type
                 agent_task_trials.append(failed_trial)
