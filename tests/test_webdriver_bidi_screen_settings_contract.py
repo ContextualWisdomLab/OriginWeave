@@ -31,20 +31,30 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
         screen_metrics = screen_metrics.split("impl ScreenMetrics", maxsplit=1)[0]
         planner = source.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
         planner = planner.split("pub fn plan_standard_presentation_cleanup", maxsplit=1)[0]
+        cleanup = source.split("pub fn plan_standard_presentation_cleanup", maxsplit=1)[1]
+        cleanup = cleanup.split(
+            "pub const WEBDRIVER_BIDI_PRESENTATION_REVISION", maxsplit=1
+        )[0]
 
         models_available_screen_area = (
             "available_width" in screen_metrics
             and "available_height" in screen_metrics
         )
-        profile_plans_screen_override = (
-            "screen: &ScreenMetrics" in planner and "SetScreenArea" in planner
-        )
+        if models_available_screen_area:
+            return
 
-        self.assertTrue(
-            models_available_screen_area or not profile_plans_screen_override,
+        self.assertNotIn(
+            "SetScreenArea",
+            planner,
             "WebDriver BiDi screen settings override also changes screen.availWidth/availHeight; "
             "the reusable profile-derived plan must model those observables or keep the override "
             "behind a separately explicit partial intent",
+        )
+        self.assertNotIn(
+            "ResetScreenArea",
+            cleanup,
+            "generic reusable cleanup must not clear a screen override that the generic plan did "
+            "not own or install",
         )
 
     def test_explicit_cleanup_uses_context_scoped_screen_area_reset(self) -> None:
