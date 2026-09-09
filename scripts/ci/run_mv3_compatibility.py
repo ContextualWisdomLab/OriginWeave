@@ -37,6 +37,10 @@ PINNED_CHROME_REVISION = "r1639810"
 REPEATABILITY_TRIALS = 3
 AGENT_TASK_REPEATABILITY_TRIALS = 3
 AGENT_TASK_INPUT_VALUE = "originweave controlled input"
+PRESENTATION_VIEWPORT_WIDTH = 1200
+PRESENTATION_VIEWPORT_HEIGHT = 800
+PRESENTATION_DEVICE_PIXEL_RATIO = 2
+PRESENTATION_TIMEZONE = "Pacific/Kiritimati"
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
@@ -228,6 +232,78 @@ def _get_element_semantics(
     if not isinstance(role, str) or not isinstance(label, str):
         raise RuntimeError("WebDriver returned malformed element semantics")
     return role, label
+
+
+def _presentation_cdp_path(session_id: str) -> str:
+    """Return ChromeDriver's fixed vendor endpoint for this exact session."""
+
+    return _webdriver_path(session_id, "/goog/cdp/execute")
+
+
+def _apply_presentation_probe(driver_port: int, session_id: str) -> None:
+    """Apply only the pinned viewport, DPR, and timezone probe before navigation."""
+
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {
+            "cmd": "Emulation.setDeviceMetricsOverride",
+            "params": {
+                "width": PRESENTATION_VIEWPORT_WIDTH,
+                "height": PRESENTATION_VIEWPORT_HEIGHT,
+                "deviceScaleFactor": PRESENTATION_DEVICE_PIXEL_RATIO,
+                "mobile": False,
+            },
+        },
+    )
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {
+            "cmd": "Emulation.setTimezoneOverride",
+            "params": {"timezoneId": PRESENTATION_TIMEZONE},
+        },
+    )
+
+
+def _reset_presentation_probe(driver_port: int, session_id: str) -> None:
+    """Remove the exact probe overrides before reusing the browser session."""
+
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {"cmd": "Emulation.clearDeviceMetricsOverride", "params": {}},
+    )
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {"cmd": "Emulation.setTimezoneOverride", "params": {"timezoneId": ""}},
+    )
+
+
+def _read_presentation_probe(driver_port: int, session_id: str) -> dict[str, str]:
+    """Read only declared fixture observations through bounded element endpoints."""
+
+    observed: dict[str, str] = {}
+    for key, selector in {
+        "viewport": "#presentation-viewport",
+        "device_pixel_ratio": "#presentation-device-pixel-ratio",
+        "timezone": "#presentation-timezone",
+    }.items():
+        element_id = _find_element(driver_port, session_id, selector)
+        value = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(session_id, element_id, "/text"),
+        ).get("value")
+        if not isinstance(value, str):
+            raise RuntimeError("presentation probe observation was malformed")
+        observed[key] = value
+    return observed
 
 
 def _cleanup_browser_session(driver_port: int, session_id: str) -> None:
@@ -634,6 +710,21 @@ def _run_agent_task_browser_pass(
         ).get("value")
         if initial_url != fixture_url:
             raise RuntimeError("Agent Task initial URL mismatch")
+        baseline_presentation = _read_presentation_probe(driver_port, session_id)
+        _apply_presentation_probe(driver_port, session_id)
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        applied_presentation = _read_presentation_probe(driver_port, session_id)
+        if applied_presentation != {
+            "viewport": f"{PRESENTATION_VIEWPORT_WIDTH}x{PRESENTATION_VIEWPORT_HEIGHT}",
+            "device_pixel_ratio": str(PRESENTATION_DEVICE_PIXEL_RATIO),
+            "timezone": PRESENTATION_TIMEZONE,
+        }:
+            raise RuntimeError("presentation probe post-condition failed")
         input_element = _find_element(driver_port, session_id, "#task-text")
         input_role, input_name = _get_element_semantics(
             driver_port,
@@ -745,6 +836,16 @@ def _run_agent_task_browser_pass(
         url_unchanged = url_unchanged and accepted_outcome_url == initial_url
         if not url_unchanged:
             raise RuntimeError("Agent Task URL changed before accepted outcome")
+        _reset_presentation_probe(driver_port, session_id)
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        cleanup_presentation = _read_presentation_probe(driver_port, session_id)
+        if cleanup_presentation != baseline_presentation:
+            raise RuntimeError("presentation probe cleanup post-condition failed")
         return {
             "browser_version": browser_version,
             "pre_action_baseline_verified": True,
@@ -757,6 +858,8 @@ def _run_agent_task_browser_pass(
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
             "extensions_disabled_requested": True,
+            "presentation_applied": True,
+            "presentation_cleanup_verified": True,
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
     finally:
@@ -829,6 +932,8 @@ def _run_agent_task_trial(
         "input_semantics_verified": result["input_semantics_verified"],
         "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled_requested": result["extensions_disabled_requested"],
+        "presentation_applied": result["presentation_applied"],
+        "presentation_cleanup_verified": result["presentation_cleanup_verified"],
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
     }
@@ -850,6 +955,8 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
         and trial.get("url_unchanged") is True
         and trial.get("input_semantics_verified") is True
         and trial.get("submit_semantics_verified") is True
+        and trial.get("presentation_applied") is True
+        and trial.get("presentation_cleanup_verified") is True
         and trial.get("profile_cleaned") is True
         for trial in agent_task_trials
     )

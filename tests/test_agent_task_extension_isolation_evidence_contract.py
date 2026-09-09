@@ -35,12 +35,16 @@ class AgentTaskExtensionIsolationEvidenceContractTests(unittest.TestCase):
             "trial_number": 1,
             "passed": True,
             "pre_action_baseline_verified": True,
+            "clear_value_verified": True,
+            "input_value_verified": True,
             "pre_click_baseline_verified": True,
             "post_condition": True,
             "input_echo_verified": True,
             "url_unchanged": True,
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
+            "presentation_applied": True,
+            "presentation_cleanup_verified": True,
             "profile_cleaned": True,
         }
 

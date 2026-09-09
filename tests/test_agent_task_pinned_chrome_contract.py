@@ -56,6 +56,38 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_presentation_probe_uses_fixed_cdp_commands_and_dom_observation(self) -> None:
+        """The Chromium probe must apply and reset fixed overrides without page-supplied code."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="presentation_probe_contract")
+        for expected in (
+            "PRESENTATION_VIEWPORT_WIDTH",
+            "PRESENTATION_VIEWPORT_HEIGHT",
+            "PRESENTATION_DEVICE_PIXEL_RATIO",
+            "PRESENTATION_TIMEZONE",
+            "_apply_presentation_probe",
+            "_reset_presentation_probe",
+            "_read_presentation_probe",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, namespace)
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('"Emulation.setDeviceMetricsOverride"', runner)
+        self.assertIn('"Emulation.setTimezoneOverride"', runner)
+        self.assertIn('"Emulation.clearDeviceMetricsOverride"', runner)
+        self.assertIn('"#presentation-viewport"', runner)
+        self.assertNotIn('"/execute/sync"', inspect.getsource(namespace["_read_presentation_probe"]))
+
+        fixture = FIXTURE.read_text(encoding="utf-8")
+        for expected in (
+            'id="presentation-viewport"',
+            'id="presentation-device-pixel-ratio"',
+            'id="presentation-timezone"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, fixture)
+
     def test_agent_task_state_failure_does_not_echo_page_controlled_value(self) -> None:
         """A hostile DOM state must not become an exception or CI diagnostic payload."""
 
@@ -227,6 +259,8 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                         "input_semantics_verified": True,
                         "submit_semantics_verified": True,
                         "extensions_disabled_requested": True,
+                        "presentation_applied": True,
+                        "presentation_cleanup_verified": True,
                         "profile_cleaned": True,
                     }
                 ]
@@ -334,6 +368,8 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "input_semantics_verified": True,
                 "submit_semantics_verified": True,
                 "extensions_disabled_requested": True,
+                "presentation_applied": True,
+                "presentation_cleanup_verified": True,
                 "profile_cleaned": True,
             }
 
