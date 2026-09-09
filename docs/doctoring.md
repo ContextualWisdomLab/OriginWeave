@@ -51,42 +51,32 @@ that a non-mobile user agent reports an empty model (see ADR 0112).
 The pinned 3 September 2026 WebDriver BiDi Working Draft exposes locale, media,
 screen, user-agent, viewport, and time-zone emulation commands under the immutable
 publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. The screen
-settings shape contains width and height but not color depth, and locale accepts one
-value rather than an ordered language list, so neither proves the corresponding
-complete OriginWeave surface. The 9 September 2026 Working Draft retains the relevant
-`emulation.setScreenSettingsOverride` shape; that publication update is tracked
-separately and does not silently repin runtime compatibility.
+shape contains width and height but not color depth, and locale accepts one value
+rather than an ordered language list, so neither proves the corresponding complete
+OriginWeave surface. The draft also does not define a hardware-concurrency
+override. Chromium's tip-of-tree DevTools Protocol exposes
+`Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
+tip-of-tree commands can change without notice. OriginWeave therefore records
+required presentation surfaces in a protocol-neutral Rust admission contract;
+the adapter records those four complete standard surfaces as protocol
+capabilities, while the reusable-context plan emits only two typed command
+intents—viewport/DPR and timezone—bound to one bounded opaque browsing context.
 
-The screen-settings operation has a second page-observable effect that the earlier
-planner description omitted: the specification applies the same `screenArea`
-rectangle to both the web-exposed total screen area and the web-exposed available
-screen area. OriginWeave `ScreenMetrics` currently models width, height, and color
-depth but not `screen.availWidth` or `screen.availHeight`. A reusable profile-derived
-planner therefore cannot silently schedule this operation merely because it has a
-nullable reset. PR #310 keeps the typed `WebDriverBidiScreenArea` capability and its
-context-scoped reset, but exposes them as a separately explicit partial intent; the
-ordinary reusable plan remains viewport/DPR plus timezone until available-screen
-geometry is deliberately represented and digest-bound by the presentation identity.
-Complete `PresentationSurface::Screen` admission remains fail-closed because color
-depth is still uncontrolled as well.
-
-The draft does not define a hardware-concurrency override. Chromium's tip-of-tree
-DevTools Protocol exposes `Emulation.setHardwareConcurrencyOverride` as Experimental
-and warns that tip-of-tree commands can change without notice. OriginWeave therefore
-records required presentation surfaces in a protocol-neutral Rust admission contract.
-Reduced motion remains an expressible protocol capability, but the reusable-context
-plan neither installs it nor emits a media reset because
-`emulation.setMediaFeaturesOverride` with `features: null` clears the complete media
-configuration rather than selectively reversing only `prefers-reduced-motion`.
-No caller-mintable exclusive reset substitutes for Browser Session ownership evidence.
-Constructing application or cleanup intents performs no transport I/O and cannot be
-treated as acknowledgement, successful cleanup, ownership evidence, or page-observed
-presentation evidence. A later pinned Chromium adapter must capability-negotiate every
-surface, observe post-conditions after apply and cleanup, and either prove exclusive
-disposable context ownership or restore the complete pre-existing configuration before
-reusing the browser boundary. The focused screen-area evidence and alternatives are
-recorded in `docs/doctoring/webdriver-bidi-screen-area.md` and
-`docs/traceability/webdriver-bidi-screen-area-planning.md`.
+Cleanup authority is asymmetric. Nullable viewport and timezone operations can
+restore those adapter-owned overrides on a reusable context, so generic cleanup
+plans reset viewport/DPR and timezone. By contrast,
+`emulation.setMediaFeaturesOverride` with `features: null` unsets the target's
+complete media-feature override configuration rather than selectively reversing
+only `prefers-reduced-motion`. The reusable-context plan therefore neither
+installs reduced motion nor emits a media reset. No caller-mintable exclusive
+reset is exposed as ownership evidence; a Browser Session owner must prove a
+disposable context lifecycle or restore the complete prior media configuration. Constructing application or cleanup
+intents performs no transport I/O and cannot be treated as acknowledgement,
+successful cleanup, ownership evidence, or page-observed presentation evidence.
+A later pinned Chromium adapter must capability-negotiate every surface, observe
+post-conditions after apply and cleanup, and either prove exclusive disposable
+context ownership or restore the complete pre-existing media configuration
+before reusing the browser boundary.
 
 ### Extension-to-Agent grant origin binding
 
@@ -275,8 +265,6 @@ Web Platform Incubator Community Group. (2026, February 10). *User-Agent Client 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
 World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
-
-World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
