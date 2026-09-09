@@ -73,12 +73,13 @@ class FixtureServerEvidencePublicationContractTests(unittest.TestCase):
                 "passed": not fail_trials,
             }
 
-        namespace["_start_fixture_server"] = start_fixture_server
-        namespace["_stop_fixture_server"] = stop_fixture_server
-        namespace["_run_restart_trial"] = run_restart_trial
-        namespace["_run_agent_task_trial"] = run_agent_task_trial
-        namespace["_agent_task_surfaces_complete"] = lambda _trials: not fail_trials
-        namespace["print"] = lambda *_args, **_kwargs: events.append("evidence")
+        main_globals = namespace["main"].__globals__
+        main_globals["_start_fixture_server"] = start_fixture_server
+        main_globals["_stop_fixture_server"] = stop_fixture_server
+        main_globals["_run_restart_trial"] = run_restart_trial
+        main_globals["_run_agent_task_trial"] = run_agent_task_trial
+        main_globals["_agent_task_surfaces_complete"] = lambda _trials: not fail_trials
+        main_globals["print"] = lambda *_args, **_kwargs: events.append("evidence")
 
         error: Exception | None = None
         with tempfile.TemporaryDirectory() as temp_dir:

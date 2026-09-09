@@ -2,6 +2,13 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
+## Live continuity note: 2026-09-09
+
+- The next #292 evidence slice is stacked on the existing pinned-Chrome Agent Task owner. It uses fixed Chromium CDP viewport/DPR/timezone commands, static fixture DOM observations, an observed pre-override baseline, and observed explicit-reset restoration. It is active-PR evidence only until the exact Chrome for Testing job succeeds.
+- A failed Agent Task session start records only the bounded credential-free WebDriver failure category; this consumer neither captures nor classifies ChromeDriver startup/process diagnostics. Those diagnostics belong to their canonical owner lane, and no remote or local diagnostic text enters CI evidence.
+- Historical #299 browser job `34316793780` on `f8cb436c` classified all three pre-navigation failures as `sandbox`. The remediation remains the canonical `.github#1792` sandbox-helper workflow contract, not a leaf workflow copy or `--no-sandbox`; owner PR `.github#1857` and its CodeQL wake-race successor `.github#2056` remain unreleased, so consumer evidence is blocked pending immutable owner adoption and a fresh three-trial replay.
+- This runner proves a narrow browser-evidence contract, not a product Browser Session implementation. It does not transfer #293's standard-BiDi capability boundary into protected main or claim full-profile admission.
+
 ## Observed snapshot: 2026-08-26
 
 ### Protected-main truth

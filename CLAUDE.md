@@ -11,4 +11,8 @@ Additional constraints:
 - Do not merge logical origin, destination authorization, direct TCP peer proof, TLS service identity, proxy routing, or HTTP resource policy into one ambient authority.
 - Do not add hostname reconnect, proxy-environment inheritance, dangerous certificate-verifier hooks, Common Name fallback, TLS 0-RTT, key logging, or secret extraction to a production TLS path.
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
+- Browser presentation probes use fixed CDP commands and static-fixture DOM observations only; never turn page content into executable input.
+- Read hidden fixture observations through the bounded `textContent` property, and require every pre-override value to differ from its target before accepting a presentation transition.
+- Preserve only a closed WebDriver category in browser evidence; ChromeDriver startup/process diagnostics remain in their canonical owner lane, and diagnostic text is never serialized.
+- Treat hosted Ubuntu sandbox remediation as a `.github` workflow-owner dependency; preserve Chromium sandboxing and require a released helper contract before rerunning browser evidence.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.

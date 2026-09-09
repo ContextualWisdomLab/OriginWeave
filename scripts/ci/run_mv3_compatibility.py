@@ -37,6 +37,10 @@ PINNED_CHROME_REVISION = "r1639810"
 REPEATABILITY_TRIALS = 3
 AGENT_TASK_REPEATABILITY_TRIALS = 3
 AGENT_TASK_INPUT_VALUE = "originweave controlled input"
+PRESENTATION_VIEWPORT_WIDTH = 1200
+PRESENTATION_VIEWPORT_HEIGHT = 800
+PRESENTATION_DEVICE_PIXEL_RATIO = 2
+PRESENTATION_TIMEZONE = "Pacific/Kiritimati"
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
@@ -55,8 +59,18 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
 class BrowserSessionCleanupError(RuntimeError):
     """Report bounded WebDriver-session cleanup failure without echoing remote text."""
 
-    def __init__(self, cleanup_error: BaseException) -> None:
+    def __init__(
+        self,
+        cleanup_error: BaseException,
+        primary_error: BaseException | None = None,
+    ) -> None:
         self.cleanup_error_type = type(cleanup_error).__name__
+        if isinstance(primary_error, AgentTaskSessionStartError):
+            self.primary_error_type = primary_error.session_error_type
+        else:
+            self.primary_error_type = (
+                type(primary_error).__name__ if primary_error is not None else None
+            )
         super().__init__(
             "WebDriver session cleanup failed; see the chained causal browser failure"
         )
@@ -65,19 +79,46 @@ class BrowserSessionCleanupError(RuntimeError):
 class BrowserProfileCleanupError(RuntimeError):
     """Report bounded profile cleanup failure without exposing filesystem details."""
 
-    def __init__(self, cleanup_error: BaseException) -> None:
+    def __init__(
+        self,
+        cleanup_error: BaseException,
+        primary_error: BaseException | None = None,
+    ) -> None:
         self.cleanup_error_type = type(cleanup_error).__name__
+        self.session_cleanup_error_type = (
+            primary_error.cleanup_error_type
+            if isinstance(primary_error, BrowserSessionCleanupError)
+            else None
+        )
+        if (
+            isinstance(primary_error, BrowserSessionCleanupError)
+            and primary_error.primary_error_type is not None
+        ):
+            self.primary_error_type = primary_error.primary_error_type
+        elif isinstance(primary_error, AgentTaskSessionStartError):
+            self.primary_error_type = primary_error.session_error_type
+        else:
+            self.primary_error_type = (
+                type(primary_error).__name__ if primary_error is not None else None
+            )
         super().__init__(
             "browser profile cleanup failed; see the chained causal browser failure"
         )
 
 
 class AgentTaskSessionStartError(RuntimeError):
-    """Classify a failed Agent Task browser session without exposing driver text."""
+    """Record a failed Agent Task browser session without exposing driver text."""
 
     def __init__(self, session_error: BaseException) -> None:
         self.session_error_type = type(session_error).__name__
         super().__init__("Agent Task browser session failed to start")
+
+
+class WebDriverSessionNotCreatedError(RuntimeError):
+    """Report the standard session-creation failure without remote diagnostics."""
+
+    def __init__(self) -> None:
+        super().__init__("WebDriver could not create a browser session")
 
 
 def _free_loopback_port() -> int:
@@ -127,7 +168,7 @@ def _json_request(
     if method not in {"GET", "POST", "DELETE"}:
         raise ValueError("unsupported ChromeDriver method")
     if not path.startswith("/") or "://" in path or any(char in path for char in "\r\n"):
-        raise ValueError("invalid ChromeDriver path")
+        raise ValueError("invalid WebDriver path")
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
@@ -143,6 +184,20 @@ def _json_request(
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
+            try:
+                error_response = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                raise RuntimeError(
+                    f"WebDriver HTTP request failed with status {response.status}"
+                ) from None
+            error_value = (
+                error_response.get("value") if isinstance(error_response, dict) else None
+            )
+            if (
+                isinstance(error_value, dict)
+                and error_value.get("error") == "session not created"
+            ):
+                raise WebDriverSessionNotCreatedError()
             raise RuntimeError(
                 f"WebDriver HTTP request failed with status {response.status}"
             )
@@ -153,6 +208,8 @@ def _json_request(
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
+    if isinstance(value, dict) and value.get("error") == "session not created":
+        raise WebDriverSessionNotCreatedError()
     if isinstance(value, dict) and value.get("error"):
         raise RuntimeError("WebDriver command failed")
     return decoded
@@ -230,6 +287,96 @@ def _get_element_semantics(
     return role, label
 
 
+def _presentation_cdp_path(session_id: str) -> str:
+    """Return ChromeDriver's fixed vendor endpoint for this exact session."""
+
+    return _webdriver_path(session_id, "/goog/cdp/execute")
+
+
+def _apply_presentation_probe(driver_port: int, session_id: str) -> None:
+    """Apply only the pinned viewport, DPR, and timezone probe before navigation."""
+
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {
+            "cmd": "Emulation.setDeviceMetricsOverride",
+            "params": {
+                "width": PRESENTATION_VIEWPORT_WIDTH,
+                "height": PRESENTATION_VIEWPORT_HEIGHT,
+                "deviceScaleFactor": PRESENTATION_DEVICE_PIXEL_RATIO,
+                "mobile": False,
+            },
+        },
+    )
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {
+            "cmd": "Emulation.setTimezoneOverride",
+            "params": {"timezoneId": PRESENTATION_TIMEZONE},
+        },
+    )
+
+
+def _reset_presentation_probe(driver_port: int, session_id: str) -> None:
+    """Remove the exact probe overrides before reusing the browser session."""
+
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {"cmd": "Emulation.clearDeviceMetricsOverride", "params": {}},
+    )
+    _json_request(
+        driver_port,
+        "POST",
+        _presentation_cdp_path(session_id),
+        {"cmd": "Emulation.setTimezoneOverride", "params": {"timezoneId": ""}},
+    )
+
+
+def _presentation_probe_target() -> dict[str, str]:
+    """Return the exact fixed page-observed target for this evidence probe."""
+
+    return {
+        "viewport": f"{PRESENTATION_VIEWPORT_WIDTH}x{PRESENTATION_VIEWPORT_HEIGHT}",
+        "device_pixel_ratio": str(PRESENTATION_DEVICE_PIXEL_RATIO),
+        "timezone": PRESENTATION_TIMEZONE,
+    }
+
+
+def _validate_presentation_probe_baseline(baseline: dict[str, str]) -> None:
+    """Require an observable transition for every presentation surface under test."""
+
+    target = _presentation_probe_target()
+    if any(baseline.get(key) == value for key, value in target.items()):
+        raise RuntimeError("presentation probe baseline already matched target")
+
+
+def _read_presentation_probe(driver_port: int, session_id: str) -> dict[str, str]:
+    """Read only declared fixture observations through bounded element endpoints."""
+
+    observed: dict[str, str] = {}
+    for key, selector in {
+        "viewport": "#presentation-viewport",
+        "device_pixel_ratio": "#presentation-device-pixel-ratio",
+        "timezone": "#presentation-timezone",
+    }.items():
+        element_id = _find_element(driver_port, session_id, selector)
+        value = _json_request(
+            driver_port,
+            "GET",
+            _element_command_path(session_id, element_id, "/property/textContent"),
+        ).get("value")
+        if not isinstance(value, str):
+            raise RuntimeError("presentation probe observation was malformed")
+        observed[key] = value
+    return observed
+
+
 def _cleanup_browser_session(driver_port: int, session_id: str) -> None:
     """Delete one WebDriver session through the fixed loopback authority."""
 
@@ -256,7 +403,7 @@ def _cleanup_browser_session_preserving_primary(
         http.client.HTTPException,
         json.JSONDecodeError,
     ) as cleanup_error:
-        bounded_error = BrowserSessionCleanupError(cleanup_error)
+        bounded_error = BrowserSessionCleanupError(cleanup_error, primary_error)
         if primary_error is None:
             raise bounded_error from cleanup_error
         raise bounded_error from primary_error
@@ -567,7 +714,11 @@ def _run_agent_task_browser_pass(
     driver_port = _free_loopback_port()
     session_id: str | None = None
     driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+        [
+            str(chromedriver_bin),
+            f"--port={driver_port}",
+            "--allowed-ips=127.0.0.1",
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
         text=True,
@@ -634,6 +785,19 @@ def _run_agent_task_browser_pass(
         ).get("value")
         if initial_url != fixture_url:
             raise RuntimeError("Agent Task initial URL mismatch")
+        baseline_presentation = _read_presentation_probe(driver_port, session_id)
+        _validate_presentation_probe_baseline(baseline_presentation)
+        target_presentation = _presentation_probe_target()
+        _apply_presentation_probe(driver_port, session_id)
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        applied_presentation = _read_presentation_probe(driver_port, session_id)
+        if applied_presentation != target_presentation:
+            raise RuntimeError("presentation probe post-condition failed")
         input_element = _find_element(driver_port, session_id, "#task-text")
         input_role, input_name = _get_element_semantics(
             driver_port,
@@ -745,6 +909,16 @@ def _run_agent_task_browser_pass(
         url_unchanged = url_unchanged and accepted_outcome_url == initial_url
         if not url_unchanged:
             raise RuntimeError("Agent Task URL changed before accepted outcome")
+        _reset_presentation_probe(driver_port, session_id)
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        cleanup_presentation = _read_presentation_probe(driver_port, session_id)
+        if cleanup_presentation != baseline_presentation:
+            raise RuntimeError("presentation probe cleanup post-condition failed")
         return {
             "browser_version": browser_version,
             "pre_action_baseline_verified": True,
@@ -757,6 +931,8 @@ def _run_agent_task_browser_pass(
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
             "extensions_disabled_requested": True,
+            "presentation_applied": True,
+            "presentation_cleanup_verified": True,
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
     finally:
@@ -806,7 +982,7 @@ def _run_agent_task_trial(
         try:
             temporary_profile.cleanup()
         except OSError as cleanup_error:
-            bounded_error = BrowserProfileCleanupError(cleanup_error)
+            bounded_error = BrowserProfileCleanupError(cleanup_error, primary_error)
             if primary_error is None:
                 raise bounded_error from cleanup_error
             raise bounded_error from primary_error
@@ -829,6 +1005,8 @@ def _run_agent_task_trial(
         "input_semantics_verified": result["input_semantics_verified"],
         "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled_requested": result["extensions_disabled_requested"],
+        "presentation_applied": result["presentation_applied"],
+        "presentation_cleanup_verified": result["presentation_cleanup_verified"],
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
     }
@@ -850,6 +1028,8 @@ def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bo
         and trial.get("url_unchanged") is True
         and trial.get("input_semantics_verified") is True
         and trial.get("submit_semantics_verified") is True
+        and trial.get("presentation_applied") is True
+        and trial.get("presentation_cleanup_verified") is True
         and trial.get("profile_cleaned") is True
         for trial in agent_task_trials
     )
@@ -978,13 +1158,28 @@ def main() -> int:
                 http.client.HTTPException,
                 json.JSONDecodeError,
             ) as error:
-                agent_task_trials.append(
-                    {
-                        "trial_number": trial_number,
-                        "passed": False,
-                        "failure_type": type(error).__name__,
-                    }
-                )
+                failed_trial: dict[str, Any] = {
+                    "trial_number": trial_number,
+                    "passed": False,
+                    "failure_type": type(error).__name__,
+                }
+                if isinstance(error, AgentTaskSessionStartError):
+                    failed_trial["failure_cause_type"] = error.session_error_type
+                elif isinstance(
+                    error,
+                    (BrowserSessionCleanupError, BrowserProfileCleanupError),
+                ):
+                    failed_trial["cleanup_error_type"] = error.cleanup_error_type
+                    if (
+                        isinstance(error, BrowserProfileCleanupError)
+                        and error.session_cleanup_error_type is not None
+                    ):
+                        failed_trial["session_cleanup_error_type"] = (
+                            error.session_cleanup_error_type
+                        )
+                    if error.primary_error_type is not None:
+                        failed_trial["failure_cause_type"] = error.primary_error_type
+                agent_task_trials.append(failed_trial)
 
         agent_task_successful_trials = sum(
             1 for trial in agent_task_trials if trial.get("passed") is True
