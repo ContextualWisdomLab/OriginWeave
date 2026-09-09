@@ -21,6 +21,8 @@ For every change:
 
 Do not bypass required checks, branch protection, or any review authority actually required by current GitHub rules or an explicit operationally satisfiable OriginWeave/CWL governance rule. Waiting checks are not permission to weaken tests; continue with a non-conflicting next task.
 
+- ChromeDriver diagnostic drains must continuously discard bytes, accept existing text-mode process doubles by immediate UTF-8 replacement encoding, and silently stop on an unrecognized chunk; only the reviewed startup reason may survive. Shared ChromeDriver launch owns `--verbose` and never writes a diagnostic log file.
+
 ## Work-conserving autonomous maintenance
 
 **A completed action is an intermediate state**, not an implicit end of a maintenance invocation. “One bounded slice” means **one write-active slice at a time**, not one slice, pull request, RCA, check, review request, documentation update, or merge per run.

@@ -261,8 +261,10 @@ def _drain_chromedriver_diagnostics(
         chunk = stream.read(8_192)
         if not chunk:
             return
-        if not isinstance(chunk, bytes):
-            raise TypeError("ChromeDriver diagnostic stream must be binary")
+        if isinstance(chunk, str):
+            chunk = chunk.encode("utf-8", "replace")
+        elif not isinstance(chunk, bytes):
+            return
         diagnostic.feed(chunk)
 
 
@@ -274,7 +276,12 @@ def _start_chromedriver(
 
     diagnostic = _ChromeDriverStartupDiagnostic()
     driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+        [
+            str(chromedriver_bin),
+            f"--port={driver_port}",
+            "--allowed-ips=127.0.0.1",
+            "--verbose",
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )

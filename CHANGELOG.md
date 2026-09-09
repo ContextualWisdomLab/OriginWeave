@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- ChromeDriver's shared diagnostic drain now accepts existing text-mode process doubles and discards unrecognized chunks without a background thread error; the shared launch retains verbose process evidence without a log file.
 - ChromeDriver `session not created` responses now retain a typed `session_not_created` failure and only the allowlisted `sandbox_unavailable` or `unknown` startup reason; raw driver-controlled response text remains excluded from browser-crash evidence.
 - Browser-crash trials no longer disable Chromium's sandbox. Rejected session startup remains one failed attempt with driver and temporary-profile cleanup, without an unsandboxed retry; live pinned-browser acceptance is still required.
 - Browser-crash failure evidence now preserves the first causal browser failure when session cleanup or ChromeDriver teardown also fails, retains secondary cleanup only as bounded exception-type fields, and excludes raw exception text from the emitted artifact. Cleanup-only failures remain fail-closed as primary failures.

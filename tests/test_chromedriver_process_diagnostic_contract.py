@@ -14,6 +14,15 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 
 
+class _UnrecognizedStream:
+    """Simulate a legacy process double with no usable diagnostic bytes."""
+
+    def read(self, _size: int) -> object:
+        """Return one deliberately unrecognized value."""
+
+        return object()
+
+
 class ChromeDriverProcessDiagnosticContractTests(unittest.TestCase):
     """Keep process diagnostics bounded to reviewed reason codes and drained continuously."""
 
@@ -94,6 +103,17 @@ class ChromeDriverProcessDiagnosticContractTests(unittest.TestCase):
         self.assertEqual(diagnostic.startup_reason, "sandbox_unavailable")
         self.assertNotIn("private-profile", repr(diagnostic))
         self.assertNotIn("super-secret", repr(diagnostic))
+
+    def test_unrecognized_stream_chunk_is_discarded_without_thread_failure(self) -> None:
+        """Existing process doubles cannot turn discarded diagnostics into a thread error."""
+
+        diagnostic_type = self.runner["_ChromeDriverStartupDiagnostic"]
+        drain = self.runner["_drain_chromedriver_diagnostics"]
+        diagnostic = diagnostic_type()
+
+        drain(_UnrecognizedStream(), diagnostic)
+
+        self.assertEqual(diagnostic.startup_reason, "unknown")
 
     def test_all_chromedriver_launches_stream_instead_of_discarding_output(self) -> None:
         source = RUNNER_PATH.read_text(encoding="utf-8")
