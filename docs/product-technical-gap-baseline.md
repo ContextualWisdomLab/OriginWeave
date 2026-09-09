@@ -45,7 +45,7 @@ shipped behavior.
 
 Draft #293 advanced from visually inspected predecessor
 `6b5241c164f5283f8dd51b1846ef0e4dacec0b29` to exact head
-`0c077445` on parent #229. Its executed RED showed that standard BiDi was
+`0c077445d73640a6299ea4d379faa4b0ab0226c2` on parent #229. Its executed RED showed that standard BiDi was
 overstating complete Screen and Languages support. The minimal repair retains
 only Viewport, DevicePixelRatio, TimeZone and ReducedMotion, pins the immutable
 3 September 2026 dated W3C Working Draft identity, and adds an explicit typed
@@ -1249,6 +1249,8 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 9. Only after the commercial acceptance gate passes, increment the version, finalize CHANGELOG/release notes, publish signed artifacts, and verify upgrade/rollback from the prior supported release.
 
 ## Evidence commands
+
+Run `scripts/ci/collect_live_merge_evidence.sh` to collect reusable, exact-head and exact-base merge evidence before interpreting the volatile inventory below.
 
 The volatile counts above are reproducible by paginating the complete open-PR and open-issue inventories, excluding pull requests from the issue count, flattening every page, and then inspecting each PR's exact head, checks, reviews, and review threads:
 
