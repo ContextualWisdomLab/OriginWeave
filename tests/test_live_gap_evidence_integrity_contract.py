@@ -64,6 +64,14 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
         self.assertIn("failed 0/3 at session creation before navigation", normalized)
         self.assertIn("product Browser Session adapter", normalized)
 
+    def test_presentation_successor_records_its_repaired_contract_boundary(self) -> None:
+        """Keep the active child repair distinct from browser-runtime acceptance."""
+        normalized = " ".join(self.latest.split())
+        self.assertIn("Draft successor #298", normalized)
+        self.assertIn("d01f45c2c8ac7b0fc4dbc3d3ada60238732cdf8c", normalized)
+        self.assertIn("#305", normalized)
+        self.assertIn("does not establish live Chromium transport", normalized)
+
     def test_documented_current_evidence_collector_is_executable(self) -> None:
         current_evidence = self.baseline.split("## Evidence commands", 1)[1]
         self.assertIn("scripts/ci/collect_live_merge_evidence.sh", current_evidence)

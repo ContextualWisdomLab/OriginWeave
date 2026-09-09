@@ -22,6 +22,14 @@ at exact head `6855e2578ae94279cc9ab4a14527b016e8c049ee` on Ready #229
 `024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`. Its reusable lifecycle deliberately
 does not apply reduced motion without a complete restore or disposable-context
 owner. Thus command planning cannot be presented as full profile application.
+Draft successor #298 is at exact head
+`d01f45c2c8ac7b0fc4dbc3d3ada60238732cdf8c` on that #293 head. Its non-force
+merge of #305 repaired an older source contract so it now asserts both that
+ReducedMotion remains a discoverable protocol capability and that the reusable
+planner exposes no media-mutation command. This removes an API/documentation
+contradiction only; #298's Draft checks are skipped and it does not establish
+live Chromium transport, page observation, cleanup, protected-main shipment,
+or release acceptance.
 An active controlled evidence harness is implemented, but it does not establish a
 product Browser Session adapter: its exact browser lane failed 0/3 at session
 creation before navigation, so application, page-observed post-conditions, cleanup
