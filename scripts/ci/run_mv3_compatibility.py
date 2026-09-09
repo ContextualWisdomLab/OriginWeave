@@ -45,6 +45,7 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 PROCESS_EXIT_TIMEOUT_SECONDS = 5.0
+DIAGNOSTIC_HANDOFF_TIMEOUT_SECONDS = 0.25
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
 MAX_PROC_STAT_CHARACTERS = 65_536
@@ -79,13 +80,14 @@ class _WebDriverSessionNotCreatedError(RuntimeError):
 class _ChromeDriverStartupDiagnostic:
     """Retain only a closed startup reason while continuously discarding process output."""
 
-    __slots__ = ("_marker_index", "startup_reason")
+    __slots__ = ("_marker_index", "_observed", "startup_reason")
     _MARKER = b"no usable sandbox"
 
     def __init__(self) -> None:
         """Start with no reviewed process-level startup reason."""
 
         self._marker_index = 0
+        self._observed = threading.Event()
         self.startup_reason = "unknown"
 
     def feed(self, chunk: bytes) -> None:
@@ -93,6 +95,7 @@ class _ChromeDriverStartupDiagnostic:
 
         if not isinstance(chunk, bytes):
             raise TypeError("ChromeDriver diagnostic chunks must be bytes")
+        self._observed.set()
         if self.startup_reason == "sandbox_unavailable":
             return
         for raw_byte in chunk:
@@ -105,6 +108,11 @@ class _ChromeDriverStartupDiagnostic:
                     return
             else:
                 self._marker_index = 1 if byte == self._MARKER[0] else 0
+
+    def wait_for_observation(self) -> None:
+        """Bound the handoff from asynchronous process draining to session classification."""
+
+        self._observed.wait(timeout=DIAGNOSTIC_HANDOFF_TIMEOUT_SECONDS)
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -308,6 +316,8 @@ def _create_chromedriver_session(
     try:
         return _json_request(driver_port, "POST", "/session", payload)
     except _WebDriverSessionNotCreatedError as error:
+        if error.startup_reason == "unknown":
+            diagnostic.wait_for_observation()
         if (
             error.startup_reason == "unknown"
             and diagnostic.startup_reason == "sandbox_unavailable"
