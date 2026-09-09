@@ -285,6 +285,24 @@ def _reset_presentation_probe(driver_port: int, session_id: str) -> None:
     )
 
 
+def _presentation_probe_target() -> dict[str, str]:
+    """Return the exact fixed page-observed target for this evidence probe."""
+
+    return {
+        "viewport": f"{PRESENTATION_VIEWPORT_WIDTH}x{PRESENTATION_VIEWPORT_HEIGHT}",
+        "device_pixel_ratio": str(PRESENTATION_DEVICE_PIXEL_RATIO),
+        "timezone": PRESENTATION_TIMEZONE,
+    }
+
+
+def _validate_presentation_probe_baseline(baseline: dict[str, str]) -> None:
+    """Require an observable transition for every presentation surface under test."""
+
+    target = _presentation_probe_target()
+    if any(baseline.get(key) == value for key, value in target.items()):
+        raise RuntimeError("presentation probe baseline already matched target")
+
+
 def _read_presentation_probe(driver_port: int, session_id: str) -> dict[str, str]:
     """Read only declared fixture observations through bounded element endpoints."""
 
@@ -711,6 +729,8 @@ def _run_agent_task_browser_pass(
         if initial_url != fixture_url:
             raise RuntimeError("Agent Task initial URL mismatch")
         baseline_presentation = _read_presentation_probe(driver_port, session_id)
+        _validate_presentation_probe_baseline(baseline_presentation)
+        target_presentation = _presentation_probe_target()
         _apply_presentation_probe(driver_port, session_id)
         _json_request(
             driver_port,
@@ -719,11 +739,7 @@ def _run_agent_task_browser_pass(
             {"url": fixture_url},
         )
         applied_presentation = _read_presentation_probe(driver_port, session_id)
-        if applied_presentation != {
-            "viewport": f"{PRESENTATION_VIEWPORT_WIDTH}x{PRESENTATION_VIEWPORT_HEIGHT}",
-            "device_pixel_ratio": str(PRESENTATION_DEVICE_PIXEL_RATIO),
-            "timezone": PRESENTATION_TIMEZONE,
-        }:
+        if applied_presentation != target_presentation:
             raise RuntimeError("presentation probe post-condition failed")
         input_element = _find_element(driver_port, session_id, "#task-text")
         input_role, input_name = _get_element_semantics(
