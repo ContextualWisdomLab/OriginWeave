@@ -1,4 +1,4 @@
-"""Load preserved historical baseline contracts against the extracted evidence dossier."""
+"""Load preserved historical baseline contracts against extracted evidence receipts."""
 
 from __future__ import annotations
 
@@ -9,10 +9,11 @@ from types import ModuleType
 TESTS = Path(__file__).resolve().parent
 ROOT = TESTS.parent
 ARCHIVE = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09.md"
+ARCHIVE_CHANGELOG = ROOT / "docs/evidence/CHANGELOG-through-2026-09-09.md"
 
 
 def load_historical_contract(filename: str, module_name: str) -> ModuleType:
-    """Load one non-discovered legacy test module and bind only its baseline input."""
+    """Load one legacy module against immutable baseline/changelog evidence inputs."""
     path = TESTS / filename
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
@@ -20,6 +21,8 @@ def load_historical_contract(filename: str, module_name: str) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.BASELINE = ARCHIVE
+    if hasattr(module, "CHANGELOG"):
+        module.CHANGELOG = ARCHIVE_CHANGELOG
     return module
 
 
