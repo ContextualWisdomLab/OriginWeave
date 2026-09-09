@@ -1,4 +1,4 @@
-"""Repository contract for reversible standard-BiDi screen-area planning."""
+"""Repository contract for bounded standard-BiDi screen-area planning."""
 
 from __future__ import annotations
 
@@ -11,15 +11,17 @@ FINGERPRINT_SOURCE = ROOT / "crates/originweave-fingerprint/src/lib.rs"
 
 
 class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
-    """Keep screen geometry typed and reversible without overstating observable control."""
+    """Keep screen geometry typed without silently widening page-observable authority."""
 
-    def test_standard_planner_uses_screen_settings_override(self) -> None:
-        """The qualified BiDi adapter must expose the standard screen-area command."""
+    def test_adapter_exposes_explicit_screen_settings_override(self) -> None:
+        """The qualified BiDi adapter must expose the standard operation as explicit partial intent."""
         text = SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("ScreenMetrics", text)
         self.assertIn("WebDriverBidiScreenArea", text)
         self.assertIn("SetScreenArea", text)
+        self.assertIn("plan_explicit_screen_area_override", text)
+        self.assertIn("plan_explicit_screen_area_cleanup", text)
 
     def test_profile_derived_plan_cannot_silently_mutate_available_screen_area(self) -> None:
         """A profile-derived reusable plan must not change an unmodelled page observable."""
@@ -45,15 +47,16 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
             "behind a separately explicit partial intent",
         )
 
-    def test_standard_cleanup_removes_only_its_screen_area_override(self) -> None:
-        """An explicit screen-area cleanup must use the command's nullable context-scoped reset."""
+    def test_explicit_cleanup_uses_context_scoped_screen_area_reset(self) -> None:
+        """The explicit screen-area cleanup must use the command's nullable context-scoped reset."""
         text = SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("ResetScreenArea", text)
+        self.assertIn("plan_explicit_screen_area_cleanup", text)
         self.assertNotIn("ResetMediaFeatures", text)
 
-    def test_screen_surface_remains_fail_closed_until_color_depth_is_controlled(self) -> None:
-        """Screen area alone cannot satisfy ScreenMetrics because color depth remains observable."""
+    def test_screen_surface_remains_fail_closed_until_complete_observables_are_controlled(self) -> None:
+        """Screen-area intent cannot satisfy the complete page-observable Screen contract."""
         text = SOURCE.read_text(encoding="utf-8")
         surfaces = text.split(
             "const WEBDRIVER_BIDI_PRESENTATION_SURFACES", maxsplit=1
