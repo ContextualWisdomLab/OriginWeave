@@ -4,6 +4,12 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded #298/#305's repaired reduced-motion command contract while keeping
+  its Draft-only checks and missing Chromium runtime evidence explicit.
+
+- Repaired the dated product-gap checkpoint contract so historical verification
+  remains bounded after a newer live cut is added.
+
 - Replaced the truncated inline merge-evidence command copy with its canonical executable collector and kept the collector's exact-head contract under test.
 
 - Recorded #255 exact-head hosted success and #293's narrow standard-BiDi capability, typed command planning, dated-TR provenance pin, and explicit viewport/DPR cleanup intent, preserving exact-head visual, rustdoc-view, transport, and real-browser evidence gaps.
@@ -30,7 +36,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Recorded the verified pointer-reply connection repair and recovery tests, keeping pending hosted checks, remaining authority gaps and browser acceptance separate.
 - Recorded the published text-entry connection safeguards and their test evidence, separating queued hosted checks and remaining pointer/status repairs from released browser behavior.
 - Separate the current maintenance queue and source lineage from preserved historical observations, and record the text-entry session and pending-request safeguards without claiming released browser behavior.
-- Current delivery inventory: 126 open pull requests (12 ready, 114 draft); 14 open non-PR issues. Observed 2026-09-08; source acceptance remains revision-specific.
+- Current delivery inventory: 131 open pull requests (14 ready, 117 draft); 14 open non-PR issues. Observed 2026-09-09; source acceptance remains revision-specific.
+- Clarified that the active presentation-evidence harness is implemented while its failed browser run does not establish product runtime or release acceptance.
 - Corrected historical checkpoint labels and made the current inventory check reject stale counts; recorded verified text-input parent adoption without claiming browser execution.
 - Recorded the executed session-isolation repair and its verified adoption, separating complete local checks and PR visual inspection from pending hosted checks and unreleased browser acceptance.
 - Recorded the current click safeguards, restored regression coverage and completed PR visual inspection, keeping the separately owned parent repair and queued hosted checks distinct from delivery.

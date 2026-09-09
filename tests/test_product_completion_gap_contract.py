@@ -70,8 +70,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_closure_checkpoint_separates_verified_and_pending_heads(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),
-            "### Latest verified cut: 2026-09-08",
-            "### Historical verified cut: 2026-09-07",
+            "### Previous verified cut: 2026-09-08",
+            "## Observed snapshot: 2026-08-29",
         )
         for marker in (
             "d126242c7198c447d0fab7983d529441340fd1c9",

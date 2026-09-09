@@ -33,14 +33,14 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
         cls.evidence = EVIDENCE_SCRIPT.read_text(encoding="utf-8")
         cls.latest = bounded(
             cls.baseline,
-            "### Latest verified cut: 2026-09-08",
-            "### Historical verified cut: 2026-09-07",
+            "### Latest verified cut: 2026-09-09",
+            "### Previous verified cut: 2026-09-08",
         )
 
-    def test_latest_inventory_and_changelog_use_the_september_8_cut(self) -> None:
+    def test_latest_inventory_and_changelog_use_the_september_9_cut(self) -> None:
         marker = (
-            "126 open pull requests: 12 Ready/non-draft and "
-            "114 Draft; 14 open non-PR issues"
+            "131 open pull requests: 14 Ready/non-draft and "
+            "117 Draft; 14 open non-PR issues"
         )
         self.assertIn(marker, " ".join(self.latest.split()))
         inventory = [
@@ -49,14 +49,28 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
             if line.startswith("- Current delivery inventory:")
         ]
         self.assertEqual(1, len(inventory))
-        self.assertIn("126 open pull requests (12 ready, 114 draft)", inventory[0])
+        self.assertIn("131 open pull requests (14 ready, 117 draft)", inventory[0])
         self.assertIn("14 open non-PR issues", inventory[0])
-        self.assertIn("Observed 2026-09-08", inventory[0])
+        self.assertIn("Observed 2026-09-09", inventory[0])
 
     def test_presentation_snapshot_uses_full_exact_sha(self) -> None:
-        full_sha = "0c077445d73640a6299ea4d379faa4b0ab0226c2"
+        full_sha = "6855e2578ae94279cc9ab4a14527b016e8c049ee"
         self.assertIn(full_sha, self.latest)
-        self.assertNotIn("to exact head\n`0c077445`", self.latest)
+        self.assertNotIn("to exact head\n`6855e257`", self.latest)
+
+    def test_active_presentation_harness_is_not_described_as_unimplemented(self) -> None:
+        normalized = " ".join(self.latest.split())
+        self.assertIn("active controlled evidence harness is implemented", normalized)
+        self.assertIn("failed 0/3 at session creation before navigation", normalized)
+        self.assertIn("product Browser Session adapter", normalized)
+
+    def test_presentation_successor_records_its_repaired_contract_boundary(self) -> None:
+        """Keep the active child repair distinct from browser-runtime acceptance."""
+        normalized = " ".join(self.latest.split())
+        self.assertIn("Draft successor #298", normalized)
+        self.assertIn("d01f45c2c8ac7b0fc4dbc3d3ada60238732cdf8c", normalized)
+        self.assertIn("#305", normalized)
+        self.assertIn("does not establish live Chromium transport", normalized)
 
     def test_documented_current_evidence_collector_is_executable(self) -> None:
         current_evidence = self.baseline.split("## Evidence commands", 1)[1]

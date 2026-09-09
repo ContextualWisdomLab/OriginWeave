@@ -6,7 +6,45 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 This volatile section is refreshed from live GitHub state and is authoritative only for the exact observations recorded here. The dated snapshot below remains historical evidence and is not promoted to current acceptance evidence. Live GitHub PR/base/head/check APIs are authoritative over PR bodies and prior maintenance prose; a body that still names an older head is stale evidence, not merge evidence.
 
-### Latest verified cut: 2026-09-08
+### Latest verified cut: 2026-09-09
+
+#### Presentation identity and controlled-browser evidence
+
+At `2026-09-09T08:49:58Z`, the live inventory was **131 open pull requests:
+14 Ready/non-draft and 117 Draft; 14 open non-PR issues**. Protected `main`
+remains `87c4daa1830bac5a5228b6036752ad5633232085`; no GitHub Release exists.
+Ruleset `18156473` still requires one counted approval and seven central required
+workflows. Queued reviewer evidence is non-passing: discard queued, skipped,
+cancelled, absent, predecessor, synthetic, status-only, and model-only evidence.
+
+Issue #292 remains the buyer-visible presentation-identity gap. Draft #293 is
+at exact head `6855e2578ae94279cc9ab4a14527b016e8c049ee` on Ready #229
+`024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`. Its reusable lifecycle deliberately
+does not apply reduced motion without a complete restore or disposable-context
+owner. Thus command planning cannot be presented as full profile application.
+Draft successor #298 is at exact head
+`d01f45c2c8ac7b0fc4dbc3d3ada60238732cdf8c` on that #293 head. Its non-force
+merge of #305 repaired an older source contract so it now asserts both that
+ReducedMotion remains a discoverable protocol capability and that the reusable
+planner exposes no media-mutation command. This removes an API/documentation
+contradiction only; #298's Draft checks are skipped and it does not establish
+live Chromium transport, page observation, cleanup, protected-main shipment,
+or release acceptance.
+An active controlled evidence harness is implemented, but it does not establish a
+product Browser Session adapter: its exact browser lane failed 0/3 at session
+creation before navigation, so application, page-observed post-conditions, cleanup
+acceptance, and release remain unproven. Issue #212 owns the sandbox-helper contract;
+the product branch must consume it rather than copy or weaken workflow behavior.
+
+#### Transport-closure verification and test-integrity repair
+
+The current queue also leaves Ready #287 at
+`3975daf48e01a5e9d1cf9fb104a3be1aa03b0402` with exact-head native and central
+checks queued. Its prior CodeQL dispatch outcome was an absent central verdict,
+not a classifier-source finding. No release, protected-main shipment, or approval
+is inferred from local work, a child merge, or queued checks.
+
+### Previous verified cut: 2026-09-08
 
 #### Published intent acknowledgment verification
 

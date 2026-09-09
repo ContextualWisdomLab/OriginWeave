@@ -99,6 +99,7 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 ## Documentation and research
 
 - Update `docs/doctoring.md` when a standard or research claim affects design.
+- Refreshing the volatile product-gap baseline requires paginated live PR and issue counts, full exact heads, and the matching `CHANGELOG.md` inventory line; run its documentation contracts before publication. A local browser policy that blocks loopback or file rendering is not visual evidence—inspect the GitHub-rendered exact head after push instead.
 - Use primary specifications, official documentation, or peer-reviewed/primary papers.
 - Format references in APA 7th style.
 - Update an ADR for binding architectural changes.
@@ -131,6 +132,7 @@ A release requires all current-head checks, complete coverage and docs, updated 
 
 - When updating a delivery checkpoint, separate a verified predecessor from a newer pending head. A passing coverage summary does not validate a fixture that ignores peer errors; preserve the failing reproduction and the repaired wire-level assertions in the evidence trail.
 - A live-inventory contract must update its dated baseline, `CHANGELOG.md`, and full exact SHA together. Use `scripts/ci/collect_live_merge_evidence.sh` for reusable head/base evidence; do not infer current state from an abbreviated SHA or a historical inventory line.
+- A regression that verifies a dated baseline cut must select that named cut, not assume it remains the latest heading after a newer live cut is added; run the full Python repository contract suite after changing cut markers.
 - Keep the delivery baseline decision-sized: GitHub truncates large Markdown code blocks. Link the canonical executable evidence collector instead of copying it into the rendered baseline, and keep its contract test pointed at that executable source.
 
 - Add concise, reproducible lessons here as work establishes them. Keep transient heads, job IDs and incident snapshots in PR evidence, not permanent instructions; never record secret values.
