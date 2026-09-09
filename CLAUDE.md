@@ -12,4 +12,5 @@ Additional constraints:
 - Do not add hostname reconnect, proxy-environment inheritance, dangerous certificate-verifier hooks, Common Name fallback, TLS 0-RTT, key logging, or secret extraction to a production TLS path.
 - Keep changes bounded to one product gap and preserve modular crate boundaries.
 - Browser presentation probes use fixed CDP commands and static-fixture DOM observations only; never turn page content into executable input.
+- Read hidden fixture observations through the bounded `textContent` property, and require every pre-override value to differ from its target before accepting a presentation transition.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
