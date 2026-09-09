@@ -26,19 +26,36 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             manifest_text,
         )
 
-    def test_2026_09_09_bidi_capabilities_fail_closed_for_complete_profile(self) -> None:
-        """Standard BiDi must not pretend to own Chromium-only presentation surfaces."""
+    def test_latest_published_bidi_is_tracked_without_silently_repinning_adapter(self) -> None:
+        """Publication freshness and the qualified runtime pin must remain distinct evidence."""
         source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
         self.assertTrue(
             source.is_file(),
             "RED: #292 has no version-pinned BiDi presentation capability map",
         )
         text = source.read_text(encoding="utf-8")
-        self.assertIn('"2026-09-09"', text)
+        self.assertIn('"2026-09-03"', text)
         self.assertIn(
-            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/",
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/",
             text,
         )
+
+        publication_receipt = (
+            ROOT / "docs/traceability/webdriver-bidi-publication-current.md"
+        )
+        self.assertTrue(
+            publication_receipt.is_file(),
+            "RED: latest WebDriver BiDi publication is not traceable beside the qualified runtime pin",
+        )
+        receipt = publication_receipt.read_text(encoding="utf-8")
+        self.assertIn("2026-09-09", receipt)
+        self.assertIn(
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/",
+            receipt,
+        )
+        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
+        self.assertIn("Latest published Working Draft: `2026-09-09`", receipt)
+
         self.assertIn("PresentationSurface::Screen", text)
         self.assertIn("PresentationSurface::Viewport", text)
         self.assertIn("PresentationSurface::DevicePixelRatio", text)
@@ -57,14 +74,14 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("PresentationSurface::ReducedMotion", text)
         self.assertNotIn("SetReducedMotion", text)
 
-    def test_presentation_documentation_tracks_published_wd_and_cleanup_symmetry(self) -> None:
-        """Architecture, changelog, and doctoring must describe the same pinned adapter contract."""
+    def test_presentation_documentation_tracks_qualified_wd_and_cleanup_symmetry(self) -> None:
+        """Architecture, changelog, and doctoring must describe the qualified pinned adapter contract."""
         documents = {
             "ARCHITECTURE.md": (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8"),
             "CHANGELOG.md": (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
             "docs/doctoring.md": (ROOT / "docs/doctoring.md").read_text(encoding="utf-8"),
         }
-        dated_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/"
+        dated_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
         stale_publication = "18 August 2026 published W3C Working Draft"
         for path, text in documents.items():
             with self.subTest(path=path):
