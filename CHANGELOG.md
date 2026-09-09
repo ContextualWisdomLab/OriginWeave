@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Replaced the truncated inline merge-evidence command copy with its canonical executable collector and kept the collector's exact-head contract under test.
+
 - Recorded #255 exact-head hosted success and #293's narrow standard-BiDi capability, typed command planning, dated-TR provenance pin, and explicit viewport/DPR cleanup intent, preserving exact-head visual, rustdoc-view, transport, and real-browser evidence gaps.
 
 - Recorded the server Close-role RED-to-GREEN repair with exact local coverage and visual evidence, keeping queued hosted checks and release acceptance separate.
