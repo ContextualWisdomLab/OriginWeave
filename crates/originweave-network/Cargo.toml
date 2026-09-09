@@ -12,6 +12,7 @@ publish = false
 
 [dependencies]
 base64 = "0.22.1"
+getrandom = "0.2.17"
 originweave-core = { path = "../originweave-core" }
 originweave-destination = { path = "../originweave-destination" }
 sha1 = "0.10.6"

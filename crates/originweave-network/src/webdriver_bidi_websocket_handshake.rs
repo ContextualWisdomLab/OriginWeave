@@ -76,9 +76,9 @@ impl Error for WebDriverBiDiWebSocketHandshakeError {}
 /// Canonical RFC 6455 client key for one WebDriver BiDi opening handshake.
 ///
 /// RFC 6455 requires `Sec-WebSocket-Key` to be a nonce of 16 bytes encoded with base64. This type
-/// validates only the canonical wire representation, including zero padding bits. It does not
-/// generate entropy: callers remain responsible for supplying a fresh, unpredictable 16-byte nonce
-/// for each connection attempt. Its [`fmt::Debug`] representation deliberately redacts the nonce so
+/// validates the canonical wire representation, including zero padding bits. [`Self::random`]
+/// obtains a fresh nonce from the operating-system CSPRNG; [`Self::new`] remains available for
+/// deterministic fixtures. Its [`fmt::Debug`] representation deliberately redacts the nonce so
 /// diagnostic output cannot disclose handshake material.
 #[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiWebSocketClientKey(String);
@@ -99,6 +99,19 @@ impl WebDriverBiDiWebSocketClientKey {
             return Err(WebDriverBiDiWebSocketHandshakeError::InvalidClientKey);
         }
         Ok(Self(value.to_owned()))
+    }
+
+    /// Obtain one fresh canonical 16-byte handshake nonce from the operating-system CSPRNG.
+    pub fn random() -> Result<Self, getrandom::Error> {
+        Self::from_random_fill(getrandom::getrandom)
+    }
+
+    fn from_random_fill(
+        fill_random_bytes: fn(&mut [u8]) -> Result<(), getrandom::Error>,
+    ) -> Result<Self, getrandom::Error> {
+        let mut nonce = [0_u8; 16];
+        fill_random_bytes(&mut nonce)?;
+        Ok(Self(STANDARD.encode(nonce)))
     }
 
     /// Borrow the exact canonical value for `Sec-WebSocket-Key` serialization.
@@ -1081,6 +1094,31 @@ mod opening_write_tests {
     fn client_key() -> WebDriverBiDiWebSocketClientKey {
         WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ==")
             .expect("test client key must be valid")
+    }
+
+    #[test]
+    fn random_client_key_is_canonical_redacted_and_propagates_entropy_failure() {
+        fn fill_test_nonce(value: &mut [u8]) -> Result<(), getrandom::Error> {
+            value.copy_from_slice(&[0_u8; 16]);
+            Ok(())
+        }
+
+        fn reject_random_fill(_value: &mut [u8]) -> Result<(), getrandom::Error> {
+            Err(getrandom::Error::UNSUPPORTED)
+        }
+
+        let key = WebDriverBiDiWebSocketClientKey::from_random_fill(fill_test_nonce)
+            .expect("test entropy source succeeds");
+        assert_eq!(key.as_str(), "AAAAAAAAAAAAAAAAAAAAAA==");
+        assert_eq!(
+            format!("{key:?}"),
+            "WebDriverBiDiWebSocketClientKey(\"<redacted WebSocket client nonce>\")"
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketClientKey::from_random_fill(reject_random_fill),
+            Err(getrandom::Error::UNSUPPORTED)
+        );
+        assert!(WebDriverBiDiWebSocketClientKey::random().is_ok());
     }
 
     fn valid_response() -> Vec<u8> {
