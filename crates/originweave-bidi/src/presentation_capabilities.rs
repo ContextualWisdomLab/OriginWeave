@@ -49,25 +49,25 @@ impl WebDriverBidiBrowsingContext {
 ///
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
 /// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
-#[derive(Debug, Clone, PartialEq)]
+/// Presentation payloads retain the validated fingerprint value objects so a transport adapter cannot
+/// bypass their bounds by constructing raw viewport, DPR, or time-zone values.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WebDriverBidiPresentationCommand {
     /// Set viewport dimensions and device-pixel ratio together.
     SetViewport {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
-        /// CSS-pixel viewport width.
-        width: u32,
-        /// CSS-pixel viewport height.
-        height: u32,
-        /// Positive device-pixel ratio.
-        device_pixel_ratio: f64,
+        /// Validated viewport bounds from the presentation-identity kernel.
+        viewport: ViewportBounds,
+        /// Validated quantized device-pixel ratio from the presentation-identity kernel.
+        device_pixel_ratio: DevicePixelRatio,
     },
     /// Set the named time zone.
     SetTimezone {
         /// Exact target browsing context.
         context: WebDriverBidiBrowsingContext,
-        /// IANA time-zone identifier.
-        timezone: String,
+        /// Validated presentation time-zone identity.
+        timezone: PresentationTimeZone,
     },
     /// Set the reduced-motion media feature.
     ///
@@ -111,13 +111,12 @@ pub fn plan_standard_presentation_commands(
     [
         WebDriverBidiPresentationCommand::SetViewport {
             context: context.clone(),
-            width: viewport.width(),
-            height: viewport.height(),
-            device_pixel_ratio: device_pixel_ratio.value(),
+            viewport: *viewport,
+            device_pixel_ratio,
         },
         WebDriverBidiPresentationCommand::SetTimezone {
             context: context.clone(),
-            timezone: timezone.iana_name().to_owned(),
+            timezone,
         },
     ]
 }
@@ -260,13 +259,12 @@ mod tests {
             [
                 WebDriverBidiPresentationCommand::SetViewport {
                     context: context.clone(),
-                    width: 1440,
-                    height: 900,
-                    device_pixel_ratio: 2.0,
+                    viewport: *profile.viewport(),
+                    device_pixel_ratio: profile.device_pixel_ratio(),
                 },
                 WebDriverBidiPresentationCommand::SetTimezone {
                     context: context.clone(),
-                    timezone: "UTC".to_owned(),
+                    timezone: profile.timezone(),
                 },
             ]
         );
