@@ -31,6 +31,22 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
                 validate(state, text)
             self.assertNotIn(hostile, str(raised.exception))
 
+    def test_cleared_input_validator_is_closed_and_non_echoing(self) -> None:
+        """Clear evidence must fail closed without echoing browser-observed input."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_clear_value_contract")
+        self.assertIn("_validate_agent_task_cleared_value", namespace)
+        validate = namespace["_validate_agent_task_cleared_value"]
+
+        validate("")
+        hostile = "buyer-secret-marker-must-not-reach-ci"
+        with self.assertRaisesRegex(
+            RuntimeError,
+            r"^Agent Task clear verification failed$",
+        ) as raised:
+            validate(hostile)
+        self.assertNotIn(hostile, str(raised.exception))
+
     def test_typed_input_validator_is_closed_and_non_echoing(self) -> None:
         """Typed-value evidence must fail closed without echoing page-controlled input."""
 
@@ -58,6 +74,22 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         self.assertLess(baseline, native_click)
         self.assertLess(native_click, post_condition)
         self.assertIn('"pre_action_baseline_verified": True', source)
+
+    def test_clear_value_is_observed_before_typing(self) -> None:
+        """Native clear acknowledgement must not substitute for observed empty state."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_clear_value_order")
+        source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        clear = source.index('"/clear"')
+        typing = source.index('"/value"', clear)
+        value_observation = source.find('"/property/value"', clear, typing)
+        clear_validation = source.find("_validate_agent_task_cleared_value", clear, typing)
+        self.assertNotEqual(value_observation, -1)
+        self.assertNotEqual(clear_validation, -1)
+        self.assertLess(clear, value_observation)
+        self.assertLess(value_observation, clear_validation)
+        self.assertLess(clear_validation, typing)
+        self.assertIn('"clear_value_verified": True', source)
 
     def test_typed_input_value_is_observed_before_pre_click_baseline(self) -> None:
         """Native send-keys acknowledgement must not substitute for observed input state."""
@@ -106,7 +138,7 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         self.assertIn("Agent Task URL changed before accepted outcome", source)
 
     def test_surface_completeness_requires_transition_baseline_evidence(self) -> None:
-        """Post-condition evidence must include typed-value and both baseline witnesses."""
+        """Post-condition evidence must include clear, typed-value, and baseline witnesses."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_transition_surface")
         complete = namespace["_agent_task_surfaces_complete"]
@@ -122,6 +154,8 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         }
         self.assertFalse(complete([trial]))
         trial["pre_action_baseline_verified"] = True
+        self.assertFalse(complete([trial]))
+        trial["clear_value_verified"] = True
         self.assertFalse(complete([trial]))
         trial["input_value_verified"] = True
         self.assertFalse(complete([trial]))
