@@ -179,7 +179,7 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertNotIn("COPILOT_GITHUB_TOKEN", workflow)
         self.assertNotIn("contents: write", workflow)
         self.assertIn(
-            "types: [opened, synchronize, reopened, ready_for_review]",
+            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]",
             workflow,
         )
         self.assertIn("${{ github.workflow }}-${{ github.repository }}", workflow)

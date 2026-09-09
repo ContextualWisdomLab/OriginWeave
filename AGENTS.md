@@ -106,6 +106,8 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 
 ## LLM and scheduled-agent rules
 
+- Include `converted_to_draft` in PR workflow triggers when a Draft transition must cancel a running PR-scoped job; retain the job-level Draft guard so the cancellation run starts no replacement browser job.
+
 - GitHub Actions agents use `NVIDIA_NIM_API_KEY`; never introduce `COPILOT_GITHUB_TOKEN`.
 - Preserve the organization review-agent key system.
 - Prefer contextual-orchestrator through a replaceable adapter; do not couple browser authority to a model provider.
