@@ -125,6 +125,24 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.evidence)
 
+    def test_whole_generation_closes_against_fresh_pr_and_issue_inventories(self) -> None:
+        for marker in (
+            'open-pr-pages-rechecked.json',
+            'open-prs-rechecked.json',
+            'open-issue-pages-rechecked.json',
+            'open-issues-rechecked.json',
+            'INITIAL_PR_INVENTORY_PROJECTION=',
+            'FINAL_PR_INVENTORY_PROJECTION=',
+            'INITIAL_ISSUE_INVENTORY_PROJECTION=',
+            'FINAL_ISSUE_INVENTORY_PROJECTION=',
+            'Live inventory changed during evidence collection.',
+            'rm -f "$EVIDENCE_DIR"/pr-*-merge-verdict.json',
+            'evidence-generation.json',
+            'complete: true',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.evidence)
+
     def test_explicit_evidence_directory_must_start_empty(self) -> None:
         for marker in (
             'if [[ $# -gt 0 ]]; then',
