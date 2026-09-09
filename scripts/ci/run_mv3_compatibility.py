@@ -65,9 +65,12 @@ class BrowserSessionCleanupError(RuntimeError):
         primary_error: BaseException | None = None,
     ) -> None:
         self.cleanup_error_type = type(cleanup_error).__name__
-        self.primary_error_type = (
-            type(primary_error).__name__ if primary_error is not None else None
-        )
+        if isinstance(primary_error, AgentTaskSessionStartError):
+            self.primary_error_type = primary_error.session_error_type
+        else:
+            self.primary_error_type = (
+                type(primary_error).__name__ if primary_error is not None else None
+            )
         super().__init__(
             "WebDriver session cleanup failed; see the chained causal browser failure"
         )
