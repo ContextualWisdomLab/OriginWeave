@@ -6,6 +6,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 - The next #292 evidence slice is stacked on the existing pinned-Chrome Agent Task owner. It uses fixed Chromium CDP viewport/DPR/timezone commands, static fixture DOM observations, an observed pre-override baseline, and observed explicit-reset restoration. It is active-PR evidence only until the exact Chrome for Testing job succeeds.
 - A failed Agent Task session start records only standard closed failure categories plus one local ChromeDriver startup category (`sandbox`, `browser_startup`, `profile`, or `unclassified`); it reads at most the bounded local log and deletes it, never emitting ChromeDriver diagnostic text. The next exact-head run can therefore select a root-cause repair without leaking host-controlled data.
+- Exact #299 browser job `34316793780` on `f8cb436c` established the `sandbox` category in all three trials before navigation. The remediation is the canonical `.github#1792` sandbox-helper workflow contract, not a leaf workflow copy or `--no-sandbox`; owner PR `.github#1857` remains unreleased, so this consumer evidence is blocked pending immutable owner adoption and a fresh three-trial replay.
 - This runner proves a narrow browser-evidence contract, not a product Browser Session implementation. It does not transfer #293's standard-BiDi capability boundary into protected main or claim full-profile admission.
 
 ## Observed snapshot: 2026-08-26
