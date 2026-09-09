@@ -129,10 +129,10 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "### Latest verified cut: 2026-09-09",
             "### Previous verified cut: 2026-09-08",
         )
-        self.assertIn("130 open pull requests", latest)
+        self.assertIn("131 open pull requests", latest)
         mutated_latest = latest.replace(
-            "130 open pull requests",
             "131 open pull requests",
+            "132 open pull requests",
             1,
         )
         self.assertNotEqual(latest, mutated_latest)

@@ -10,8 +10,8 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 #### Presentation identity and controlled-browser evidence
 
-At `2026-09-09T08:45:00Z`, the live inventory was **130 open pull requests:
-13 Ready/non-draft and 117 Draft; 14 open non-PR issues**. Protected `main`
+At `2026-09-09T08:49:58Z`, the live inventory was **131 open pull requests:
+14 Ready/non-draft and 117 Draft; 14 open non-PR issues**. Protected `main`
 remains `87c4daa1830bac5a5228b6036752ad5633232085`; no GitHub Release exists.
 Ruleset `18156473` still requires one counted approval and seven central required
 workflows. Queued reviewer evidence is non-passing: discard queued, skipped,

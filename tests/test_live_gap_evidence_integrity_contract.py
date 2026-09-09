@@ -39,7 +39,7 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
 
     def test_latest_inventory_and_changelog_use_the_september_9_cut(self) -> None:
         marker = (
-            "130 open pull requests: 13 Ready/non-draft and "
+            "131 open pull requests: 14 Ready/non-draft and "
             "117 Draft; 14 open non-PR issues"
         )
         self.assertIn(marker, " ".join(self.latest.split()))
@@ -49,7 +49,7 @@ class LiveGapEvidenceIntegrityContractTests(unittest.TestCase):
             if line.startswith("- Current delivery inventory:")
         ]
         self.assertEqual(1, len(inventory))
-        self.assertIn("130 open pull requests (13 ready, 117 draft)", inventory[0])
+        self.assertIn("131 open pull requests (14 ready, 117 draft)", inventory[0])
         self.assertIn("14 open non-PR issues", inventory[0])
         self.assertIn("Observed 2026-09-09", inventory[0])
 
