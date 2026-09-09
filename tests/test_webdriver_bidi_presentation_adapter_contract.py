@@ -109,6 +109,24 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertIn("device_pixel_ratio: DevicePixelRatio", standard_apply)
         self.assertIn("timezone: PresentationTimeZone", standard_apply)
 
+    def test_public_command_intents_carry_validated_presentation_value_objects(self) -> None:
+        """Public command construction must not reopen validation already owned by the kernel."""
+
+        source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
+        text = source.read_text(encoding="utf-8")
+        command_enum = text.split("pub enum WebDriverBidiPresentationCommand", maxsplit=1)[1]
+        command_enum = command_enum.split(
+            "pub fn plan_standard_presentation_commands", maxsplit=1
+        )[0]
+
+        self.assertIn("viewport: ViewportBounds", command_enum)
+        self.assertIn("device_pixel_ratio: DevicePixelRatio", command_enum)
+        self.assertIn("timezone: PresentationTimeZone", command_enum)
+        self.assertNotIn("width: u32", command_enum)
+        self.assertNotIn("height: u32", command_enum)
+        self.assertNotIn("device_pixel_ratio: f64", command_enum)
+        self.assertNotIn("timezone: String", command_enum)
+
 
 if __name__ == "__main__":
     unittest.main()
