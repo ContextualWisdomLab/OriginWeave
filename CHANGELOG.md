@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Require loopback fixture-server cleanup to observe helper-thread termination after the bounded join, so a timed join cannot be treated as cleanup success while an owned server thread remains live.
 - Require the controlled Agent Task lane to observe an empty input `value` after native WebDriver Element Clear and before Send Keys, so clear command acknowledgement cannot substitute for browser-observed action evidence.
 - Require the controlled Agent Task lane to read the browser-observed input value after native WebDriver typing and before click, so send-keys command acknowledgement cannot substitute for evidence that the synthetic input actually reached the controlled field.
 - Require controlled Agent Task success to re-observe the browser URL after submitted-state and exact-echo verification, so URL stability is proven through the accepted outcome boundary rather than only immediately after click.
