@@ -226,6 +226,71 @@ class AgentTaskCleanupFailureEvidenceContractTests(unittest.TestCase):
         self.assertEqual(failed_trial["cleanup_error_type"], "PermissionError")
         self.assertNotIn("buyer-secret-profile-cleanup-detail", output.getvalue())
 
+    def test_nested_session_and_profile_cleanup_after_session_start_retains_webdriver_category(
+        self,
+    ) -> None:
+        """Two cleanup failures must still retain the bounded WebDriver start category."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_triple_cleanup_evidence")
+        main_globals = namespace["main"].__globals__
+        session_cleanup_error_type = namespace["BrowserSessionCleanupError"]
+        profile_cleanup_error_type = namespace["BrowserProfileCleanupError"]
+        session_start_error_type = namespace["AgentTaskSessionStartError"]
+        webdriver_start_error_type = namespace["WebDriverSessionNotCreatedError"]
+        session_start_failure = session_start_error_type(webdriver_start_error_type())
+        session_cleanup_failure = session_cleanup_error_type(
+            OSError("buyer-secret-session-cleanup-detail"),
+            session_start_failure,
+        )
+        profile_cleanup_failure = profile_cleanup_error_type(
+            PermissionError("buyer-secret-profile-cleanup-detail"),
+            session_cleanup_failure,
+        )
+
+        class FakeServer:
+            server_port = 9515
+
+        def start_fixture_server(_directory: pathlib.Path) -> tuple[FakeServer, object]:
+            return FakeServer(), object()
+
+        def successful_restart_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            return {"trial_number": 1, "passed": True, "surfaces": {"worker": True}}
+
+        def failed_agent_task_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise profile_cleanup_failure
+
+        main_globals.update(
+            {
+                "_start_fixture_server": start_fixture_server,
+                "_stop_fixture_server": lambda *_args: None,
+                "_run_restart_trial": successful_restart_trial,
+                "_run_agent_task_trial": failed_agent_task_trial,
+                "REPEATABILITY_TRIALS": 1,
+                "AGENT_TASK_REPEATABILITY_TRIALS": 1,
+            }
+        )
+
+        output = io.StringIO()
+        with patch.dict(
+            os.environ,
+            {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
+        ), redirect_stdout(output), self.assertRaisesRegex(
+            RuntimeError,
+            r"^Agent Task repeatability gate failed: 0/1 trials passed$",
+        ):
+            namespace["main"]()
+
+        failed_trial = json.loads(output.getvalue())["agent_task"]["trial_results"][0]
+        self.assertEqual(failed_trial["failure_type"], "BrowserProfileCleanupError")
+        self.assertEqual(
+            failed_trial["failure_cause_type"],
+            "WebDriverSessionNotCreatedError",
+        )
+        self.assertEqual(failed_trial["session_cleanup_error_type"], "OSError")
+        self.assertEqual(failed_trial["cleanup_error_type"], "PermissionError")
+        self.assertNotIn("buyer-secret-session-cleanup-detail", output.getvalue())
+        self.assertNotIn("buyer-secret-profile-cleanup-detail", output.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
