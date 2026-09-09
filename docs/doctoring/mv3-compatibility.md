@@ -1,12 +1,20 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-11
+- **Reviewed:** 2026-09-03
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
 
 The checked-in fixture is intentionally local-only. Its host permission is limited to loopback HTTP used by the deterministic test server. It contains no remote code, user credential, model call, external content, native-messaging host, or production PII. Chrome permissions remain distinct from the explicit OriginWeave extension-to-Agent grant implemented in `originweave-core`. Compatibility mutation tests create only controlled synthetic state inside the ephemeral test profile and must clean it up; successful API compatibility never grants the OriginWeave Agent ambient bookmarks/history/downloads authority.
+
+The runner treats expected `http.client.HTTPException` transport failures, including truncated ChromeDriver responses, as failed trials and continues to emit bounded aggregate evidence. It does not classify such a run as successful: the repeatability gate still fails when the required trial count is not met.
+
+## Chromium sandbox evidence boundary
+
+Chromium's process sandbox is part of the browser security boundary, not a test decoration. Chromium's current sandbox library describes sandboxing as privilege/capability restriction for code that handles untrustworthy data, implemented with platform-specific OS isolation. Chromium's Linux debugging guidance treats `--no-sandbox` as a temporary debugging escape and explicitly warns against using it on waterfall bots because sandbox testing is required.
+
+PR #70 therefore separates compatibility evidence from security evidence. Its test-first contract rejects `--no-sandbox` in `_run_agent_task_browser_pass`. The pre-repair source failed that contract; repair commit `60b697095be510a129cfb61a3fd97790cf7a0679` removes exactly that Agent Task launch argument while leaving the separate MV3 compatibility pass unchanged. Chrome for Testing arrives as a raw archive, so the separately governed workflow activation must install its bundled `chrome_sandbox` helper with Chromium's required root ownership and `4755` mode before execution. This workflow-free slice verifies only the runner boundary; it does not assert that protected-main CI already performs that installation. A focused source-contract GREEN is not a substitute for browser execution: the repaired Agent Task lane remains Draft until the pinned sandbox-enabled Chromium job actually runs and preserves semantic role/name observation, native input/click, same-document post-condition, exact echo/URL, and profile cleanup. If a hosted environment cannot start sandboxed Chromium, that environment may support a narrowly labelled compatibility lane but cannot be promoted to governed-browser security evidence by weakening the assertion.
 
 ## Supported-capability evidence matrix
 
@@ -27,6 +35,7 @@ This matrix separates protected-main executable evidence from active, non-shippe
 | History add/read/delete lifecycle | **ACTIVE_PR #59** | Controlled synthetic loopback visit is added, exactly read back, deleted in `finally`, and required to be absent afterward. | Compatibility only; no Agent history capability. |
 | Downloads | **ACTIVE_PR #43** | Controlled loopback payload is downloaded and validated through pinned Chromium. | No general download persistence, unsafe filename, or Agent filesystem authority claim. |
 | Per-trial Agent Task profile isolation | **ACTIVE_PR #49** | Compatibility trials use isolated ephemeral profiles rather than ambient human state. | Full production Agent Task browser orchestration remains issue #28 work. |
+| Agent Task Chromium sandbox preservation | **ACTIVE_PR #70** | Source contract rejects `--no-sandbox`; exact repair removes it only from Agent Task launch. | Sandbox-enabled pinned-browser exact-head execution is still required before security evidence is claimed; MV3 compatibility launch remains a separate lane. |
 | Extension update/version migration | **ACTIVE_PR #60** | Trial-local extension copy transitions `1.0.0` → `1.0.1` on the same ephemeral profile; versioned storage state is required to migrate and real pinned-Chromium evidence reports the update-migration surface. | No Chrome Web Store updater, enterprise deployment channel, arbitrary downgrade, or protected-main release claim. |
 | Managed enterprise extension policy | **PLANNED** | No protected-main executable compatibility proof yet. | Do not infer managed-policy support from Chromium ancestry alone. |
 | Native messaging | **PLANNED / SECURITY-GATED** | No compatibility claim. | Future support requires an explicit host-managed allow-list and process boundary. |
@@ -51,6 +60,12 @@ Content-script injection and content-script JavaScript isolation are separate co
 The CI lane downloads the exact Chrome/ChromeDriver version from the official Chrome for Testing public bucket, records SHA-256 receipts for the downloaded archives, verifies the runtime-reported browser version, and emits bounded JSON compatibility evidence. A future release-quality matrix should additionally pin published artifact digests or equivalent immutable supply-chain identity when the upstream distribution exposes that identity in an authoritative machine-readable form.
 
 ## Primary references — APA 7th
+
+Chromium Authors. (n.d.). *Sandbox library*. Chromium source. Retrieved September 3, 2026, from https://chromium.googlesource.com/chromium/src/sandbox/
+
+Chromium Authors. (n.d.). *Linux SUID sandbox development*. Chromium source. Retrieved September 4, 2026, from https://chromium.googlesource.com/chromium/src/+/main/docs/linux/suid_sandbox_development.md
+
+Chromium Authors. (n.d.). *Tips for debugging on Linux*. Chromium source. Retrieved September 3, 2026, from https://chromium.googlesource.com/chromium/src/+/main/docs/linux/debugging.md
 
 Chrome for Developers. (n.d.). *Extensions / Manifest V3*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3
 
