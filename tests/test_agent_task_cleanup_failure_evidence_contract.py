@@ -96,11 +96,10 @@ class AgentTaskCleanupFailureEvidenceContractTests(unittest.TestCase):
         namespace = runpy.run_path(str(RUNNER), run_name="profile_cleanup_failure_factory")
         cleanup_error_type = namespace["BrowserProfileCleanupError"]
         primary = RuntimeError("buyer-secret-primary-detail")
-        wrapper = cleanup_error_type(OSError("buyer-secret-cleanup-detail"))
-        try:
-            raise wrapper from primary
-        except cleanup_error_type as raised:
-            cleanup_failure = raised
+        cleanup_failure = cleanup_error_type(
+            OSError("buyer-secret-cleanup-detail"),
+            primary,
+        )
 
         self._assert_cleanup_failure_evidence(
             cleanup_failure,
