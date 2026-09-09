@@ -53,30 +53,37 @@ screen, user-agent, viewport, and time-zone emulation commands under the immutab
 publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. The screen
 shape contains width and height but not color depth, and locale accepts one value
 rather than an ordered language list, so neither proves the corresponding complete
-OriginWeave surface. The draft also does not define a hardware-concurrency
-override. Chromium's tip-of-tree DevTools Protocol exposes
-`Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
-tip-of-tree commands can change without notice. OriginWeave therefore records
-required presentation surfaces in a protocol-neutral Rust admission contract;
-the adapter records those four complete standard surfaces as protocol
-capabilities, while the reusable-context plan emits only two typed command
-intents—viewport/DPR and timezone—bound to one bounded opaque browsing context.
+OriginWeave surface. The 9 September 2026 Working Draft retains the relevant
+`emulation.setScreenSettingsOverride` screen-area shape; that publication update is
+tracked separately and does not silently repin runtime compatibility. The draft also
+does not define a hardware-concurrency override. Chromium's tip-of-tree DevTools
+Protocol exposes `Emulation.setHardwareConcurrencyOverride` as Experimental and
+warns that tip-of-tree commands can change without notice. OriginWeave therefore
+records required presentation surfaces in a protocol-neutral Rust admission
+contract. The capability map records the same four complete standard surfaces as
+before, while the reusable-context plan now emits three typed command intents—screen
+area, viewport/DPR, and timezone—bound to one bounded opaque browsing context. The
+dedicated screen-area value projects only width and height from validated
+`ScreenMetrics`; it carries no color depth, so complete `PresentationSurface::Screen`
+admission remains fail-closed.
 
-Cleanup authority is asymmetric. Nullable viewport and timezone operations can
-restore those adapter-owned overrides on a reusable context, so generic cleanup
-plans reset viewport/DPR and timezone. By contrast,
+Cleanup authority is asymmetric. Nullable screen-area, viewport, and timezone
+operations can remove those adapter-owned overrides on a reusable context, so generic
+cleanup plans reset screen area, viewport/DPR, and timezone. By contrast,
 `emulation.setMediaFeaturesOverride` with `features: null` unsets the target's
 complete media-feature override configuration rather than selectively reversing
 only `prefers-reduced-motion`. The reusable-context plan therefore neither
 installs reduced motion nor emits a media reset. No caller-mintable exclusive
 reset is exposed as ownership evidence; a Browser Session owner must prove a
-disposable context lifecycle or restore the complete prior media configuration. Constructing application or cleanup
-intents performs no transport I/O and cannot be treated as acknowledgement,
-successful cleanup, ownership evidence, or page-observed presentation evidence.
-A later pinned Chromium adapter must capability-negotiate every surface, observe
-post-conditions after apply and cleanup, and either prove exclusive disposable
-context ownership or restore the complete pre-existing media configuration
-before reusing the browser boundary.
+disposable context lifecycle or restore the complete prior media configuration.
+Constructing application or cleanup intents performs no transport I/O and cannot be
+treated as acknowledgement, successful cleanup, ownership evidence, or page-observed
+presentation evidence. A later pinned Chromium adapter must capability-negotiate every
+surface, observe post-conditions after apply and cleanup, and either prove exclusive
+disposable context ownership or restore the complete pre-existing media configuration
+before reusing the browser boundary. The focused evidence and alternatives for the
+screen-area slice are recorded in `docs/doctoring/webdriver-bidi-screen-area.md` and
+`docs/traceability/webdriver-bidi-screen-area-planning.md`.
 
 ### Extension-to-Agent grant origin binding
 
@@ -265,6 +272,8 @@ Web Platform Incubator Community Group. (2026, February 10). *User-Agent Client 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
 World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
+
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
