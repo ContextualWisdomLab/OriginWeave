@@ -914,6 +914,7 @@ def main() -> int:
             raise cleanup_error from startup_error
         raise
     started = time.monotonic()
+    evidence: dict[str, Any] | None = None
 
     try:
         fixture_url = f"http://127.0.0.1:{fixture_server.server_port}/page.html"
@@ -1020,28 +1021,36 @@ def main() -> int:
             },
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
-        print(json.dumps(evidence, sort_keys=True))
         if successful_trials != REPEATABILITY_TRIALS:
+            print(json.dumps(evidence, sort_keys=True))
             raise RuntimeError(
                 "Manifest V3 repeatability gate failed: "
                 f"{successful_trials}/{REPEATABILITY_TRIALS} trials passed"
             )
         if not common_surfaces or not all(common_surfaces.values()):
+            print(json.dumps(evidence, sort_keys=True))
             raise RuntimeError("Manifest V3 repeatability surfaces were incomplete")
         if agent_task_successful_trials != AGENT_TASK_REPEATABILITY_TRIALS:
+            print(json.dumps(evidence, sort_keys=True))
             raise RuntimeError(
                 "Agent Task repeatability gate failed: "
                 f"{agent_task_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
                 "trials passed"
             )
         if not agent_task_surfaces_complete:
+            print(json.dumps(evidence, sort_keys=True))
             raise RuntimeError("Agent Task repeatability surfaces were incomplete")
-        return 0
     finally:
         try:
             _stop_fixture_server(agent_task_server, agent_task_thread)
         finally:
             _stop_fixture_server(fixture_server, fixture_thread)
+
+    if evidence is None:
+        raise RuntimeError("browser compatibility evidence was not materialized")
+    evidence["duration_ms"] = round((time.monotonic() - started) * 1000)
+    print(json.dumps(evidence, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":
