@@ -71,7 +71,7 @@ The organization currently documents a **solo-maintainer** governance condition.
 
 ## Rust quality contract
 
-- Rust 1.97.1 is the supported build baseline unless an ADR changes it.
+- Rust 1.98.1 is the supported build baseline; baseline changes require an ADR and exact-head verification.
 - `unsafe` is forbidden in first-party crates unless a narrowly scoped ADR, safety proof, and dedicated test suite are approved.
 - Every public module, type, variant, field, trait, and function has useful rustdoc.
 - Production functions, lines, regions, and branches are each covered at 100%.
