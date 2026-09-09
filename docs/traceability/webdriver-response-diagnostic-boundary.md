@@ -8,7 +8,7 @@ The browser evidence lane therefore had a provenance mismatch. A remote response
 
 ## Constraints
 
-- Keep HTTP status and W3C error responses fail-closed.
+- Keep non-success HTTP status and defensive error-shaped JSON responses fail-closed.
 - Keep the existing response-size bound and JSON/object validation.
 - Do not reinterpret remote response text as browser policy, product authority, or success evidence.
 - Do not add ChromeDriver process/startup reason classification here; PR #148 remains the canonical owner of that diagnostic semantics.
@@ -19,19 +19,19 @@ The browser evidence lane therefore had a provenance mismatch. A remote response
 
 1. Preserve raw WebDriver bodies/messages in CI and attempt pattern-based secret filtering. Rejected because the remote fields are open-ended implementation-defined text; a denylist cannot establish a closed disclosure boundary.
 2. Allowlist W3C error codes and publish them. Rejected for this slice because error-code interpretation overlaps the richer #148 protocol/startup diagnostic authority and is unnecessary to preserve fail-closed behavior.
-3. Keep only the bounded local HTTP status for transport-level failures, use a fixed command-failure message for protocol error objects, and use a fixed driver-readiness timeout diagnostic. Selected because it preserves the failure decision while preventing remote payload serialization and keeps this runner generic.
+3. Keep only the bounded local HTTP status for transport-level failures, use a fixed command-failure message for a defensive error-shaped success-status response, and use a fixed driver-readiness timeout diagnostic. Selected because it preserves the failure decision while preventing remote payload serialization and keeps this runner generic.
 
 ## Decision and test-first evidence
 
 Test-first commit `8faef5967d8df770e9fc84ba358846ecd4dd1062` extends `tests/test_mv3_page_diagnostic_redaction_contract.py` with three hostile-response contracts:
 
 - a non-success WebDriver HTTP body containing `buyer-secret-marker-must-not-reach-ci` must fail as `WebDriver HTTP request failed with status 500` without retaining the body;
-- a W3C error object whose `error` and `message` are remote-controlled must fail as `WebDriver command failed` without retaining either field;
+- a defensive error-shaped JSON object on a success-status response must fail as `WebDriver command failed` without retaining the remote `error` or `message` fields;
 - driver-readiness timeout must be `ChromeDriver did not become ready` even if the last request exception contains the hostile marker.
 
-Exact predecessor production still serialized those values, so this commit is a source-semantic RED. Draft admission prevents representing it as a hosted executed RED.
+Exact predecessor production still serialized those values, so this commit is a source-semantic RED. Draft admission prevents representing it as a hosted executed RED. Corrective test-only commit `356764db9ef6fe53c0bba2f02c3f01c58a80d845` makes the second case explicit rather than inaccurately describing an HTTP 200 response as a conforming W3C error response.
 
-Production commit `4f09563520c9ba8565fa2c269db3a3de45fa7ca0` makes the minimum generic repair: HTTP failures retain only the numeric status, W3C error objects use one fixed command-failure diagnostic, and readiness timeout no longer interpolates the last exception. Response bounds, JSON validation and failure behavior remain intact.
+Production commit `4f09563520c9ba8565fa2c269db3a3de45fa7ca0` makes the minimum generic repair: HTTP failures retain only the numeric status, an error-shaped decoded JSON object uses one fixed command-failure diagnostic, and readiness timeout no longer interpolates the last exception. Response bounds, JSON validation and failure behavior remain intact.
 
 ## Risks and follow-up
 
@@ -43,4 +43,4 @@ This change is not browser acceptance. Exact-head repository gates and sandbox-e
 
 World Wide Web Consortium. (2026, July 2). *WebDriver* (Working Draft). https://www.w3.org/TR/webdriver2/
 
-Section 6.6 defines WebDriver errors as HTTP 4xx/5xx responses with a JSON `value` object containing an error code plus implementation-defined `message` and `stacktrace`, with optional additional `data`. OriginWeave therefore treats those descriptive fields as untrusted remote observations: they can cause a failed result but are not serialized into the CI diagnostic surface.
+Section 6.6 defines conforming WebDriver errors as HTTP 4xx/5xx responses with a JSON `value` object containing an error code plus implementation-defined `message` and `stacktrace`, with optional additional `data`. OriginWeave therefore treats those descriptive fields as untrusted remote observations: they can cause a failed result but are not serialized into the CI diagnostic surface.
