@@ -283,9 +283,7 @@ mod tests {
                 WebDriverBidiPresentationCommand::ResetViewport {
                     context: context.clone(),
                 },
-                WebDriverBidiPresentationCommand::ResetTimezone {
-                    context,
-                },
+                WebDriverBidiPresentationCommand::ResetTimezone { context },
             ]
         );
     }
