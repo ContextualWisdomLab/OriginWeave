@@ -17,8 +17,10 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
         text = SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("ScreenMetrics", text)
+        self.assertIn("WebDriverBidiScreenArea", text)
         self.assertIn("SetScreenArea", text)
-        self.assertIn("screen: ScreenMetrics", text)
+        self.assertIn("screen_area: WebDriverBidiScreenArea", text)
+        self.assertIn("screen: &ScreenMetrics", text)
         self.assertIn("profile.screen()", text)
 
     def test_standard_cleanup_removes_only_its_screen_area_override(self) -> None:
@@ -44,6 +46,16 @@ class WebDriverBiDiScreenSettingsContractTests(unittest.TestCase):
             "PresentationError::MissingSurface(PresentationSurface::Screen)",
             "".join(text.split()),
         )
+
+    def test_screen_area_payload_does_not_carry_color_depth(self) -> None:
+        """The command intent must not imply authority over an unapplied screen observable."""
+        text = SOURCE.read_text(encoding="utf-8")
+        screen_area = text.split("pub struct WebDriverBidiScreenArea", maxsplit=1)[1]
+        screen_area = screen_area.split("pub enum WebDriverBidiPresentationCommand", maxsplit=1)[0]
+
+        self.assertIn("width_px: u32", screen_area)
+        self.assertIn("height_px: u32", screen_area)
+        self.assertNotIn("color_depth", screen_area)
 
 
 if __name__ == "__main__":
