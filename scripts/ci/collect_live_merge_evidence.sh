@@ -33,9 +33,10 @@ jq '{
 
 gh api --paginate --slurp "repos/$REPOSITORY/issues?state=open&per_page=100" \
   > "$EVIDENCE_DIR/open-issue-pages.json"
-jq '[.[][]] | map(select(has("pull_request") | not)) | {
-  open_non_pr_issues: length
-}' "$EVIDENCE_DIR/open-issue-pages.json"
+jq '[.[][]] | map(select(has("pull_request") | not))' \
+  "$EVIDENCE_DIR/open-issue-pages.json" \
+  > "$EVIDENCE_DIR/open-issues.json"
+jq '{open_non_pr_issues: length}' "$EVIDENCE_DIR/open-issues.json"
 
 gh api "repos/$REPOSITORY/branches/main" \
   > "$EVIDENCE_DIR/main-branch.json"
@@ -231,3 +232,70 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
     exit 1
   fi
 done
+
+gh api --paginate --slurp "repos/$REPOSITORY/pulls?state=open&per_page=100" \
+  > "$EVIDENCE_DIR/open-pr-pages-rechecked.json"
+jq '[.[][]]' "$EVIDENCE_DIR/open-pr-pages-rechecked.json" \
+  > "$EVIDENCE_DIR/open-prs-rechecked.json"
+gh api --paginate --slurp "repos/$REPOSITORY/issues?state=open&per_page=100" \
+  > "$EVIDENCE_DIR/open-issue-pages-rechecked.json"
+jq '[.[][]] | map(select(has("pull_request") | not))' \
+  "$EVIDENCE_DIR/open-issue-pages-rechecked.json" \
+  > "$EVIDENCE_DIR/open-issues-rechecked.json"
+
+INITIAL_PR_INVENTORY_PROJECTION=$(jq -S -c '
+  [.[] | {
+    number,
+    draft,
+    head_sha: .head.sha,
+    base_ref: .base.ref,
+    base_sha: .base.sha
+  }] | sort_by(.number)
+' "$EVIDENCE_DIR/open-prs.json")
+FINAL_PR_INVENTORY_PROJECTION=$(jq -S -c '
+  [.[] | {
+    number,
+    draft,
+    head_sha: .head.sha,
+    base_ref: .base.ref,
+    base_sha: .base.sha
+  }] | sort_by(.number)
+' "$EVIDENCE_DIR/open-prs-rechecked.json")
+INITIAL_ISSUE_INVENTORY_PROJECTION=$(jq -S -c \
+  '[.[] | {number}] | sort_by(.number)' \
+  "$EVIDENCE_DIR/open-issues.json")
+FINAL_ISSUE_INVENTORY_PROJECTION=$(jq -S -c \
+  '[.[] | {number}] | sort_by(.number)' \
+  "$EVIDENCE_DIR/open-issues-rechecked.json")
+
+if [[ "$FINAL_PR_INVENTORY_PROJECTION" != "$INITIAL_PR_INVENTORY_PROJECTION" || \
+      "$FINAL_ISSUE_INVENTORY_PROJECTION" != "$INITIAL_ISSUE_INVENTORY_PROJECTION" ]]; then
+  rm -f "$EVIDENCE_DIR"/pr-*-merge-verdict.json \
+    "$EVIDENCE_DIR/evidence-generation.json"
+  printf 'Live inventory changed during evidence collection. No merge verdict generation is complete.\n' >&2
+  exit 1
+fi
+
+COMPLETED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+OPEN_PR_COUNT=$(jq 'length' "$EVIDENCE_DIR/open-prs-rechecked.json")
+READY_PR_COUNT=$(jq 'map(select(.draft == false)) | length' \
+  "$EVIDENCE_DIR/open-prs-rechecked.json")
+DRAFT_PR_COUNT=$(jq 'map(select(.draft == true)) | length' \
+  "$EVIDENCE_DIR/open-prs-rechecked.json")
+OPEN_ISSUE_COUNT=$(jq 'length' "$EVIDENCE_DIR/open-issues-rechecked.json")
+jq -n \
+  --arg completed_at "$COMPLETED_AT" \
+  --argjson open_pull_requests "$OPEN_PR_COUNT" \
+  --argjson non_draft "$READY_PR_COUNT" \
+  --argjson draft "$DRAFT_PR_COUNT" \
+  --argjson open_non_pr_issues "$OPEN_ISSUE_COUNT" \
+  '{
+    complete: true,
+    completed_at: $completed_at,
+    open_pull_requests: $open_pull_requests,
+    non_draft: $non_draft,
+    draft: $draft,
+    open_non_pr_issues: $open_non_pr_issues
+  }' > "$EVIDENCE_DIR/evidence-generation.json.tmp"
+mv "$EVIDENCE_DIR/evidence-generation.json.tmp" \
+  "$EVIDENCE_DIR/evidence-generation.json"
