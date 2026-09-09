@@ -154,6 +154,20 @@ def _json_request(
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
+            try:
+                error_response = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                raise RuntimeError(
+                    f"WebDriver HTTP request failed with status {response.status}"
+                ) from None
+            error_value = (
+                error_response.get("value") if isinstance(error_response, dict) else None
+            )
+            if (
+                isinstance(error_value, dict)
+                and error_value.get("error") == "session not created"
+            ):
+                raise WebDriverSessionNotCreatedError()
             raise RuntimeError(
                 f"WebDriver HTTP request failed with status {response.status}"
             )
