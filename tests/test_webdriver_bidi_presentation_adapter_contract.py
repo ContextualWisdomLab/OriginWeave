@@ -127,6 +127,22 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
         self.assertNotIn("device_pixel_ratio: f64", command_enum)
         self.assertNotIn("timezone: String", command_enum)
 
+    def test_top_level_docs_distinguish_planning_boundary_from_live_bidi_transport(self) -> None:
+        """Active-branch planning code must not be documented as either absent or live transport."""
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "docs/product-roadmap.md").read_text(encoding="utf-8")
+
+        self.assertIn("`originweave-bidi` capability and command-planning boundary", readme)
+        self.assertIn("live WebDriver BiDi transport remains planned", readme)
+        self.assertNotIn(
+            "Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped",
+            readme,
+        )
+        self.assertIn("live WebDriver BiDi transport", roadmap)
+        self.assertIn("version-pinned capability and command-planning boundary", roadmap)
+        self.assertNotIn("- WebDriver BiDi adapter behind a versioned interface;", roadmap)
+
 
 if __name__ == "__main__":
     unittest.main()
