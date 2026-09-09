@@ -2,11 +2,13 @@
 
 The runtime-qualified protocol identity remains the W3C WebDriver BiDi Working Draft published 3 September 2026. The current 9 September 2026 publication retains the same relevant `emulation.setScreenSettingsOverride` shape, but publication freshness does not itself change OriginWeave's runtime pin.
 
-For one exact browsing context, `emulation.setScreenSettingsOverride` accepts `screenArea` as width/height or `null`. A non-null screen area changes the web-exposed screen dimensions for the target context; `screenArea: null` removes that override. This gives OriginWeave a symmetric apply/reset path suitable for reusable-context planning.
+For one exact browsing context, `emulation.setScreenSettingsOverride` accepts `screenArea` as width/height or `null`. The W3C operation uses the same non-null rectangle for both the web-exposed total screen area and the web-exposed available screen area; `screenArea: null` removes that context-scoped override. The reset is symmetric, but the mutation is wider than `ScreenMetrics(width, height, color_depth)` because the current presentation identity does not model `screen.availWidth` or `screen.availHeight`.
 
-The standard operation does **not** control color depth. OriginWeave's `ScreenMetrics` and `PresentationSurface::Screen` contract include color depth as well as dimensions. The adapter therefore projects a dedicated `WebDriverBidiScreenArea` containing only validated width and height and continues to reject complete-profile admission with `MissingSurface(Screen)`. Treating the screen-area command as proof of the complete Screen surface would overstate protocol authority.
+OriginWeave therefore exposes this as an explicit partial `WebDriverBidiScreenArea` intent rather than inserting it into the reusable profile-derived presentation plan. The value object can only project width and height from validated `ScreenMetrics`, and its rustdoc makes the total/available-area coupling explicit. The ordinary reusable planner remains limited to viewport/DPR and time zone until the presentation schema deliberately models and digest-binds the available-screen observable.
 
-This evidence changes only typed command planning. It is not live WebDriver BiDi transport, command acknowledgement, page-observed state, browser cleanup proof, or complete Chromium presentation acceptance. Those remain separate Browser Session/runtime evidence.
+The standard operation also does **not** control color depth. `PresentationSurface::Screen` continues to fail closed with `MissingSurface(Screen)`: neither an explicit screen-area command nor its command acknowledgement proves the complete Screen fingerprint surface.
+
+This evidence changes only typed command planning. It is not live WebDriver BiDi transport, command acknowledgement, page-observed state, browser cleanup proof, or complete Chromium presentation acceptance. Those remain separate Browser Session/runtime evidence, including post-reset re-observation before a reusable context can be trusted again.
 
 ## References
 
