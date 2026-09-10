@@ -7,7 +7,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map::Entry};
 
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -182,16 +182,15 @@ impl BrowserSession {
         let browsing_context = port
             .create_disposable_context(self.id)
             .map_err(|_error| BrowserSessionError::ContextCreationFailed)?;
-        if self.contexts.contains_key(&browsing_context) {
-            return Err(BrowserSessionError::DuplicateBrowsingContext);
+        match self.contexts.entry(browsing_context) {
+            Entry::Vacant(entry) => {
+                entry.insert(OwnedContextRecord {
+                    epoch,
+                    state: OwnedContextState::Active,
+                });
+            }
+            Entry::Occupied(_) => return Err(BrowserSessionError::DuplicateBrowsingContext),
         }
-        self.contexts.insert(
-            browsing_context,
-            OwnedContextRecord {
-                epoch,
-                state: OwnedContextState::Active,
-            },
-        );
         Ok(self.authority_for(browsing_context, epoch))
     }
 
@@ -243,10 +242,12 @@ impl BrowserSession {
     ) -> Result<(), BrowserSessionError> {
         let record = self.take_context_for_authority(authority)?;
         let result = port.destroy_disposable_context(self.id, authority.browsing_context);
-        let state = if result.is_ok() {
-            OwnedContextState::Destroyed
-        } else {
-            OwnedContextState::Uncertain
+        let (state, outcome) = match result {
+            Ok(()) => (OwnedContextState::Destroyed, Ok(())),
+            Err(_error) => (
+                OwnedContextState::Uncertain,
+                Err(BrowserSessionError::ContextDestructionFailed),
+            ),
         };
         self.contexts.insert(
             authority.browsing_context,
@@ -255,11 +256,7 @@ impl BrowserSession {
                 state,
             },
         );
-        if result.is_ok() {
-            Ok(())
-        } else {
-            Err(BrowserSessionError::ContextDestructionFailed)
-        }
+        outcome
     }
 
     /// Record browser transport loss and invalidate all still-active context authority.
@@ -503,6 +500,23 @@ mod tests {
             Err(BrowserSessionError::ContextNotOwned)
         );
         assert_eq!(port.destroy_calls, 1);
+    }
+
+    #[test]
+    fn unknown_internal_authority_cannot_trigger_destroy_io() {
+        let mut session = BrowserSession::start(session_id(11));
+        let mut port = TestPort::new(110);
+        let unknown = PresentationMutationAuthority {
+            browser_session: session_id(11),
+            browsing_context: context_id(111),
+            context_epoch: BrowserContextEpoch(1),
+        };
+
+        assert_eq!(
+            session.destroy_disposable_context(unknown, &mut port),
+            Err(BrowserSessionError::ContextNotOwned)
+        );
+        assert_eq!(port.destroy_calls, 0);
     }
 
     #[test]
