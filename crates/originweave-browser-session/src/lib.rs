@@ -170,8 +170,9 @@ impl BrowserSession {
     /// Create and register one disposable context, then mint authority for its first epoch.
     ///
     /// Epoch capacity is reserved before external creation so an exhausted aggregate never creates an
-    /// untrackable context. A duplicate identity is rejected without attempting cleanup because a port
-    /// that violates the fresh-context contract may have returned another owner's existing context.
+    /// untrackable context. Epoch identifiers may therefore have gaps after failed creation or rejected
+    /// duplicate adapter output. A duplicate identity is rejected without attempting cleanup because a
+    /// port that violates the fresh-context contract may have returned another owner's existing context.
     pub fn create_disposable_context<P: DisposableContextPort>(
         &mut self,
         port: &mut P,
@@ -214,26 +215,19 @@ impl BrowserSession {
     /// Advance one active owned context to a new authority epoch.
     ///
     /// Navigation, renderer replacement, or another lifecycle boundary can call this transition to
-    /// invalidate every previously issued token while preserving disposable-context ownership.
+    /// invalidate every previously issued token while preserving disposable-context ownership. Epoch
+    /// identifiers are monotonic authority identities rather than gap-free business counters.
     pub fn advance_context_epoch(
         &mut self,
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
-        let current = self
-            .contexts
-            .get(&browsing_context)
-            .copied()
-            .filter(|record| record.state == OwnedContextState::Active)
-            .ok_or(BrowserSessionError::ContextNotOwned)?;
         let next = self.reserve_epoch()?;
         let record = self
             .contexts
             .get_mut(&browsing_context)
+            .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
-        if record.epoch != current.epoch || record.state != OwnedContextState::Active {
-            return Err(BrowserSessionError::ContextNotOwned);
-        }
         record.epoch = next;
         Ok(self.authority_for(browsing_context, next))
     }
@@ -247,21 +241,24 @@ impl BrowserSession {
         authority: PresentationMutationAuthority,
         port: &mut P,
     ) -> Result<(), BrowserSessionError> {
-        self.validate_authority(authority)?;
+        let record = self.take_context_for_authority(authority)?;
         let result = port.destroy_disposable_context(self.id, authority.browsing_context);
-        let record = self
-            .contexts
-            .get_mut(&authority.browsing_context)
-            .ok_or(BrowserSessionError::ContextNotOwned)?;
-        match result {
-            Ok(()) => {
-                record.state = OwnedContextState::Destroyed;
-                Ok(())
-            }
-            Err(_error) => {
-                record.state = OwnedContextState::Uncertain;
-                Err(BrowserSessionError::ContextDestructionFailed)
-            }
+        let state = if result.is_ok() {
+            OwnedContextState::Destroyed
+        } else {
+            OwnedContextState::Uncertain
+        };
+        self.contexts.insert(
+            authority.browsing_context,
+            OwnedContextRecord {
+                epoch: record.epoch,
+                state,
+            },
+        );
+        if result.is_ok() {
+            Ok(())
+        } else {
+            Err(BrowserSessionError::ContextDestructionFailed)
         }
     }
 
@@ -324,23 +321,26 @@ impl BrowserSession {
         }
     }
 
-    fn validate_authority(
-        &self,
+    fn take_context_for_authority(
+        &mut self,
         authority: PresentationMutationAuthority,
-    ) -> Result<(), BrowserSessionError> {
+    ) -> Result<OwnedContextRecord, BrowserSessionError> {
         self.require_active()?;
         if authority.browser_session != self.id {
             return Err(BrowserSessionError::AuthorityMismatch);
         }
-        let record = self
-            .contexts
-            .get(&authority.browsing_context)
-            .filter(|record| record.state == OwnedContextState::Active)
-            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        let Some(record) = self.contexts.remove(&authority.browsing_context) else {
+            return Err(BrowserSessionError::ContextNotOwned);
+        };
+        if record.state != OwnedContextState::Active {
+            self.contexts.insert(authority.browsing_context, record);
+            return Err(BrowserSessionError::ContextNotOwned);
+        }
         if record.epoch != authority.context_epoch {
+            self.contexts.insert(authority.browsing_context, record);
             return Err(BrowserSessionError::AuthorityMismatch);
         }
-        Ok(())
+        Ok(record)
     }
 }
 
@@ -498,6 +498,11 @@ mod tests {
             session.advance_context_epoch(context_id(50)),
             Err(BrowserSessionError::ContextNotOwned)
         );
+        assert_eq!(
+            session.destroy_disposable_context(new, &mut port),
+            Err(BrowserSessionError::ContextNotOwned)
+        );
+        assert_eq!(port.destroy_calls, 1);
     }
 
     #[test]
