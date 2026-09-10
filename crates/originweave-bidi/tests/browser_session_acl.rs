@@ -4,9 +4,9 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use originweave_bidi::{
-    AuthorizedWebDriverBidiPresentationAction, WebDriverBidiAclError,
-    WebDriverBidiBrowsingContext, WebDriverBidiCreatedContext, WebDriverBidiLifecycleAdapter,
-    WebDriverBidiLifecycleBackend,
+    WebDriverBidiAclError, WebDriverBidiBrowsingContext, WebDriverBidiCreatedContext,
+    WebDriverBidiLifecycleAdapter, WebDriverBidiLifecycleBackend,
+    WebDriverBidiPresentationOperation,
 };
 use originweave_browser_session::{
     BrowserSession, BrowserSessionError, BrowserSessionIncarnation, DisposableContextCreateError,
@@ -120,27 +120,28 @@ fn exact_lifecycle_mapping_is_the_only_remote_context_source() {
     assert_eq!(plan_b.context().as_str(), "remote-context-b");
 
     let [viewport, timezone] = plan_a.apply_actions();
-    assert!(matches!(
-        viewport,
-        AuthorizedWebDriverBidiPresentationAction::SetViewport { context, .. }
-            if context.as_str() == "remote-context-a"
-    ));
-    assert!(matches!(
-        timezone,
-        AuthorizedWebDriverBidiPresentationAction::SetTimezone { context, .. }
-            if context.as_str() == "remote-context-a"
-    ));
+    assert_eq!(viewport.operation(), WebDriverBidiPresentationOperation::SetViewport);
+    assert_eq!(viewport.context().as_str(), "remote-context-a");
+    assert_eq!(viewport.viewport(), Some(ViewportBounds::new(1440, 900).expect("viewport")));
+    assert_eq!(viewport.device_pixel_ratio(), Some(DevicePixelRatio::Quantized2));
+    assert_eq!(viewport.timezone(), None);
+    assert_eq!(timezone.operation(), WebDriverBidiPresentationOperation::SetTimezone);
+    assert_eq!(timezone.context().as_str(), "remote-context-a");
+    assert_eq!(timezone.viewport(), None);
+    assert_eq!(timezone.device_pixel_ratio(), None);
+    assert_eq!(timezone.timezone(), Some(PresentationTimeZone::Utc));
+
     let [reset_viewport, reset_timezone] = plan_a.cleanup_actions();
-    assert!(matches!(
-        reset_viewport,
-        AuthorizedWebDriverBidiPresentationAction::ResetViewport { context }
-            if context.as_str() == "remote-context-a"
-    ));
-    assert!(matches!(
-        reset_timezone,
-        AuthorizedWebDriverBidiPresentationAction::ResetTimezone { context }
-            if context.as_str() == "remote-context-a"
-    ));
+    assert_eq!(
+        reset_viewport.operation(),
+        WebDriverBidiPresentationOperation::ResetViewport
+    );
+    assert_eq!(reset_viewport.context().as_str(), "remote-context-a");
+    assert_eq!(
+        reset_timezone.operation(),
+        WebDriverBidiPresentationOperation::ResetTimezone
+    );
+    assert_eq!(reset_timezone.context().as_str(), "remote-context-a");
 }
 
 #[test]
