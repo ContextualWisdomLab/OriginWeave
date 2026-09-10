@@ -100,7 +100,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("command ACK", trace)
         self.assertIn("PresentationMutationAuthority", uml)
         self.assertIn("RecoveryRequired", uml)
-        self.assertIn("destroy fails / cleanup unproven", uml)
+        self.assertIn("DisposableContextDestroyError / cleanup unproven", uml)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", trace)
 
 
