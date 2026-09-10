@@ -1,8 +1,8 @@
 use std::{error::Error, fmt};
 
 use originweave_fingerprint::{
-    DevicePixelRatio, PresentationError, PresentationSurface, PresentationTimeZone, ViewportBounds,
-    require_presentation_surfaces,
+    DevicePixelRatio, PresentationError, PresentationSurface, PresentationTimeZone, ScreenMetrics,
+    ViewportBounds, require_presentation_surfaces,
 };
 
 const MAX_BROWSING_CONTEXT_BYTES: usize = 256;
@@ -45,16 +45,86 @@ impl WebDriverBidiBrowsingContext {
     }
 }
 
+/// Coupled total-and-available screen-area fields representable by
+/// `emulation.setScreenSettingsOverride`.
+///
+/// WebDriver BiDi applies one rectangle to both the web-exposed total screen area and available
+/// screen area. Construction therefore remains an explicit partial capability: it projects width and
+/// height from validated [`ScreenMetrics`] but does not claim that the presentation profile models the
+/// resulting `screen.availWidth` / `screen.availHeight` observables or screen color depth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WebDriverBidiScreenArea {
+    width_px: u32,
+    height_px: u32,
+}
+
+impl WebDriverBidiScreenArea {
+    /// Project the protocol-owned rectangle from validated presentation screen metrics.
+    ///
+    /// The returned value intentionally means that total and available screen areas will be coupled to
+    /// the same rectangle. It must not be inserted into a profile-derived reusable plan unless the
+    /// presentation schema has first modelled and authorized those available-area observables.
+    #[must_use]
+    pub const fn from_screen(screen: &ScreenMetrics) -> Self {
+        Self {
+            width_px: screen.width(),
+            height_px: screen.height(),
+        }
+    }
+
+    /// Return the width applied to both total and available web-exposed screen areas.
+    #[must_use]
+    pub const fn width(&self) -> u32 {
+        self.width_px
+    }
+
+    /// Return the height applied to both total and available web-exposed screen areas.
+    #[must_use]
+    pub const fn height(&self) -> u32 {
+        self.height_px
+    }
+}
+
+/// Proof that Browser Session owns screen-settings mutation for one browsing context.
+///
+/// This type intentionally has no public constructor. A remote-issued context identifier is identity,
+/// not authority: WebDriver BiDi replaces the current screen-area override when setting a rectangle and
+/// removes it when `screenArea` is null. A Browser Session integration may create this witness only
+/// after it has established an exclusive/disposable context or an equivalent lifecycle that proves no
+/// unrelated owner state can be overwritten or cleared. Until that integration exists, external
+/// callers have neither a mint path nor a callable screen-area planner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WebDriverBidiScreenAreaOwnership {
+    context: WebDriverBidiBrowsingContext,
+}
+
+impl WebDriverBidiScreenAreaOwnership {
+    /// Return the exact browsing context covered by this ownership witness.
+    #[must_use]
+    pub const fn context(&self) -> &WebDriverBidiBrowsingContext {
+        &self.context
+    }
+}
+
 /// Typed standard-BiDi presentation command intent for one explicit browsing context.
 ///
 /// These values are inputs to a later transport owner. Constructing them does not send a command,
 /// prove an acknowledgement, establish Browser Session ownership, or establish page-observed state.
-/// Presentation payloads retain the validated fingerprint value objects so a transport adapter cannot
-/// bypass their bounds by constructing raw viewport, DPR, or time-zone values. This reusable-boundary
-/// enum deliberately exposes no media-feature mutation command because this crate has no ownership or
-/// snapshot witness that would make such mutation reversibly safe.
+/// Presentation payloads retain validated value objects so a transport adapter cannot reopen raw
+/// screen, viewport, DPR, or time-zone validation. Screen-area command vocabulary retains the opaque
+/// Browser Session ownership witness because setting or clearing the context override is destructive to
+/// any predecessor value. No public screen-area planner is exposed until Browser Session can mint that
+/// witness. This reusable-boundary enum deliberately exposes no media-feature mutation command because
+/// this crate has no ownership or snapshot witness that would make such mutation reversibly safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WebDriverBidiPresentationCommand {
+    /// Set total and available web-exposed screen width and height together.
+    SetScreenArea {
+        /// Browser Session proof that this context's screen-settings lifecycle is exclusively owned.
+        ownership: WebDriverBidiScreenAreaOwnership,
+        /// Exact coupled standard-BiDi screen-area payload derived from validated screen metrics.
+        screen_area: WebDriverBidiScreenArea,
+    },
     /// Set viewport dimensions and device-pixel ratio together.
     SetViewport {
         /// Exact target browsing context.
@@ -71,6 +141,11 @@ pub enum WebDriverBidiPresentationCommand {
         /// Validated presentation time-zone identity.
         timezone: PresentationTimeZone,
     },
+    /// Remove the coupled total-and-available screen-area override for the owned browsing context.
+    ResetScreenArea {
+        /// Browser Session proof that clearing this context cannot remove another owner's override.
+        ownership: WebDriverBidiScreenAreaOwnership,
+    },
     /// Restore the implementation-defined viewport and remove the device-pixel-ratio override.
     ResetViewport {
         /// Exact target browsing context.
@@ -86,13 +161,14 @@ pub enum WebDriverBidiPresentationCommand {
 /// Plan the reversible standard-BiDi presentation commands safe for a reusable browsing context.
 ///
 /// Viewport/device-pixel-ratio and time-zone state each have a non-destructive nullable reset in the
-/// pinned Working Draft. Reduced motion remains an expressible protocol capability, but this reusable
-/// planning boundary neither installs nor exposes a media-mutation command because `features: null`
-/// clears the complete media-feature configuration rather than restoring only OriginWeave's prior
-/// `prefers-reduced-motion` value. The explicit arguments make this a partial-plan API: it cannot be
-/// mistaken for application of a complete [`originweave_fingerprint::PresentationProfile`]. A later
-/// Browser Session-owned adapter may introduce reduced-motion application only after it can prove a
-/// genuinely disposable lifecycle or a complete snapshot/restore path.
+/// pinned Working Draft. The screen-settings override is excluded from this profile-derived plan even
+/// though the protocol exposes a nullable reset because it also changes the unmodelled page-observable
+/// available screen area and requires Browser Session ownership of the predecessor state. Reduced
+/// motion remains an expressible protocol capability, but this reusable planning boundary neither
+/// installs nor exposes a media-mutation command because `features: null` clears the complete
+/// media-feature configuration rather than restoring only OriginWeave's prior `prefers-reduced-motion`
+/// value. The explicit arguments make this a partial-plan API: it cannot be mistaken for application of
+/// a complete [`originweave_fingerprint::PresentationProfile`].
 #[must_use]
 pub fn plan_standard_presentation_commands(
     context: &WebDriverBidiBrowsingContext,
@@ -113,12 +189,15 @@ pub fn plan_standard_presentation_commands(
     ]
 }
 
-/// Plan cleanup that is non-destructive to unrelated media-feature overrides.
+/// Plan cleanup that is non-destructive to unrelated presentation or media overrides.
 ///
-/// The pinned Working Draft provides independently nullable reset paths for viewport/DPR and
-/// time-zone state, so these two resets are safe to plan for a reusable browsing context. Media
-/// cleanup is deliberately absent because `features: null` clears the complete media-feature
-/// override configuration rather than selectively undoing `prefers-reduced-motion`.
+/// The pinned Working Draft provides independently nullable context-scoped reset paths for viewport/DPR
+/// and time-zone state, so these two resets are safe to plan for a reusable browsing context. Screen-area
+/// command intent remains ownership-gated, but no callable screen-area cleanup planner exists until
+/// Browser Session can mint the ownership witness; `screenArea: null` removes the current override
+/// rather than restoring any predecessor. Media cleanup is absent because `features: null` clears the
+/// complete media-feature override configuration rather than selectively undoing
+/// `prefers-reduced-motion`.
 #[must_use]
 pub fn plan_standard_presentation_cleanup(
     context: &WebDriverBidiBrowsingContext,
@@ -153,13 +232,15 @@ const WEBDRIVER_BIDI_PRESENTATION_SURFACES: [PresentationSurface; 4] = [
     PresentationSurface::ReducedMotion,
 ];
 
-/// Return presentation surfaces expressible through the pinned standard BiDi contract.
+/// Return complete presentation surfaces expressible through the pinned standard BiDi contract.
 ///
-/// Complete screen and ordered-language surfaces, hardware concurrency, and the
-/// Chromium platform/User-Agent Client Hints surface are intentionally absent.
-/// Reduced motion is listed as protocol capability even though reusable application leaves media
-/// state untouched until a Browser Session owner supplies a restorable lifecycle and corresponding
-/// command authority.
+/// The protocol can explicitly couple total and available screen width/height through
+/// `emulation.setScreenSettingsOverride`, but OriginWeave's `Screen` surface also includes color depth
+/// and the current profile does not model the available screen rectangle. `Screen` therefore remains
+/// intentionally absent. Ordered-language surfaces, hardware concurrency, and the Chromium
+/// platform/User-Agent Client Hints surface are also absent. Reduced motion is listed as protocol
+/// capability even though reusable application leaves media state untouched until a Browser Session
+/// owner supplies a restorable lifecycle and corresponding command authority.
 #[must_use]
 pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSurface] {
     &WEBDRIVER_BIDI_PRESENTATION_SURFACES
@@ -167,9 +248,11 @@ pub const fn webdriver_bidi_presentation_surfaces() -> &'static [PresentationSur
 
 /// Require the pinned standard BiDi capability set to satisfy the complete profile.
 ///
-/// The current result is fail-closed with
-/// `PresentationError::MissingSurface(PresentationSurface::Screen)`.
-/// Callers must not translate that result into ambient-host fallback.
+/// The current result remains fail-closed with
+/// `PresentationError::MissingSurface(PresentationSurface::Screen)` because the dormant screen-area
+/// command does not control color depth, additionally couples an available-screen observable absent
+/// from the current profile, and cannot be materialized until Browser Session supplies ownership of the
+/// screen-settings lifecycle. Callers must not translate that result into ambient-host fallback.
 pub fn require_complete_presentation_profile() -> Result<(), PresentationError> {
     require_presentation_surfaces(webdriver_bidi_presentation_surfaces())
 }
@@ -213,7 +296,50 @@ mod tests {
     }
 
     #[test]
-    fn reusable_standard_commands_bind_only_symmetrically_restorable_state() {
+    fn screen_area_command_shape_requires_the_same_ownership_witness() {
+        let profile = PresentationProfile::new(
+            ScreenMetrics::new(1920, 1080).expect("valid screen"),
+            ViewportBounds::new(1440, 900).expect("valid viewport"),
+            DevicePixelRatio::Quantized2,
+            8,
+            PresentationTimeZone::Utc,
+            PresentationPlatform::MacOS,
+            vec!["en-US".to_owned()],
+            true,
+        )
+        .expect("consistent profile");
+        let context =
+            WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
+        let ownership = WebDriverBidiScreenAreaOwnership {
+            context: context.clone(),
+        };
+        let screen_area = WebDriverBidiScreenArea::from_screen(profile.screen());
+        let set_command = WebDriverBidiPresentationCommand::SetScreenArea {
+            ownership: ownership.clone(),
+            screen_area,
+        };
+        let reset_command = WebDriverBidiPresentationCommand::ResetScreenArea {
+            ownership: ownership.clone(),
+        };
+
+        assert_eq!(ownership.context(), &context);
+        assert_eq!(screen_area.width(), 1920);
+        assert_eq!(screen_area.height(), 1080);
+        assert_eq!(
+            set_command,
+            WebDriverBidiPresentationCommand::SetScreenArea {
+                ownership: ownership.clone(),
+                screen_area,
+            }
+        );
+        assert_eq!(
+            reset_command,
+            WebDriverBidiPresentationCommand::ResetScreenArea { ownership }
+        );
+    }
+
+    #[test]
+    fn reusable_standard_commands_bind_only_modelled_symmetrically_restorable_state() {
         let error = WebDriverBidiCommandError::InvalidBrowsingContext;
         assert_eq!(error.to_string(), "invalid WebDriver BiDi browsing context");
         assert!(Error::source(&error).is_none());
@@ -264,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn reusable_cleanup_does_not_clear_unrelated_media_feature_state() {
+    fn reusable_cleanup_does_not_clear_unrelated_screen_or_media_state() {
         let context =
             WebDriverBidiBrowsingContext::new("context-17").expect("bounded context identifier");
 
