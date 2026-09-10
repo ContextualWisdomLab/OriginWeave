@@ -372,13 +372,17 @@ impl BrowserSession {
             .any(|record| record.handle.isolation == handle.isolation)
         {
             self.recovery_evidence
-                .push(BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(handle));
+                .push(BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(
+                    handle,
+                ));
             self.enter_recovery_required();
             return Err(BrowserSessionError::DuplicateDisposableIsolation);
         }
         if self.contexts.contains_key(&handle.browsing_context) {
             self.recovery_evidence
-                .push(BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(handle));
+                .push(BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(
+                    handle,
+                ));
             self.enter_recovery_required();
             return Err(BrowserSessionError::DuplicateBrowsingContext);
         }
@@ -696,7 +700,10 @@ mod tests {
         assert_eq!(authority.isolation().as_str(), "isolation-10");
         assert_eq!(authority.browsing_context(), context_id(10));
         assert_eq!(authority.context_epoch().value(), 1);
-        assert_eq!(session.presentation_authority(context_id(10)), Ok(authority));
+        assert_eq!(
+            session.presentation_authority(context_id(10)),
+            Ok(authority)
+        );
     }
 
     #[test]
@@ -732,9 +739,14 @@ mod tests {
         );
         assert_eq!(
             known_session.recovery_evidence(),
-            &[BrowserSessionRecoveryEvidence::PartialCreationIsolation(known)]
+            &[BrowserSessionRecoveryEvidence::PartialCreationIsolation(
+                known
+            )]
         );
-        assert_eq!(known_session.end(), Err(BrowserSessionError::SessionNotActive));
+        assert_eq!(
+            known_session.end(),
+            Err(BrowserSessionError::SessionNotActive)
+        );
     }
 
     #[test]
@@ -744,10 +756,8 @@ mod tests {
         duplicate_context_session
             .create_disposable_context(&mut first_context_port)
             .expect("first owned context");
-        let duplicate_context_handle = DisposableContextHandle::new(
-            isolation_id("isolation-30-b"),
-            context_id(30),
-        );
+        let duplicate_context_handle =
+            DisposableContextHandle::new(isolation_id("isolation-30-b"), context_id(30));
         let mut duplicate_context_port = TestPort::new(30, "isolation-30-b");
         assert_eq!(
             duplicate_context_session.create_disposable_context(&mut duplicate_context_port),
@@ -765,10 +775,8 @@ mod tests {
         duplicate_isolation_session
             .create_disposable_context(&mut first_isolation_port)
             .expect("first owned isolation");
-        let duplicate_isolation_handle = DisposableContextHandle::new(
-            isolation_id("isolation-31"),
-            context_id(311),
-        );
+        let duplicate_isolation_handle =
+            DisposableContextHandle::new(isolation_id("isolation-31"), context_id(311));
         let mut duplicate_isolation_port = TestPort::new(311, "isolation-31");
         assert_eq!(
             duplicate_isolation_session.create_disposable_context(&mut duplicate_isolation_port),
@@ -897,10 +905,8 @@ mod tests {
         let authority = session
             .create_disposable_context(&mut port)
             .expect("owned context");
-        let expected_handle = DisposableContextHandle::new(
-            isolation_id("isolation-90"),
-            context_id(90),
-        );
+        let expected_handle =
+            DisposableContextHandle::new(isolation_id("isolation-90"), context_id(90));
         port.fail_destroy = true;
         assert_eq!(
             session.destroy_disposable_context(&authority, &mut port),
@@ -958,7 +964,10 @@ mod tests {
         let authority = session
             .create_disposable_context(&mut port)
             .expect("owned context");
-        assert_eq!(session.end(), Err(BrowserSessionError::ActiveContextRemains));
+        assert_eq!(
+            session.end(),
+            Err(BrowserSessionError::ActiveContextRemains)
+        );
         session
             .destroy_disposable_context(&authority, &mut port)
             .expect("proven destruction");
