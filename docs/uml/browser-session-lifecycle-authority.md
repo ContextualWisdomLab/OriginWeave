@@ -50,17 +50,26 @@ stateDiagram-v2
     Active --> Active: fresh isolation + context created / authority minted
     Active --> Active: context epoch advanced / prior authority stale
     Active --> Active: exact owned isolation destruction proved
-    Active --> Active: create rejected / no authority
+    Active --> Active: CreateFailedClean / no browser state exists
+    Active --> RecoveryRequired: CreateFailedUncertain
+    Active --> RecoveryRequired: duplicate context or isolation output
     Active --> Active: destroy fails / context becomes Uncertain
     Active --> Ended: all owned contexts Destroyed + end
     Active --> TransportLost: browser transport lost
     Ended --> [*]
+    RecoveryRequired --> [*]
     TransportLost --> [*]
 
     note right of Active
       Normal end is rejected while any
       Active or Uncertain context remains.
     end note
+
+    note right of RecoveryRequired
+      Partial create or duplicate output may
+      have left untracked browser state.
+      Active-only transitions fail closed.
+    end note
 ```
 
-`TransportLost` is terminal for this aggregate. Recovery of an uncertain remote browser boundary requires a separate reconciliation design; reopening the same aggregate would allow stale authority to regain meaning and is therefore not part of this slice.
+`RecoveryRequired` and `TransportLost` are terminal for this aggregate in the current slice. Recovery of uncertain remote browser state requires a separate reconciliation design; reopening the same aggregate would allow stale authority to regain meaning and is therefore not part of this implementation.
