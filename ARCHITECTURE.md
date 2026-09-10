@@ -149,10 +149,15 @@ surfaces do not silently fall back to ambient host values.
 
 Owns the narrow WebDriver BiDi adapter contract that is expressible by one explicit specification revision. The active slice pins the W3C WebDriver BiDi Working Draft published on 3 September 2026 at `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/` and delegates complete-profile admission back to `originweave-fingerprint`. Standard BiDi covers viewport, device-pixel-ratio, timezone, and reduced-motion surfaces. Its width/height screen command cannot prove the kernel's complete screen-and-color-depth surface, and its single locale cannot prove ordered language preferences; hardware concurrency and the complete Chromium platform/User-Agent Client Hints surface also remain outside the standard set. The adapter therefore fails first on `Screen` rather than inheriting ambient Chromium values. It can plan two typed reusable-context commands—viewport/DPR and timezone—for one bounded opaque browsing-context identifier. Reduced motion remains an expressible protocol capability, but the reusable plan does not install it because `features: null` removes the target's complete media-feature override configuration rather than restoring prior state. Generic cleanup therefore resets only viewport/DPR and timezone. No caller-mintable exclusive-reset type is exposed; a Browser Session owner must instead prove a disposable context lifecycle or restore the complete prior media configuration. Planning sends nothing and proves neither acknowledgement, cleanup, ownership, nor page-visible state. Transport, post-condition observation, and reusable-context media restoration require the pinned Chromium/BiDi path and, for Chromium-only surfaces, a separate versioned `originweave-cdp` adapter.
 
+### `originweave-browser-session` (active PR)
+
+Owns the Browser Session aggregate boundary for disposable context lifecycle and presentation-mutation authority. A raw `BrowsingContextId` is addressability only. A context enters the owned set only after a narrow `DisposableContextPort` reports creation of a fresh task-owned disposable boundary. The aggregate then issues an opaque authority bound to the exact browser session, browsing context, and monotonic context epoch. Stale or foreign authority fails closed; failed destruction makes the context uncertain; browser transport loss invalidates active authority; and normal session end is rejected until every owned context has proven destruction.
+
+This active slice deliberately stops before browser transport. WebDriver BiDi/CDP remain adapters and do not mint policy authority. The current proposal does not yet bridge domain authority into `originweave-bidi`'s private presentation/screen-area witnesses, implement `browser.createUserContext`/`browsingContext.create`/`browser.removeUserContext`, prove a cleanup post-condition in Chromium, or establish protected-main behavior. ADR 0114, the Browser Session traceability dossier, and the lifecycle UML record those remaining boundaries.
+
 ## 6. Planned modules
 
 ```text
-originweave-session       isolated browser contexts and checkpoints
 originweave-proxy         separately approved proxy and final-target routing
 originweave-http          request, response, redirect, and elapsed-time budgets
 originweave-observation   AX + DOM + layout + network semantic snapshots
