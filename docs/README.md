@@ -94,9 +94,10 @@ The second group exists only on this documentation branch until the branch integ
 
 - [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
 - [ADR 0113: WebDriver BiDi screen-area ownership witness](adr/0113-webdriver-bidi-screen-area-ownership.md)
+- [ADR 0114: Browser Session disposable-context authority](adr/0114-browser-session-disposable-context-authority.md)
 
-ADR 0016 is owned by the active BAP lifecycle feature branch. ADR 0113 is owned by the active WebDriver BiDi screen-area ownership successor. Their presence here makes the branch documentation graph complete without presenting either decision or implementation as protected-main truth before integration.
+ADR 0016 is owned by the active BAP lifecycle feature branch. ADR 0113 is owned by the active WebDriver BiDi screen-area ownership successor. ADR 0114 is owned by the active Browser Session lifecycle successor. Their presence here makes the branch documentation graph complete without presenting any decision or implementation as protected-main truth before integration.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 or ADR 0113 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016, ADR 0113, or ADR 0114 from Proposed or assert implementation maturity.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.

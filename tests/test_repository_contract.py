@@ -29,6 +29,7 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-evidence",
                 "crates/originweave-fingerprint",
                 "crates/originweave-bidi",
+                "crates/originweave-browser-session",
             },
         )
 
