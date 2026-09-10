@@ -91,6 +91,47 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
                 self.assertIn("media", text.lower())
                 self.assertIn("cleanup", text.lower())
 
+    def test_reusable_apply_and_cleanup_require_browser_session_ownership(self) -> None:
+        """Reset-to-default must not erase predecessor overrides in an unowned reused context."""
+        source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
+        text = source.read_text(encoding="utf-8")
+
+        self.assertIn("pub struct WebDriverBidiPresentationOwnership", text)
+        ownership = text.split(
+            "pub struct WebDriverBidiPresentationOwnership", maxsplit=1
+        )[1].split("pub enum WebDriverBidiPresentationCommand", maxsplit=1)[0]
+        self.assertIn("context: WebDriverBidiBrowsingContext", ownership)
+        self.assertNotIn("pub context:", ownership)
+        self.assertNotIn("pub fn new(", ownership)
+        self.assertNotIn("pub fn from_", ownership)
+
+        standard_apply = text.split("pub fn plan_standard_presentation_commands", maxsplit=1)[1]
+        standard_apply_signature = standard_apply.split(") ->", maxsplit=1)[0]
+        self.assertIn(
+            "ownership: &WebDriverBidiPresentationOwnership",
+            standard_apply_signature,
+        )
+        self.assertNotIn(
+            "context: &WebDriverBidiBrowsingContext",
+            standard_apply_signature,
+        )
+
+        standard_cleanup = text.split("pub fn plan_standard_presentation_cleanup", maxsplit=1)[1]
+        standard_cleanup_signature = standard_cleanup.split(") ->", maxsplit=1)[0]
+        self.assertIn(
+            "ownership: &WebDriverBidiPresentationOwnership",
+            standard_cleanup_signature,
+        )
+        self.assertNotIn(
+            "context: &WebDriverBidiBrowsingContext",
+            standard_cleanup_signature,
+        )
+
+        for variant in ["SetViewport {", "SetTimezone {", "ResetViewport {", "ResetTimezone {"]:
+            body = text.split(variant, maxsplit=1)[1].split("},", maxsplit=1)[0]
+            self.assertIn("ownership: WebDriverBidiPresentationOwnership", body)
+            self.assertNotIn("context: WebDriverBidiBrowsingContext", body)
+
     def test_reusable_apply_and_cleanup_do_not_mutate_unrestorable_media_state(self) -> None:
         """A reusable default plan must not install media state that generic cleanup cannot undo."""
         source = ROOT / "crates/originweave-bidi/src/presentation_capabilities.rs"
