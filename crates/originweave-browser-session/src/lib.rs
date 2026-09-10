@@ -425,11 +425,17 @@ impl BrowserSession {
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
+        if !self
+            .contexts
+            .get(&browsing_context)
+            .is_some_and(|record| record.state == OwnedContextState::Active)
+        {
+            return Err(BrowserSessionError::ContextNotOwned);
+        }
         let next = self.reserve_epoch()?;
         let record = self
             .contexts
             .get_mut(&browsing_context)
-            .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
         record.epoch = next;
         Ok(Self::authority_for(
