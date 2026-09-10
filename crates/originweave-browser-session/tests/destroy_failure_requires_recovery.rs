@@ -1,6 +1,7 @@
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionState, DisposableContextHandle,
-    DisposableContextPort, DisposableContextPortError, DisposableIsolationId,
+    BrowserSession, BrowserSessionError, BrowserSessionState, DisposableContextCreateError,
+    DisposableContextDestroyError, DisposableContextHandle, DisposableContextPort,
+    DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -29,7 +30,7 @@ impl DisposableContextPort for FailingDestroyPort {
     fn create_disposable_context(
         &mut self,
         _browser_session: BrowserSessionId,
-    ) -> Result<DisposableContextHandle, DisposableContextPortError> {
+    ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
         self.create_calls += 1;
         Ok(self.next_handle.clone())
     }
@@ -38,9 +39,9 @@ impl DisposableContextPort for FailingDestroyPort {
         &mut self,
         _browser_session: BrowserSessionId,
         _context: &DisposableContextHandle,
-    ) -> Result<(), DisposableContextPortError> {
+    ) -> Result<(), DisposableContextDestroyError> {
         self.destroy_calls += 1;
-        Err(DisposableContextPortError::DestroyFailed)
+        Err(DisposableContextDestroyError::DestroyFailed)
     }
 }
 
