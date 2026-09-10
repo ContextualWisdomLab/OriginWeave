@@ -97,7 +97,10 @@ fn authorize<'a>(
 fn exact_lifecycle_mapping_is_the_only_remote_context_source() {
     let destroys = Arc::new(Mutex::new(Vec::new()));
     let backend = FakeBackend::new(
-        [("user-context-a", "remote-context-a"), ("user-context-b", "remote-context-b")],
+        [
+            ("user-context-a", "remote-context-a"),
+            ("user-context-b", "remote-context-b"),
+        ],
         destroys,
     );
     let mut adapter = WebDriverBidiLifecycleAdapter::new(backend);
@@ -158,7 +161,7 @@ fn stale_epoch_is_rejected_before_any_remote_target_can_be_projected() {
     assert_eq!(
         authorize(&adapter, &session, &stale),
         Err(WebDriverBidiAclError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch
+            BrowserSessionError::AuthorityMismatch,
         ))
     );
     assert_eq!(
@@ -187,7 +190,7 @@ fn destroyed_or_transport_lost_context_cannot_project_bidi_authority() {
     assert_eq!(
         authorize(&adapter, &session, &authority),
         Err(WebDriverBidiAclError::BrowserSession(
-            BrowserSessionError::ContextNotOwned
+            BrowserSessionError::ContextNotOwned,
         ))
     );
     let traces = destroys.lock().expect("trace lock");
@@ -200,7 +203,7 @@ fn destroyed_or_transport_lost_context_cannot_project_bidi_authority() {
     assert_eq!(
         authorize(&adapter, &session, &authority),
         Err(WebDriverBidiAclError::BrowserSession(
-            BrowserSessionError::SessionNotActive
+            BrowserSessionError::SessionNotActive,
         ))
     );
 
@@ -217,7 +220,7 @@ fn destroyed_or_transport_lost_context_cannot_project_bidi_authority() {
     assert_eq!(
         authorize(&adapter, &lost_session, &lost_authority),
         Err(WebDriverBidiAclError::BrowserSession(
-            BrowserSessionError::SessionNotActive
+            BrowserSessionError::SessionNotActive,
         ))
     );
 }
