@@ -1,12 +1,14 @@
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionIncarnation, BrowserSessionRecoveryEvidence,
-    BrowserSessionState, DisposableContextCreateError, DisposableContextDestroyError,
-    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    BrowserSession, BrowserSessionError, BrowserSessionRecoveryEvidence, BrowserSessionState,
+    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
+    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
+    DisposableContextPortId, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
 #[derive(Debug)]
 struct FailingDestroyPort {
+    port_id: DisposableContextPortId,
     next_handle: DisposableContextHandle,
     create_calls: usize,
     destroy_calls: usize,
@@ -18,7 +20,10 @@ impl FailingDestroyPort {
             .map_err(|_| "static fixture isolation id must be valid")?;
         let browsing_context = BrowsingContextId::new(context)
             .map_err(|_| "static fixture browsing context id must be valid")?;
+        let port_id = DisposableContextPortId::new(context)
+            .ok_or("static fixture lifecycle port id must be non-zero")?;
         Ok(Self {
+            port_id,
             next_handle: DisposableContextHandle::new(isolation, browsing_context),
             create_calls: 0,
             destroy_calls: 0,
@@ -27,21 +32,24 @@ impl FailingDestroyPort {
 }
 
 impl DisposableContextPort for FailingDestroyPort {
+    fn port_id(&self) -> DisposableContextPortId {
+        self.port_id
+    }
+
     fn create_disposable_context(
         &mut self,
-        _browser_session: BrowserSessionId,
-        _incarnation: BrowserSessionIncarnation,
+        request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
+        assert_eq!(request.port_id(), self.port_id);
         self.create_calls += 1;
         Ok(self.next_handle.clone())
     }
 
     fn destroy_disposable_context(
         &mut self,
-        _browser_session: BrowserSessionId,
-        _incarnation: BrowserSessionIncarnation,
-        _context: &DisposableContextHandle,
+        request: &DisposableContextDestroyRequest,
     ) -> Result<(), DisposableContextDestroyError> {
+        assert_eq!(request.port_id(), self.port_id);
         self.destroy_calls += 1;
         Err(DisposableContextDestroyError::DestroyFailed)
     }
