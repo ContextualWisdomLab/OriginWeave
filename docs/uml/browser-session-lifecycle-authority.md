@@ -15,19 +15,35 @@ sequenceDiagram
     S->>S: allocate BrowserSessionIncarnation
     C->>S: bind_lifecycle_port(port by value)
     S-->>C: BoundBrowserSession owns aggregate + exact port
-    Note over S,P: binding invokes no adapter callback
+    Note over S,P: binding invokes no adapter callback; no public raw port accessor
 
     C->>BS: create_disposable_context()
     BS->>S: require Active + reserve monotonic epoch
-    S->>S: mint DisposableContextCreateRequest
+    S->>S: mint DisposableContextCreateRequest(session, incarnation, attempt epoch)
     S->>P: create_disposable_context(request)
-    P->>B: create fresh isolation boundary + browsing context
+    P->>B: create/stage isolation boundary + browsing context
     B-->>P: unique isolation id + BrowsingContextId or typed create error
-    P-->>S: DisposableContextHandle
-    S->>S: register exact handle + Active epoch
-    S-->>C: PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
+    P-->>S: DisposableContextHandle (still pending in adapter)
 
-    Note over C,S: Raw ids and adapter-selected scalar identities cannot mint lifecycle or presentation authority.
+    alt domain handle accepted
+        S->>S: validate no isolation/context alias
+        S->>S: mint DisposableContextCreateCompletion(Accepted, exact attempt)
+        S->>P: complete_disposable_context_creation(completion)
+        P->>P: pending exact attempt → accepted
+        S->>S: register exact handle + Active epoch
+        S-->>C: PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
+    else domain handle rejected
+        S->>S: retain duplicate handle as recovery evidence
+        S->>S: mint DisposableContextCreateCompletion(Rejected, exact attempt)
+        S->>P: complete_disposable_context_creation(completion)
+        P->>P: pending exact attempt → quarantined/non-authorizing
+        S->>S: RecoveryRequired
+    else completion cannot be proven
+        S->>S: retain UnsettledAdapterHandle
+        S->>S: RecoveryRequired
+    end
+
+    Note over C,S: Raw ids, adapter-selected values, and diagnostic references cannot mint lifecycle or presentation authority.
 
     C->>BS: advance_context_epoch(context_id)
     BS->>S: replace epoch; old authority becomes stale
@@ -46,23 +62,24 @@ sequenceDiagram
     S-->>C: Ended
 ```
 
-`BoundBrowserSession` is a linear lifecycle-port binding: it consumes one concrete port and exposes no public lifecycle method that accepts a replacement port. `DisposableContextPort` has no identity callback, so Browser Session does not execute arbitrary adapter code merely to establish adapter ownership. `DisposableContextCreateRequest` and `DisposableContextDestroyRequest` are non-caller-constructible capabilities created inside the bound path.
+`BoundBrowserSession` is a linear lifecycle-port binding. It consumes one concrete port, exposes no public raw `&P`, and exposes no lifecycle method that accepts a replacement port. Tests retain inert observation state separately from the moved adapter.
 
-`BrowserSessionIncarnation` separates sequential aggregate lifecycles even when the browser later reuses the same external session, user-context/isolation, browsing-context, and local epoch values. The incarnation is checked by authority validation and reaches the lifecycle port inside the opaque request.
+`DisposableContextCreateRequest` and `DisposableContextCreateCompletion` are non-caller-constructible. The create request carries the reserved `BrowserContextEpoch` as a per-create transaction id; Browser Session alone decides whether the returned domain handle is accepted or rejected.
 
-For a WebDriver BiDi adapter, `DisposableIsolationId` maps to the user-context id created by `browser.createUserContext`. That protocol id remains lifecycle addressability rather than OriginWeave policy authority. Protocol-specific pending/accepted/quarantined remote tuples remain in the BiDi ACL boundary rather than this domain model.
+For WebDriver BiDi, `DisposableIsolationId` maps to the user-context id created by `browser.createUserContext`. Protocol-specific pending/accepted/quarantined remote tuples remain in the BiDi ACL boundary rather than this domain model.
 
 ## Recovery and transport state
 
 ```mermaid
 stateDiagram-v2
     [*] --> Active
-    Active --> Active: fresh isolation + context / authority minted
+    Active --> Active: create candidate + exact Accepted completion + authority
     Active --> Active: context epoch advanced / prior authority stale
     Active --> Active: exact owned isolation destruction proved
     Active --> Active: DisposableContextCreateError::CreateFailedClean
     Active --> RecoveryRequired: CreateFailedUncertain / retain known partial isolation
-    Active --> RecoveryRequired: duplicate output / retain offending handle
+    Active --> RecoveryRequired: duplicate output + exact Rejected completion
+    Active --> RecoveryRequired: completion unproven / retain UnsettledAdapterHandle
     Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven
     Active --> Ended: all owned contexts Destroyed + end
     Active --> TransportLost: browser transport lost
@@ -73,13 +90,9 @@ stateDiagram-v2
 
     note right of RecoveryRequired
       BrowserSessionRecoveryEvidence retains known
-      partial identity, duplicate handle, or exact
-      unproven-destruction handle. It grants no I/O.
-    end note
-
-    note right of TransportLost
-      Transport liveness is orthogonal to ownership
-      recovery. Duplicate loss reports are idempotent.
+      partial identity, duplicate/unsettled handle,
+      or exact unproven-destruction handle.
+      It grants no I/O.
     end note
 ```
 
@@ -94,18 +107,20 @@ sequenceDiagram
     participant PB as Lifecycle port B
 
     A->>A: start(S) => incarnation A; bind PA
-    A->>PA: create(request S, incarnation A)
-    PA-->>A: U, C
+    A->>PA: create(request S, incarnation A, attempt 1)
+    PA-->>A: U, C pending
+    A->>PA: completion Accepted(attempt 1)
     A->>PA: destroy(request S, incarnation A, U/C)
     A->>A: end()
 
     B->>B: start(S) => incarnation B; bind PB
-    B->>PB: create(request S, incarnation B)
-    PB-->>B: same U, same C
-    Note over A,B: both local context epochs may equal 1
+    B->>PB: create(request S, incarnation B, attempt 1)
+    PB-->>B: same U, same C pending
+    B->>PB: completion Accepted(attempt 1)
+    Note over A,B: local attempt/epoch may both equal 1, but incarnations differ
     B->>B: validate retained authority A
     B-->>A: AuthorityMismatch before PB destroy I/O
     B->>PB: destroy with authority B + incarnation B
 ```
 
-`RecoveryRequired` and `TransportLost` remain terminal for normal authority in this slice. A later reconciliation design may inspect `BrowserSessionRecoveryEvidence`, but it must not reconstruct cleanup authority from raw identifiers or treat command ACK as proof of destruction.
+`RecoveryRequired` and `TransportLost` remain terminal for normal authority in this slice. Later reconciliation may inspect recovery evidence, but it must not reconstruct cleanup authority from raw identifiers or treat command ACK as proof of destruction.
