@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map::Entry};
 use std::marker::PhantomData;
 
 use originweave_browser_session::{
@@ -196,8 +196,15 @@ impl<B: WebDriverBidiLifecycleBackend> DisposableContextPort for WebDriverBidiLi
         let handle =
             DisposableContextHandle::new(created.isolation.clone(), created.browsing_context);
         let key = LifecycleBindingKey::from_handle(browser_session, incarnation, &handle);
-        self.bindings.insert(key, created.remote_context);
-        Ok(handle)
+        match self.bindings.entry(key) {
+            Entry::Vacant(binding) => {
+                binding.insert(created.remote_context);
+                Ok(handle)
+            }
+            Entry::Occupied(_) => Err(DisposableContextCreateError::CreateFailedUncertain(Some(
+                created.isolation,
+            ))),
+        }
     }
 
     fn destroy_disposable_context(
