@@ -1,12 +1,13 @@
 use originweave_browser_session::{
     BrowserSession, BrowserSessionError, BrowserSessionIncarnation, DisposableContextCreateError,
-    DisposableContextDestroyError, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
+    DisposableContextHandle, DisposableContextPort, DisposableContextPortId, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
 #[derive(Debug)]
 struct ReusingPort {
+    port_id: DisposableContextPortId,
     handle: DisposableContextHandle,
     create_incarnations: Vec<BrowserSessionIncarnation>,
     destroy_incarnations: Vec<BrowserSessionIncarnation>,
@@ -18,7 +19,10 @@ impl ReusingPort {
             .map_err(|_| "static fixture isolation id must be valid")?;
         let browsing_context = BrowsingContextId::new(context)
             .map_err(|_| "static fixture browsing context id must be valid")?;
+        let port_id = DisposableContextPortId::new(context)
+            .ok_or("static fixture lifecycle port id must be non-zero")?;
         Ok(Self {
+            port_id,
             handle: DisposableContextHandle::new(isolation, browsing_context),
             create_incarnations: Vec::new(),
             destroy_incarnations: Vec::new(),
@@ -27,22 +31,25 @@ impl ReusingPort {
 }
 
 impl DisposableContextPort for ReusingPort {
+    fn port_id(&self) -> DisposableContextPortId {
+        self.port_id
+    }
+
     fn create_disposable_context(
         &mut self,
-        _browser_session: BrowserSessionId,
-        incarnation: BrowserSessionIncarnation,
+        request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
-        self.create_incarnations.push(incarnation);
+        assert_eq!(request.port_id(), self.port_id);
+        self.create_incarnations.push(request.incarnation());
         Ok(self.handle.clone())
     }
 
     fn destroy_disposable_context(
         &mut self,
-        _browser_session: BrowserSessionId,
-        incarnation: BrowserSessionIncarnation,
-        _context: &DisposableContextHandle,
+        request: &DisposableContextDestroyRequest,
     ) -> Result<(), DisposableContextDestroyError> {
-        self.destroy_incarnations.push(incarnation);
+        assert_eq!(request.port_id(), self.port_id);
+        self.destroy_incarnations.push(request.incarnation());
         Ok(())
     }
 }
