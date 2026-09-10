@@ -1,13 +1,13 @@
 //! Browser Session lifecycle authority for OriginWeave.
 //!
 //! This crate owns the domain transition that turns a newly created disposable
-//! browser context into presentation-mutation authority. Driver identifiers remain
-//! adapter data: naming a context is never sufficient to mint authority.
+//! browser isolation boundary into presentation-mutation authority. Driver identifiers
+//! remain adapter data: naming a session or browsing context is never sufficient to mint authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::collections::{BTreeMap, btree_map::Entry};
+use std::collections::BTreeMap;
 
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -31,13 +31,15 @@ pub enum BrowserSessionError {
     EpochExhausted,
     /// The disposable-context port could not create the requested isolated context.
     ContextCreationFailed,
-    /// The port returned a browsing-context identity already known to this session.
+    /// The port returned a browsing-context identity already known to this aggregate.
     DuplicateBrowsingContext,
+    /// The port returned an isolation identity already known to this aggregate.
+    DuplicateDisposableIsolation,
     /// The requested context is not currently owned and active in this session.
     ContextNotOwned,
-    /// The supplied authority belongs to another session, context, or context epoch.
+    /// The supplied authority belongs to another isolation boundary, session, context, or epoch.
     AuthorityMismatch,
-    /// The disposable-context port could not prove destruction of the owned context.
+    /// The disposable-context port could not prove destruction of the owned isolation boundary.
     ContextDestructionFailed,
     /// Normal session end was requested while an owned or uncertain context remains.
     ActiveContextRemains,
@@ -52,24 +54,105 @@ pub enum DisposableContextPortError {
     DestroyFailed,
 }
 
+/// Validation failure for a browser-issued disposable isolation identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisposableIsolationIdError {
+    /// The identity is empty.
+    Empty,
+    /// The identity exceeds the bounded adapter evidence size.
+    TooLong,
+    /// The identity contains surrounding whitespace or control characters.
+    InvalidCharacter,
+}
+
+/// Browser-issued identity for one disposable isolation boundary.
+///
+/// This value is addressability, not mutation authority. A conforming adapter must return a value
+/// that is non-aliasing for the live lifetime of the created boundary. A WebDriver BiDi adapter
+/// should map this one-to-one to the specification-defined unique user-context identifier.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DisposableIsolationId(String);
+
+impl DisposableIsolationId {
+    /// Parse one bounded browser-issued isolation identity.
+    pub fn parse(value: &str) -> Result<Self, DisposableIsolationIdError> {
+        if value.is_empty() {
+            return Err(DisposableIsolationIdError::Empty);
+        }
+        if value.len() > 4096 {
+            return Err(DisposableIsolationIdError::TooLong);
+        }
+        if value.trim() != value || value.chars().any(char::is_control) {
+            return Err(DisposableIsolationIdError::InvalidCharacter);
+        }
+        Ok(Self(value.to_owned()))
+    }
+
+    /// Return the validated browser-issued isolation identity.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Adapter result for one newly created disposable browser context.
+///
+/// The isolation identity scopes the lifecycle boundary used for destruction; the browsing-context
+/// identity addresses the independently navigable context inside that boundary. Neither field alone
+/// is presentation-mutation authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DisposableContextHandle {
+    isolation: DisposableIsolationId,
+    browsing_context: BrowsingContextId,
+}
+
+impl DisposableContextHandle {
+    /// Bind one validated isolation identity to its created browsing context.
+    #[must_use]
+    pub fn new(isolation: DisposableIsolationId, browsing_context: BrowsingContextId) -> Self {
+        Self {
+            isolation,
+            browsing_context,
+        }
+    }
+
+    /// Return the non-aliasing disposable isolation identity.
+    #[must_use]
+    pub fn isolation(&self) -> &DisposableIsolationId {
+        &self.isolation
+    }
+
+    /// Return the browsing-context address inside the disposable boundary.
+    #[must_use]
+    pub const fn browsing_context(&self) -> BrowsingContextId {
+        self.browsing_context
+    }
+}
+
 /// Port implemented by a reviewed browser adapter for disposable context lifecycle operations.
 ///
-/// `create_disposable_context` must create a fresh context owned exclusively by the supplied
-/// Browser Session. An implementation that merely returns an existing/shared context violates this
-/// port contract. `destroy_disposable_context` must return success only after the adapter has proved
-/// that the task-owned disposable boundary is gone; a command acknowledgement alone is insufficient.
+/// `create_disposable_context` must create a fresh isolation boundary and context owned exclusively
+/// by the supplied Browser Session. The returned [`DisposableIsolationId`] must be non-aliasing for
+/// the lifetime of that boundary; for WebDriver BiDi this means a one-to-one mapping to the unique
+/// user-context identifier returned by `browser.createUserContext`. An implementation that merely
+/// returns an existing/shared context violates this port contract.
+///
+/// `destroy_disposable_context` must destroy the exact isolation boundary carried by the supplied
+/// handle and return success only after the adapter has proved that the task-owned boundary is gone.
+/// Reconstructing cleanup authority from `(BrowserSessionId, BrowsingContextId)` is forbidden, and a
+/// command acknowledgement alone is insufficient destruction evidence.
 pub trait DisposableContextPort {
-    /// Create one fresh disposable context for the Browser Session.
+    /// Create one fresh disposable isolation boundary and browsing context for the Browser Session.
     fn create_disposable_context(
         &mut self,
         browser_session: BrowserSessionId,
-    ) -> Result<BrowsingContextId, DisposableContextPortError>;
+    ) -> Result<DisposableContextHandle, DisposableContextPortError>;
 
-    /// Destroy one context previously created through this port for the same Browser Session.
+    /// Destroy the exact disposable isolation boundary represented by this handle.
     fn destroy_disposable_context(
         &mut self,
         browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
+        context: &DisposableContextHandle,
     ) -> Result<(), DisposableContextPortError>;
 }
 
@@ -88,31 +171,40 @@ impl BrowserContextEpoch {
 /// Opaque proof that Browser Session currently owns presentation mutation for one context epoch.
 ///
 /// The fields are private and no public constructor exists. A caller can obtain this value only after
-/// the Browser Session aggregate has successfully created a disposable context through its lifecycle
-/// port, or after that already-owned context advances to a new epoch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// the Browser Session aggregate has successfully created a disposable isolation boundary through its
+/// lifecycle port, or after that already-owned context advances to a new epoch. The isolation identity
+/// prevents two aggregate incarnations that reuse external session/context identifiers from aliasing
+/// each other's mutation or destruction authority when their disposable boundaries are distinct.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PresentationMutationAuthority {
     browser_session: BrowserSessionId,
+    isolation: DisposableIsolationId,
     browsing_context: BrowsingContextId,
     context_epoch: BrowserContextEpoch,
 }
 
 impl PresentationMutationAuthority {
-    /// Return the Browser Session that owns this authority.
+    /// Return the Browser Session transport identity associated with this authority.
     #[must_use]
-    pub const fn browser_session(self) -> BrowserSessionId {
+    pub const fn browser_session(&self) -> BrowserSessionId {
         self.browser_session
+    }
+
+    /// Return the owned disposable isolation identity.
+    #[must_use]
+    pub fn isolation(&self) -> &DisposableIsolationId {
+        &self.isolation
     }
 
     /// Return the owned browsing-context identity.
     #[must_use]
-    pub const fn browsing_context(self) -> BrowsingContextId {
+    pub const fn browsing_context(&self) -> BrowsingContextId {
         self.browsing_context
     }
 
     /// Return the exact context epoch covered by this authority.
     #[must_use]
-    pub const fn context_epoch(self) -> BrowserContextEpoch {
+    pub const fn context_epoch(&self) -> BrowserContextEpoch {
         self.context_epoch
     }
 }
@@ -124,8 +216,9 @@ enum OwnedContextState {
     Uncertain,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct OwnedContextRecord {
+    handle: DisposableContextHandle,
     epoch: BrowserContextEpoch,
     state: OwnedContextState,
 }
@@ -144,7 +237,11 @@ pub struct BrowserSession {
 }
 
 impl BrowserSession {
-    /// Start an active Browser Session around an already validated session identity.
+    /// Start an active Browser Session around an already validated transport session identity.
+    ///
+    /// The transport identity may be reused by a later aggregate incarnation; it therefore does not
+    /// participate alone in disposable ownership. Per-context authority additionally carries the
+    /// adapter-proved non-aliasing isolation identity.
     #[must_use]
     pub fn start(id: BrowserSessionId) -> Self {
         Self {
@@ -155,7 +252,7 @@ impl BrowserSession {
         }
     }
 
-    /// Return this aggregate's stable browser-session identity.
+    /// Return this aggregate's browser-session transport identity.
     #[must_use]
     pub const fn id(&self) -> BrowserSessionId {
         self.id
@@ -171,27 +268,40 @@ impl BrowserSession {
     ///
     /// Epoch capacity is reserved before external creation so an exhausted aggregate never creates an
     /// untrackable context. Epoch identifiers may therefore have gaps after failed creation or rejected
-    /// duplicate adapter output. A duplicate identity is rejected without attempting cleanup because a
-    /// port that violates the fresh-context contract may have returned another owner's existing context.
+    /// duplicate adapter output. Duplicate browser or isolation identities are rejected without cleanup
+    /// because a port that violates the fresh-boundary contract may have returned another owner's state.
     pub fn create_disposable_context<P: DisposableContextPort>(
         &mut self,
         port: &mut P,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
         let epoch = self.reserve_epoch()?;
-        let browsing_context = port
+        let handle = port
             .create_disposable_context(self.id)
             .map_err(|_error| BrowserSessionError::ContextCreationFailed)?;
-        match self.contexts.entry(browsing_context) {
-            Entry::Vacant(entry) => {
-                entry.insert(OwnedContextRecord {
-                    epoch,
-                    state: OwnedContextState::Active,
-                });
-            }
-            Entry::Occupied(_) => return Err(BrowserSessionError::DuplicateBrowsingContext),
+
+        if self
+            .contexts
+            .values()
+            .any(|record| record.handle.isolation == handle.isolation)
+        {
+            return Err(BrowserSessionError::DuplicateDisposableIsolation);
         }
-        Ok(self.authority_for(browsing_context, epoch))
+        if self.contexts.contains_key(&handle.browsing_context) {
+            return Err(BrowserSessionError::DuplicateBrowsingContext);
+        }
+
+        let browsing_context = handle.browsing_context;
+        let authority = Self::authority_for(self.id, &handle, epoch);
+        self.contexts.insert(
+            browsing_context,
+            OwnedContextRecord {
+                handle,
+                epoch,
+                state: OwnedContextState::Active,
+            },
+        );
+        Ok(authority)
     }
 
     /// Return current presentation authority for an already-owned active context.
@@ -208,7 +318,7 @@ impl BrowserSession {
             .get(&browsing_context)
             .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
-        Ok(self.authority_for(browsing_context, record.epoch))
+        Ok(Self::authority_for(self.id, &record.handle, record.epoch))
     }
 
     /// Advance one active owned context to a new authority epoch.
@@ -228,35 +338,35 @@ impl BrowserSession {
             .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
         record.epoch = next;
-        Ok(self.authority_for(browsing_context, next))
+        Ok(Self::authority_for(self.id, &record.handle, next))
     }
 
-    /// Destroy the disposable context covered by the supplied exact-epoch authority.
+    /// Destroy the disposable isolation boundary covered by the supplied exact-epoch authority.
     ///
-    /// Failed or unproven destruction moves the context to an uncertain terminal state so its old
-    /// authority cannot be reused. OriginWeave does not interpret an adapter ACK as destruction proof.
+    /// Authority is validated before any adapter I/O. Failed or unproven destruction moves the
+    /// context to an uncertain terminal state so its old authority cannot be reused. OriginWeave does
+    /// not interpret an adapter ACK as destruction proof.
     pub fn destroy_disposable_context<P: DisposableContextPort>(
         &mut self,
-        authority: PresentationMutationAuthority,
+        authority: &PresentationMutationAuthority,
         port: &mut P,
     ) -> Result<(), BrowserSessionError> {
-        let record = self.take_context_for_authority(authority)?;
-        let result = port.destroy_disposable_context(self.id, authority.browsing_context);
-        let (state, outcome) = match result {
-            Ok(()) => (OwnedContextState::Destroyed, Ok(())),
-            Err(_error) => (
-                OwnedContextState::Uncertain,
-                Err(BrowserSessionError::ContextDestructionFailed),
-            ),
-        };
-        self.contexts.insert(
-            authority.browsing_context,
-            OwnedContextRecord {
-                epoch: record.epoch,
-                state,
-            },
-        );
-        outcome
+        let handle = self.context_for_authority(authority)?.handle.clone();
+        let result = port.destroy_disposable_context(self.id, &handle);
+        let record = self
+            .contexts
+            .get_mut(&authority.browsing_context)
+            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        match result {
+            Ok(()) => {
+                record.state = OwnedContextState::Destroyed;
+                Ok(())
+            }
+            Err(_error) => {
+                record.state = OwnedContextState::Uncertain;
+                Err(BrowserSessionError::ContextDestructionFailed)
+            }
+        }
     }
 
     /// Record browser transport loss and invalidate all still-active context authority.
@@ -307,34 +417,32 @@ impl BrowserSession {
     }
 
     fn authority_for(
-        &self,
-        browsing_context: BrowsingContextId,
+        browser_session: BrowserSessionId,
+        handle: &DisposableContextHandle,
         context_epoch: BrowserContextEpoch,
     ) -> PresentationMutationAuthority {
         PresentationMutationAuthority {
-            browser_session: self.id,
-            browsing_context,
+            browser_session,
+            isolation: handle.isolation.clone(),
+            browsing_context: handle.browsing_context,
             context_epoch,
         }
     }
 
-    fn take_context_for_authority(
-        &mut self,
-        authority: PresentationMutationAuthority,
-    ) -> Result<OwnedContextRecord, BrowserSessionError> {
+    fn context_for_authority(
+        &self,
+        authority: &PresentationMutationAuthority,
+    ) -> Result<&OwnedContextRecord, BrowserSessionError> {
         self.require_active()?;
         if authority.browser_session != self.id {
             return Err(BrowserSessionError::AuthorityMismatch);
         }
-        let Some(record) = self.contexts.remove(&authority.browsing_context) else {
-            return Err(BrowserSessionError::ContextNotOwned);
-        };
-        if record.state != OwnedContextState::Active {
-            self.contexts.insert(authority.browsing_context, record);
-            return Err(BrowserSessionError::ContextNotOwned);
-        }
-        if record.epoch != authority.context_epoch {
-            self.contexts.insert(authority.browsing_context, record);
+        let record = self
+            .contexts
+            .get(&authority.browsing_context)
+            .filter(|record| record.state == OwnedContextState::Active)
+            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        if record.epoch != authority.context_epoch || record.handle.isolation != authority.isolation {
             return Err(BrowserSessionError::AuthorityMismatch);
         }
         Ok(record)
@@ -348,21 +456,26 @@ mod tests {
 
     #[derive(Debug)]
     struct TestPort {
-        next_context: BrowsingContextId,
+        next_handle: DisposableContextHandle,
         fail_create: bool,
         fail_destroy: bool,
         create_calls: usize,
         destroy_calls: usize,
+        destroyed_isolations: Vec<DisposableIsolationId>,
     }
 
     impl TestPort {
-        fn new(next_context: u64) -> Self {
+        fn new(context: u64, isolation: &str) -> Self {
             Self {
-                next_context: BrowsingContextId::new(next_context).expect("valid context id"),
+                next_handle: DisposableContextHandle::new(
+                    isolation_id(isolation),
+                    context_id(context),
+                ),
                 fail_create: false,
                 fail_destroy: false,
                 create_calls: 0,
                 destroy_calls: 0,
+                destroyed_isolations: Vec::new(),
             }
         }
     }
@@ -371,21 +484,22 @@ mod tests {
         fn create_disposable_context(
             &mut self,
             _browser_session: BrowserSessionId,
-        ) -> Result<BrowsingContextId, DisposableContextPortError> {
+        ) -> Result<DisposableContextHandle, DisposableContextPortError> {
             self.create_calls += 1;
             if self.fail_create {
                 Err(DisposableContextPortError::CreateFailed)
             } else {
-                Ok(self.next_context)
+                Ok(self.next_handle.clone())
             }
         }
 
         fn destroy_disposable_context(
             &mut self,
             _browser_session: BrowserSessionId,
-            _browsing_context: BrowsingContextId,
+            context: &DisposableContextHandle,
         ) -> Result<(), DisposableContextPortError> {
             self.destroy_calls += 1;
+            self.destroyed_isolations.push(context.isolation.clone());
             if self.fail_destroy {
                 Err(DisposableContextPortError::DestroyFailed)
             } else {
@@ -402,10 +516,36 @@ mod tests {
         BrowsingContextId::new(value).expect("valid context id")
     }
 
+    fn isolation_id(value: &str) -> DisposableIsolationId {
+        DisposableIsolationId::parse(value).expect("valid isolation id")
+    }
+
+    #[test]
+    fn isolation_identity_validation_is_bounded() {
+        assert_eq!(
+            DisposableIsolationId::parse(""),
+            Err(DisposableIsolationIdError::Empty)
+        );
+        assert_eq!(
+            DisposableIsolationId::parse(&"x".repeat(4097)),
+            Err(DisposableIsolationIdError::TooLong)
+        );
+        assert_eq!(
+            DisposableIsolationId::parse(" user-context "),
+            Err(DisposableIsolationIdError::InvalidCharacter)
+        );
+        assert_eq!(
+            DisposableIsolationId::parse("user\ncontext"),
+            Err(DisposableIsolationIdError::InvalidCharacter)
+        );
+        let valid = isolation_id("webdriver-user-context-10");
+        assert_eq!(valid.as_str(), "webdriver-user-context-10");
+    }
+
     #[test]
     fn disposable_creation_is_the_only_raw_context_entry_to_authority() {
         let mut session = BrowserSession::start(session_id(1));
-        let mut port = TestPort::new(10);
+        let mut port = TestPort::new(10, "isolation-10");
 
         assert_eq!(session.id(), session_id(1));
         assert_eq!(session.state(), BrowserSessionState::Active);
@@ -419,6 +559,7 @@ mod tests {
             .expect("owned disposable context");
         assert_eq!(port.create_calls, 1);
         assert_eq!(authority.browser_session(), session_id(1));
+        assert_eq!(authority.isolation().as_str(), "isolation-10");
         assert_eq!(authority.browsing_context(), context_id(10));
         assert_eq!(authority.context_epoch().value(), 1);
         assert_eq!(
@@ -428,9 +569,9 @@ mod tests {
     }
 
     #[test]
-    fn creation_failure_duplicate_and_epoch_exhaustion_fail_closed() {
+    fn creation_failure_duplicate_ids_and_epoch_exhaustion_fail_closed() {
         let mut failed_session = BrowserSession::start(session_id(2));
-        let mut failed_port = TestPort::new(20);
+        let mut failed_port = TestPort::new(20, "isolation-20");
         failed_port.fail_create = true;
         assert_eq!(
             failed_session.create_disposable_context(&mut failed_port),
@@ -438,18 +579,24 @@ mod tests {
         );
 
         let mut duplicate_session = BrowserSession::start(session_id(3));
-        let mut duplicate_port = TestPort::new(30);
+        let mut first_port = TestPort::new(30, "isolation-30-a");
         duplicate_session
-            .create_disposable_context(&mut duplicate_port)
+            .create_disposable_context(&mut first_port)
             .expect("first owned context");
+        let mut duplicate_context = TestPort::new(30, "isolation-30-b");
         assert_eq!(
-            duplicate_session.create_disposable_context(&mut duplicate_port),
+            duplicate_session.create_disposable_context(&mut duplicate_context),
             Err(BrowserSessionError::DuplicateBrowsingContext)
+        );
+        let mut duplicate_isolation = TestPort::new(31, "isolation-30-a");
+        assert_eq!(
+            duplicate_session.create_disposable_context(&mut duplicate_isolation),
+            Err(BrowserSessionError::DuplicateDisposableIsolation)
         );
 
         let mut exhausted_session = BrowserSession::start(session_id(4));
         exhausted_session.next_epoch = u64::MAX;
-        let mut unused_port = TestPort::new(40);
+        let mut unused_port = TestPort::new(40, "isolation-40");
         assert_eq!(
             exhausted_session.create_disposable_context(&mut unused_port),
             Err(BrowserSessionError::EpochExhausted)
@@ -460,7 +607,7 @@ mod tests {
     #[test]
     fn epoch_advance_invalidates_old_and_cross_session_authority() {
         let mut session = BrowserSession::start(session_id(5));
-        let mut port = TestPort::new(50);
+        let mut port = TestPort::new(50, "isolation-50");
         let old = session
             .create_disposable_context(&mut port)
             .expect("owned context");
@@ -469,22 +616,22 @@ mod tests {
             .expect("advanced epoch");
         assert_eq!(new.context_epoch().value(), 2);
         assert_eq!(
-            session.destroy_disposable_context(old, &mut port),
+            session.destroy_disposable_context(&old, &mut port),
             Err(BrowserSessionError::AuthorityMismatch)
         );
 
         let mut foreign = BrowserSession::start(session_id(6));
-        let mut foreign_port = TestPort::new(60);
+        let mut foreign_port = TestPort::new(60, "isolation-60");
         foreign
             .create_disposable_context(&mut foreign_port)
             .expect("foreign context");
         assert_eq!(
-            foreign.destroy_disposable_context(new, &mut foreign_port),
+            foreign.destroy_disposable_context(&new, &mut foreign_port),
             Err(BrowserSessionError::AuthorityMismatch)
         );
 
         session
-            .destroy_disposable_context(new, &mut port)
+            .destroy_disposable_context(&new, &mut port)
             .expect("destroy current epoch");
         assert_eq!(port.destroy_calls, 1);
         assert_eq!(
@@ -496,24 +643,61 @@ mod tests {
             Err(BrowserSessionError::ContextNotOwned)
         );
         assert_eq!(
-            session.destroy_disposable_context(new, &mut port),
+            session.destroy_disposable_context(&new, &mut port),
             Err(BrowserSessionError::ContextNotOwned)
         );
         assert_eq!(port.destroy_calls, 1);
     }
 
     #[test]
+    fn two_aggregate_alias_cannot_cross_mutation_or_destruction_boundary() {
+        let shared_session = session_id(12);
+        let shared_context = context_id(120);
+        let mut session_a = BrowserSession::start(shared_session);
+        let mut session_b = BrowserSession::start(shared_session);
+        let mut port_a = TestPort::new(120, "user-context-a");
+        let mut port_b = TestPort::new(120, "user-context-b");
+
+        let authority_a = session_a
+            .create_disposable_context(&mut port_a)
+            .expect("owner A context");
+        let authority_b = session_b
+            .create_disposable_context(&mut port_b)
+            .expect("owner B context");
+        assert_eq!(authority_a.browsing_context(), shared_context);
+        assert_eq!(authority_b.browsing_context(), shared_context);
+        assert_ne!(authority_a.isolation(), authority_b.isolation());
+
+        assert_eq!(
+            session_b.destroy_disposable_context(&authority_a, &mut port_b),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        assert_eq!(port_b.destroy_calls, 0);
+
+        session_b
+            .destroy_disposable_context(&authority_b, &mut port_b)
+            .expect("B destroys only its isolation boundary");
+        assert_eq!(port_b.destroy_calls, 1);
+        assert_eq!(
+            port_b.destroyed_isolations,
+            vec![isolation_id("user-context-b")]
+        );
+        assert_ne!(&port_b.destroyed_isolations[0], authority_a.isolation());
+    }
+
+    #[test]
     fn unknown_internal_authority_cannot_trigger_destroy_io() {
         let mut session = BrowserSession::start(session_id(11));
-        let mut port = TestPort::new(110);
+        let mut port = TestPort::new(110, "isolation-110");
         let unknown = PresentationMutationAuthority {
             browser_session: session_id(11),
+            isolation: isolation_id("isolation-111"),
             browsing_context: context_id(111),
             context_epoch: BrowserContextEpoch(1),
         };
 
         assert_eq!(
-            session.destroy_disposable_context(unknown, &mut port),
+            session.destroy_disposable_context(&unknown, &mut port),
             Err(BrowserSessionError::ContextNotOwned)
         );
         assert_eq!(port.destroy_calls, 0);
@@ -522,13 +706,13 @@ mod tests {
     #[test]
     fn destroy_failure_quarantines_authority_and_transport_loss_is_idempotent() {
         let mut session = BrowserSession::start(session_id(7));
-        let mut port = TestPort::new(70);
+        let mut port = TestPort::new(70, "isolation-70");
         let authority = session
             .create_disposable_context(&mut port)
             .expect("owned context");
         port.fail_destroy = true;
         assert_eq!(
-            session.destroy_disposable_context(authority, &mut port),
+            session.destroy_disposable_context(&authority, &mut port),
             Err(BrowserSessionError::ContextDestructionFailed)
         );
         assert_eq!(port.destroy_calls, 1);
@@ -547,13 +731,21 @@ mod tests {
             session.create_disposable_context(&mut port),
             Err(BrowserSessionError::SessionNotActive)
         );
+        assert_eq!(
+            session.presentation_authority(context_id(70)),
+            Err(BrowserSessionError::SessionNotActive)
+        );
+        assert_eq!(
+            session.advance_context_epoch(context_id(70)),
+            Err(BrowserSessionError::SessionNotActive)
+        );
         assert_eq!(session.end(), Err(BrowserSessionError::SessionNotActive));
     }
 
     #[test]
     fn successful_destruction_is_required_before_normal_end() {
         let mut session = BrowserSession::start(session_id(8));
-        let mut port = TestPort::new(80);
+        let mut port = TestPort::new(80, "isolation-80");
         let authority = session
             .create_disposable_context(&mut port)
             .expect("owned context");
@@ -562,25 +754,34 @@ mod tests {
             Err(BrowserSessionError::ActiveContextRemains)
         );
         session
-            .destroy_disposable_context(authority, &mut port)
+            .destroy_disposable_context(&authority, &mut port)
             .expect("proven destruction");
         session.end().expect("all owned contexts destroyed");
         assert_eq!(session.state(), BrowserSessionState::Ended);
+        assert_eq!(
+            session.presentation_authority(context_id(80)),
+            Err(BrowserSessionError::SessionNotActive)
+        );
+        assert_eq!(
+            session.advance_context_epoch(context_id(80)),
+            Err(BrowserSessionError::SessionNotActive)
+        );
         assert_eq!(session.end(), Err(BrowserSessionError::SessionNotActive));
     }
 
     #[test]
     fn transport_loss_invalidates_still_active_contexts() {
         let mut session = BrowserSession::start(session_id(9));
-        let mut port = TestPort::new(90);
+        let mut port = TestPort::new(90, "isolation-90");
         let authority = session
             .create_disposable_context(&mut port)
             .expect("owned context");
         assert!(session.record_transport_loss());
         assert_eq!(
-            session.destroy_disposable_context(authority, &mut port),
+            session.destroy_disposable_context(&authority, &mut port),
             Err(BrowserSessionError::SessionNotActive)
         );
+        assert_eq!(port.destroy_calls, 0);
     }
 
     #[test]
@@ -591,7 +792,7 @@ mod tests {
             Err(BrowserSessionError::ContextNotOwned)
         );
 
-        let mut port = TestPort::new(101);
+        let mut port = TestPort::new(101, "isolation-101");
         session
             .create_disposable_context(&mut port)
             .expect("owned context");
