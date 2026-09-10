@@ -1,6 +1,6 @@
 # Browser Session lifecycle authority
 
-This diagram describes the active-pr domain contract introduced for issue #312. It is not evidence that a WebDriver BiDi or Chromium adapter already implements the port.
+This diagram describes the active-PR domain contract introduced for issue #312. It is not evidence that a WebDriver BiDi or Chromium adapter already implements the port.
 
 ```mermaid
 sequenceDiagram
@@ -14,22 +14,22 @@ sequenceDiagram
     C->>S: create_disposable_context(port)
     S->>S: reserve monotonic context epoch
     S->>P: create_disposable_context(session_id)
-    P->>B: create isolated disposable boundary
-    B-->>P: fresh BrowsingContextId
-    P-->>S: BrowsingContextId
-    S->>S: register owned Active context
-    S-->>C: opaque PresentationMutationAuthority
+    P->>B: create fresh isolation boundary + browsing context
+    B-->>P: unique isolation id + BrowsingContextId
+    P-->>S: DisposableContextHandle
+    S->>S: register exact isolation handle + Active epoch
+    S-->>C: PresentationMutationAuthority(session, isolation, context, epoch)
 
-    Note over C,S: Raw BrowsingContextId alone cannot mint authority.
+    Note over C,S: Raw BrowserSessionId/BrowsingContextId cannot mint authority.
 
     C->>S: advance_context_epoch(context_id)
     S->>S: replace epoch; old authority becomes stale
-    S-->>C: new opaque authority
+    S-->>C: new opaque authority carrying same isolation
 
     C->>S: destroy_disposable_context(authority, port)
-    S->>S: validate exact session/context/epoch
-    S->>P: destroy_disposable_context(session_id, context_id)
-    P->>B: destroy isolated disposable boundary
+    S->>S: validate exact session/isolation/context/epoch before I/O
+    S->>P: destroy_disposable_context(session_id, stored handle)
+    P->>B: remove exact owned isolation boundary
     B-->>P: observed destruction post-condition
     P-->>S: success
     S->>S: context = Destroyed
@@ -38,14 +38,18 @@ sequenceDiagram
     S-->>C: Ended
 ```
 
+Two aggregates may receive the same external `BrowserSessionId`, the same `BrowsingContextId`, and the same local epoch. Their authority must still differ because the adapter-created disposable isolation identity is non-aliasing for its live lifetime. Passing aggregate A's authority into aggregate B therefore fails before adapter I/O; aggregate B's own destroy call carries B's stored isolation handle instead of reconstructing cleanup authority from the shared transport identifiers.
+
+For a WebDriver BiDi adapter, the isolation identity is expected to map one-to-one to the specification-defined unique user-context id created by `browser.createUserContext`, and cleanup targets that exact user context. The protocol id remains lifecycle addressability, not OriginWeave policy authority.
+
 ## Failure state machine
 
 ```mermaid
 stateDiagram-v2
     [*] --> Active
-    Active --> Active: fresh context created / authority minted
+    Active --> Active: fresh isolation + context created / authority minted
     Active --> Active: context epoch advanced / prior authority stale
-    Active --> Active: owned context destruction proved
+    Active --> Active: exact owned isolation destruction proved
     Active --> Active: create rejected / no authority
     Active --> Active: destroy fails / context becomes Uncertain
     Active --> Ended: all owned contexts Destroyed + end
