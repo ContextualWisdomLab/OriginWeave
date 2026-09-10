@@ -47,8 +47,8 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 - [Resolved-destination policy implementation plan](superpowers/plans/2026-08-06-resolved-destination-policy.md)
 - [Direct socket binding design](superpowers/specs/2026-08-06-direct-socket-binding-design.md)
 - [Direct socket binding implementation plan](superpowers/plans/2026-08-06-direct-socket-binding.md)
-- [TLS service-identity design](superpowers/specs/2026-08-06-tls-service-identity-design.md)
-- [TLS service-identity implementation plan](superpowers/plans/2026-08-06-tls-service-identity.md)
+- [TLS service-identity design](superpowers/specs/2026-08-06-tls-server-identity-design.md)
+- [TLS service-identity implementation plan](superpowers/plans/2026-08-06-tls-server-identity.md)
 
 ## Accepted protected-main architecture decisions
 
