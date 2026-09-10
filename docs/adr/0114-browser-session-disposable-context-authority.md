@@ -5,131 +5,121 @@
 
 ## Context
 
-OriginWeave's WebDriver BiDi presentation adapter requires opaque ownership witnesses before it can plan viewport/device-pixel-ratio, timezone, or screen-area mutation. A caller that merely knows a browsing-context identifier therefore cannot overwrite another owner's presentation state and later clear it to an implementation default.
+OriginWeave's WebDriver BiDi presentation adapter requires opaque ownership witnesses before viewport/device-pixel-ratio, timezone, or screen-area mutation can be planned. A caller that merely knows a browser-session or browsing-context identifier therefore cannot overwrite another owner's presentation state and later clear it to an implementation default.
 
-The Browser Session boundary must also establish why a context is exclusively OriginWeave-owned before any presentation-mutation authority is issued. External browser-session and browsing-context identifiers can be reused across aggregate incarnations, so ownership cannot be reconstructed from `(BrowserSessionId, BrowsingContextId, local epoch)`. The active implementation carries a separate non-aliasing disposable isolation identity through authority validation and destruction I/O.
+The Browser Session boundary must establish why a context is exclusively OriginWeave-owned before presentation authority exists. External browser-session, user-context/isolation, and browsing-context identifiers are protocol addressability. They may be reused after a prior lifecycle ends, so `(BrowserSessionId, DisposableIsolationId, BrowsingContextId, local epoch)` is not by itself a durable capability generation.
 
-A second lifecycle gap appears whenever the adapter does not have a proved-clean post-condition. During creation, an adapter can fail after browser state may already have been created, or can return a duplicate context/isolation identity. During destruction, an adapter can fail after the cleanup command has been sent without proving that the exact owned boundary is gone. In either case OriginWeave cannot safely keep the aggregate `Active`: further authority issuance would continue operating beside unresolved browser state. Creation and destruction therefore require explicit clean-versus-uncertain handling and a recovery-required state.
+Lifecycle failures also need lossless evidence. A BiDi adapter can successfully create a user context before later browsing-context creation or verification becomes uncertain. Duplicate adapter output can expose an offending handle that must not be silently discarded or automatically destroyed. Destruction can fail without proving that the exact isolation boundary is gone. These outcomes require recovery quarantine while retaining every exact browser-issued identity that is already known.
 
-The 9 September 2026 WebDriver BiDi Working Draft provides a standards-aligned isolation identity. A user context has a user-context id defined as a unique string set when the user context is created. `browser.createUserContext` creates a new user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes that user context after closing its navigables. These protocol operations are adapter capabilities; they do not themselves define OriginWeave policy authority, and a command acknowledgement alone is not cleanup proof.
+Transport liveness is independent from ownership certainty. A session already in `RecoveryRequired` can subsequently lose its transport; that new fact must be recorded without erasing the recovery evidence. Conversely, merely entering recovery does not prove the transport is dead.
+
+The 9 September 2026 WebDriver BiDi Working Draft defines user-context identifiers and the `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext` lifecycle. Those commands remain adapter capabilities rather than OriginWeave policy authority, and command ACK alone is not destruction proof.
 
 ## Decision drivers
 
-- Remote-issued browser-session and browsing-context identifiers are addressability, not mutation authority.
-- Reuse of external session/context identifiers across aggregate incarnations must not create authority aliasing.
-- Shared or attached human contexts must never acquire disposable-owner semantics by implication.
-- Presentation reset must not destroy a predecessor override owned by another task/session.
-- Destruction I/O must be scoped by the exact disposable isolation boundary, not reconstructed from aliasable session/context identifiers.
-- Creation failure must distinguish proved-clean failure from an uncertain post-condition.
-- Creation-only and destruction-only adapter failures must be different types so phase-invalid outcomes are not representable.
-- Duplicate or partial-create outcomes must not permit false normal completion.
-- An unproven destroy must quarantine the aggregate before any later context creation or authority issuance.
-- Navigation, renderer replacement, crash, cleanup failure, and transport loss must invalidate stale authority.
-- The Browser Session domain must remain independent of WebDriver BiDi, CDP, MCP, and LLM policy decisions.
-- An adapter acknowledgement is not a successful cleanup post-condition.
-
-## Assumptions and authority boundaries
-
-`originweave-browser-session` owns Browser Session lifecycle state, owned-context membership, monotonic context epochs, validated disposable-isolation identity, recovery-required state, and opaque presentation-mutation authority. It consumes validated `BrowserSessionId` and `BrowsingContextId` values from `originweave-core`.
-
-A narrow `DisposableContextPort` is the anti-corruption boundary to a future browser adapter. The port must return a `DisposableContextHandle` containing the browsing-context address and a live-lifetime non-aliasing `DisposableIsolationId`. For WebDriver BiDi, the adapter proof obligation is a one-to-one mapping from that isolation id to the specification-defined unique user-context id returned by fresh user-context creation. The same handle must scope destruction; reconstructing cleanup authority from `(BrowserSessionId, BrowsingContextId)` is forbidden.
-
-Creation and destruction expose separate failure types. `DisposableContextCreateError::CreateFailedClean` is valid only when the adapter can prove that no disposable browser state was created. `DisposableContextCreateError::CreateFailedUncertain` is required after any partial-create or unknown post-condition. An uncertain outcome moves the aggregate to `RecoveryRequired`, invalidates active owned-context authority, blocks further creation/authority issuance, and prevents normal `end()` until a separate reconciliation design proves what happened remotely. A destruction-only failure is not representable from the creation method.
-
-Destruction returns `DisposableContextDestroyError`. Its failure means destruction could not be proved: the exact record becomes uncertain and the whole aggregate moves to `RecoveryRequired`; every remaining active context becomes uncertain and all active-only transitions fail before further adapter I/O. Creation-only failures are not representable from the destruction method. The current slice intentionally has no implicit retry or reopen transition because doing so would restore authority while remote ownership remains unresolved.
-
-`DisposableIsolationId` is addressability and lifecycle identity, not policy or presentation authority. Callers can validate an identifier value, but they cannot mint `PresentationMutationAuthority`; only the Browser Session aggregate can bind a port-created isolation boundary to a context epoch and issue the opaque authority token.
-
-The implementation deliberately does not convert `PresentationMutationAuthority` into the WebDriver BiDi crate's private presentation/screen-area witnesses. That bridge belongs to a later integration slice after both sides' contracts are reviewed. It also does not claim real-Chromium cleanup evidence.
-
-## Options considered
-
-### A. Treat any known browsing context as owned
-
-Rejected. It recreates the original authority-confusion defect and allows one task to erase another task's predecessor state.
-
-### B. Add only an aggregate-local incarnation or epoch
-
-Rejected as insufficient. An incarnation field can prevent one aggregate from accepting another aggregate's token, but if adapter destruction is still addressed only by reused session/context identifiers, a valid token from aggregate B can still cause the adapter to destroy aggregate A's boundary. The non-aliasing identity therefore has to reach the port boundary itself.
-
-### C. Treat every creation failure as clean
-
-Rejected. A transport or adapter failure after `browser.createUserContext` may leave a remote boundary whose ownership was never recorded. Normal completion after such a failure would produce false cleanup evidence.
-
-### D. Treat every uncertain lifecycle failure as transport loss
-
-Rejected as semantically imprecise. Browser transport may still be healthy while ownership of one create or destroy attempt is unknown. A distinct `RecoveryRequired` state preserves the causal distinction while remaining fail closed.
-
-### E. Keep the aggregate active after an unproven destroy
-
-Rejected. Marking only one record uncertain blocks normal `end()` but still allows new disposable contexts and unrelated authority to be created in an aggregate whose remote cleanup state is unresolved. That compounds uncertainty and weakens the ownership boundary.
-
-### F. Snapshot every predecessor presentation override and restore it exactly
-
-Deferred. Exact predecessor capture can support reusable/attached contexts later, but today OriginWeave does not have a complete standard protocol snapshot for every governed presentation surface. Partial restoration would be a false safety claim.
-
-### G. Own a disposable isolation lifecycle and issue opaque authority only after proved creation
-
-Selected. The Browser Session records a port-proved non-aliasing isolation identity together with its browsing context and epoch. A WebDriver BiDi adapter should map that identity one-to-one to a fresh user context and remove that exact user context during cleanup. Proved-clean create failure may leave the aggregate active; uncertain create failure, duplicate adapter output, or unproven destruction requires recovery. Creation and destruction errors remain method-specific so the ACL cannot express a failure from the wrong lifecycle phase.
+- Raw WebDriver/BiDi identifiers are addressability, not mutation or cleanup authority.
+- Sequential aggregate recreation must not make a retained stale authority valid again.
+- The lifecycle adapter must receive the same non-reused session incarnation used by authority validation; an aggregate-only nonce is insufficient.
+- Known remote identities from partial creation, duplicate output, or unproven destruction must be retained as recovery evidence without becoming command authority.
+- Ownership recovery and transport liveness must remain orthogonal.
+- Duplicate or uncertain outcomes fail closed and must not permit false normal completion.
+- Destruction I/O must use the exact stored handle and session incarnation rather than reconstructing authority from raw identifiers.
+- Browser Session remains the domain authority; WebDriver BiDi, CDP, MCP, and LLMs remain adapters or consumers.
 
 ## Decision
 
-Introduce `originweave-browser-session` as an independent Rust bounded context with these invariants:
+Introduce `originweave-browser-session` as an independent Rust bounded context and retain ADR status `Proposed` until protected-main and real-browser acceptance exist.
 
-1. `BrowserSession` is the aggregate root. It begins `Active` and may end normally only after every owned disposable context has proven destruction.
-2. A context enters the aggregate's owned set only after `DisposableContextPort::create_disposable_context` succeeds with a `DisposableContextHandle`. Supplying a raw `BrowsingContextId` never creates ownership.
-3. The handle contains both the browsing-context address and a `DisposableIsolationId` that the adapter contract requires to be non-aliasing for the live lifetime of the isolation boundary. A WebDriver BiDi adapter maps it one-to-one to the unique user-context id.
-4. Successful owned-context creation mints a non-caller-constructible `PresentationMutationAuthority` bound to the exact browser session transport identity, disposable isolation identity, browsing context, and context epoch.
-5. Two aggregates may reuse the same external `BrowserSessionId`, `BrowsingContextId`, and local epoch without sharing authority when their disposable isolation identities differ. Foreign isolation authority is rejected before adapter I/O.
-6. `DisposableContextCreateError::CreateFailedClean` means no remote boundary exists and leaves the aggregate active. `DisposableContextCreateError::CreateFailedUncertain`, duplicate browsing-context output, or duplicate isolation output moves the aggregate to `RecoveryRequired` and invalidates active authority. Destruction-only failures cannot appear on this method boundary.
-7. Advancing the context epoch invalidates previously issued authority. Adapter integration must use this transition at navigation/renderer lifecycle boundaries that invalidate the prior authority scope.
-8. Destruction requires exact current authority and passes the stored `DisposableContextHandle` back to the port. The aggregate retains that already-validated mutable record across the port call; it does not perform a second impossible lookup after I/O. The method returns only `DisposableContextDestroyError`, so creation-only outcomes cannot cross into cleanup semantics.
-9. If destruction cannot be proved, the failed record becomes `Uncertain`, the Browser Session moves to `RecoveryRequired`, every remaining active record becomes uncertain, and further creation, authority lookup/advance, destruction, and normal end are rejected until an explicit reconciliation design exists.
-10. Transport loss moves the Browser Session to `TransportLost`, marks still-active owned contexts uncertain, and prevents further authority issuance.
-11. `RecoveryRequired`, `TransportLost`, and `Ended` reject all transitions that require an active session. Reconciliation is a later explicit design; none of these states silently reopens ownership.
-12. Epoch sequence numbers are monotonic authority identities, not business counters; gaps are allowed after failed creation or rejected duplicate adapter output.
+1. `BrowserSession` is the aggregate root. `BrowserSession::start` allocates a process-local, monotonically non-reused `BrowserSessionIncarnation` before browser I/O. Allocation fails closed before `u64` wrap.
+2. Presentation authority is intentionally non-serializable. A process restart destroys every outstanding in-memory authority. Within one process, `BrowserSessionIncarnation` prevents sequential ABA when a later aggregate reuses the same external session, isolation, context, and local epoch values.
+3. The same `BrowserSessionIncarnation` is passed through `DisposableContextPort` create and destroy calls. Adapters must scope their remote ownership mapping to that incarnation. Ignoring it violates the port contract.
+4. A context enters the owned set only after `DisposableContextPort::create_disposable_context` returns a `DisposableContextHandle`. Raw `BrowsingContextId` input never creates ownership.
+5. `PresentationMutationAuthority` is opaque and binds browser session, Browser Session incarnation, disposable isolation, browsing context, and context epoch. All fields must match current aggregate ownership before adapter I/O.
+6. `DisposableContextCreateError::CreateFailedClean` is valid only when no remote boundary exists. `DisposableContextCreateError::CreateFailedUncertain(Option<DisposableIsolationId>)` enters `RecoveryRequired`; when the browser-issued isolation/user-context identity is known, it is preserved exactly.
+7. Duplicate browsing-context or isolation output enters `RecoveryRequired` and stores the complete offending `DisposableContextHandle` as recovery evidence. OriginWeave does not auto-destroy it because the adapter may have returned foreign state.
+8. `BrowserSessionRecoveryEvidence` records only reconciliation evidence: `PartialCreationIsolation`, `DuplicateAdapterHandle`, and `UnprovenDestruction`. It grants no browser command authority.
+9. Destruction validates exact authority before I/O, passes the current incarnation and stored handle to the port, and succeeds only after the adapter proves the exact boundary is gone. `DisposableContextDestroyError` moves the record and aggregate into recovery and retains the exact failed handle.
+10. Transport liveness is stored separately from ownership state. The first `record_transport_loss()` records the fact even after `RecoveryRequired`; later duplicate reports are idempotent. If transport is lost while the aggregate is `Active`, the lifecycle state becomes `TransportLost` and active contexts become uncertain. If ownership was already uncertain, `RecoveryRequired` remains the lifecycle state and the transport-loss fact is retained alongside it.
+11. `RecoveryRequired`, `TransportLost`, and `Ended` reject active-only creation, authority issuance/advance, destruction, and normal end. Reconciliation is a later, separately authorized design.
+12. Context epochs remain monotonic authority identities within one aggregate. They invalidate older authority after navigation or another lifecycle boundary but are not a substitute for session incarnation.
+
+## Alternatives considered
+
+### Treat any known context as owned
+
+Rejected. It restores the authority-confusion defect and allows one task to clear another task's state.
+
+### Depend only on browser-issued isolation identity
+
+Rejected. The WebDriver BiDi user-context identifier is suitable lifecycle addressability, but this ADR does not assume a historical non-reuse guarantee after removal. A later aggregate therefore needs a separate OriginWeave lifecycle generation.
+
+### Add an aggregate-only random or monotonic nonce
+
+Rejected if it does not reach the lifecycle adapter. It would stop one aggregate from accepting another aggregate's token while still allowing a valid current token to address a remote boundary through aliasable adapter keys. The selected `BrowserSessionIncarnation` participates in both authority validation and port calls.
+
+### Persist authority generations globally
+
+Deferred and unnecessary for the current in-process authority model. Presentation authority is not durable across process restart; recovery across restart belongs to evidence/reconciliation design, not silent authority resurrection.
+
+### Treat every uncertain lifecycle failure as transport loss
+
+Rejected. Ownership uncertainty and transport liveness answer different operational questions. Collapsing them loses information needed for safe reconciliation.
+
+### Automatically clean duplicate or partial state
+
+Rejected. When ownership is ambiguous, cleanup itself can become a cross-owner destructive action. Exact recovery evidence is retained while normal authority stays blocked.
+
+### Snapshot and restore every predecessor presentation override
+
+Deferred. OriginWeave does not yet have a complete queryable predecessor-state contract for every governed presentation surface. Disposable ownership remains the stronger first implementation.
 
 ## Consequences
 
-Browser Session ownership becomes a domain fact carried through the adapter lifecycle instead of a convention reconstructed from transport identifiers. Proved-clean and uncertain outcomes are no longer conflated, so normal completion or continued mutation cannot hide a potentially leaked browser boundary. Once cleanup becomes uncertain, the aggregate stops issuing new authority rather than accumulating more browser state beside an unresolved boundary.
+The Browser Session aggregate now carries an explicit lifecycle generation through the anti-corruption boundary instead of treating protocol identifiers as durable capabilities. A retained token from aggregate A cannot validate against aggregate B solely because the browser or adapter later reused the same external identifiers and local epoch.
 
-Method-specific port errors also remove a class of defensive branches that had no valid domain meaning. An adapter cannot report destruction failure from creation or creation failure from destruction, so the aggregate no longer has to interpret an impossible phase transition as a degraded case.
+Recovery is also diagnosable rather than merely terminal. Known partial user-context identities, duplicate returned handles, and exact handles whose destruction could not be proven remain available as `BrowserSessionRecoveryEvidence`. This evidence is purpose-bound to later reconciliation; it is not a cleanup credential.
 
-The Browser Session domain relies on an explicit adapter proof obligation for global live-lifetime non-aliasing of `DisposableIsolationId`. For WebDriver BiDi that proof is the standard's unique user-context identifier plus adapter conformance tests that preserve the mapping and remove the exact user context. A generic random adapter token without a verified one-to-one browser lifecycle mapping is not sufficient.
+Transport failure can now be observed after ownership has already become uncertain without replacing or erasing that uncertainty. This supports later recovery planning that distinguishes “ownership uncertain but transport still live” from “ownership uncertain and transport lost.”
 
-The slice remains incomplete for buyer acceptance. No real Chromium user-context adapter, presentation-witness bridge, observed cleanup receipt, crash/recovery reconciliation, or #299 full browser replay is claimed here.
+The selected process-local incarnation has a deliberate scope. It prevents ABA only for outstanding in-memory authority within the running process. Durable restart reconciliation must use separately persisted evidence and browser observation; this ADR does not serialize or resurrect authority across restart.
 
-## Failure and degraded behavior
+## Security and governance impact
 
-`DisposableContextCreateError::CreateFailedClean` produces no authority and permits continued active operation because the adapter has proved that no disposable boundary exists. `DisposableContextCreateError::CreateFailedUncertain`, duplicate adapter output, and any `DisposableContextDestroyError` move the Browser Session to `RecoveryRequired`; existing active records become uncertain and all active-only transitions are blocked. Duplicate output is never automatically destroyed because a contract-violating adapter may have returned another owner's state. A failed destroy preserves the exact failed handle as uncertain evidence; it is not retried implicitly and no later adapter I/O is admitted from that aggregate. Transport loss uses the separate `TransportLost` state. Once a Browser Session is `Ended`, `TransportLost`, or `RecoveryRequired`, creation, authority lookup, destruction, epoch advancement, and normal end transitions that require an active session fail closed.
+No page-controlled value, raw browser-session id, raw browsing-context id, user-context string, provider/model decision, or LLM output can mint presentation authority. The adapter receives domain-issued incarnation information only as a lifecycle-scoping input and cannot manufacture Browser Session policy authority.
 
-## Security / privacy / governance impact
+Unknown or duplicate remote state is quarantined rather than destroyed speculatively. This reduces the risk that recovery logic removes another owner's user context. It does not replace Chromium sandboxing, egress policy, Keyverse secret handling, Wardnet controls, or central workflow security.
 
-Disposable context ownership reduces cross-task presentation-state interference and is compatible with isolated Agent Task profiles. Typed lifecycle outcomes prevent a failed browser command from being misreported as a clean lifecycle or followed by fresh authority while cleanup is unresolved. Method-specific failure types also prevent invalid lifecycle-phase semantics from crossing the Browser Session anti-corruption boundary. This is not a substitute for Chromium sandboxing, egress policy, origin capability policy, Keyverse secret handling, or evidence retention controls. Those remain with their canonical owners.
+## Tests and exact evidence
 
-No page-controlled value, secret, provider/model choice, LLM result, raw browser-session id, or raw browsing-context id can mint Browser Session presentation authority.
+The test suite covers raw-context rejection, bounded isolation identity parsing, typed clean/uncertain creation, retained partial identity, duplicate-handle evidence, epoch exhaustion, stale epoch rejection, foreign-session/isolation rejection, destruction failure, transport loss, normal end, and incarnation-allocation exhaustion.
 
-## Tests and acceptance evidence
+A dedicated hostile test, `stale_authority_cannot_cross_sequential_session_incarnations`, creates aggregate A, destroys and ends it, creates aggregate B with the same external session/user-context/browsing-context values and local epoch, and requires A's retained authority to fail before B adapter I/O while B's current authority succeeds. The port records incarnation values so the test also proves that the lifecycle mapping receives the new generation.
 
-The owning crate tests hostile raw-context lookup, bounded isolation identity parsing and handle accessors, proved-clean versus uncertain creation failure, duplicate adapter output, epoch exhaustion, stale authority, cross-session authority, foreign isolation authority, cleanup failure, transport loss, unknown context, epoch advancement, successful destroy-before-end behavior, and a two-aggregate alias case. Duplicate and uncertain-create branches assert `RecoveryRequired`; the dedicated `destroy_failure_requires_recovery_before_any_new_authority` hostile test requires an unproven destroy to quarantine the whole aggregate and rejects later creation/authority/epoch/end before adapter I/O.
+`destroy_failure_requires_recovery_before_any_new_authority` requires an unproven destruction to retain the exact failed handle, enter `RecoveryRequired`, then record a later real transport loss without erasing ownership evidence; repeated loss reports are idempotent.
 
-Repository contracts require the bounded context to be a workspace member, keep ADR 0114 indexed, preserve the non-aliasing port contract, retain `RecoveryRequired`, and require distinct `DisposableContextCreateError` and `DisposableContextDestroyError` types. Exact-head CI, Clippy, rustdoc, function/line/region/branch coverage and independent review remain required before integration. Real-browser acceptance is deferred to a later adapter slice and must prove unique user-context creation, page-observed mutation, exact-boundary cleanup/destruction and post-cleanup isolation in pinned Chromium; command ACK alone is not success.
+The RED for the sequential ABA defect was captured on exact `ec145963ad8fe19c9416f2b3856b94660082dbf7` in CI `34469580144`: repository contracts and formatting passed, and Rust `Run tests` failed at the new hostile test before Clippy/rustdoc. The production fix and subsequent documentation/test updates must earn a new exact-head GREEN; predecessor evidence does not transfer.
+
+Repository contracts, canonical formatting, locked Rust tests, strict Clippy, rustdoc/API docs, exact function/line/region/branch coverage, independent review, and applicable central checks remain required before ordinary adoption into #313.
+
+## Buyer acceptance still open
+
+This slice does not yet prove real WebDriver BiDi `browser.createUserContext`/`browsingContext.create`/`browser.removeUserContext` integration, browser-observed destruction, recovery reconciliation, Browser Session→BiDi private-witness conversion, pinned Chromium presentation post-conditions, crash/restart cleanup, #299 3/3 Agent Task replay, or protected-main release/SBOM/provenance/reproducibility/rollback.
 
 ## Migration and rollback
 
-This is additive. Until a reviewed adapter bridge consumes the new authority, existing presentation code remains fail closed behind its private ownership witnesses. Rollback removes the new crate, workspace/lockfile entries, tests and Proposed ADR without changing protected Chromium or central workflow policy.
+The change remains additive on the active stacked branch. Consumers must adopt the new `BrowserSession::start` result and incarnation-aware `DisposableContextPort` contract. Until a reviewed adapter bridge exists, presentation mutation remains fail closed behind private ownership witnesses. Rollback removes this active-PR bounded-context slice without weakening protected Chromium or central security policy.
 
 ## Open follow-ups
 
-- Implement the WebDriver BiDi disposable-user-context adapter using the runtime-qualified protocol contract and prove the one-to-one `DisposableIsolationId` mapping.
-- Define the narrow conversion/ACL from `PresentationMutationAuthority` to BiDi presentation/screen-area ownership witnesses without exposing public constructors.
-- Specify observed user-context destruction/reconciliation after `RecoveryRequired`, browser crash, or transport loss.
-- Replay #299 with three complete real-Chromium trials after the canonical sandbox/runtime owner path is usable.
-- Evaluate exact predecessor capture/restore only if attached/reusable contexts become a buyer requirement.
+- Implement the WebDriver BiDi disposable-user-context adapter with incarnation-scoped mapping and observed destruction post-condition.
+- Define the Browser Session→BiDi ACL without exposing public ownership constructors.
+- Design separately authorized reconciliation for `BrowserSessionRecoveryEvidence`, including browser/process restart.
+- Replay #299 historical pinned Chromium evidence after the canonical sandbox/runtime repair, then run a separate current-Stable qualification.
+- Revisit predecessor capture/restore only if reusable attached contexts become a buyer requirement.
 
 ## Supersession / reversal conditions
 
-Supersede this ADR if WebDriver/Chromium gains a complete, queryable and exactly restorable predecessor-state contract for all governed presentation surfaces, or if OriginWeave adopts another isolation primitive with equivalent non-aliasing ownership and destruction evidence. Do not replace disposable ownership with raw context identity.
+Supersede this ADR if the browser platform provides a complete, queryable, generation-safe ownership primitive with exact destruction evidence, or if OriginWeave adopts another isolation primitive with equivalent guarantees. Do not regress to raw context identity as authority.
 
 ## References
 
