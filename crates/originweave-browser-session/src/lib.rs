@@ -49,13 +49,18 @@ pub enum BrowserSessionError {
     ActiveContextRemains,
 }
 
-/// Bounded failure reported by the adapter port used for disposable context lifecycle I/O.
+/// Bounded failure from disposable-context creation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DisposableContextPortError {
+pub enum DisposableContextCreateError {
     /// Creation failed and the adapter proved that no disposable boundary was created.
     CreateFailedClean,
     /// Creation failed after ownership may have changed, so browser cleanup state is uncertain.
     CreateFailedUncertain,
+}
+
+/// Bounded failure from disposable-context destruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisposableContextDestroyError {
     /// Destruction of an owned disposable context failed or could not be proven.
     DestroyFailed,
 }
@@ -143,9 +148,10 @@ impl DisposableContextHandle {
 /// user-context identifier returned by `browser.createUserContext`. An implementation that merely
 /// returns an existing/shared context violates this port contract.
 ///
-/// Creation failures are typed. `CreateFailedClean` is allowed only when the adapter can prove that
-/// no disposable browser state was created. Any partial-create or uncertain post-condition must be
-/// `CreateFailedUncertain`, which makes normal Browser Session completion ineligible until recovery.
+/// Creation failures are typed. [`DisposableContextCreateError::CreateFailedClean`] is allowed only
+/// when the adapter can prove that no disposable browser state was created. Any partial-create or
+/// uncertain post-condition must be [`DisposableContextCreateError::CreateFailedUncertain`], which
+/// makes normal Browser Session completion ineligible until recovery.
 ///
 /// `destroy_disposable_context` must destroy the exact isolation boundary carried by the supplied
 /// handle and return success only after the adapter has proved that the task-owned boundary is gone.
@@ -156,14 +162,14 @@ pub trait DisposableContextPort {
     fn create_disposable_context(
         &mut self,
         browser_session: BrowserSessionId,
-    ) -> Result<DisposableContextHandle, DisposableContextPortError>;
+    ) -> Result<DisposableContextHandle, DisposableContextCreateError>;
 
     /// Destroy the exact disposable isolation boundary represented by this handle.
     fn destroy_disposable_context(
         &mut self,
         browser_session: BrowserSessionId,
         context: &DisposableContextHandle,
-    ) -> Result<(), DisposableContextPortError>;
+    ) -> Result<(), DisposableContextDestroyError>;
 }
 
 /// Monotonic identity for one owned browsing-context authority epoch.
@@ -288,14 +294,10 @@ impl BrowserSession {
         let epoch = self.reserve_epoch()?;
         let handle = match port.create_disposable_context(self.id) {
             Ok(handle) => handle,
-            Err(DisposableContextPortError::CreateFailedClean) => {
+            Err(DisposableContextCreateError::CreateFailedClean) => {
                 return Err(BrowserSessionError::ContextCreationFailed);
             }
-            Err(DisposableContextPortError::CreateFailedUncertain) => {
-                self.enter_recovery_required();
-                return Err(BrowserSessionError::ContextCreationUncertain);
-            }
-            Err(DisposableContextPortError::DestroyFailed) => {
+            Err(DisposableContextCreateError::CreateFailedUncertain) => {
                 self.enter_recovery_required();
                 return Err(BrowserSessionError::ContextCreationUncertain);
             }
@@ -383,7 +385,7 @@ impl BrowserSession {
                 record.state = OwnedContextState::Destroyed;
                 Ok(())
             }
-            Err(_error) => {
+            Err(DisposableContextDestroyError::DestroyFailed) => {
                 record.state = OwnedContextState::Uncertain;
                 self.enter_recovery_required();
                 Err(BrowserSessionError::ContextDestructionFailed)
@@ -495,7 +497,7 @@ mod tests {
     #[derive(Debug)]
     struct TestPort {
         next_handle: DisposableContextHandle,
-        create_error: Option<DisposableContextPortError>,
+        create_error: Option<DisposableContextCreateError>,
         fail_destroy: bool,
         create_calls: usize,
         destroy_calls: usize,
@@ -524,7 +526,7 @@ mod tests {
         fn create_disposable_context(
             &mut self,
             _browser_session: BrowserSessionId,
-        ) -> Result<DisposableContextHandle, DisposableContextPortError> {
+        ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
             self.create_calls += 1;
             match self.create_error {
                 Some(error) => Err(error),
@@ -537,11 +539,11 @@ mod tests {
             &mut self,
             _browser_session: BrowserSessionId,
             context: &DisposableContextHandle,
-        ) -> Result<(), DisposableContextPortError> {
+        ) -> Result<(), DisposableContextDestroyError> {
             self.destroy_calls += 1;
             self.destroyed_isolations.push(context.isolation.clone());
             if self.fail_destroy {
-                Err(DisposableContextPortError::DestroyFailed)
+                Err(DisposableContextDestroyError::DestroyFailed)
             } else {
                 Ok(())
             }
@@ -622,7 +624,7 @@ mod tests {
     fn creation_failure_is_typed_clean_or_recovery_required() {
         let mut clean_session = BrowserSession::start(session_id(2));
         let mut clean_port = TestPort::new(20, "isolation-20");
-        clean_port.create_error = Some(DisposableContextPortError::CreateFailedClean);
+        clean_port.create_error = Some(DisposableContextCreateError::CreateFailedClean);
         assert_eq!(
             clean_session.create_disposable_context(&mut clean_port),
             Err(BrowserSessionError::ContextCreationFailed)
@@ -634,7 +636,7 @@ mod tests {
 
         let mut uncertain_session = BrowserSession::start(session_id(21));
         let mut uncertain_port = TestPort::new(210, "isolation-210");
-        uncertain_port.create_error = Some(DisposableContextPortError::CreateFailedUncertain);
+        uncertain_port.create_error = Some(DisposableContextCreateError::CreateFailedUncertain);
         assert_eq!(
             uncertain_session.create_disposable_context(&mut uncertain_port),
             Err(BrowserSessionError::ContextCreationUncertain)
@@ -646,18 +648,6 @@ mod tests {
         assert_eq!(
             uncertain_session.end(),
             Err(BrowserSessionError::SessionNotActive)
-        );
-
-        let mut invalid_error_session = BrowserSession::start(session_id(22));
-        let mut invalid_error_port = TestPort::new(220, "isolation-220");
-        invalid_error_port.create_error = Some(DisposableContextPortError::DestroyFailed);
-        assert_eq!(
-            invalid_error_session.create_disposable_context(&mut invalid_error_port),
-            Err(BrowserSessionError::ContextCreationUncertain)
-        );
-        assert_eq!(
-            invalid_error_session.state(),
-            BrowserSessionState::RecoveryRequired
         );
     }
 
