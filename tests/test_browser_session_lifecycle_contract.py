@@ -56,6 +56,21 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertNotIn("pub fn new", authority_impl)
         self.assertNotIn("pub const fn new", authority_impl)
 
+    def test_uncertain_destroy_is_an_aggregate_recovery_contract(self) -> None:
+        """Unproven cleanup must stop all later authority before browser I/O."""
+
+        source = (CRATE / "src/lib.rs").read_text(encoding="utf-8")
+        hostile = (
+            CRATE / "tests/destroy_failure_requires_recovery.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("self.enter_recovery_required();", source)
+        self.assertIn(
+            "destroy_failure_requires_recovery_before_any_new_authority",
+            hostile,
+        )
+        self.assertIn("BrowserSessionState::RecoveryRequired", hostile)
+        self.assertIn("assert_eq!(later_port.create_calls, 0);", hostile)
+
     def test_architecture_decision_and_traceability_are_explicit(self) -> None:
         """Disposable ownership must remain a Proposed, standards-traced active-PR claim."""
 
@@ -73,11 +88,14 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("RecoveryRequired", adr)
         self.assertIn("CreateFailedClean", adr)
         self.assertIn("CreateFailedUncertain", adr)
+        self.assertIn("unproven destruction", adr)
         self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", trace)
         self.assertIn("RecoveryRequired", trace)
+        self.assertIn("unproven destruction quarantines the aggregate", trace)
         self.assertIn("command ACK", trace)
         self.assertIn("PresentationMutationAuthority", uml)
         self.assertIn("RecoveryRequired", uml)
+        self.assertIn("destroy fails / cleanup unproven", uml)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", trace)
 
 
