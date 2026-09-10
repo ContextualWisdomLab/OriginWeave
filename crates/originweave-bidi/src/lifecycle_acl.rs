@@ -193,7 +193,8 @@ impl<B: WebDriverBidiLifecycleBackend> DisposableContextPort for WebDriverBidiLi
         let created = self
             .backend
             .create_disposable_context(browser_session, incarnation)?;
-        let handle = DisposableContextHandle::new(created.isolation.clone(), created.browsing_context);
+        let handle =
+            DisposableContextHandle::new(created.isolation.clone(), created.browsing_context);
         let key = LifecycleBindingKey::from_handle(browser_session, incarnation, &handle);
         self.bindings.insert(key, created.remote_context);
         Ok(handle)
