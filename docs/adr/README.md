@@ -65,10 +65,11 @@ ADR 0013, ADR 0014, ADR 0110, ADR 0111, and ADR 0112 exist only on this document
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
+| [0113](0113-webdriver-bidi-screen-area-ownership.md) | WebDriver BiDi screen-area ownership witness | Proposed | Browser Session-owned screen-settings mutation, destructive reset boundary, and fail-closed adapter authority |
 
-ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
+ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0113 belongs to the active WebDriver BiDi screen-area ownership successor. Indexing them makes the branch documentation graph complete while preserving Proposed lifecycle and active-PR, non-protected-main maturity.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 or ADR 0113 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
