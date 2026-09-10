@@ -36,11 +36,15 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("pub struct DisposableIsolationId", source)
         self.assertIn("pub struct DisposableContextHandle", source)
         self.assertIn("pub struct PresentationMutationAuthority", source)
+        self.assertIn("BrowserSessionState::RecoveryRequired", source)
+        self.assertIn("CreateFailedClean", source)
+        self.assertIn("CreateFailedUncertain", source)
         self.assertIn("create_disposable_context", source)
         self.assertIn("advance_context_epoch", source)
         self.assertIn("record_transport_loss", source)
         self.assertIn("user-context identifier", source)
         self.assertIn("Reconstructing cleanup authority", source)
+        self.assertIn("duplicate_adapter_output_requires_recovery", source)
         self.assertIn(
             "two_aggregate_alias_cannot_cross_mutation_or_destruction_boundary",
             source,
@@ -66,9 +70,14 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         )
         self.assertIn("Status: Proposed", adr)
         self.assertIn("WD-webdriver-bidi-20260909", adr)
+        self.assertIn("RecoveryRequired", adr)
+        self.assertIn("CreateFailedClean", adr)
+        self.assertIn("CreateFailedUncertain", adr)
         self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", trace)
+        self.assertIn("RecoveryRequired", trace)
         self.assertIn("command ACK", trace)
         self.assertIn("PresentationMutationAuthority", uml)
+        self.assertIn("RecoveryRequired", uml)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", trace)
 
 
