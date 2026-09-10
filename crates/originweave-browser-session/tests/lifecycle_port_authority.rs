@@ -46,7 +46,10 @@ impl DisposableContextPort for RecordingPort {
     ) -> Result<(), DisposableContextDestroyError> {
         assert_eq!(request.port_id(), self.port_id);
         assert_eq!(request.browser_session(), BrowserSessionId::new(7).unwrap());
-        assert_eq!(request.context().browsing_context(), BrowsingContextId::new(41).unwrap());
+        assert_eq!(
+            request.context().browsing_context(),
+            BrowsingContextId::new(41).unwrap()
+        );
         self.destroy_calls += 1;
         Ok(())
     }
@@ -72,7 +75,10 @@ fn aggregate_issued_request_binds_lifecycle_io_to_one_port() {
         session.destroy_disposable_context(&authority, &mut other_port),
         Err(BrowserSessionError::LifecyclePortMismatch)
     );
-    assert_eq!(other_port.destroy_calls, 0, "wrong port reached destroy I/O");
+    assert_eq!(
+        other_port.destroy_calls, 0,
+        "wrong port reached destroy I/O"
+    );
 
     session
         .destroy_disposable_context(&authority, &mut bound_port)
