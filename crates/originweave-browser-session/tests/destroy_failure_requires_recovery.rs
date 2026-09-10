@@ -1,7 +1,7 @@
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionState, DisposableContextCreateError,
-    DisposableContextDestroyError, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    BrowserSession, BrowserSessionError, BrowserSessionIncarnation, BrowserSessionRecoveryEvidence,
+    BrowserSessionState, DisposableContextCreateError, DisposableContextDestroyError,
+    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -30,6 +30,7 @@ impl DisposableContextPort for FailingDestroyPort {
     fn create_disposable_context(
         &mut self,
         _browser_session: BrowserSessionId,
+        _incarnation: BrowserSessionIncarnation,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
         self.create_calls += 1;
         Ok(self.next_handle.clone())
@@ -38,6 +39,7 @@ impl DisposableContextPort for FailingDestroyPort {
     fn destroy_disposable_context(
         &mut self,
         _browser_session: BrowserSessionId,
+        _incarnation: BrowserSessionIncarnation,
         _context: &DisposableContextHandle,
     ) -> Result<(), DisposableContextDestroyError> {
         self.destroy_calls += 1;
@@ -45,14 +47,18 @@ impl DisposableContextPort for FailingDestroyPort {
     }
 }
 
-/// An unproven destroy must quarantine the whole aggregate before any later browser I/O.
+/// An unproven destroy must retain exact recovery evidence and reject later normal authority.
 #[test]
 fn destroy_failure_requires_recovery_before_any_new_authority() -> Result<(), &'static str> {
     let session_id = BrowserSessionId::new(501)
         .map_err(|_| "static fixture browser session id must be valid")?;
     let context_id = BrowsingContextId::new(5010)
         .map_err(|_| "static fixture browsing context id must be valid")?;
-    let mut session = BrowserSession::start(session_id);
+    let expected_isolation = DisposableIsolationId::parse("user-context-501")
+        .map_err(|_| "static fixture recovery isolation id must be valid")?;
+    let expected_handle = DisposableContextHandle::new(expected_isolation, context_id);
+    let mut session = BrowserSession::start(session_id)
+        .map_err(|_| "browser session incarnation must be available")?;
     let mut failing_port = FailingDestroyPort::new(5010, "user-context-501")?;
 
     let authority = session
@@ -64,6 +70,18 @@ fn destroy_failure_requires_recovery_before_any_new_authority() -> Result<(), &'
     );
     assert_eq!(failing_port.destroy_calls, 1);
     assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(
+        session.recovery_evidence(),
+        &[BrowserSessionRecoveryEvidence::UnprovenDestruction(
+            expected_handle
+        )]
+    );
+    assert!(!session.transport_is_lost());
+
+    assert!(session.record_transport_loss());
+    assert!(session.transport_is_lost());
+    assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
+    assert!(!session.record_transport_loss());
 
     let mut later_port = FailingDestroyPort::new(5011, "user-context-501-later")?;
     assert_eq!(
