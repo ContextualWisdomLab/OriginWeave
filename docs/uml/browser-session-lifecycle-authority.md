@@ -15,7 +15,7 @@ sequenceDiagram
     S->>S: reserve monotonic context epoch
     S->>P: create_disposable_context(session_id)
     P->>B: create fresh isolation boundary + browsing context
-    B-->>P: unique isolation id + BrowsingContextId
+    B-->>P: unique isolation id + BrowsingContextId or DisposableContextCreateError
     P-->>S: DisposableContextHandle
     S->>S: register exact isolation handle + Active epoch
     S-->>C: PresentationMutationAuthority(session, isolation, context, epoch)
@@ -30,7 +30,7 @@ sequenceDiagram
     S->>S: validate exact session/isolation/context/epoch before I/O
     S->>P: destroy_disposable_context(session_id, stored handle)
     P->>B: remove exact owned isolation boundary
-    B-->>P: observed destruction post-condition
+    B-->>P: observed destruction post-condition or DisposableContextDestroyError
     P-->>S: success
     S->>S: context = Destroyed
     C->>S: end()
@@ -40,7 +40,7 @@ sequenceDiagram
 
 Two aggregates may receive the same external `BrowserSessionId`, the same `BrowsingContextId`, and the same local epoch. Their authority must still differ because the adapter-created disposable isolation identity is non-aliasing for its live lifetime. Passing aggregate A's authority into aggregate B therefore fails before adapter I/O; aggregate B's own destroy call carries B's stored isolation handle instead of reconstructing cleanup authority from the shared transport identifiers.
 
-For a WebDriver BiDi adapter, the isolation identity is expected to map one-to-one to the specification-defined unique user-context id created by `browser.createUserContext`, and cleanup targets that exact user context. The protocol id remains lifecycle addressability, not OriginWeave policy authority.
+For a WebDriver BiDi adapter, the isolation identity is expected to map one-to-one to the specification-defined unique user-context id created by `browser.createUserContext`, and cleanup targets that exact user context. The protocol id remains lifecycle addressability, not OriginWeave policy authority. Creation and destruction expose distinct error types, so an adapter cannot express a destruction-only outcome during creation or a creation-only outcome during cleanup.
 
 ## Failure state machine
 
@@ -50,10 +50,10 @@ stateDiagram-v2
     Active --> Active: fresh isolation + context created / authority minted
     Active --> Active: context epoch advanced / prior authority stale
     Active --> Active: exact owned isolation destruction proved
-    Active --> Active: CreateFailedClean / no browser state exists
-    Active --> RecoveryRequired: CreateFailedUncertain
+    Active --> Active: DisposableContextCreateError::CreateFailedClean
+    Active --> RecoveryRequired: DisposableContextCreateError::CreateFailedUncertain
     Active --> RecoveryRequired: duplicate context or isolation output
-    Active --> RecoveryRequired: destroy fails / cleanup unproven
+    Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven
     Active --> Ended: all owned contexts Destroyed + end
     Active --> TransportLost: browser transport lost
     Ended --> [*]
