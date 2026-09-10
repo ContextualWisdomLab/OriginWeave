@@ -39,6 +39,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("pub struct BrowserSessionIncarnation", source)
         self.assertIn("pub struct PresentationMutationAuthority", source)
         self.assertIn("pub struct DisposableContextCreateRequest", source)
+        self.assertIn("pub struct DisposableContextCreateCompletion", source)
+        self.assertIn("pub enum DisposableContextCreateDisposition", source)
+        self.assertIn("pub enum DisposableContextCreateCompletionError", source)
         self.assertIn("pub struct DisposableContextDestroyRequest", source)
         self.assertIn("pub enum BrowserSessionRecoveryEvidence", source)
         self.assertIn("BrowserSessionState::RecoveryRequired", source)
@@ -47,12 +50,19 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertNotIn("pub enum DisposableContextPortError", source)
         self.assertNotIn("DisposableContextPortId", source)
         self.assertNotIn("fn port_id(&self)", source)
+        self.assertNotIn("pub const fn lifecycle_port", source)
+        self.assertNotIn("pub fn lifecycle_port", source)
         self.assertNotIn("pub fn create_disposable_context<P: DisposableContextPort>", source)
         self.assertIn("pub fn bind_lifecycle_port<P: DisposableContextPort>", source)
+        self.assertIn("attempt_epoch: BrowserContextEpoch", source)
+        self.assertIn("fn complete_disposable_context_creation(", source)
+        self.assertIn("DisposableContextCreateDisposition::Accepted", source)
+        self.assertIn("DisposableContextCreateDisposition::Rejected", source)
         self.assertIn("CreateFailedClean", source)
         self.assertIn("CreateFailedUncertain", source)
         self.assertIn("PartialCreationIsolation", source)
         self.assertIn("DuplicateAdapterHandle", source)
+        self.assertIn("UnsettledAdapterHandle", source)
         self.assertIn("UnprovenDestruction", source)
         self.assertIn("create_disposable_context_with_port", source)
         self.assertIn("advance_context_epoch", source)
@@ -70,18 +80,23 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertNotIn("pub const fn new", authority_impl)
 
         create_request_impl = source.split("impl DisposableContextCreateRequest", 1)[1].split(
-            "pub struct DisposableContextDestroyRequest", 1
+            "pub enum DisposableContextCreateDisposition", 1
+        )[0]
+        completion_impl = source.split("impl DisposableContextCreateCompletion", 1)[1].split(
+            "pub enum DisposableContextCreateCompletionError", 1
         )[0]
         destroy_request_impl = source.split("impl DisposableContextDestroyRequest", 1)[1].split(
             "pub trait DisposableContextPort", 1
         )[0]
         self.assertNotIn("pub fn new", create_request_impl)
         self.assertNotIn("pub const fn new", create_request_impl)
+        self.assertNotIn("pub fn new", completion_impl)
+        self.assertNotIn("pub const fn new", completion_impl)
         self.assertNotIn("pub fn new", destroy_request_impl)
         self.assertNotIn("pub const fn new", destroy_request_impl)
 
     def test_hostile_recovery_and_reincarnation_fixtures_remain_external(self) -> None:
-        """Recovery, binding, and sequential reuse invariants must execute outside crate internals."""
+        """Recovery, binding, transaction, and sequential reuse invariants execute externally."""
 
         destroy_hostile = (
             CRATE / "tests/destroy_failure_requires_recovery.rs"
@@ -95,6 +110,10 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         substitution_hostile = (
             CRATE / "tests/lifecycle_port_same_id_spoof.rs"
         ).read_text(encoding="utf-8")
+        transaction_hostile = (
+            CRATE / "tests/creation_transaction_completion.rs"
+        ).read_text(encoding="utf-8")
+
         self.assertIn(
             "destroy_failure_requires_recovery_before_any_new_authority",
             destroy_hostile,
@@ -102,6 +121,8 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("BrowserSessionRecoveryEvidence::UnprovenDestruction", destroy_hostile)
         self.assertIn("assert!(bound.record_transport_loss());", destroy_hostile)
         self.assertIn("assert!(!bound.record_transport_loss());", destroy_hostile)
+        self.assertNotIn("lifecycle_port()", destroy_hostile)
+
         self.assertIn(
             "stale_authority_cannot_cross_sequential_session_incarnations",
             reincarnation_hostile,
@@ -110,15 +131,16 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "assert_ne!(\n        bound_a.browser_session().incarnation(),",
             reincarnation_hostile,
         )
-        self.assertIn(
-            "assert!(bound_b.lifecycle_port().destroy_incarnations.is_empty());",
-            reincarnation_hostile,
-        )
+        self.assertIn("assert!(destroy_b.borrow().is_empty());", reincarnation_hostile)
+        self.assertNotIn("lifecycle_port()", reincarnation_hostile)
+
         self.assertIn(
             "lifecycle_binding_invokes_no_adapter_callback_before_authorized_create",
             preflight_hostile,
         )
         self.assertIn("identity_callbacks", preflight_hostile)
+        self.assertNotIn("bound.lifecycle_port()", preflight_hostile)
+
         self.assertIn(
             "distinct_adapter_cannot_be_substituted_for_create_after_binding",
             substitution_hostile,
@@ -127,6 +149,16 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "distinct_adapter_cannot_be_substituted_for_destroy_after_binding",
             substitution_hostile,
         )
+        self.assertNotIn("bound.lifecycle_port()", substitution_hostile)
+
+        self.assertIn(
+            "accepted_and_rejected_create_candidates_are_correlated_by_exact_attempt",
+            transaction_hostile,
+        )
+        self.assertIn("request.attempt_epoch().value()", transaction_hostile)
+        self.assertIn("DisposableContextCreateDisposition::Accepted", transaction_hostile)
+        self.assertIn("DisposableContextCreateDisposition::Rejected", transaction_hostile)
+        self.assertIn("assert!(ledger.pending.is_empty());", transaction_hostile)
 
     def test_architecture_decision_and_traceability_are_explicit(self) -> None:
         """Disposable ownership must remain a Proposed, standards-traced active-PR claim."""
@@ -146,9 +178,12 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("BrowserSessionIncarnation", adr)
         self.assertIn("BrowserSessionRecoveryEvidence", adr)
         self.assertIn("DisposableContextCreateRequest", adr)
+        self.assertIn("DisposableContextCreateCompletion", adr)
         self.assertIn("DisposableContextDestroyRequest", adr)
         self.assertIn("BoundBrowserSession", adr)
         self.assertIn("linear lifecycle-port binding", adr)
+        self.assertIn("no public raw port accessor", adr)
+        self.assertIn("per-create transaction", adr)
         self.assertIn("DisposableContextCreateError", adr)
         self.assertIn("DisposableContextDestroyError", adr)
         self.assertIn("CreateFailedClean", adr)
@@ -158,6 +193,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("unproven destruction", adr)
         self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", trace)
         self.assertIn("BoundBrowserSession", trace)
+        self.assertIn("DisposableContextCreateCompletion", trace)
+        self.assertIn("per-create transaction", trace)
+        self.assertIn("no public raw port accessor", trace)
         self.assertIn("RecoveryRequired", trace)
         self.assertIn("BrowserSessionIncarnation", trace)
         self.assertIn("lossless recovery evidence", trace)
@@ -166,6 +204,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("command ACK", trace)
         self.assertIn("PresentationMutationAuthority", uml)
         self.assertIn("BoundBrowserSession", uml)
+        self.assertIn("DisposableContextCreateCompletion", uml)
         self.assertIn("BrowserSessionIncarnation", uml)
         self.assertIn("RecoveryRequired", uml)
         self.assertIn("transport_lost", uml)
