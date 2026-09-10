@@ -53,7 +53,10 @@ fn raw_session_identity_cannot_directly_authorize_create_or_destroy() {
         direct_create.is_err(),
         "raw session/incarnation values must not be sufficient lifecycle authority"
     );
-    assert_eq!(port.create_calls, 0, "unauthorized create reached adapter I/O");
+    assert_eq!(
+        port.create_calls, 0,
+        "unauthorized create reached adapter I/O"
+    );
 
     let forged_handle = DisposableContextHandle::new(
         DisposableIsolationId::parse("raw-port-side-door").expect("valid isolation id"),
@@ -69,5 +72,8 @@ fn raw_session_identity_cannot_directly_authorize_create_or_destroy() {
         direct_destroy.is_err(),
         "raw lifecycle tuple must not be sufficient destruction authority"
     );
-    assert_eq!(port.destroy_calls, 0, "unauthorized destroy reached adapter I/O");
+    assert_eq!(
+        port.destroy_calls, 0,
+        "unauthorized destroy reached adapter I/O"
+    );
 }
