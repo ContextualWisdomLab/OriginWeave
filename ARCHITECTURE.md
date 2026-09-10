@@ -151,9 +151,11 @@ Owns the narrow WebDriver BiDi adapter contract that is expressible by one expli
 
 ### `originweave-browser-session` (active PR)
 
-Owns the Browser Session aggregate boundary for disposable context lifecycle and presentation-mutation authority. A raw `BrowsingContextId` is addressability only. A context enters the owned set only after a narrow `DisposableContextPort` reports creation of a fresh task-owned disposable boundary. The aggregate then issues an opaque authority bound to the exact browser session, browsing context, and monotonic context epoch. Stale or foreign authority fails closed; failed destruction makes the context uncertain; browser transport loss invalidates active authority; and normal session end is rejected until every owned context has proven destruction.
+Owns the Browser Session aggregate boundary for disposable context lifecycle and presentation-mutation authority. Raw `BrowserSessionId` and `BrowsingContextId` values are transport addressability only. A context enters the owned set only after the narrow `DisposableContextPort` reports a fresh disposable isolation boundary together with its browsing-context address. The aggregate stores that exact handle and issues a non-caller-constructible `PresentationMutationAuthority` bound to browser-session identity, disposable-isolation identity, browsing context, and monotonic context epoch.
 
-This active slice deliberately stops before browser transport. WebDriver BiDi/CDP remain adapters and do not mint policy authority. The current proposal does not yet bridge domain authority into `originweave-bidi`'s private presentation/screen-area witnesses, implement `browser.createUserContext`/`browsingContext.create`/`browser.removeUserContext`, prove a cleanup post-condition in Chromium, or establish protected-main behavior. ADR 0114, the Browser Session traceability dossier, and the lifecycle UML record those remaining boundaries.
+The isolation identity prevents distinct aggregate incarnations from aliasing authority when external session/context identifiers and local epoch values are reused. Destruction validates the full authority before adapter I/O and passes the stored isolation handle back to the port; cleanup authority is never reconstructed from `(BrowserSessionId, BrowsingContextId)`. For a WebDriver BiDi adapter, the port contract requires a one-to-one mapping from the domain's `DisposableIsolationId` to the specification-defined unique user-context id created for that live boundary. The protocol identifier is lifecycle addressability, not OriginWeave policy authority. Stale, foreign-session, foreign-isolation, unknown, destroyed, or uncertain authority fails closed; failed destruction makes the context uncertain; browser transport loss invalidates active authority; and normal session end is rejected until every owned boundary has proven destruction.
+
+This active slice deliberately stops before browser transport. WebDriver BiDi/CDP remain adapters and do not mint policy authority. The current proposal does not yet bridge domain authority into `originweave-bidi`'s private presentation/screen-area witnesses, implement the real `browser.createUserContext`/`browsingContext.create`/`browser.removeUserContext` adapter, prove exact-boundary cleanup post-conditions in Chromium, or establish protected-main behavior. ADR 0114, the Browser Session traceability dossier, and the lifecycle UML record those remaining boundaries.
 
 ## 6. Planned modules
 
@@ -290,6 +292,7 @@ WARC stores source exchanges and resources; relational storage holds sessions, p
 - Proxy and PAC routing cannot be inherited ambiently by the direct-only or TLS kernels.
 - Redirects cannot inherit ambient origin or network authority.
 - TCP peer equality does not substitute for TLS server identity, and TLS identity does not substitute for HTTP safety.
+- Disposable Browser Session mutation and destruction authority is bound to the exact owned isolation identity as well as session, context, and epoch; raw driver identifiers alone cannot cross that boundary.
 - Arbitrary script evaluation is absent from the standard action interface.
 - Crawler policy is not treated as access authorization.
 - High-risk actions fail closed when context, canonical intent, or approval evidence is incomplete.
