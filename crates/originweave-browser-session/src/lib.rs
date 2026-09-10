@@ -417,6 +417,7 @@ impl BrowserSession {
         Ok(())
     }
 
+    /// Reject active-only transitions once ownership has ended or become uncertain.
     fn require_active(&self) -> Result<(), BrowserSessionError> {
         if self.state == BrowserSessionState::Active {
             Ok(())
@@ -425,6 +426,7 @@ impl BrowserSession {
         }
     }
 
+    /// Reserve the next monotonic authority epoch before browser I/O can create remote state.
     fn reserve_epoch(&mut self) -> Result<BrowserContextEpoch, BrowserSessionError> {
         let epoch = BrowserContextEpoch(self.next_epoch);
         self.next_epoch = self
@@ -434,6 +436,7 @@ impl BrowserSession {
         Ok(epoch)
     }
 
+    /// Bind an already-owned disposable handle and epoch into an opaque mutation authority.
     fn authority_for(
         browser_session: BrowserSessionId,
         handle: &DisposableContextHandle,
@@ -447,6 +450,7 @@ impl BrowserSession {
         }
     }
 
+    /// Validate exact session, context, isolation, and epoch ownership before mutable adapter I/O.
     fn context_for_authority_mut(
         &mut self,
         authority: &PresentationMutationAuthority,
@@ -467,11 +471,13 @@ impl BrowserSession {
         Ok(record)
     }
 
+    /// Enter aggregate-wide recovery quarantine and invalidate every still-active context record.
     fn enter_recovery_required(&mut self) {
         self.state = BrowserSessionState::RecoveryRequired;
         self.mark_active_contexts_uncertain();
     }
 
+    /// Mark active context records uncertain without rewriting already-proven destruction evidence.
     fn mark_active_contexts_uncertain(&mut self) {
         for record in self.contexts.values_mut() {
             if record.state == OwnedContextState::Active {
