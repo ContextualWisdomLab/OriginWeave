@@ -9,8 +9,9 @@ use originweave_bidi::{
     WebDriverBidiPresentationOperation,
 };
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionIncarnation, DisposableContextCreateError,
-    DisposableContextDestroyError, DisposableIsolationId, PresentationMutationAuthority,
+    BrowserSession, BrowserSessionError, BrowserSessionIncarnation, BrowserSessionState,
+    DisposableContextCreateError, DisposableContextDestroyError, DisposableIsolationId,
+    PresentationMutationAuthority,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 use originweave_fingerprint::{DevicePixelRatio, PresentationTimeZone, ViewportBounds};
@@ -185,6 +186,30 @@ fn exact_lifecycle_mapping_is_the_only_remote_context_source() {
         WebDriverBidiPresentationOperation::ResetTimezone
     );
     assert_eq!(reset_timezone.context().as_str(), "remote-context-a");
+}
+
+#[test]
+fn exact_lifecycle_key_reuse_is_quarantined_before_binding_replacement() {
+    let destroys = Arc::new(Mutex::new(Vec::new()));
+    let backend = FakeBackend::new(
+        [
+            (150, "user-context-reused", "remote-context-original"),
+            (150, "user-context-reused", "remote-context-conflicting"),
+        ],
+        destroys,
+    );
+    let mut adapter = WebDriverBidiLifecycleAdapter::new(backend);
+    let mut session = BrowserSession::start(BrowserSessionId::new(48).expect("valid session"))
+        .expect("fresh incarnation");
+
+    session
+        .create_disposable_context(&mut adapter)
+        .expect("first owned context");
+    assert_eq!(
+        session.create_disposable_context(&mut adapter),
+        Err(BrowserSessionError::ContextCreationUncertain)
+    );
+    assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
 }
 
 #[test]
