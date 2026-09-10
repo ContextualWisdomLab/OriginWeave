@@ -322,9 +322,8 @@ fn destroyed_transport_lost_or_ended_context_cannot_project_bidi_authority() {
     let destroys = Arc::new(Mutex::new(Vec::new()));
     let backend = FakeBackend::new([(502, "user-context-b", "remote-context-b")], destroys);
     let mut adapter = WebDriverBidiLifecycleAdapter::new(backend);
-    let mut lost_session =
-        BrowserSession::start(BrowserSessionId::new(44).expect("valid session"))
-            .expect("fresh incarnation");
+    let mut lost_session = BrowserSession::start(BrowserSessionId::new(44).expect("valid session"))
+        .expect("fresh incarnation");
     let lost_authority = lost_session
         .create_disposable_context(&mut adapter)
         .expect("owned context");
