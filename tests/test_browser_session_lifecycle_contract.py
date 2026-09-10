@@ -28,15 +28,23 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         )
 
     def test_domain_source_mints_authority_only_from_owned_lifecycle(self) -> None:
-        """A raw driver identifier must never become a caller-mintable authority token."""
+        """Raw driver identifiers must never become caller-mintable authority tokens."""
 
         source = (CRATE / "src/lib.rs").read_text(encoding="utf-8")
         self.assertIn("pub struct BrowserSession", source)
         self.assertIn("pub trait DisposableContextPort", source)
+        self.assertIn("pub struct DisposableIsolationId", source)
+        self.assertIn("pub struct DisposableContextHandle", source)
         self.assertIn("pub struct PresentationMutationAuthority", source)
         self.assertIn("create_disposable_context", source)
         self.assertIn("advance_context_epoch", source)
         self.assertIn("record_transport_loss", source)
+        self.assertIn("user-context identifier", source)
+        self.assertIn("Reconstructing cleanup authority", source)
+        self.assertIn(
+            "two_aggregate_alias_cannot_cross_mutation_or_destruction_boundary",
+            source,
+        )
 
         authority_impl = source.split("impl PresentationMutationAuthority", 1)[1].split(
             "enum OwnedContextState", 1
