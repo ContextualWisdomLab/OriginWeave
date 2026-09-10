@@ -193,11 +193,11 @@ impl<B: WebDriverBidiLifecycleBackend> DisposableContextPort for WebDriverBidiLi
         let created = self
             .backend
             .create_disposable_context(browser_session, incarnation)?;
-        if self
+        let remote_context_is_aliased = self
             .bindings
             .values()
-            .any(|remote_context| remote_context == &created.remote_context)
-        {
+            .any(|remote_context| remote_context == &created.remote_context);
+        if remote_context_is_aliased {
             return Err(DisposableContextCreateError::CreateFailedUncertain(Some(
                 created.isolation,
             )));
