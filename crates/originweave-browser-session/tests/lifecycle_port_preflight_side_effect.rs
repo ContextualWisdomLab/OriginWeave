@@ -3,7 +3,7 @@ use std::cell::Cell;
 use originweave_browser_session::{
     BrowserSession, DisposableContextCreateError, DisposableContextCreateRequest,
     DisposableContextDestroyError, DisposableContextDestroyRequest, DisposableContextHandle,
-    DisposableContextPort, DisposableContextPortId, DisposableIsolationId,
+    DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -20,15 +20,14 @@ impl SideEffectingIdentityPort {
             create_calls: 0,
         }
     }
+
+    fn identity_probe(&self) {
+        self.identity_callbacks
+            .set(self.identity_callbacks.get().saturating_add(1));
+    }
 }
 
 impl DisposableContextPort for SideEffectingIdentityPort {
-    fn port_id(&self) -> DisposableContextPortId {
-        self.identity_callbacks
-            .set(self.identity_callbacks.get().saturating_add(1));
-        DisposableContextPortId::new(401).expect("valid port id")
-    }
-
     fn create_disposable_context(
         &mut self,
         _request: &DisposableContextCreateRequest,
@@ -49,19 +48,24 @@ impl DisposableContextPort for SideEffectingIdentityPort {
 }
 
 #[test]
-fn lifecycle_authority_does_not_depend_on_side_effecting_identity_preflight() {
-    let mut session = BrowserSession::start(BrowserSessionId::new(401).expect("valid session id"))
+fn lifecycle_binding_invokes_no_adapter_callback_before_authorized_create() {
+    let session = BrowserSession::start(BrowserSessionId::new(401).expect("valid session id"))
         .expect("incarnation capacity");
-    let mut port = SideEffectingIdentityPort::new();
-
-    session
-        .create_disposable_context(&mut port)
-        .expect("authorized create");
+    let port = SideEffectingIdentityPort::new();
+    let mut bound = session.bind_lifecycle_port(port);
 
     assert_eq!(
-        port.identity_callbacks.get(),
+        bound.lifecycle_port().identity_callbacks.get(),
         0,
-        "Browser Session invoked an arbitrary adapter callback before lifecycle authority was established"
+        "binding invoked adapter code before aggregate-issued lifecycle authority existed"
     );
-    assert_eq!(port.create_calls, 1);
+    bound
+        .create_disposable_context()
+        .expect("authorized create");
+    assert_eq!(bound.lifecycle_port().identity_callbacks.get(), 0);
+    assert_eq!(bound.lifecycle_port().create_calls, 1);
+
+    // Prove the fixture would detect an identity callback if production code invoked one.
+    bound.lifecycle_port().identity_probe();
+    assert_eq!(bound.lifecycle_port().identity_callbacks.get(), 1);
 }

@@ -1,13 +1,12 @@
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, DisposableContextCreateError,
-    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
-    DisposableContextHandle, DisposableContextPort, DisposableContextPortId, DisposableIsolationId,
+    BrowserSession, DisposableContextCreateError, DisposableContextCreateRequest,
+    DisposableContextDestroyError, DisposableContextDestroyRequest, DisposableContextHandle,
+    DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
 #[derive(Debug)]
 struct RecordingPort {
-    port_id: DisposableContextPortId,
     context: BrowsingContextId,
     isolation: &'static str,
     create_calls: usize,
@@ -15,9 +14,8 @@ struct RecordingPort {
 }
 
 impl RecordingPort {
-    fn new(port_id: u64, context: u64, isolation: &'static str) -> Self {
+    fn new(context: u64, isolation: &'static str) -> Self {
         Self {
-            port_id: DisposableContextPortId::new(port_id).expect("valid port id"),
             context: BrowsingContextId::new(context).expect("valid browsing context"),
             isolation,
             create_calls: 0,
@@ -27,15 +25,10 @@ impl RecordingPort {
 }
 
 impl DisposableContextPort for RecordingPort {
-    fn port_id(&self) -> DisposableContextPortId {
-        self.port_id
-    }
-
     fn create_disposable_context(
         &mut self,
-        request: &DisposableContextCreateRequest,
+        _request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
-        assert_eq!(request.port_id(), self.port_id);
         self.create_calls += 1;
         Ok(DisposableContextHandle::new(
             DisposableIsolationId::parse(self.isolation).expect("valid isolation id"),
@@ -45,50 +38,42 @@ impl DisposableContextPort for RecordingPort {
 
     fn destroy_disposable_context(
         &mut self,
-        request: &DisposableContextDestroyRequest,
+        _request: &DisposableContextDestroyRequest,
     ) -> Result<(), DisposableContextDestroyError> {
-        assert_eq!(request.port_id(), self.port_id);
         self.destroy_calls += 1;
         Ok(())
     }
 }
 
 #[test]
-fn distinct_port_with_same_claimed_id_cannot_create() {
-    let mut session = BrowserSession::start(BrowserSessionId::new(17).expect("valid session id"))
+fn distinct_adapter_cannot_be_substituted_for_create_after_binding() {
+    let session = BrowserSession::start(BrowserSessionId::new(17).expect("valid session id"))
         .expect("incarnation capacity");
-    let mut approved_port = RecordingPort::new(101, 41, "approved-isolation");
-    session
-        .create_disposable_context(&mut approved_port)
-        .expect("bind approved port");
+    let approved_port = RecordingPort::new(41, "approved-isolation");
+    let spoofing_port = RecordingPort::new(42, "spoofed-isolation");
+    let mut bound = session.bind_lifecycle_port(approved_port);
 
-    let mut spoofing_port = RecordingPort::new(101, 42, "spoofed-isolation");
-    assert_eq!(
-        session.create_disposable_context(&mut spoofing_port),
-        Err(BrowserSessionError::LifecyclePortMismatch)
-    );
-    assert_eq!(
-        spoofing_port.create_calls, 0,
-        "distinct adapter with the same self-reported id reached create I/O"
-    );
+    bound
+        .create_disposable_context()
+        .expect("bound adapter creates context");
+    assert_eq!(bound.lifecycle_port().create_calls, 1);
+    assert_eq!(spoofing_port.create_calls, 0);
 }
 
 #[test]
-fn distinct_port_with_same_claimed_id_cannot_destroy() {
-    let mut session = BrowserSession::start(BrowserSessionId::new(18).expect("valid session id"))
+fn distinct_adapter_cannot_be_substituted_for_destroy_after_binding() {
+    let session = BrowserSession::start(BrowserSessionId::new(18).expect("valid session id"))
         .expect("incarnation capacity");
-    let mut approved_port = RecordingPort::new(101, 51, "approved-isolation");
-    let authority = session
-        .create_disposable_context(&mut approved_port)
-        .expect("bind approved port");
+    let approved_port = RecordingPort::new(51, "approved-isolation");
+    let spoofing_port = RecordingPort::new(52, "spoofed-isolation");
+    let mut bound = session.bind_lifecycle_port(approved_port);
+    let authority = bound
+        .create_disposable_context()
+        .expect("bound adapter creates context");
 
-    let mut spoofing_port = RecordingPort::new(101, 52, "spoofed-isolation");
-    assert_eq!(
-        session.destroy_disposable_context(&authority, &mut spoofing_port),
-        Err(BrowserSessionError::LifecyclePortMismatch)
-    );
-    assert_eq!(
-        spoofing_port.destroy_calls, 0,
-        "distinct adapter with the same self-reported id reached destroy I/O"
-    );
+    bound
+        .destroy_disposable_context(&authority)
+        .expect("bound adapter destroys context");
+    assert_eq!(bound.lifecycle_port().destroy_calls, 1);
+    assert_eq!(spoofing_port.destroy_calls, 0);
 }
