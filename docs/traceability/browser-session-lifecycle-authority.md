@@ -28,7 +28,7 @@ validated BrowserSessionId
 
 Creation failure is also causal evidence. `CreateFailedClean` is allowed only when the adapter proves that no disposable browser state was created. `CreateFailedUncertain`, duplicate browsing-context output, duplicate isolation output, or an invalid creation-time error enters `RecoveryRequired`, marks active owned contexts uncertain, and blocks all active-only transitions. This prevents a partial create from being followed by a false normal `end()`.
 
-A raw `BrowsingContextId`, stale epoch, foreign session, foreign isolation, unknown context, destruction failure, lost transport, or recovery-required session cannot enter the successful chain. Destruction failure and transport loss invalidate active authority rather than treating a remote acknowledgement as cleanup evidence.
+Cleanup failure is treated with the same fail-closed ownership rule. If exact disposable-boundary destruction cannot be proved, the failed record becomes `Uncertain`, the whole Browser Session enters `RecoveryRequired`, every remaining active record becomes uncertain, and later context creation, authority issuance/advance, destruction, and normal end are rejected before adapter I/O. A raw `BrowsingContextId`, stale epoch, foreign session, foreign isolation, unknown context, lost transport, or recovery-required session likewise cannot enter the successful chain.
 
 ## Standards trace
 
@@ -49,13 +49,15 @@ The active `originweave-bidi` adapter remains runtime-qualified against its sepa
 | destruction is scoped by the already-validated stored isolation handle | `BrowserSession::destroy_disposable_context`; `two_aggregate_alias_cannot_cross_mutation_or_destruction_boundary` |
 | proved-clean versus uncertain creation is typed | `DisposableContextPortError`; `creation_failure_is_typed_clean_or_recovery_required` |
 | duplicate adapter output requires recovery | `BrowserSession::create_disposable_context`; `duplicate_adapter_output_requires_recovery` |
-| cleanup failure invalidates authority | `BrowserSession::destroy_disposable_context`; `destroy_failure_quarantines_authority_and_transport_loss_is_idempotent` |
+| unproven destruction quarantines the aggregate | `BrowserSession::destroy_disposable_context`; `destroy_failure_requires_recovery_before_any_new_authority` |
 | transport loss invalidates active contexts | `BrowserSession::record_transport_loss`; `transport_loss_invalidates_still_active_contexts` |
 | normal end requires proved destruction | `BrowserSession::end`; `successful_destruction_is_required_before_normal_end` |
 
 The 10 September 2026 exact-head RED on predecessor `6486e916dceb4ab5f33f7b390cd76fd4673d6007` is part of this trace: CI `34440868057` failed rustfmt and exact coverage. The coverage artifact `10138258867` (`sha256:dc38bd6a2a2cb307f6b3fd34332cac04a71aa47e4bae83173afa00a99a85adea`) isolated two unexecuted `DisposableContextHandle` accessors and a structurally unreachable second context lookup after authority validation. The repair exercises the accessors and retains one validated mutable record across destroy I/O instead of testing or excluding an impossible branch.
 
-Exact-head CI/coverage for the repair is required before this dossier can be cited as verified active-PR implementation. Protected-main integration is required before any capability maturity is promoted beyond `IMPLEMENTED_ON_ACTIVE_PR`.
+A later exact test-only head `6da6015ba4cb2c9c8fa9fbc225ca9c2f5055f55d` supplied a second causal RED in CI `34446199538`: repository contracts and canonical formatting passed, then the hostile destroy-failure test observed `BrowserSessionState::Active` where `RecoveryRequired` was required. The production repair routes that unproven cleanup outcome through the same aggregate recovery transition. A successor exact-head CI/coverage pass is still required before this dossier can be cited as verified repair evidence.
+
+Protected-main integration is required before any capability maturity is promoted beyond `IMPLEMENTED_ON_ACTIVE_PR`.
 
 ## Buyer acceptance still open
 
@@ -63,7 +65,7 @@ This slice does not yet prove:
 
 - actual WebDriver BiDi `browser.createUserContext`/`browsingContext.create` integration and one-to-one `DisposableIsolationId` mapping;
 - observed `browser.removeUserContext` post-condition for the exact owned isolation boundary;
-- reconciliation of `RecoveryRequired` after a partial create or duplicate response;
+- reconciliation of `RecoveryRequired` after a partial create, duplicate response, or unproven destroy;
 - conversion of domain authority into the BiDi presentation/screen-area private witnesses;
 - pinned Chromium post-condition observation after presentation mutation;
 - browser crash/restart reconciliation of uncertain disposable contexts;
