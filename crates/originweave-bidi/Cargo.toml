@@ -11,6 +11,8 @@ homepage.workspace = true
 publish = false
 
 [dependencies]
+originweave-browser-session = { path = "../originweave-browser-session" }
+originweave-core = { path = "../originweave-core" }
 originweave-fingerprint = { path = "../originweave-fingerprint" }
 
 [lints]
