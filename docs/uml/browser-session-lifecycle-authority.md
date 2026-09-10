@@ -53,7 +53,7 @@ stateDiagram-v2
     Active --> Active: CreateFailedClean / no browser state exists
     Active --> RecoveryRequired: CreateFailedUncertain
     Active --> RecoveryRequired: duplicate context or isolation output
-    Active --> Active: destroy fails / context becomes Uncertain
+    Active --> RecoveryRequired: destroy fails / cleanup unproven
     Active --> Ended: all owned contexts Destroyed + end
     Active --> TransportLost: browser transport lost
     Ended --> [*]
@@ -61,14 +61,14 @@ stateDiagram-v2
     TransportLost --> [*]
 
     note right of Active
-      Normal end is rejected while any
-      Active or Uncertain context remains.
+      Normal end is admitted only after every
+      owned context has proven destruction.
     end note
 
     note right of RecoveryRequired
-      Partial create or duplicate output may
-      have left untracked browser state.
-      Active-only transitions fail closed.
+      Partial create, duplicate output, or an
+      unproven destroy leaves lifecycle state
+      uncertain. Active-only transitions fail closed.
     end note
 ```
 
