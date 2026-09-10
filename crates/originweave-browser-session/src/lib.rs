@@ -620,7 +620,9 @@ mod tests {
             Err(BrowserSessionError::ContextCreationFailed)
         );
         assert_eq!(clean_session.state(), BrowserSessionState::Active);
-        clean_session.end().expect("proved-clean failure can end normally");
+        clean_session
+            .end()
+            .expect("proved-clean failure can end normally");
 
         let mut uncertain_session = BrowserSession::start(session_id(21));
         let mut uncertain_port = TestPort::new(210, "isolation-210");
@@ -633,7 +635,10 @@ mod tests {
             uncertain_session.state(),
             BrowserSessionState::RecoveryRequired
         );
-        assert_eq!(uncertain_session.end(), Err(BrowserSessionError::SessionNotActive));
+        assert_eq!(
+            uncertain_session.end(),
+            Err(BrowserSessionError::SessionNotActive)
+        );
 
         let mut invalid_error_session = BrowserSession::start(session_id(22));
         let mut invalid_error_port = TestPort::new(220, "isolation-220");
