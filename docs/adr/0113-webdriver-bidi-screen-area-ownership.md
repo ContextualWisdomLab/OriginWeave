@@ -12,11 +12,14 @@ ADR 0107 keeps WebDriver BiDi behind a versioned adapter and requires owned clea
 
 A second authority problem is independent of that schema gap. WebDriver BiDi stores the screen-area override against a browsing context. Setting a non-null rectangle replaces the target entry; sending `screenArea: null` removes the target entry. The standard does not restore a predecessor override. A `WebDriverBidiBrowsingContext` therefore identifies a mutation target but cannot prove that OriginWeave owns the state being replaced or cleared.
 
+The first ownership-witness implementation retained public explicit planner functions while intentionally exposing no Browser Session witness-mint path. Exact-head CI `34419810636` made that contradiction executable: Python repository contracts, formatting, and locked workspace tests passed, but strict Clippy rejected both planners as dead production code. Exact production coverage passed separately. A callable planner API with no legal production caller is not a deferred capability; it is unreachable surface area that obscures the lifecycle boundary.
+
 ## Decision drivers
 
-- Preserve the useful typed WebDriver BiDi screen-area capability without granting ambient mutation authority.
+- Preserve the useful typed WebDriver BiDi screen-area vocabulary without granting ambient mutation authority.
 - Prevent a raw browsing-context identifier from authorizing replacement or removal of another owner's override.
 - Keep cleanup evidence causal: ownership must exist before the destructive mutation, not be inferred from a later command acknowledgement.
+- Do not suppress `dead_code` or retain unreachable public helpers merely to advertise a future capability.
 - Keep the reusable profile-derived planner limited to observables represented by the profile and paired with safe cleanup semantics.
 - Keep complete Screen admission fail-closed while available-screen geometry and color depth remain uncontrolled.
 
@@ -36,25 +39,28 @@ A second authority problem is independent of that schema gap. WebDriver BiDi sto
 2. **Delete screen-area support.** Rejected. The standard capability is useful and can be represented without granting ambient mutation authority.
 3. **Capture and restore an assumed predecessor value.** Rejected. This slice has no authoritative predecessor snapshot and the standard reset semantics remove the override rather than restore one.
 4. **Treat a successful Set command as ownership proof.** Rejected. The Set can already have overwritten another owner's state; acknowledgement is too late to establish authorization.
-5. **Require an opaque Browser Session ownership witness before planning Set or Reset.** Selected. The witness is not caller-mintable from a context identifier and can later be produced only by the lifecycle owner after exclusive/disposable-context establishment or equivalent ownership proof.
+5. **Keep public explicit planners that accept an opaque witness even though no production mint path exists.** Rejected by executable evidence. Exact-head strict Clippy identified both helpers as dead code; suppressing the warning would preserve an API that no legal caller can reach.
+6. **Retain the typed command/witness vocabulary but expose no screen-area planner until Browser Session can mint the witness.** Selected. The protocol semantics remain represented, while executable authority appears only when the lifecycle owner supplies a reviewed mint transition and can consume the witness without reopening raw-context authority.
 
 ## Decision
 
-`originweave-bidi` retains `WebDriverBidiScreenArea` and the explicit `SetScreenArea` / `ResetScreenArea` command intents, but both command variants and both explicit planner functions require `WebDriverBidiScreenAreaOwnership`.
+`originweave-bidi` retains `WebDriverBidiScreenArea`, `WebDriverBidiScreenAreaOwnership`, and the typed `SetScreenArea` / `ResetScreenArea` command variants. Both variants carry the ownership witness rather than a raw `WebDriverBidiBrowsingContext`.
 
-`WebDriverBidiScreenAreaOwnership` contains the exact validated browsing context and intentionally exposes no public constructor in the adapter. Its public context accessor permits a transport integration that already possesses the witness to address the command without reopening validation. A future Browser Session integration may mint the witness only after establishing an exclusive/disposable browsing context or an equivalent lifecycle guarantee that no unrelated screen override can be replaced or removed.
+`WebDriverBidiScreenAreaOwnership` contains the exact validated browsing context and intentionally exposes no public constructor in the adapter. Its context accessor preserves the target bound to the proof. A future Browser Session integration may mint the witness only after establishing an exclusive/disposable browsing context or an equivalent lifecycle guarantee that no unrelated screen override can be replaced or removed.
 
-This is capability representation, not runtime proof. The current adapter has no external mint path, so screen-area mutation is unavailable until Browser Session supplies the missing ownership transition. The standard reusable plan remains viewport/DPR plus timezone. Complete `PresentationSurface::Screen` remains unsupported because available-screen geometry is not represented by `ScreenMetrics` and color depth is not controlled by the standard operation.
+Until that mint path exists, the adapter exposes no public explicit screen-area planner. This is deliberate fail-closed capability representation, not an incomplete helper API. When Browser Session adds the ownership transition, the planner/transport path must be introduced in the same reviewed slice so strict Clippy, repository contracts, runtime evidence, and lifecycle invalidation prove that the capability is actually reachable through the canonical owner.
+
+The standard reusable plan remains viewport/DPR plus timezone. Complete `PresentationSurface::Screen` remains unsupported because available-screen geometry is not represented by `ScreenMetrics` and color depth is not controlled by the standard operation.
 
 ## Consequences
 
-The adapter preserves the standard screen-area value and explicit command vocabulary while making destructive mutation unavailable to ordinary context-aware callers. A later Browser Session integration has a narrow place to attach lifecycle proof instead of widening the browsing-context value object into authorization.
+The adapter preserves the protocol vocabulary needed for a future owned integration while ordinary context-aware callers cannot plan destructive screen-area mutation. The Browser Session owner now has a narrow future integration point instead of a context-only authorization escape hatch or dead public planner.
 
-The trade-off is deliberate: screen-area application cannot currently be materialized outside the module. Product code must remain fail-closed until the lifecycle owner supplies a reviewed witness producer.
+The trade-off is deliberate: screen-area application cannot currently be materialized outside the module. Product code remains fail-closed until the lifecycle owner supplies a reviewed witness producer and a live consumer path.
 
 ## Failure and degraded behavior
 
-If Browser Session cannot prove an exclusive/disposable lifecycle or equivalent restoration-safe ownership, no ownership witness is available and screen-area Set/Reset cannot be planned by external callers. OriginWeave must not fall back to a raw context identifier, ambient browser state, an LLM decision, a command acknowledgement, or best-effort cleanup.
+If Browser Session cannot prove an exclusive/disposable lifecycle or equivalent restoration-safe ownership, no ownership witness is available and no screen-area Set/Reset plan is exposed to external callers. OriginWeave must not fall back to a raw context identifier, ambient browser state, an LLM decision, a command acknowledgement, best-effort cleanup, or a `dead_code` suppression.
 
 The reusable profile planner continues to omit screen-area mutation. Complete presentation-profile admission continues to return `MissingSurface(Screen)` because available-screen geometry is unmodelled and color depth is uncontrolled.
 
@@ -68,19 +74,20 @@ No identity, egress, secret, policy, approval, or Context Fabric authority moves
 
 ## Tests and acceptance evidence
 
-The test-first successor to #310 initially over-constrained the repair by requiring deletion of all screen-area command intents. That was corrected before acceptance: the useful protocol capability remains, but the repository contract now requires an opaque non-caller-mintable ownership type, requires both Set and Reset variants to carry it, requires both explicit planners to accept it rather than a raw context, and continues to forbid screen-area commands in the reusable profile-derived plan.
+The test-first successor to #310 initially over-constrained the repair by requiring deletion of all screen-area command intents. That was corrected: the useful protocol vocabulary remains, but the repository contract requires an opaque non-caller-mintable ownership type and requires both Set and Reset variants to carry it. After executable CI exposed the dead-helper contradiction, the contract was tightened to require that no public explicit screen-area planner exists before a Browser Session mint path does.
 
-Repository acceptance requires exact-head Python contracts, Rust formatting, locked workspace tests, strict Clippy, rustdoc/API documentation, and exact 100% owned-production function/line/region/branch coverage. Browser acceptance remains separate and requires the pinned Chromium lane to prove application, page-observed post-condition, native interaction/outcome, owned cleanup or context destruction, and post-cleanup observation. Neither this ADR nor repository GREEN is browser GREEN.
+Repository acceptance requires exact-head Python contracts, Rust formatting, locked workspace tests, strict Clippy, rustdoc/API documentation, and exact 100% owned-production function/line/region/branch coverage. The failing `34419810636` run is RED evidence, not acceptance. Browser acceptance remains separate and requires the pinned Chromium lane to prove application, page-observed post-condition, native interaction/outcome, owned cleanup or context destruction, and post-cleanup observation. Neither this ADR nor repository GREEN is browser GREEN.
 
 ## Migration and rollback
 
-This active branch changes only the typed planner contract. Existing callers that used context-only screen-area planners must not be mechanically migrated by manufacturing a witness; they must move behind the future Browser Session lifecycle owner or remain unable to invoke the operation.
+This active branch changes only the typed authority boundary. Existing callers must not be mechanically migrated by manufacturing a witness. There is intentionally no explicit public planner to call until the future Browser Session lifecycle owner creates the witness and the consuming path together.
 
-Rollback removes ADR 0113 and the ownership-witness change together with its contract tests. It must not restore the context-only public Set/Reset authority without a separate reviewed decision, because that would reintroduce the destructive-cleanup defect.
+Rollback removes ADR 0113 and the ownership-witness change together with its contract tests. It must not restore context-only public Set/Reset authority or dead planner helpers without a separate reviewed decision, because either would reintroduce the authority or reachability defect.
 
 ## Open follow-ups
 
 - Define the Browser Session aggregate transition that mints the witness only after exclusive/disposable-context establishment or equivalent ownership proof.
+- Add the screen-area planner/transport consumer only in the same slice that makes the ownership witness legitimately mintable and reachable.
 - Bind witness invalidation to context/session destruction and any lifecycle boundary that makes the proof stale.
 - Bind runtime evidence to the exact ownership witness, Set command, page-observed post-condition, cleanup or context destruction, and post-cleanup observation.
 - Decide in a separate schema change whether `PresentationProfile` should model available-screen geometry; do not infer it from total screen size.
