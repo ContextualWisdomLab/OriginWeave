@@ -368,7 +368,8 @@ impl BrowserSession {
     ///
     /// Authority is validated before any adapter I/O. The same validated mutable record is retained
     /// across the port call, so no structurally unreachable second lookup is required. Failed or
-    /// unproven destruction moves the context to an uncertain terminal state.
+    /// unproven destruction makes ownership uncertain and places the whole aggregate in
+    /// `RecoveryRequired`, preventing later authority issuance until explicit reconciliation exists.
     pub fn destroy_disposable_context<P: DisposableContextPort>(
         &mut self,
         authority: &PresentationMutationAuthority,
@@ -384,6 +385,7 @@ impl BrowserSession {
             }
             Err(_error) => {
                 record.state = OwnedContextState::Uncertain;
+                self.enter_recovery_required();
                 Err(BrowserSessionError::ContextDestructionFailed)
             }
         }
@@ -835,7 +837,7 @@ mod tests {
         assert_eq!(port.destroy_calls, 0);
     }
 
-    /// Quarantine failed destruction and keep transport-loss transitions idempotent.
+    /// Quarantine the aggregate after failed destruction and keep loss reports idempotent.
     #[test]
     fn destroy_failure_quarantines_authority_and_transport_loss_is_idempotent() {
         let mut session = BrowserSession::start(session_id(7));
@@ -849,17 +851,14 @@ mod tests {
             Err(BrowserSessionError::ContextDestructionFailed)
         );
         assert_eq!(port.destroy_calls, 1);
+        assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
         assert_eq!(
             session.presentation_authority(context_id(70)),
-            Err(BrowserSessionError::ContextNotOwned)
+            Err(BrowserSessionError::SessionNotActive)
         );
-        assert_eq!(
-            session.end(),
-            Err(BrowserSessionError::ActiveContextRemains)
-        );
-        assert!(session.record_transport_loss());
+        assert_eq!(session.end(), Err(BrowserSessionError::SessionNotActive));
         assert!(!session.record_transport_loss());
-        assert_eq!(session.state(), BrowserSessionState::TransportLost);
+        assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
         assert_eq!(
             session.create_disposable_context(&mut port),
             Err(BrowserSessionError::SessionNotActive)
