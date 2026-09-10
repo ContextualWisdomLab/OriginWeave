@@ -1,6 +1,6 @@
 # Browser Session lifecycle authority
 
-This diagram describes the active-PR domain contract introduced for issue #312. It is not evidence that a WebDriver BiDi or Chromium adapter already implements the port.
+This diagram describes the active-PR domain contract for issue #312. It is not evidence that a WebDriver BiDi or Chromium adapter already implements the port.
 
 ```mermaid
 sequenceDiagram
@@ -11,24 +11,25 @@ sequenceDiagram
     participant B as Browser adapter (planned)
 
     C->>S: start(valid BrowserSessionId)
+    S->>S: allocate BrowserSessionIncarnation
     C->>S: create_disposable_context(port)
     S->>S: reserve monotonic context epoch
-    S->>P: create_disposable_context(session_id)
+    S->>P: create_disposable_context(session_id, incarnation)
     P->>B: create fresh isolation boundary + browsing context
-    B-->>P: unique isolation id + BrowsingContextId or DisposableContextCreateError
+    B-->>P: unique isolation id + BrowsingContextId or typed create error
     P-->>S: DisposableContextHandle
-    S->>S: register exact isolation handle + Active epoch
-    S-->>C: PresentationMutationAuthority(session, isolation, context, epoch)
+    S->>S: register exact handle + Active epoch
+    S-->>C: PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
 
-    Note over C,S: Raw BrowserSessionId/BrowsingContextId cannot mint authority.
+    Note over C,S: Raw BrowserSessionId/BrowsingContextId/user-context id cannot mint authority.
 
     C->>S: advance_context_epoch(context_id)
     S->>S: replace epoch; old authority becomes stale
-    S-->>C: new opaque authority carrying same isolation
+    S-->>C: new opaque authority carrying same incarnation + isolation
 
     C->>S: destroy_disposable_context(authority, port)
-    S->>S: validate exact session/isolation/context/epoch before I/O
-    S->>P: destroy_disposable_context(session_id, stored handle)
+    S->>S: validate exact session/incarnation/isolation/context/epoch before I/O
+    S->>P: destroy_disposable_context(session_id, incarnation, stored handle)
     P->>B: remove exact owned isolation boundary
     B-->>P: observed destruction post-condition or DisposableContextDestroyError
     P-->>S: success
@@ -38,38 +39,63 @@ sequenceDiagram
     S-->>C: Ended
 ```
 
-Two aggregates may receive the same external `BrowserSessionId`, the same `BrowsingContextId`, and the same local epoch. Their authority must still differ because the adapter-created disposable isolation identity is non-aliasing for its live lifetime. Passing aggregate A's authority into aggregate B therefore fails before adapter I/O; aggregate B's own destroy call carries B's stored isolation handle instead of reconstructing cleanup authority from the shared transport identifiers.
+`BrowserSessionIncarnation` separates two sequential aggregate lifecycles even when the browser or adapter later reuses the same external session, user-context/isolation, browsing-context, and local epoch values. The incarnation is checked by authority validation and reaches the lifecycle port. It is therefore not merely an aggregate-local nonce that the adapter can ignore.
 
-For a WebDriver BiDi adapter, the isolation identity is expected to map one-to-one to the specification-defined unique user-context id created by `browser.createUserContext`, and cleanup targets that exact user context. The protocol id remains lifecycle addressability, not OriginWeave policy authority. Creation and destruction expose distinct error types, so an adapter cannot express a destruction-only outcome during creation or a creation-only outcome during cleanup.
+For a WebDriver BiDi adapter, `DisposableIsolationId` maps to the user-context id created by `browser.createUserContext`. That protocol id remains lifecycle addressability rather than OriginWeave policy authority. Creation and destruction expose distinct typed errors.
 
-## Failure state machine
+## Recovery and transport state
 
 ```mermaid
 stateDiagram-v2
     [*] --> Active
-    Active --> Active: fresh isolation + context created / authority minted
+    Active --> Active: fresh isolation + context / authority minted
     Active --> Active: context epoch advanced / prior authority stale
     Active --> Active: exact owned isolation destruction proved
     Active --> Active: DisposableContextCreateError::CreateFailedClean
-    Active --> RecoveryRequired: DisposableContextCreateError::CreateFailedUncertain
-    Active --> RecoveryRequired: duplicate context or isolation output
+    Active --> RecoveryRequired: CreateFailedUncertain / retain known partial isolation
+    Active --> RecoveryRequired: duplicate output / retain offending handle
     Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven
     Active --> Ended: all owned contexts Destroyed + end
     Active --> TransportLost: browser transport lost
+    RecoveryRequired --> RecoveryRequired: transport_lost = true / preserve recovery evidence
     Ended --> [*]
     RecoveryRequired --> [*]
     TransportLost --> [*]
 
-    note right of Active
-      Normal end is admitted only after every
-      owned context has proven destruction.
+    note right of RecoveryRequired
+      BrowserSessionRecoveryEvidence retains known
+      partial identity, duplicate handle, or exact
+      unproven-destruction handle. It grants no I/O.
     end note
 
-    note right of RecoveryRequired
-      Partial create, duplicate output, or an
-      unproven destroy leaves lifecycle state
-      uncertain. Active-only transitions fail closed.
+    note right of TransportLost
+      Transport liveness is orthogonal to ownership
+      recovery. Duplicate loss reports are idempotent.
     end note
 ```
 
-`RecoveryRequired` and `TransportLost` are terminal for this aggregate in the current slice. Recovery of uncertain remote browser state requires a separate reconciliation design; reopening the same aggregate would allow stale authority to regain meaning and is therefore not part of this implementation.
+## Sequential ABA hostile case
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as BrowserSession A
+    participant B as BrowserSession B
+    participant P as Lifecycle port
+
+    A->>A: start(S) => incarnation A
+    A->>P: create(S, incarnation A)
+    P-->>A: U, C
+    A->>P: destroy(S, incarnation A, U/C)
+    A->>A: end()
+
+    B->>B: start(S) => incarnation B
+    B->>P: create(S, incarnation B)
+    P-->>B: same U, same C
+    Note over A,B: both local context epochs may equal 1
+    B->>B: validate retained authority A
+    B-->>A: AuthorityMismatch before adapter I/O
+    B->>P: destroy with authority B + incarnation B
+```
+
+`RecoveryRequired` and `TransportLost` remain terminal for normal authority in this slice. A later reconciliation design may inspect `BrowserSessionRecoveryEvidence`, but it must not reconstruct cleanup authority from raw identifiers or treat command ACK as proof of destruction.
