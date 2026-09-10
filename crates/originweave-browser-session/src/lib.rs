@@ -1006,9 +1006,8 @@ mod tests {
     #[test]
     fn incarnation_allocator_fails_closed_before_wrap() {
         let counter = AtomicU64::new(u64::MAX);
-        assert!(matches!(
-            BrowserSession::start_with_counter(session_id(12), &counter),
-            Err(BrowserSessionError::IncarnationExhausted)
-        ));
+        let error = BrowserSession::start_with_counter(session_id(12), &counter)
+            .expect_err("incarnation allocation must fail closed before wrapping");
+        assert_eq!(error, BrowserSessionError::IncarnationExhausted);
     }
 }
