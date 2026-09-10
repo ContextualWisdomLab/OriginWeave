@@ -301,7 +301,14 @@ impl BrowserSession {
     /// A fresh process-local incarnation is allocated before any browser I/O. Exhaustion fails closed
     /// rather than wrapping and making an older authority structurally valid again.
     pub fn start(id: BrowserSessionId) -> Result<Self, BrowserSessionError> {
-        let incarnation = allocate_incarnation(&NEXT_BROWSER_SESSION_INCARNATION)?;
+        Self::start_with_counter(id, &NEXT_BROWSER_SESSION_INCARNATION)
+    }
+
+    fn start_with_counter(
+        id: BrowserSessionId,
+        counter: &AtomicU64,
+    ) -> Result<Self, BrowserSessionError> {
+        let incarnation = allocate_incarnation(counter)?;
         Ok(Self {
             id,
             incarnation,
@@ -349,7 +356,7 @@ impl BrowserSession {
         port: &mut P,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
-        let epoch = self.reserve_epoch()?;
+        let epoch = reserve_epoch(&mut self.next_epoch)?;
         let handle = match port.create_disposable_context(self.id, self.incarnation) {
             Ok(handle) => handle,
             Err(DisposableContextCreateError::CreateFailedClean) => {
@@ -425,22 +432,18 @@ impl BrowserSession {
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
-        if !self
-            .contexts
-            .get(&browsing_context)
-            .is_some_and(|record| record.state == OwnedContextState::Active)
-        {
-            return Err(BrowserSessionError::ContextNotOwned);
-        }
-        let next = self.reserve_epoch()?;
+        let browser_session = self.id;
+        let incarnation = self.incarnation;
         let record = self
             .contexts
             .get_mut(&browsing_context)
+            .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
+        let next = reserve_epoch(&mut self.next_epoch)?;
         record.epoch = next;
         Ok(Self::authority_for(
-            self.id,
-            self.incarnation,
+            browser_session,
+            incarnation,
             &record.handle,
             next,
         ))
@@ -509,15 +512,6 @@ impl BrowserSession {
         }
     }
 
-    fn reserve_epoch(&mut self) -> Result<BrowserContextEpoch, BrowserSessionError> {
-        let epoch = BrowserContextEpoch(self.next_epoch);
-        self.next_epoch = self
-            .next_epoch
-            .checked_add(1)
-            .ok_or(BrowserSessionError::EpochExhausted)?;
-        Ok(epoch)
-    }
-
     fn authority_for(
         browser_session: BrowserSessionId,
         incarnation: BrowserSessionIncarnation,
@@ -565,6 +559,14 @@ impl BrowserSession {
             }
         }
     }
+}
+
+fn reserve_epoch(next_epoch: &mut u64) -> Result<BrowserContextEpoch, BrowserSessionError> {
+    let epoch = BrowserContextEpoch(*next_epoch);
+    *next_epoch = next_epoch
+        .checked_add(1)
+        .ok_or(BrowserSessionError::EpochExhausted)?;
+    Ok(epoch)
 }
 
 fn allocate_incarnation(
@@ -809,6 +811,24 @@ mod tests {
     }
 
     #[test]
+    fn epoch_exhaustion_prevents_advance_mutation() {
+        let mut exhausted_session = session(41);
+        let mut port = TestPort::new(410, "isolation-410");
+        let authority = exhausted_session
+            .create_disposable_context(&mut port)
+            .expect("owned context");
+        exhausted_session.next_epoch = u64::MAX;
+        assert_eq!(
+            exhausted_session.advance_context_epoch(context_id(410)),
+            Err(BrowserSessionError::EpochExhausted)
+        );
+        assert_eq!(
+            exhausted_session.presentation_authority(context_id(410)),
+            Ok(authority)
+        );
+    }
+
+    #[test]
     fn epoch_advance_invalidates_old_and_unknown_authority() {
         let mut session = session(5);
         let mut port = TestPort::new(50, "isolation-50");
@@ -986,9 +1006,9 @@ mod tests {
     #[test]
     fn incarnation_allocator_fails_closed_before_wrap() {
         let counter = AtomicU64::new(u64::MAX);
-        assert_eq!(
-            allocate_incarnation(&counter),
+        assert!(matches!(
+            BrowserSession::start_with_counter(session_id(12), &counter),
             Err(BrowserSessionError::IncarnationExhausted)
-        );
+        ));
     }
 }
