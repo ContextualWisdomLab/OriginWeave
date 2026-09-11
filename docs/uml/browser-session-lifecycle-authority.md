@@ -34,12 +34,14 @@ sequenceDiagram
         S-->>C: PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
     else domain handle rejected
         S->>S: retain duplicate handle as recovery evidence
+        S->>S: retain every other Active sibling as RecoveryRequiredOwnedHandle
         S->>S: mint DisposableContextCreateCompletion(Rejected, exact attempt)
         S->>P: complete_disposable_context_creation(completion)
         P->>P: pending exact attempt → quarantined/non-authorizing
         S->>S: RecoveryRequired
     else completion cannot be proven
         S->>S: retain UnsettledAdapterHandle
+        S->>S: retain every other Active sibling as RecoveryRequiredOwnedHandle
         S->>S: RecoveryRequired
     end
 
@@ -69,11 +71,24 @@ sequenceDiagram
     S->>P: destroy_disposable_context(request)
     P->>B: remove exact owned isolation boundary
     B-->>P: observed destruction post-condition or DisposableContextDestroyError
-    P-->>S: success
-    S->>S: context = Destroyed
+    alt destruction proved
+        P-->>S: success
+        S->>S: context = Destroyed
+    else destruction unproven
+        S->>S: retain UnprovenDestruction for failed handle
+        S->>S: retain each other Active sibling as RecoveryRequiredOwnedHandle
+        S->>S: RecoveryRequired; all active siblings become Uncertain
+    end
+
     C->>BS: finish()
-    BS->>S: require every owned context Destroyed
-    S-->>C: Ended; wrapper consumed
+    alt every owned context Destroyed
+        BS->>S: end()
+        S-->>C: Ended
+    else ownership remains
+        BS->>S: end()
+        S-->>C: ActiveContextRemains
+        Note over C,P: same BoundBrowserSession + exact adapter remain available for cleanup/retry
+    end
 ```
 
 `BoundBrowserSession` is a linear lifecycle-port binding. It consumes one concrete port, exposes no public raw `&P`, and exposes no lifecycle method that accepts a replacement port. `AuthorizedContextOperationPort` adds a typed, purpose-bounded post-create operation vocabulary without exposing the adapter itself. Tests retain inert observation state separately from the moved adapter.
@@ -92,11 +107,12 @@ stateDiagram-v2
     Active --> Active: context epoch advanced / prior authority stale
     Active --> Active: exact owned isolation destruction proved
     Active --> Active: DisposableContextCreateError::CreateFailedClean
+    Active --> Active: failed finish / retain same bound owner
     Active --> RecoveryRequired: CreateFailedUncertain / retain known partial isolation
-    Active --> RecoveryRequired: duplicate output + exact Rejected completion
-    Active --> RecoveryRequired: completion unproven / retain UnsettledAdapterHandle
-    Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven
-    Active --> Ended: all owned contexts Destroyed + finish
+    Active --> RecoveryRequired: duplicate output + exact Rejected completion + sibling RecoveryRequiredOwnedHandle
+    Active --> RecoveryRequired: completion unproven / retain UnsettledAdapterHandle + sibling RecoveryRequiredOwnedHandle
+    Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven + sibling RecoveryRequiredOwnedHandle
+    Active --> Ended: all owned contexts Destroyed + finish()
     Active --> TransportLost: browser transport lost / retain TransportLossOwnedHandle / mark uncertain
     RecoveryRequired --> RecoveryRequired: transport_lost = true / preserve recovery evidence
     Ended --> [*]
@@ -106,7 +122,8 @@ stateDiagram-v2
     note right of RecoveryRequired
       BrowserSessionRecoveryEvidence retains known
       partial identity, duplicate/unsettled handle,
-      exact unproven-destruction handle, or transport-loss handle.
+      exact unproven-destruction handle, and
+      RecoveryRequiredOwnedHandle for indirect siblings.
       It grants no I/O.
     end note
 ```
@@ -120,11 +137,13 @@ sequenceDiagram
     participant O as Operability / recovery observer
 
     C->>BS: create accepted remote ownership
-    alt normal completion
+    alt premature finish
+        C->>BS: finish()
+        BS-->>C: ActiveContextRemains; wrapper retained
         C->>BS: destroy exact authority
         BS->>P: proven remote destruction
         C->>BS: finish()
-        BS-->>C: consumed / Ended
+        BS-->>C: Ended
     else ordinary wrapper abandonment
         C-xBS: drop without proven cleanup
         Note over BS,P: Drop performs no browser I/O
