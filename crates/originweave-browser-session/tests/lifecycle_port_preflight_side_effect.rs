@@ -63,10 +63,8 @@ fn lifecycle_binding_invokes_no_adapter_callback_before_authorized_create() {
         .expect("incarnation capacity");
     let identity_callbacks = Rc::new(Cell::new(0));
     let create_calls = Rc::new(Cell::new(0));
-    let port = SideEffectingIdentityPort::new(
-        Rc::clone(&identity_callbacks),
-        Rc::clone(&create_calls),
-    );
+    let port =
+        SideEffectingIdentityPort::new(Rc::clone(&identity_callbacks), Rc::clone(&create_calls));
 
     // Prove the fixture observes a shared-reference callback without retaining adapter access after bind.
     port.identity_probe();
