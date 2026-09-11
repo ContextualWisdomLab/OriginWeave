@@ -96,7 +96,10 @@ fn failed_finish_retains_same_bound_owner_for_cleanup_and_retry() {
         .create_disposable_context()
         .expect("accepted disposable context");
 
-    assert_eq!(bound.finish(), Err(BrowserSessionError::ActiveContextRemains));
+    assert_eq!(
+        bound.finish(),
+        Err(BrowserSessionError::ActiveContextRemains)
+    );
     assert_eq!(
         abandoned_bound_session_count(),
         before,
@@ -112,7 +115,9 @@ fn failed_finish_retains_same_bound_owner_for_cleanup_and_retry() {
         .destroy_disposable_context(&authority)
         .expect("the same bound lifecycle owner must remain available for cleanup");
     assert_eq!(destroy_calls.get(), 1);
-    bound.finish().expect("retry succeeds after proven destruction");
+    bound
+        .finish()
+        .expect("retry succeeds after proven destruction");
     drop(bound);
     assert_eq!(
         abandoned_bound_session_count(),
@@ -136,6 +141,8 @@ fn proven_destruction_can_finish_without_abandonment_path() {
     bound
         .destroy_disposable_context(&authority)
         .expect("proven destruction");
-    bound.finish().expect("end normally after proven destruction");
+    bound
+        .finish()
+        .expect("end normally after proven destruction");
     assert_eq!(destroy_calls.get(), 1);
 }
