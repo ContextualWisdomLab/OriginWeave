@@ -12,7 +12,7 @@ The active implementation has to satisfy four constraints at once. First, `Bound
 
 Lifecycle failures require lossless evidence while the aggregate remains available. A BiDi adapter can successfully create a user context before later browsing-context creation or verification becomes uncertain. Duplicate adapter output can expose an offending handle that must not be silently discarded or automatically destroyed. Destruction can fail without proving that the exact isolation boundary is gone. Transport liveness remains orthogonal to ownership certainty.
 
-The 9 September 2026 WebDriver BiDi Working Draft defines `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext`. These commands remain adapter capabilities rather than OriginWeave policy authority, and command ACK alone is not destruction proof.
+The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-11 is the 24 August 2026 publication. It defines `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext`. These commands remain adapter capabilities rather than OriginWeave policy authority, and command ACK alone is not destruction proof. A previously cited 9 September 2026 snapshot could not be verified in W3C's latest-published report or publication index and is not used as authoritative evidence here.
 
 ## Decision drivers
 
@@ -48,7 +48,7 @@ Introduce and retain `originweave-browser-session` as an independent Rust bounde
 12. `PresentationMutationAuthority` binds browser session, Browser Session incarnation, disposable isolation, browsing context, and context epoch. All fields must match current aggregate ownership before adapter I/O.
 13. `DisposableContextCreateError::CreateFailedClean` is valid only when no remote boundary exists. `CreateFailedUncertain(Option<DisposableIsolationId>)` enters `RecoveryRequired`; any known isolation identity is preserved exactly.
 14. Duplicate browsing-context or isolation output enters `RecoveryRequired`, stores the complete offending `DisposableContextHandle`, and sends a `Rejected` completion for the exact attempt. OriginWeave does not auto-destroy ambiguous output.
-15. `BrowserSessionRecoveryEvidence` includes partial-creation identity, duplicate handle, unsettled complete adapter handle, exact unproven-destruction handle, and `TransportLossOwnedHandle` for each active handle whose remote liveness becomes uncertain on transport loss. Evidence grants no browser command authority. Repeated transport-loss reports are idempotent.
+15. `BrowserSessionRecoveryEvidence` includes partial-creation identity, duplicate handle, unsettled complete adapter handle, exact unproven-destruction handle, and `TransportLossOwnedHandle` for each active handle whose remote liveness becomes uncertain on transport loss. This is explicit **unproven destruction** evidence rather than cleanup proof. Evidence grants no browser command authority. Repeated transport-loss reports are idempotent.
 16. Destruction validates exact authority before I/O. `DisposableContextDestroyError::DestroyFailed` means destruction was not proven; the owned record becomes uncertain, the exact failed handle is retained as `UnprovenDestruction`, and the aggregate enters recovery rather than treating command acknowledgement or bookkeeping as cleanup proof.
 17. Transport liveness is stored separately from ownership state. The first `record_transport_loss()` records exact previously active handles as non-authorizing recovery evidence, marks them uncertain, and records the transport fact. If ownership is already `RecoveryRequired`, the stronger lifecycle state is preserved.
 18. `RecoveryRequired`, `TransportLost`, and `Ended` reject normal active-only lifecycle and authority operations.
@@ -155,4 +155,4 @@ Supersede this ADR if the browser platform provides a complete, queryable, gener
 
 ## References
 
-Browser Testing and Tools Working Group. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+Browser Testing and Tools Working Group. (2026, August 24). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260824/
