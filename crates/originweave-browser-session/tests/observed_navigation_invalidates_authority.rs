@@ -13,7 +13,7 @@ use originweave_core::{BrowserSessionId, BrowsingContextId};
 
 struct NavigationAwarePort {
     handle: Option<DisposableContextHandle>,
-    operation_calls: Rc<Cell<usize>>,
+    adapter_calls: Rc<Cell<usize>>,
 }
 
 impl DisposableContextPort for NavigationAwarePort {
@@ -21,6 +21,7 @@ impl DisposableContextPort for NavigationAwarePort {
         &mut self,
         _request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
+        self.adapter_calls.set(self.adapter_calls.get() + 1);
         self.handle
             .take()
             .ok_or(DisposableContextCreateError::CreateFailedClean)
@@ -30,6 +31,7 @@ impl DisposableContextPort for NavigationAwarePort {
         &mut self,
         _completion: &DisposableContextCreateCompletion,
     ) -> Result<(), DisposableContextCreateCompletionError> {
+        self.adapter_calls.set(self.adapter_calls.get() + 1);
         Ok(())
     }
 
@@ -37,6 +39,7 @@ impl DisposableContextPort for NavigationAwarePort {
         &mut self,
         _request: &DisposableContextDestroyRequest,
     ) -> Result<(), DisposableContextDestroyError> {
+        self.adapter_calls.set(self.adapter_calls.get() + 1);
         Ok(())
     }
 }
@@ -50,7 +53,7 @@ impl AuthorizedContextOperationPort for NavigationAwarePort {
         &mut self,
         request: &AuthorizedContextOperationRequest<Self::Operation>,
     ) -> Result<Self::Output, Self::Error> {
-        self.operation_calls.set(self.operation_calls.get() + 1);
+        self.adapter_calls.set(self.adapter_calls.get() + 1);
         Ok(request.context().browsing_context())
     }
 }
@@ -58,14 +61,14 @@ impl AuthorizedContextOperationPort for NavigationAwarePort {
 #[test]
 fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapter_io() {
     let context = BrowsingContextId::new(901).expect("valid browsing context");
-    let operation_calls = Rc::new(Cell::new(0));
+    let adapter_calls = Rc::new(Cell::new(0));
     let port = NavigationAwarePort {
         handle: Some(DisposableContextHandle::new(
             DisposableIsolationId::parse("navigation-user-context-901")
                 .expect("valid isolation id"),
             context,
         )),
-        operation_calls: Rc::clone(&operation_calls),
+        adapter_calls: Rc::clone(&adapter_calls),
     };
     let session = BrowserSession::start(BrowserSessionId::new(901).expect("valid session id"))
         .expect("incarnation capacity");
@@ -78,11 +81,16 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
         bound.execute_authorized_context_operation(&pre_navigation, "pre-navigation"),
         Ok(context)
     );
-    assert_eq!(operation_calls.get(), 1);
 
+    let calls_before_navigation = adapter_calls.get();
     bound
         .record_observed_navigation(context)
         .expect("owned context navigation invalidates the prior authority epoch");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "observed navigation invalidation must not perform adapter I/O"
+    );
 
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-after-navigation"),
@@ -91,8 +99,8 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
         ))
     );
     assert_eq!(
-        operation_calls.get(),
-        1,
+        adapter_calls.get(),
+        calls_before_navigation,
         "pre-navigation authority must be rejected before adapter I/O"
     );
 
@@ -108,5 +116,5 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
         bound.execute_authorized_context_operation(&reestablished, "post-navigation"),
         Ok(context)
     );
-    assert_eq!(operation_calls.get(), 2);
+    assert_eq!(adapter_calls.get(), calls_before_navigation + 1);
 }
