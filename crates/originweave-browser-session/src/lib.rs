@@ -14,6 +14,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
 static NEXT_BROWSER_SESSION_INCARNATION: AtomicU64 = AtomicU64::new(1);
+static ABANDONED_BOUND_SESSIONS: AtomicU64 = AtomicU64::new(0);
+
+/// Return the number of bound Browser Sessions abandoned with unresolved remote ownership.
+///
+/// This is a process-local, non-I/O operability signal. It deliberately does not claim that remote
+/// browser cleanup happened and is not a substitute for persisting exact recovery evidence before a
+/// process exits.
+#[must_use]
+pub fn abandoned_bound_session_count() -> u64 {
+    ABANDONED_BOUND_SESSIONS.load(Ordering::Relaxed)
+}
 
 /// Current lifecycle state of one Browser Session aggregate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -343,6 +354,74 @@ pub trait DisposableContextPort {
     ) -> Result<(), DisposableContextDestroyError>;
 }
 
+/// Opaque aggregate-authorized request for one purpose-bounded adapter operation.
+///
+/// The caller supplies only the adapter-defined operation value. Browser Session validates the
+/// accompanying presentation authority first and privately binds the operation to the exact owned
+/// context before the consumed adapter can observe it. There is deliberately no public constructor.
+pub struct AuthorizedContextOperationRequest<O> {
+    browser_session: BrowserSessionId,
+    incarnation: BrowserSessionIncarnation,
+    context: DisposableContextHandle,
+    operation: O,
+}
+
+impl<O> AuthorizedContextOperationRequest<O> {
+    /// Return the Browser Session transport identity for adapter addressability.
+    #[must_use]
+    pub const fn browser_session(&self) -> BrowserSessionId {
+        self.browser_session
+    }
+
+    /// Return the non-reused Browser Session incarnation for adapter lifecycle correlation.
+    #[must_use]
+    pub const fn incarnation(&self) -> BrowserSessionIncarnation {
+        self.incarnation
+    }
+
+    /// Return the exact currently owned context validated before adapter I/O.
+    #[must_use]
+    pub const fn context(&self) -> &DisposableContextHandle {
+        &self.context
+    }
+
+    /// Return the adapter-defined purpose-bounded operation payload.
+    #[must_use]
+    pub const fn operation(&self) -> &O {
+        &self.operation
+    }
+}
+
+/// Failure from executing an aggregate-authorized operation through the consumed adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthorizedContextOperationError<E> {
+    /// Browser Session rejected the authority before adapter I/O.
+    BrowserSession(BrowserSessionError),
+    /// The bound adapter attempted the authorized operation and returned its bounded failure.
+    Adapter(E),
+}
+
+/// Adapter extension for purpose-bounded operations that must use the exact consumed adapter.
+///
+/// Browser Session remains protocol-agnostic: the adapter owns the operation, output, and error
+/// types. The wrapper only proves current ownership and routes the opaque request to the same concrete
+/// adapter instance used for lifecycle creation and destruction. Implementations must not treat the
+/// request as permission to mutate any other context.
+pub trait AuthorizedContextOperationPort: DisposableContextPort {
+    /// Adapter-defined operation vocabulary, such as a reviewed BiDi presentation command.
+    type Operation;
+    /// Adapter-defined successful result.
+    type Output;
+    /// Adapter-defined bounded operation failure.
+    type Error;
+
+    /// Execute one aggregate-authorized operation against the exact context carried by the request.
+    fn execute_authorized_context_operation(
+        &mut self,
+        request: &AuthorizedContextOperationRequest<Self::Operation>,
+    ) -> Result<Self::Output, Self::Error>;
+}
+
 /// Monotonic identity for one owned browsing-context authority epoch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BrowserContextEpoch(u64);
@@ -433,6 +512,7 @@ pub struct BrowserSession {
 /// Construction consumes both the aggregate and the concrete port. The port is not exposed mutably and
 /// no public Browser Session lifecycle method accepts an arbitrary port parameter. This makes adapter
 /// ownership structural rather than dependent on a caller-selected scalar or an adapter callback.
+#[must_use = "destroy owned browser state and finish the session, or hand unresolved ownership to recovery"]
 pub struct BoundBrowserSession<P> {
     session: BrowserSession,
     port: P,
@@ -442,9 +522,26 @@ impl<P> fmt::Debug for BoundBrowserSession<P> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("BoundBrowserSession")
-            .field("session", &self.session)
+            .field("browser_session", &self.session.id)
+            .field("incarnation", &self.session.incarnation)
+            .field("state", &self.session.state)
+            .field("transport_lost", &self.session.transport_lost)
+            .field("owned_context_count", &self.session.contexts.len())
+            .field("recovery_evidence_count", &self.session.recovery_evidence.len())
             .field("port", &"<redacted>")
             .finish()
+    }
+}
+
+impl<P> Drop for BoundBrowserSession<P> {
+    fn drop(&mut self) {
+        if self.session.has_unresolved_remote_ownership() {
+            let _ = ABANDONED_BOUND_SESSIONS.fetch_update(
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+                |value| Some(value.saturating_add(1)),
+            );
+        }
     }
 }
 
@@ -778,6 +875,18 @@ impl BrowserSession {
             }
         }
     }
+
+    fn has_unresolved_remote_ownership(&self) -> bool {
+        matches!(
+            self.state,
+            BrowserSessionState::TransportLost | BrowserSessionState::RecoveryRequired
+        ) || self.contexts.values().any(|record| {
+            matches!(
+                record.state,
+                OwnedContextState::Active | OwnedContextState::Uncertain
+            )
+        })
+    }
 }
 
 impl<P: DisposableContextPort> BoundBrowserSession<P> {
@@ -828,6 +937,45 @@ impl<P: DisposableContextPort> BoundBrowserSession<P> {
     /// End the Browser Session only after every owned context has proven destruction.
     pub fn end(&mut self) -> Result<(), BrowserSessionError> {
         self.session.end()
+    }
+
+    /// Consume the bound session after verifying that every owned context has proven destruction.
+    ///
+    /// Failure consumes the wrapper as well; its non-I/O `Drop` fail-safe records abandonment when
+    /// unresolved ownership remains instead of pretending remote cleanup succeeded.
+    pub fn finish(mut self) -> Result<(), BrowserSessionError> {
+        self.session.end()
+    }
+}
+
+impl<P: AuthorizedContextOperationPort> BoundBrowserSession<P> {
+    /// Execute one adapter-defined operation through the exact consumed adapter after authority validation.
+    ///
+    /// Browser Session validates session incarnation, isolation identity, browsing-context identity,
+    /// and epoch before the adapter receives the operation. Stale or foreign authority therefore fails
+    /// before adapter I/O, while the adapter-specific operation vocabulary remains outside this domain.
+    pub fn execute_authorized_context_operation(
+        &mut self,
+        authority: &PresentationMutationAuthority,
+        operation: P::Operation,
+    ) -> Result<P::Output, AuthorizedContextOperationError<P::Error>> {
+        let browser_session = self.session.id;
+        let incarnation = self.session.incarnation;
+        let context = self
+            .session
+            .context_for_authority_mut(authority)
+            .map_err(AuthorizedContextOperationError::BrowserSession)?
+            .handle
+            .clone();
+        let request = AuthorizedContextOperationRequest {
+            browser_session,
+            incarnation,
+            context,
+            operation,
+        };
+        self.port
+            .execute_authorized_context_operation(&request)
+            .map_err(AuthorizedContextOperationError::Adapter)
     }
 }
 
