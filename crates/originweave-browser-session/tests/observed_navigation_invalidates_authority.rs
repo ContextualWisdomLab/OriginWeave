@@ -122,18 +122,53 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
     );
 
     let reestablished = bound
-        .presentation_authority(context)
-        .expect("owner explicitly re-establishes authority after navigation invalidation");
+        .reestablish_presentation_authority(context)
+        .expect("the exact bound owner explicitly re-establishes authority after invalidation");
     assert_eq!(
         reestablished.context_epoch().value(),
         pre_navigation.context_epoch().value() + 1,
-        "duplicate delivery of the same invalidation state must not consume additional epochs"
+        "duplicate delivery while invalidated must not consume additional epochs"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&reestablished, "post-navigation"),
         Ok(context)
     );
     assert_eq!(adapter_calls.get(), calls_before_navigation + 1);
+
+    let calls_before_second_navigation = adapter_calls.get();
+    bound
+        .record_observed_navigation(context)
+        .expect("a later navigation after explicit re-establishment invalidates the new authority");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_second_navigation,
+        "a later navigation invalidation must also remain zero-I/O"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&reestablished, "stale-after-second-navigation"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch
+        ))
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_second_navigation,
+        "the re-established authority must become stale before adapter I/O on a later navigation"
+    );
+
+    let second_reestablished = bound
+        .reestablish_presentation_authority(context)
+        .expect("the exact bound owner can establish a fresh authority for the later document");
+    assert_eq!(
+        second_reestablished.context_epoch().value(),
+        reestablished.context_epoch().value() + 1,
+        "a later distinct navigation must consume exactly one new epoch"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&second_reestablished, "second-document"),
+        Ok(context)
+    );
+    assert_eq!(adapter_calls.get(), calls_before_second_navigation + 1);
 }
 
 #[test]
