@@ -30,7 +30,7 @@ validated BrowserSessionId
 → presentation/reconciliation uses private AuthorizedContextOperationRequest<O>
 → exact consumed adapter only
 → proven destruction for every context
-→ BoundBrowserSession::finish() consumes the normal lifecycle
+→ BoundBrowserSession::finish() validates normal completion without consuming the owner on rejection
 ```
 
 `BoundBrowserSession` is the lifecycle composition boundary. Public create/destroy methods accept no arbitrary port argument, and there is **no public raw port accessor**. Application code cannot recover `&P`, `&mut P`, or a generic callback that would recreate unrestricted adapter authority.
@@ -59,15 +59,15 @@ Stale or foreign authority returns `AuthorizedContextOperationError::BrowserSess
 
 ## Lossless recovery evidence while retained
 
-`CreateFailedClean` is valid only when no disposable browser state exists. `CreateFailedUncertain(Some(isolation))` retains the exact known isolation identity. Duplicate output stores the complete offending handle. Completion failure retains an unsettled complete handle. Failed or unproven destruction records the exact owned handle. Transport loss records each previously active exact handle as `TransportLossOwnedHandle` before marking it uncertain. None of this evidence grants browser command authority.
+`CreateFailedClean` is valid only when no disposable browser state exists. `CreateFailedUncertain(Some(isolation))` retains the exact known isolation identity. Duplicate output stores the complete offending handle. Completion failure retains an unsettled complete handle. Failed or unproven destruction records the exact owned handle. When any such failure moves the aggregate to `RecoveryRequired`, every other still-active sibling is projected exactly once as `RecoveryRequiredOwnedHandle` before becoming uncertain. Transport loss records each previously active exact handle as `TransportLossOwnedHandle`. None of this evidence grants browser command authority.
 
-Repeated transport-loss reports are idempotent, so exact transport-loss evidence is not duplicated by repeated notification.
+Cause-specific evidence is retained for the triggering handle and is not duplicated as generic sibling evidence. Repeated transport-loss reports are idempotent, so exact transport-loss evidence is not duplicated by repeated notification.
 
 ## Abandonment and lifecycle completion
 
-`BoundBrowserSession<P>` is `#[must_use]`. The normal consuming path is `finish()`, which succeeds only after all owned contexts have proven destruction. `Drop` never performs browser I/O and never treats object destruction as browser destruction proof.
+`BoundBrowserSession<P>` is `#[must_use]`. `finish(&mut self)` succeeds only after all owned contexts have proven destruction. If it returns `ActiveContextRemains`, the wrapper, exact bound adapter, and private ownership ledger remain intact. The same owner can therefore destroy or reconcile the remaining context and retry `finish()` without introducing a second adapter or ambient cleanup capability.
 
-Dropping a wrapper with active/uncertain ownership increments the process-local `abandoned_bound_session_count()` signal. This makes ordinary abandonment observable to operability/recovery code without reviving adapter authority. The counter is not durable storage and contains no exact handle payload. Exact crash/process-restart recovery therefore remains open until a canonical recovery owner persists `BrowserSessionRecoveryEvidence` before process termination.
+`Drop` never performs browser I/O and never treats object destruction as browser destruction proof. Dropping a wrapper with active/uncertain ownership increments the process-local `abandoned_bound_session_count()` signal. This makes ordinary abandonment observable to operability/recovery code without reviving adapter authority. The counter is not durable storage and contains no exact handle payload. Exact durable crash/process-restart recovery therefore remains open until a canonical recovery owner persists `BrowserSessionRecoveryEvidence` before process termination.
 
 ## Orthogonal transport liveness
 
@@ -101,15 +101,17 @@ OriginWeave does not treat those protocol identifiers as policy authority or ass
 | adapter-owned Debug is not executed or rendered | manual `Debug for BoundBrowserSession<P>`; `bound_session_debug_never_executes_or_exposes_adapter_debug` |
 | sequential ABA authority is rejected before I/O | `BrowserSessionIncarnation`; `stale_authority_cannot_cross_sequential_session_incarnations` |
 | lossless recovery evidence while aggregate is retained | `BrowserSessionRecoveryEvidence`; recovery tests |
+| `RecoveryRequired` preserves indirectly invalidated siblings | `RecoveryRequiredOwnedHandle`; `recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings` |
 | transport loss preserves exact active handles | `TransportLossOwnedHandle`; `transport_loss_preserves_exact_owned_handle_as_non_authorizing_recovery_evidence` |
 | unproven destruction retains exact handle | `destroy_failure_requires_recovery_before_any_new_authority` |
 | unresolved wrapper drop performs no browser I/O and is observable | `abandoned_bound_session_count`; `dropping_unresolved_bound_session_is_observable_without_implicit_browser_io` |
-| normal consuming completion requires proven destruction | `BoundBrowserSession::finish`; `proven_destruction_can_finish_without_abandonment_path` |
+| failed finish retains exact bound owner | `BoundBrowserSession::finish`; `failed_finish_retains_same_bound_owner_for_cleanup_and_retry` |
+| normal completion requires proven destruction | `BoundBrowserSession::finish`; `proven_destruction_can_finish_without_abandonment_path` |
 | transport liveness remains orthogonal | `BrowserSession::record_transport_loss` |
 | normal end requires proved destruction | `BrowserSession::end` |
 | incarnation exhaustion fails closed | `allocate_incarnation` |
 
-Historical exact `9cde981899950b900698a17e7fa739af59f6bb4f` / CI `34531025582` is RED for this successor: production exact coverage passed, but canonical formatting failed, and the raw port accessor plus missing transaction completion remained. Historical exact `729603ae4feadd369eee7819a45d6850604975da` / CI `34541860394` passed production exact coverage but failed the repository contract after the ADR lost the `DisposableContextDestroyError` trace. Historical GREEN never transfers.
+Historical exact `9cde981899950b900698a17e7fa739af59f6bb4f` / CI `34531025582` is RED for this successor: production exact coverage passed, but canonical formatting failed, and the raw port accessor plus missing transaction completion remained. Historical exact `729603ae4feadd369eee7819a45d6850604975da` / CI `34541860394` passed production exact coverage but failed the repository contract after the ADR lost the `DisposableContextDestroyError` trace. Exact `d5046e76cb7555b448b728ea1bed9ba1ea8de8c3` / CI `34573175780` passed Python repository contracts, then failed canonical formatting; production coverage stopped during measurement because the two intentional hostile lifecycle REDs were still unresolved. Historical GREEN never transfers.
 
 Protected-main integration is required before capability maturity can be promoted beyond `IMPLEMENTED_ON_ACTIVE_PR`.
 
