@@ -79,7 +79,7 @@ Aggregate A may create `(S,U,C,epoch=1)`, prove destruction, and end. Aggregate 
 
 ## Standards trace
 
-The design dossier references the 9 September 2026 WebDriver BiDi Working Draft. `browser.createUserContext` creates a user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables.
+The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-11 is the 24 August 2026 publication. `browser.createUserContext` creates a user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables. A previously cited 9 September snapshot could not be verified in the W3C latest-published report or publication index and is therefore not treated as authoritative evidence.
 
 OriginWeave does not treat those protocol identifiers as policy authority or assume historical non-reuse after removal. A command ACK is insufficient proof that the disposable boundary is actually gone.
 
@@ -119,4 +119,4 @@ This slice does not yet prove actual WebDriver BiDi lifecycle integration, obser
 
 ## Reference
 
-Browser Testing and Tools Working Group. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+Browser Testing and Tools Working Group. (2026, August 24). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260824/
