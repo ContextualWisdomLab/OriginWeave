@@ -8,7 +8,7 @@ sequenceDiagram
     participant C as Application service
     participant S as BrowserSession aggregate
     participant BS as BoundBrowserSession
-    participant P as DisposableContextPort
+    participant P as DisposableContextPort / AuthorizedContextOperationPort
     participant B as Browser adapter (planned)
 
     C->>S: start(valid BrowserSessionId)
@@ -43,7 +43,21 @@ sequenceDiagram
         S->>S: RecoveryRequired
     end
 
-    Note over C,S: Raw ids, adapter-selected values, and diagnostic references cannot mint lifecycle or presentation authority.
+    C->>BS: execute_authorized_context_operation(authority, operation)
+    BS->>S: validate session/incarnation/isolation/context/epoch
+    alt authority current
+        S-->>BS: exact stored handle
+        BS->>BS: mint private AuthorizedContextOperationRequest
+        BS->>P: execute_authorized_context_operation(request)
+        P->>B: adapter-owned presentation/reconciliation command
+        B-->>P: typed adapter result
+        P-->>C: output or AuthorizedContextOperationError::Adapter
+    else stale or foreign authority
+        S-->>C: AuthorizedContextOperationError::BrowserSession
+        Note over BS,P: adapter I/O = 0
+    end
+
+    Note over C,S: Raw ids, adapter-selected values, diagnostic references, and a second adapter cannot mint lifecycle or presentation authority.
 
     C->>BS: advance_context_epoch(context_id)
     BS->>S: replace epoch; old authority becomes stale
@@ -57,23 +71,24 @@ sequenceDiagram
     B-->>P: observed destruction post-condition or DisposableContextDestroyError
     P-->>S: success
     S->>S: context = Destroyed
-    C->>BS: end()
+    C->>BS: finish()
     BS->>S: require every owned context Destroyed
-    S-->>C: Ended
+    S-->>C: Ended; wrapper consumed
 ```
 
-`BoundBrowserSession` is a linear lifecycle-port binding. It consumes one concrete port, exposes no public raw `&P`, and exposes no lifecycle method that accepts a replacement port. Tests retain inert observation state separately from the moved adapter.
+`BoundBrowserSession` is a linear lifecycle-port binding. It consumes one concrete port, exposes no public raw `&P`, and exposes no lifecycle method that accepts a replacement port. `AuthorizedContextOperationPort` adds a typed, purpose-bounded post-create operation vocabulary without exposing the adapter itself. Tests retain inert observation state separately from the moved adapter.
 
-`DisposableContextCreateRequest` and `DisposableContextCreateCompletion` are non-caller-constructible. The create request carries the reserved `BrowserContextEpoch` as a per-create transaction id; Browser Session alone decides whether the returned domain handle is accepted or rejected.
+`DisposableContextCreateRequest`, `DisposableContextCreateCompletion`, `DisposableContextDestroyRequest`, and `AuthorizedContextOperationRequest` are non-caller-constructible. The create request carries the reserved `BrowserContextEpoch` as a per-create transaction id; Browser Session alone decides whether the returned domain handle is accepted or rejected and validates current authority before any later adapter operation.
 
-For WebDriver BiDi, `DisposableIsolationId` maps to the user-context id created by `browser.createUserContext`. Protocol-specific pending/accepted/quarantined remote tuples remain in the BiDi ACL boundary rather than this domain model.
+For WebDriver BiDi, `DisposableIsolationId` maps to the user-context id created by `browser.createUserContext`. Protocol-specific pending/accepted/quarantined remote tuples and command semantics remain in the BiDi ACL boundary rather than this domain model.
 
-## Recovery and transport state
+## Recovery, transport, and abandonment state
 
 ```mermaid
 stateDiagram-v2
     [*] --> Active
     Active --> Active: create candidate + exact Accepted completion + authority
+    Active --> Active: authorized operation / current authority / exact bound adapter
     Active --> Active: context epoch advanced / prior authority stale
     Active --> Active: exact owned isolation destruction proved
     Active --> Active: DisposableContextCreateError::CreateFailedClean
@@ -81,8 +96,8 @@ stateDiagram-v2
     Active --> RecoveryRequired: duplicate output + exact Rejected completion
     Active --> RecoveryRequired: completion unproven / retain UnsettledAdapterHandle
     Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven
-    Active --> Ended: all owned contexts Destroyed + end
-    Active --> TransportLost: browser transport lost
+    Active --> Ended: all owned contexts Destroyed + finish
+    Active --> TransportLost: browser transport lost / retain TransportLossOwnedHandle / mark uncertain
     RecoveryRequired --> RecoveryRequired: transport_lost = true / preserve recovery evidence
     Ended --> [*]
     RecoveryRequired --> [*]
@@ -91,10 +106,34 @@ stateDiagram-v2
     note right of RecoveryRequired
       BrowserSessionRecoveryEvidence retains known
       partial identity, duplicate/unsettled handle,
-      or exact unproven-destruction handle.
+      exact unproven-destruction handle, or transport-loss handle.
       It grants no I/O.
     end note
 ```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Application service
+    participant BS as BoundBrowserSession
+    participant P as exact bound adapter
+    participant O as Operability / recovery observer
+
+    C->>BS: create accepted remote ownership
+    alt normal completion
+        C->>BS: destroy exact authority
+        BS->>P: proven remote destruction
+        C->>BS: finish()
+        BS-->>C: consumed / Ended
+    else ordinary wrapper abandonment
+        C-xBS: drop without proven cleanup
+        Note over BS,P: Drop performs no browser I/O
+        BS->>O: increment abandoned_bound_session_count()
+        Note over O: process-local signal only; not destruction proof or durable exact-handle storage
+    end
+```
+
+The abandonment signal is deliberately weaker than durable recovery. Exact crash/process-restart reconciliation remains open until a canonical recovery owner persists `BrowserSessionRecoveryEvidence` before process termination.
 
 ## Sequential ABA hostile case
 
@@ -111,7 +150,7 @@ sequenceDiagram
     PA-->>A: U, C pending
     A->>PA: completion Accepted(attempt 1)
     A->>PA: destroy(request S, incarnation A, U/C)
-    A->>A: end()
+    A->>A: finish()
 
     B->>B: start(S) => incarnation B; bind PB
     B->>PB: create(request S, incarnation B, attempt 1)
@@ -119,8 +158,8 @@ sequenceDiagram
     B->>PB: completion Accepted(attempt 1)
     Note over A,B: local attempt/epoch may both equal 1, but incarnations differ
     B->>B: validate retained authority A
-    B-->>A: AuthorityMismatch before PB destroy I/O
-    B->>PB: destroy with authority B + incarnation B
+    B-->>A: AuthorityMismatch before PB adapter I/O
+    B->>PB: operate/destroy only with authority B + incarnation B
 ```
 
 `RecoveryRequired` and `TransportLost` remain terminal for normal authority in this slice. Later reconciliation may inspect recovery evidence, but it must not reconstruct cleanup authority from raw identifiers or treat command ACK as proof of destruction.
