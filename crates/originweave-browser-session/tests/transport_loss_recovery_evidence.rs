@@ -22,8 +22,7 @@ impl DisposableContextPort for ObservedPort {
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
         self.create_calls.set(self.create_calls.get() + 1);
         Ok(DisposableContextHandle::new(
-            DisposableIsolationId::parse("transport-user-context-501")
-                .expect("valid isolation id"),
+            DisposableIsolationId::parse("transport-user-context-501").expect("valid isolation id"),
             BrowsingContextId::new(501).expect("valid browsing context"),
         ))
     }
@@ -72,13 +71,21 @@ fn transport_loss_preserves_exact_owned_handle_as_non_authorizing_recovery_evide
         bound.browser_session().state(),
         BrowserSessionState::TransportLost
     );
-    assert_eq!(create_calls.get(), 1, "transport loss must not create browser state");
+    assert_eq!(
+        create_calls.get(),
+        1,
+        "transport loss must not create browser state"
+    );
     assert_eq!(
         completion_calls.get(),
         1,
         "transport loss must not settle another create attempt"
     );
-    assert_eq!(destroy_calls.get(), 0, "transport loss is not destruction proof");
+    assert_eq!(
+        destroy_calls.get(),
+        0,
+        "transport loss is not destruction proof"
+    );
 
     let evidence = bound.browser_session().recovery_evidence();
     assert_eq!(
