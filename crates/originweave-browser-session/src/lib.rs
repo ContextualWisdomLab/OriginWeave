@@ -8,6 +8,7 @@
 #![deny(missing_docs)]
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use originweave_core::{BrowserSessionId, BrowsingContextId};
@@ -178,6 +179,8 @@ pub enum BrowserSessionRecoveryEvidence {
     UnsettledAdapterHandle(DisposableContextHandle),
     /// Destruction of this exact owned handle failed or could not be proven.
     UnprovenDestruction(DisposableContextHandle),
+    /// Transport loss made this previously active owned handle uncertain.
+    TransportLossOwnedHandle(DisposableContextHandle),
 }
 
 /// Opaque Browser Session-issued request for one disposable-context creation attempt.
@@ -430,10 +433,19 @@ pub struct BrowserSession {
 /// Construction consumes both the aggregate and the concrete port. The port is not exposed mutably and
 /// no public Browser Session lifecycle method accepts an arbitrary port parameter. This makes adapter
 /// ownership structural rather than dependent on a caller-selected scalar or an adapter callback.
-#[derive(Debug)]
 pub struct BoundBrowserSession<P> {
     session: BrowserSession,
     port: P,
+}
+
+impl<P> fmt::Debug for BoundBrowserSession<P> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BoundBrowserSession")
+            .field("session", &self.session)
+            .field("port", &"<redacted>")
+            .finish()
+    }
 }
 
 impl BrowserSession {
@@ -555,6 +567,16 @@ impl BrowserSession {
         }
         self.transport_lost = true;
         if self.state == BrowserSessionState::Active {
+            self.recovery_evidence.extend(
+                self.contexts
+                    .values()
+                    .filter(|record| record.state == OwnedContextState::Active)
+                    .map(|record| {
+                        BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(
+                            record.handle.clone(),
+                        )
+                    }),
+            );
             self.state = BrowserSessionState::TransportLost;
             self.mark_active_contexts_uncertain();
         }
