@@ -93,9 +93,9 @@ fn recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings() 
         "the directly failed destruction must keep its cause-specific evidence"
     );
     assert!(
-        evidence.contains(&BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(
-            sibling.clone()
-        )),
+        evidence.contains(
+            &BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(sibling.clone())
+        ),
         "the indirectly invalidated sibling must be projected as non-authorizing exact recovery evidence"
     );
     assert_eq!(
