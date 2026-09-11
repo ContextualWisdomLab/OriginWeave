@@ -773,9 +773,10 @@ impl BrowserSession {
             .complete_disposable_context_creation(&completion)
             .is_err()
         {
-            self.recovery_evidence.push(
-                BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(handle),
-            );
+            self.recovery_evidence
+                .push(BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(
+                    handle,
+                ));
             self.enter_recovery_required();
             return Err(BrowserSessionError::ContextCreationUncertain);
         }
@@ -867,24 +868,24 @@ impl BrowserSession {
     }
 
     fn enter_recovery_required(&mut self) {
-        let sibling_handles = self
-            .contexts
-            .values()
-            .filter(|record| record.state == OwnedContextState::Active)
-            .map(|record| record.handle.clone())
-            .filter(|handle| {
-                !self.recovery_evidence.iter().any(|evidence| match evidence {
-                    BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => false,
-                    BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(existing)
-                    | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(existing)
-                    | BrowserSessionRecoveryEvidence::UnprovenDestruction(existing)
-                    | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
-                    | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(existing) => {
-                        existing == handle
-                    }
+        let sibling_handles =
+            self.contexts
+                .values()
+                .filter(|record| record.state == OwnedContextState::Active)
+                .map(|record| record.handle.clone())
+                .filter(|handle| {
+                    !self.recovery_evidence.iter().any(|evidence| match evidence {
+                        BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => false,
+                        BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(existing)
+                        | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(existing)
+                        | BrowserSessionRecoveryEvidence::UnprovenDestruction(existing)
+                        | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
+                        | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(existing) => {
+                            existing == handle
+                        }
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
+                .collect::<Vec<_>>();
         self.recovery_evidence.extend(
             sibling_handles
                 .into_iter()
