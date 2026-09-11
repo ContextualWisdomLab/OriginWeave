@@ -63,6 +63,8 @@ Stale or foreign authority returns `AuthorizedContextOperationError::BrowserSess
 
 Cause-specific evidence is retained for the triggering handle and is not duplicated as generic sibling evidence. Repeated transport-loss reports are idempotent, so exact transport-loss evidence is not duplicated by repeated notification.
 
+The active successor still has open recovery-correlation work: create uncertainty and create-completion failures must retain the exact aggregate-issued attempt epoch; destructive and purpose-bounded adapter requests must retain the exact validated context epoch as non-authorizing provenance; `RecoveryRequired`/`TransportLost` need a purpose-bounded handoff that keeps the exact same adapter with the exact evidence instead of reconstructing a second adapter.
+
 ## Abandonment and lifecycle completion
 
 `BoundBrowserSession<P>` is `#[must_use]`. `finish(&mut self)` succeeds only after all owned contexts have proven destruction. If it returns `ActiveContextRemains`, the wrapper, exact bound adapter, and private ownership ledger remain intact. The same owner can therefore destroy or reconcile the remaining context and retry `finish()` without introducing a second adapter or ambient cleanup capability.
@@ -77,11 +79,17 @@ Transport liveness is tracked independently from ownership recovery. A first tra
 
 Aggregate A may create `(S,U,C,epoch=1)`, prove destruction, and end. Aggregate B can later start with the same external values and also begin at epoch 1. A's retained authority still fails because B has a different `BrowserSessionIncarnation`. The bound port receives the incarnation inside aggregate-issued lifecycle capabilities.
 
+## Browser-issued user-context identity
+
+`DisposableIsolationId` maps one-to-one to the browser-issued WebDriver BiDi `browser.UserContext` identity. That value is addressability and recovery evidence, not command authority. OriginWeave must preserve a protocol-valid browser identity losslessly so the exact remote boundary can later be destroyed or reconciled. The current active branch still contains a historical 4096-byte parser ceiling; `user_context_identity_length.rs` intentionally keeps that mismatch RED until the arbitrary domain constant is removed or replaced by a cited, versioned protocol/runtime/deployment boundary. No truncation or normalization is acceptable for a browser-issued identity.
+
 ## Standards trace
 
-The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-11 is the 24 August 2026 publication. `browser.createUserContext` creates a user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables. A previously cited 9 September snapshot could not be verified in the W3C latest-published report or publication index and is therefore not treated as authoritative evidence.
+The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-12 is the **9 September 2026** publication (`WD-webdriver-bidi-20260909`), with 3 September 2026 as the previous published version. `browser.createUserContext` creates a user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables. `browser.UserContext` is defined as `text`; the published protocol does not define the active branch's 4096-byte domain ceiling.
 
-OriginWeave does not treat those protocol identifiers as policy authority or assume historical non-reuse after removal. A command ACK is insufficient proof that the disposable boundary is actually gone.
+Standards freshness and runtime qualification are separate controls. Updating this citation does not repin the separately qualified Chromium/WebDriver BiDi runtime revision.
+
+OriginWeave does not treat protocol identifiers as policy authority or assume historical non-reuse after removal. A command ACK is insufficient proof that the disposable boundary is actually gone.
 
 ## Source and executable evidence
 
@@ -107,6 +115,7 @@ OriginWeave does not treat those protocol identifiers as policy authority or ass
 | unresolved wrapper drop performs no browser I/O and is observable | `abandoned_bound_session_count`; `dropping_unresolved_bound_session_is_observable_without_implicit_browser_io` |
 | failed finish retains exact bound owner | `BoundBrowserSession::finish`; `failed_finish_retains_same_bound_owner_for_cleanup_and_retry` |
 | normal completion requires proven destruction | `BoundBrowserSession::finish`; `proven_destruction_can_finish_without_abandonment_path` |
+| protocol-valid user-context identity is preserved losslessly | `user_context_identity_length.rs` (currently RED against the historical 4096-byte ceiling) |
 | transport liveness remains orthogonal | `BrowserSession::record_transport_loss` |
 | normal end requires proved destruction | `BrowserSession::end` |
 | incarnation exhaustion fails closed | `allocate_incarnation` |
@@ -121,4 +130,4 @@ This slice does not yet prove actual WebDriver BiDi lifecycle integration, obser
 
 ## Reference
 
-Browser Testing and Tools Working Group. (2026, August 24). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260824/
+Browser Testing and Tools Working Group. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
