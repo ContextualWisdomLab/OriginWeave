@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-09-10
-- Last code-current review: 2026-09-11
+- Last code-current review: 2026-09-12
 
 ## Context
 
@@ -12,11 +12,12 @@ The active implementation has to satisfy four constraints at once. First, `Bound
 
 Lifecycle failures require lossless evidence while the aggregate remains available. A BiDi adapter can successfully create a user context before later browsing-context creation or verification becomes uncertain. Duplicate adapter output can expose an offending handle that must not be silently discarded or automatically destroyed. Destruction can fail without proving that the exact isolation boundary is gone. A failure on one owned context can force all other active siblings into uncertainty, so those sibling handles also have to remain enumerable. Transport liveness remains orthogonal to ownership certainty.
 
-The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-11 is the 24 August 2026 publication. It defines `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext`. These commands remain adapter capabilities rather than OriginWeave policy authority, and command ACK alone is not destruction proof. A previously cited 9 September 2026 snapshot could not be verified in W3C's latest-published report or publication index and is not used as authoritative evidence here.
+The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-12 is the 9 September 2026 publication (`WD-webdriver-bidi-20260909`), with 3 September 2026 as the previous version. It defines `browser.UserContext` as `text`, `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext`. The specification requires the user-context id to uniquely identify a user context but does not define a 4096-byte identifier limit. These identifiers and commands remain adapter capabilities/addressability rather than OriginWeave policy authority, and command ACK alone is not destruction proof. Runtime-qualified protocol/browser revisions remain separately controlled and are not repinned by this standards-trace update.
 
 ## Decision drivers
 
 - Raw WebDriver/BiDi identifiers and adapter-chosen values are addressability, not mutation or cleanup authority.
+- Browser-issued protocol identity needed for exact lifecycle ownership and recovery must remain losslessly representable; an uncited implementation constant must not silently redefine `browser.UserContext` semantics.
 - No arbitrary adapter callback may be required to establish lifecycle-port ownership.
 - A caller must not be able to substitute or recover the concrete adapter after Browser Session binding.
 - Browser Session create/destroy capabilities remain non-caller-constructible.
@@ -45,19 +46,20 @@ Introduce and retain `originweave-browser-session` as an independent Rust bounde
 8. Browser Session privately issues `DisposableContextCreateCompletion` for that exact attempt with `Accepted` or `Rejected`.
 9. The adapter must keep a successful remote create result non-authorizing until the matching `Accepted` completion. `Rejected` results remain non-authorizing recovery/quarantine state. A completion that cannot be proven for the exact pending attempt fails closed and sends the aggregate to `RecoveryRequired`.
 10. Protocol-specific remote tuple contents are not copied into Browser Session. #314/#316 owns WebDriver BiDi pending/accepted/quarantined storage and remote-liveness validation.
-11. `DisposableContextDestroyRequest` remains opaque and is created only after exact presentation-authority validation. It carries Browser Session addressability, incarnation, and the exact stored handle.
-12. `PresentationMutationAuthority` binds browser session, Browser Session incarnation, disposable isolation, browsing context, and context epoch. All fields must match current aggregate ownership before adapter I/O.
-13. `DisposableContextCreateError::CreateFailedClean` is valid only when no remote boundary exists. `CreateFailedUncertain(Option<DisposableIsolationId>)` enters `RecoveryRequired`; any known isolation identity is preserved exactly.
-14. Duplicate browsing-context or isolation output enters `RecoveryRequired`, stores the complete offending `DisposableContextHandle`, and sends a `Rejected` completion for the exact attempt. OriginWeave does not auto-destroy ambiguous output.
-15. `BrowserSessionRecoveryEvidence` includes partial-creation identity, duplicate handle, unsettled complete adapter handle, exact unproven-destruction handle, `RecoveryRequiredOwnedHandle` for every still-active sibling made uncertain by a recovery transition, and `TransportLossOwnedHandle` for each active handle whose remote liveness becomes uncertain on transport loss. Cause-specific evidence is not duplicated as generic sibling evidence. These values are explicit **unproven destruction** evidence rather than cleanup proof and grant no browser command authority. Repeated recovery/loss observation must not duplicate exact-handle evidence.
-16. Destruction validates exact authority before I/O. `DisposableContextDestroyError::DestroyFailed` means destruction was not proven; the owned record becomes uncertain, the exact failed handle is retained as `UnprovenDestruction`, and the aggregate enters recovery rather than treating command acknowledgement or bookkeeping as cleanup proof. Any other active sibling is projected as `RecoveryRequiredOwnedHandle` before it becomes uncertain.
-17. Transport liveness is stored separately from ownership state. The first `record_transport_loss()` records exact previously active handles as non-authorizing recovery evidence, marks them uncertain, and records the transport fact. If ownership is already `RecoveryRequired`, the stronger lifecycle state is preserved.
-18. `RecoveryRequired`, `TransportLost`, and `Ended` reject normal active-only lifecycle and authority operations.
-19. `AuthorizedContextOperationRequest<O>` is non-caller-constructible. `AuthorizedContextOperationPort` lets a dependent adapter define a narrow operation vocabulary while Browser Session first validates current `PresentationMutationAuthority`, binds the exact stored handle, and routes the request through the same consumed adapter instance. `AuthorizedContextOperationError::BrowserSession` is returned before adapter I/O for stale/foreign authority; adapter execution errors remain separately typed. Browser Session does not own WebDriver BiDi command semantics.
-20. `BoundBrowserSession<P>` implements a manual redacted `Debug` projection over inert Browser Session fields only. Formatting never calls `P::fmt` and never renders adapter-internal state.
-21. `BoundBrowserSession<P>` is `#[must_use]`. `finish(&mut self)` admits normal completion only after all owned contexts have proven destruction. A failed `finish()` returns the domain error without consuming or dropping the wrapper, so the same exact bound adapter and ownership ledger remain available for cleanup/reconciliation and retry. After success the aggregate is `Ended`, and later wrapper destruction is inert. `Drop` never performs browser I/O; if unresolved remote ownership remains, it increments the process-local `abandoned_bound_session_count()` operability signal.
-22. The abandonment counter is deliberately not destruction proof and is not durable cross-process recovery storage. Exact recovery handles must be persisted by the separately authorized recovery owner before process termination. Until that owner path is integrated, crash/process-restart reconciliation remains an explicit buyer-acceptance gap rather than an implicit guarantee.
-23. Context epochs remain monotonic authority identities within one aggregate and also provide the create-attempt correlation allocated before remote create I/O.
+11. `DisposableIsolationId` preserves the browser-issued isolation identity exactly for create/destroy/recovery addressability. It must not truncate, normalize, hash, or reject an otherwise protocol-valid `browser.UserContext` solely because of an arbitrary local identifier-length constant. Resource-exhaustion limits, where required, belong at a cited protocol/frame/runtime boundary or an explicit deployment policy that still preserves lossless recovery evidence.
+12. `DisposableContextDestroyRequest` remains opaque and is created only after exact presentation-authority validation. It carries Browser Session addressability, incarnation, and the exact stored handle.
+13. `PresentationMutationAuthority` binds browser session, Browser Session incarnation, disposable isolation, browsing context, and context epoch. All fields must match current aggregate ownership before adapter I/O.
+14. `DisposableContextCreateError::CreateFailedClean` is valid only when no remote boundary exists. `CreateFailedUncertain(Option<DisposableIsolationId>)` enters `RecoveryRequired`; any known isolation identity is preserved exactly.
+15. Duplicate browsing-context or isolation output enters `RecoveryRequired`, stores the complete offending `DisposableContextHandle`, and sends a `Rejected` completion for the exact attempt. OriginWeave does not auto-destroy ambiguous output.
+16. `BrowserSessionRecoveryEvidence` includes partial-creation identity, duplicate handle, unsettled complete adapter handle, exact unproven-destruction handle, `RecoveryRequiredOwnedHandle` for every still-active sibling made uncertain by a recovery transition, and `TransportLossOwnedHandle` for each active handle whose remote liveness becomes uncertain on transport loss. Cause-specific evidence is not duplicated as generic sibling evidence. These values are explicit **unproven destruction** evidence rather than cleanup proof and grant no browser command authority. Repeated recovery/loss observation must not duplicate exact-handle evidence.
+17. Destruction validates exact authority before I/O. `DisposableContextDestroyError::DestroyFailed` means destruction was not proven; the owned record becomes uncertain, the exact failed handle is retained as `UnprovenDestruction`, and the aggregate enters recovery rather than treating command acknowledgement or bookkeeping as cleanup proof. Any other active sibling is projected as `RecoveryRequiredOwnedHandle` before it becomes uncertain.
+18. Transport liveness is stored separately from ownership state. The first `record_transport_loss()` records exact previously active handles as non-authorizing recovery evidence, marks them uncertain, and records the transport fact. If ownership is already `RecoveryRequired`, the stronger lifecycle state is preserved.
+19. `RecoveryRequired`, `TransportLost`, and `Ended` reject normal active-only lifecycle and authority operations.
+20. `AuthorizedContextOperationRequest<O>` is non-caller-constructible. `AuthorizedContextOperationPort` lets a dependent adapter define a narrow operation vocabulary while Browser Session first validates current `PresentationMutationAuthority`, binds the exact stored handle, and routes the request through the same consumed adapter instance. `AuthorizedContextOperationError::BrowserSession` is returned before adapter I/O for stale/foreign authority; adapter execution errors remain separately typed. Browser Session does not own WebDriver BiDi command semantics.
+21. `BoundBrowserSession<P>` implements a manual redacted `Debug` projection over inert Browser Session fields only. Formatting never calls `P::fmt` and never renders adapter-internal state.
+22. `BoundBrowserSession<P>` is `#[must_use]`. `finish(&mut self)` admits normal completion only after all owned contexts have proven destruction. A failed `finish()` returns the domain error without consuming or dropping the wrapper, so the same exact bound adapter and ownership ledger remain available for cleanup/reconciliation and retry. After success the aggregate is `Ended`, and later wrapper destruction is inert. `Drop` never performs browser I/O; if unresolved remote ownership remains, it increments the process-local `abandoned_bound_session_count()` operability signal.
+23. The abandonment counter is deliberately not destruction proof and is not durable cross-process recovery storage. Exact recovery handles must be persisted by the separately authorized recovery owner before process termination. Until that owner path is integrated, crash/process-restart reconciliation remains an explicit buyer-acceptance gap rather than an implicit guarantee.
+24. Context epochs remain monotonic authority identities within one aggregate and also provide the create-attempt correlation allocated before remote create I/O.
 
 ## Alternatives considered
 
@@ -89,6 +91,10 @@ Rejected as authority. It may be useful internally, but Browser Session could no
 
 Selected. Browser Session already reserves the epoch before create I/O, it is non-caller-constructible, monotonic within the aggregate, and the same value becomes the accepted context's first mutation epoch.
 
+### Hard-coded maximum length for `browser.UserContext`
+
+Rejected unless an authoritative protocol/runtime bound is cited and versioned. The current WebDriver BiDi WD defines `browser.UserContext` as `text` and does not define a 4096-byte identifier ceiling. OriginWeave therefore must not convert a browser-issued, otherwise valid identity into ownership loss because of an implementation-chosen domain constant.
+
 ### Consuming `finish(self)` before validation
 
 Rejected. An expected `ActiveContextRemains` would destroy the only wrapper that owns the accepted adapter and private lifecycle ledger. Validation therefore occurs through `finish(&mut self)`; only successful completion changes the aggregate to `Ended`.
@@ -117,6 +123,8 @@ A failed `finish()` leaves the same `BoundBrowserSession` usable for cleanup/rec
 
 No page-controlled value, raw browser identifier, adapter-selected scalar, diagnostic reference, provider/model decision, or LLM output can mint lifecycle completion or presentation authority. Remote creation stays non-authorizing until the aggregate validates ownership and accepts that exact attempt. Post-create adapter I/O is admitted only through current aggregate authority and the exact consumed adapter instance.
 
+Lossless retention of browser-issued user-context identity is an ownership requirement, not authority delegation. Resource controls must not create an untracked remote isolation boundary by discarding or rewriting the only exact addressability needed for recovery.
+
 This decision does not replace Chromium sandboxing, EgressWeave, Keyverse, Wardnet, or central workflow security.
 
 ## Tests and exact evidence
@@ -129,6 +137,7 @@ Required executable cases include:
 - two successful remote create candidates in the same session incarnation receive distinct attempt epochs;
 - one candidate can be accepted and the other rejected without pending-state collision or overwrite;
 - accepted-completion failure and rejected-completion failure both fail closed and preserve exact recovery evidence;
+- an otherwise-valid browser-issued `browser.UserContext` longer than the former 4096-byte implementation threshold remains losslessly representable for exact destroy/recovery rather than being rejected by an arbitrary domain cap;
 - `DisposableContextDestroyError::DestroyFailed` preserves the exact failed handle, enters `RecoveryRequired`, and never counts a destroy command acknowledgement as proof;
 - `RecoveryRequired` preserves each indirectly invalidated active sibling exactly once as `RecoveryRequiredOwnedHandle` while retaining the triggering context's cause-specific evidence;
 - transport loss preserves every previously active exact handle as `TransportLossOwnedHandle` without adapter I/O or authority resurrection;
@@ -150,7 +159,7 @@ Consumers continue to bind once with `BrowserSession::bind_lifecycle_port(port)`
 
 Normal owners destroy every owned context, call `finish()`, and may then release the ended wrapper. If `finish()` rejects, they retain the same wrapper, perform permitted cleanup/reconciliation, and retry. Recovery owners must persist exact recovery evidence before terminating a process that still has unresolved ownership; the abandonment counter is an operability alert, not a persistence mechanism.
 
-Rollback may return to the predecessor active-PR API only if these authority findings are disproved with stronger executable evidence. It must not restore a raw adapter accessor, derived adapter `Debug`, self-reported identity, unrestricted adapter callback, consuming failed-finish path, or adapter-local call order as an authorization boundary.
+Rollback may return to the predecessor active-PR API only if these authority findings are disproved with stronger executable evidence. It must not restore a raw adapter accessor, derived adapter `Debug`, self-reported identity, unrestricted adapter callback, consuming failed-finish path, arbitrary browser-user-context length cap, or adapter-local call order as an authorization boundary.
 
 ## Open follow-ups
 
@@ -164,4 +173,4 @@ Supersede this ADR if the browser platform provides a complete, queryable, gener
 
 ## References
 
-Browser Testing and Tools Working Group. (2026, August 24). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260824/
+Browser Testing and Tools Working Group. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
