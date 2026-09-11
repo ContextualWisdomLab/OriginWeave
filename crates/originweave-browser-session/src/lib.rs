@@ -190,6 +190,8 @@ pub enum BrowserSessionRecoveryEvidence {
     UnsettledAdapterHandle(DisposableContextHandle),
     /// Destruction of this exact owned handle failed or could not be proven.
     UnprovenDestruction(DisposableContextHandle),
+    /// A recovery condition elsewhere in the session made this active owned handle uncertain.
+    RecoveryRequiredOwnedHandle(DisposableContextHandle),
     /// Transport loss made this previously active owned handle uncertain.
     TransportLossOwnedHandle(DisposableContextHandle),
 }
@@ -527,7 +529,10 @@ impl<P> fmt::Debug for BoundBrowserSession<P> {
             .field("state", &self.session.state)
             .field("transport_lost", &self.session.transport_lost)
             .field("owned_context_count", &self.session.contexts.len())
-            .field("recovery_evidence_count", &self.session.recovery_evidence.len())
+            .field(
+                "recovery_evidence_count",
+                &self.session.recovery_evidence.len(),
+            )
             .field("port", &"<redacted>")
             .finish()
     }
@@ -748,10 +753,9 @@ impl BrowserSession {
                 .complete_disposable_context_creation(&completion)
                 .is_err()
             {
-                self.recovery_evidence
-                    .push(BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(
-                        handle,
-                    ));
+                self.recovery_evidence.push(
+                    BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(handle),
+                );
                 self.enter_recovery_required();
                 return Err(BrowserSessionError::ContextCreationUncertain);
             }
@@ -769,10 +773,9 @@ impl BrowserSession {
             .complete_disposable_context_creation(&completion)
             .is_err()
         {
-            self.recovery_evidence
-                .push(BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(
-                    handle,
-                ));
+            self.recovery_evidence.push(
+                BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(handle),
+            );
             self.enter_recovery_required();
             return Err(BrowserSessionError::ContextCreationUncertain);
         }
@@ -864,6 +867,29 @@ impl BrowserSession {
     }
 
     fn enter_recovery_required(&mut self) {
+        let sibling_handles = self
+            .contexts
+            .values()
+            .filter(|record| record.state == OwnedContextState::Active)
+            .map(|record| record.handle.clone())
+            .filter(|handle| {
+                !self.recovery_evidence.iter().any(|evidence| match evidence {
+                    BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => false,
+                    BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(existing)
+                    | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(existing)
+                    | BrowserSessionRecoveryEvidence::UnprovenDestruction(existing)
+                    | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
+                    | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(existing) => {
+                        existing == handle
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        self.recovery_evidence.extend(
+            sibling_handles
+                .into_iter()
+                .map(BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle),
+        );
         self.state = BrowserSessionState::RecoveryRequired;
         self.mark_active_contexts_uncertain();
     }
@@ -939,11 +965,11 @@ impl<P: DisposableContextPort> BoundBrowserSession<P> {
         self.session.end()
     }
 
-    /// Consume the bound session after verifying that every owned context has proven destruction.
+    /// Verify normal completion without relinquishing the exact bound lifecycle owner on failure.
     ///
-    /// Failure consumes the wrapper as well; its non-I/O `Drop` fail-safe records abandonment when
-    /// unresolved ownership remains instead of pretending remote cleanup succeeded.
-    pub fn finish(mut self) -> Result<(), BrowserSessionError> {
+    /// A rejected finish leaves the wrapper intact so the caller can destroy or reconcile outstanding
+    /// contexts and retry. After success the aggregate is `Ended`; dropping the wrapper is then inert.
+    pub fn finish(&mut self) -> Result<(), BrowserSessionError> {
         self.session.end()
     }
 }
@@ -1232,10 +1258,12 @@ mod tests {
 
     #[test]
     fn duplicate_adapter_output_preserves_offending_handle() {
+        let first_context_handle =
+            DisposableContextHandle::new(isolation_id("isolation-30-a"), context_id(30));
         let duplicate_context_handle =
             DisposableContextHandle::new(isolation_id("isolation-30-b"), context_id(30));
         let context_port = TestPort::with_handles(vec![
-            DisposableContextHandle::new(isolation_id("isolation-30-a"), context_id(30)),
+            first_context_handle.clone(),
             duplicate_context_handle.clone(),
         ]);
         let mut duplicate_context = session(3).bind_lifecycle_port(context_port);
@@ -1248,15 +1276,18 @@ mod tests {
         );
         assert_eq!(
             duplicate_context.browser_session().recovery_evidence(),
-            &[BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(
-                duplicate_context_handle
-            )]
+            &[
+                BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(duplicate_context_handle),
+                BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(first_context_handle),
+            ]
         );
 
+        let first_isolation_handle =
+            DisposableContextHandle::new(isolation_id("isolation-31"), context_id(310));
         let duplicate_isolation_handle =
             DisposableContextHandle::new(isolation_id("isolation-31"), context_id(311));
         let isolation_port = TestPort::with_handles(vec![
-            DisposableContextHandle::new(isolation_id("isolation-31"), context_id(310)),
+            first_isolation_handle.clone(),
             duplicate_isolation_handle.clone(),
         ]);
         let mut duplicate_isolation = session(31).bind_lifecycle_port(isolation_port);
@@ -1269,16 +1300,16 @@ mod tests {
         );
         assert_eq!(
             duplicate_isolation.browser_session().recovery_evidence(),
-            &[BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(
-                duplicate_isolation_handle
-            )]
+            &[
+                BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(duplicate_isolation_handle),
+                BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(first_isolation_handle),
+            ]
         );
     }
 
     #[test]
     fn create_completion_failure_preserves_non_authorizing_recovery_evidence() {
-        let expected =
-            DisposableContextHandle::new(isolation_id("isolation-315"), context_id(315));
+        let expected = DisposableContextHandle::new(isolation_id("isolation-315"), context_id(315));
         let mut port = TestPort::with_handles(vec![expected.clone()]);
         port.fail_completion = true;
         let mut bound = session(315).bind_lifecycle_port(port);
@@ -1309,11 +1340,10 @@ mod tests {
 
     #[test]
     fn rejected_create_completion_failure_preserves_duplicate_and_unsettled_evidence() {
-        let first =
-            DisposableContextHandle::new(isolation_id("isolation-316-a"), context_id(316));
+        let first = DisposableContextHandle::new(isolation_id("isolation-316-a"), context_id(316));
         let duplicate =
             DisposableContextHandle::new(isolation_id("isolation-316-b"), context_id(316));
-        let mut port = TestPort::with_handles(vec![first, duplicate.clone()]);
+        let mut port = TestPort::with_handles(vec![first.clone(), duplicate.clone()]);
         let mut bound = session(316).bind_lifecycle_port(port);
 
         bound
@@ -1329,6 +1359,7 @@ mod tests {
             &[
                 BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(duplicate.clone()),
                 BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(duplicate),
+                BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(first),
             ]
         );
         assert_eq!(
