@@ -75,6 +75,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("DuplicateAdapterHandle", source)
         self.assertIn("UnsettledAdapterHandle", source)
         self.assertIn("UnprovenDestruction", source)
+        self.assertIn("RecoveryRequiredOwnedHandle", source)
         self.assertIn("TransportLossOwnedHandle", source)
         self.assertIn("create_disposable_context_with_port", source)
         self.assertIn("advance_context_epoch", source)
@@ -89,6 +90,8 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("user-context", source)
         self.assertIn("Reconstructing cleanup authority", source)
         self.assertIn("sequential_incarnation_reuse_rejects_stale_authority", source)
+        self.assertIn("pub fn finish(&mut self)", source)
+        self.assertNotIn("pub fn finish(mut self)", source)
 
         authority_impl = source.split("impl PresentationMutationAuthority", 1)[1].split(
             "enum OwnedContextState", 1
@@ -141,6 +144,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         transport_hostile = (CRATE / "tests/transport_loss_recovery_evidence.rs").read_text(
             encoding="utf-8"
         )
+        recovery_hostile = (CRATE / "tests/recovery_required_sibling_evidence.rs").read_text(
+            encoding="utf-8"
+        )
         operation_hostile = (CRATE / "tests/authorized_context_operation.rs").read_text(
             encoding="utf-8"
         )
@@ -181,6 +187,10 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("transport-user-context-501", transport_hostile)
         self.assertIn("recovery_evidence().len(),\n        1", transport_hostile)
 
+        self.assertIn("recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings", recovery_hostile)
+        self.assertIn("BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle", recovery_hostile)
+        self.assertIn("indirectly invalidated sibling", recovery_hostile)
+
         self.assertIn("authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before_io", operation_hostile)
         self.assertIn("AuthorizedContextOperationError::BrowserSession", operation_hostile)
         self.assertIn("AuthorizedContextOperationError::Adapter", operation_hostile)
@@ -189,6 +199,8 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("dropping_unresolved_bound_session_is_observable_without_implicit_browser_io", abandonment_hostile)
         self.assertIn("abandoned_bound_session_count", abandonment_hostile)
         self.assertIn("Drop must never pretend synchronous browser cleanup succeeded", abandonment_hostile)
+        self.assertIn("failed_finish_retains_same_bound_owner_for_cleanup_and_retry", abandonment_hostile)
+        self.assertIn("same bound lifecycle owner must remain available for cleanup", abandonment_hostile)
         self.assertIn("proven_destruction_can_finish_without_abandonment_path", abandonment_hostile)
         self.assertIn("bound.finish()", abandonment_hostile)
 
@@ -208,6 +220,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "Status: Proposed",
             "WD-webdriver-bidi-20260824",
             "RecoveryRequired",
+            "RecoveryRequiredOwnedHandle",
             "BrowserSessionIncarnation",
             "BrowserSessionRecoveryEvidence",
             "DisposableContextCreateRequest",
@@ -227,6 +240,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "AuthorizedContextOperationPort",
             "TransportLossOwnedHandle",
             "abandoned_bound_session_count",
+            "failed `finish()`",
             "Drop",
             "finish()",
         ):
@@ -239,6 +253,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "per-create transaction",
             "no public raw port accessor",
             "RecoveryRequired",
+            "RecoveryRequiredOwnedHandle",
             "BrowserSessionIncarnation",
             "lossless recovery evidence",
             "transport liveness",
@@ -257,6 +272,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "DisposableContextCreateCompletion",
             "BrowserSessionIncarnation",
             "RecoveryRequired",
+            "RecoveryRequiredOwnedHandle",
             "transport_lost",
             "DisposableContextDestroyError / cleanup unproven",
             "AuthorizedContextOperationRequest",
