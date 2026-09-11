@@ -218,7 +218,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         )
         for token in (
             "Status: Proposed",
-            "WD-webdriver-bidi-20260824",
+            "WD-webdriver-bidi-20260909",
             "RecoveryRequired",
             "RecoveryRequiredOwnedHandle",
             "BrowserSessionIncarnation",
