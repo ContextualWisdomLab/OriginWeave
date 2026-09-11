@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::Mutex;
 
 use originweave_browser_session::{
     abandoned_bound_session_count, BrowserSession, DisposableContextCreateCompletion,
@@ -8,6 +9,8 @@ use originweave_browser_session::{
     DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
+
+static ABANDONMENT_COUNTER_LOCK: Mutex<()> = Mutex::new(());
 
 struct AbandonmentPort {
     handle: Option<DisposableContextHandle>,
@@ -53,6 +56,9 @@ fn port_for(context: u64, destroy_calls: &Rc<Cell<usize>>) -> AbandonmentPort {
 
 #[test]
 fn dropping_unresolved_bound_session_is_observable_without_implicit_browser_io() {
+    let _guard = ABANDONMENT_COUNTER_LOCK
+        .lock()
+        .expect("abandonment counter test lock");
     let destroy_calls = Rc::new(Cell::new(0));
     let before = abandoned_bound_session_count();
     let session = BrowserSession::start(BrowserSessionId::new(504).expect("valid session id"))
@@ -77,6 +83,9 @@ fn dropping_unresolved_bound_session_is_observable_without_implicit_browser_io()
 
 #[test]
 fn failed_finish_must_not_be_reclassified_as_abandonment() {
+    let _guard = ABANDONMENT_COUNTER_LOCK
+        .lock()
+        .expect("abandonment counter test lock");
     let destroy_calls = Rc::new(Cell::new(0));
     let before = abandoned_bound_session_count();
     let session = BrowserSession::start(BrowserSessionId::new(506).expect("valid session id"))
@@ -109,6 +118,9 @@ fn failed_finish_must_not_be_reclassified_as_abandonment() {
 
 #[test]
 fn proven_destruction_can_finish_without_abandonment_path() {
+    let _guard = ABANDONMENT_COUNTER_LOCK
+        .lock()
+        .expect("abandonment counter test lock");
     let destroy_calls = Rc::new(Cell::new(0));
     let session = BrowserSession::start(BrowserSessionId::new(505).expect("valid session id"))
         .expect("incarnation capacity");
