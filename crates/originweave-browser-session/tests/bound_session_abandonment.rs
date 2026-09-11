@@ -3,10 +3,11 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 use originweave_browser_session::{
-    abandoned_bound_session_count, BrowserSession, DisposableContextCreateCompletion,
-    DisposableContextCreateCompletionError, DisposableContextCreateError,
-    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
-    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    abandoned_bound_session_count, BrowserSession, BrowserSessionError,
+    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
+    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
+    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
+    DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -82,7 +83,7 @@ fn dropping_unresolved_bound_session_is_observable_without_implicit_browser_io()
 }
 
 #[test]
-fn failed_finish_must_not_be_reclassified_as_abandonment() {
+fn failed_finish_retains_same_bound_owner_for_cleanup_and_retry() {
     let _guard = ABANDONMENT_COUNTER_LOCK
         .lock()
         .expect("abandonment counter test lock");
@@ -91,19 +92,11 @@ fn failed_finish_must_not_be_reclassified_as_abandonment() {
     let session = BrowserSession::start(BrowserSessionId::new(506).expect("valid session id"))
         .expect("incarnation capacity");
     let mut bound = session.bind_lifecycle_port(port_for(506, &destroy_calls));
-    let _authority = bound
+    let authority = bound
         .create_disposable_context()
         .expect("accepted disposable context");
 
-    let finish = bound.finish();
-
-    assert!(
-        matches!(
-            finish,
-            Err(originweave_browser_session::BrowserSessionError::ActiveContextRemains)
-        ),
-        "finish must reject while remote ownership remains unresolved"
-    );
+    assert_eq!(bound.finish(), Err(BrowserSessionError::ActiveContextRemains));
     assert_eq!(
         abandoned_bound_session_count(),
         before,
@@ -113,6 +106,18 @@ fn failed_finish_must_not_be_reclassified_as_abandonment() {
         destroy_calls.get(),
         0,
         "failed finish validation must not perform implicit browser cleanup"
+    );
+
+    bound
+        .destroy_disposable_context(&authority)
+        .expect("the same bound lifecycle owner must remain available for cleanup");
+    assert_eq!(destroy_calls.get(), 1);
+    bound.finish().expect("retry succeeds after proven destruction");
+    drop(bound);
+    assert_eq!(
+        abandoned_bound_session_count(),
+        before,
+        "successful retry must leave no abandonment signal"
     );
 }
 
@@ -131,6 +136,6 @@ fn proven_destruction_can_finish_without_abandonment_path() {
     bound
         .destroy_disposable_context(&authority)
         .expect("proven destruction");
-    bound.finish().expect("consume normally ended bound session");
+    bound.finish().expect("end normally after proven destruction");
     assert_eq!(destroy_calls.get(), 1);
 }
