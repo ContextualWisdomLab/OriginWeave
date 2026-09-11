@@ -82,8 +82,7 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
     let context = BrowsingContextId::new(503).expect("valid browsing context");
     let port = OperationPort {
         handle: Some(DisposableContextHandle::new(
-            DisposableIsolationId::parse("operation-user-context-503")
-                .expect("valid isolation id"),
+            DisposableIsolationId::parse("operation-user-context-503").expect("valid isolation id"),
             context,
         )),
         operation_calls: Rc::clone(&operation_calls),
