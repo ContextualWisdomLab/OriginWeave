@@ -47,7 +47,7 @@ Introduce and retain `originweave-browser-session` as an independent Rust bounde
 13. `DisposableContextCreateError::CreateFailedClean` is valid only when no remote boundary exists. `CreateFailedUncertain(Option<DisposableIsolationId>)` enters `RecoveryRequired`; any known isolation identity is preserved exactly.
 14. Duplicate browsing-context or isolation output enters `RecoveryRequired`, stores the complete offending `DisposableContextHandle`, and sends a `Rejected` completion for the exact attempt. OriginWeave does not auto-destroy ambiguous output.
 15. `BrowserSessionRecoveryEvidence` includes partial-creation identity, duplicate handle, an unsettled complete adapter handle when completion itself cannot be proven, and exact unproven-destruction handle. Recovery evidence grants no browser command authority.
-16. Destruction validates exact authority before I/O. Unproven destruction moves the aggregate into recovery and retains the exact failed handle.
+16. Destruction validates exact authority before I/O. `DisposableContextDestroyError::DestroyFailed` means destruction was not proven; the owned record becomes uncertain, the exact failed handle is retained as `UnprovenDestruction`, and the aggregate enters recovery rather than treating command acknowledgement or bookkeeping as cleanup proof.
 17. Transport liveness is stored separately from ownership state. The first `record_transport_loss()` records the fact even after `RecoveryRequired`; repeated reports are idempotent.
 18. `RecoveryRequired`, `TransportLost`, and `Ended` reject normal active-only lifecycle and authority operations.
 19. Context epochs remain monotonic authority identities within one aggregate and also provide the create-attempt correlation allocated before remote create I/O.
@@ -98,6 +98,7 @@ Required executable cases include:
 - two successful remote create candidates in the same session incarnation receive distinct attempt epochs;
 - one candidate can be accepted and the other rejected without pending-state collision or overwrite;
 - accepted-completion failure and rejected-completion failure both fail closed and preserve exact recovery evidence;
+- `DisposableContextDestroyError::DestroyFailed` preserves the exact failed handle, enters `RecoveryRequired`, and never counts a destroy command acknowledgement as proof;
 - recovery, sequential-incarnation ABA, epoch exhaustion, foreign authority, destruction failure, transport loss, and normal end remain covered.
 
 The historical exact `9cde981899950b900698a17e7fa739af59f6bb4f` CI `34531025582` passed exact production coverage but failed canonical Rust formatting. That exact head also still exposed raw `&P` and lacked per-create completion. Successor evidence must therefore be fresh: repository contracts, canonical formatting, locked tests, strict Clippy, rustdoc/API docs, and production function/line/region/branch coverage each exactly 100%.
