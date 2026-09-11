@@ -45,11 +45,14 @@ fn handle(context: u64, isolation: &str) -> DisposableContextHandle {
     )
 }
 
-fn existing_exact_handle(evidence: &BrowserSessionRecoveryEvidence) -> Option<&DisposableContextHandle> {
+fn existing_exact_handle(
+    evidence: &BrowserSessionRecoveryEvidence,
+) -> Option<&DisposableContextHandle> {
     match evidence {
         BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(handle)
         | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(handle)
         | BrowserSessionRecoveryEvidence::UnprovenDestruction(handle)
+        | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(handle)
         | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(handle) => Some(handle),
         BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => None,
     }
@@ -89,6 +92,12 @@ fn recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings() 
         )),
         "the directly failed destruction must keep its cause-specific evidence"
     );
+    assert!(
+        evidence.contains(&BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(
+            sibling.clone()
+        )),
+        "the indirectly invalidated sibling must be projected as non-authorizing exact recovery evidence"
+    );
     assert_eq!(
         evidence
             .iter()
@@ -98,11 +107,13 @@ fn recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings() 
         1,
         "the directly failed context must not be duplicated as generic recovery evidence"
     );
-    assert!(
+    assert_eq!(
         evidence
             .iter()
             .filter_map(existing_exact_handle)
-            .any(|candidate| candidate == &sibling),
-        "a sibling made uncertain by RecoveryRequired must remain exactly enumerable for recovery"
+            .filter(|candidate| *candidate == &sibling)
+            .count(),
+        1,
+        "an indirectly invalidated sibling must be retained exactly once"
     );
 }
