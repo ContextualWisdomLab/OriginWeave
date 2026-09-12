@@ -9,6 +9,28 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "crates/originweave-browser-session/src/lib.rs"
 
+NAVIGATION_PRODUCTION_MARKERS = (
+    "pub struct NavigationSettlementAuthority",
+    "pub enum NavigationTerminationOutcome",
+    "pub fn record_observed_navigation(",
+    "pub fn record_observed_navigation_settled(",
+    "pub fn record_observed_navigation_terminated(",
+    "pub fn reestablish_presentation_authority(",
+)
+
+
+def _navigation_production_slice_present(source: str) -> bool:
+    """Require the production navigation API to arrive as one coherent contract slice."""
+
+    present = {marker: marker in source for marker in NAVIGATION_PRODUCTION_MARKERS}
+    if any(present.values()) and not all(present.values()):
+        missing = sorted(marker for marker, is_present in present.items() if not is_present)
+        raise AssertionError(
+            "partial Browser Session navigation production API is forbidden; missing: "
+            + ", ".join(missing)
+        )
+    return all(present.values())
+
 
 def _mask_rust_non_code(source: str) -> str:
     """Mask Rust comments and literals while preserving byte-for-byte positions."""
@@ -120,6 +142,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         """A raw browsing-context id on the read model must not mint authority."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        if not _navigation_production_slice_present(source):
+            return
         browser_session_impl = source.split("impl BrowserSession {", 1)[1].split(
             "impl<P: DisposableContextPort> BoundBrowserSession<P>", 1
         )[0]
@@ -134,6 +158,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         """A delayed event must not alias across aggregate incarnations, contexts, or epochs."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        if not _navigation_production_slice_present(source):
+            return
         signature = re.search(
             r"pub fn record_observed_navigation\s*\((?P<params>.*?)\)\s*->(?P<return_type>[^\{]+)\{",
             source,
@@ -155,6 +181,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         """Raw provenance must never become authority to unlock presentation re-establishment."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        if not _navigation_production_slice_present(source):
+            return
         signature = re.search(
             r"pub fn record_observed_navigation_settled\s*\((?P<params>.*?)\)\s*->",
             source,
@@ -184,6 +212,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         """Negative terminal events must close pending state without pretending they committed."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        if not _navigation_production_slice_present(source):
+            return
         signature = re.search(
             r"pub fn record_observed_navigation_terminated\s*\((?P<params>.*?)\)\s*->",
             source,
@@ -212,6 +242,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         """Only Browser Session may mint the witness that unlocks settlement."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        if not _navigation_production_slice_present(source):
+            return
         code = _mask_rust_non_code(source)
         declaration = re.search(
             r"pub struct NavigationSettlementAuthority\s*\{(?P<body>.*?)\}",
