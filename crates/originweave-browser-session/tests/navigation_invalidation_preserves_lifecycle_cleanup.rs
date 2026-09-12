@@ -4,10 +4,10 @@ use std::rc::Rc;
 use originweave_browser_session::{
     AuthorizedContextOperationError, AuthorizedContextOperationPort,
     AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError,
-    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
-    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
-    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    BrowserSessionRecoveryEvidence, BrowserSessionState, DisposableContextCreateCompletion,
+    DisposableContextCreateCompletionError, DisposableContextCreateError,
+    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
+    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -15,6 +15,7 @@ struct CleanupProbePort {
     handle: Option<DisposableContextHandle>,
     adapter_calls: Rc<Cell<usize>>,
     destroyed_handles: Rc<RefCell<Vec<DisposableContextHandle>>>,
+    fail_destroy: bool,
 }
 
 impl DisposableContextPort for CleanupProbePort {
@@ -44,7 +45,11 @@ impl DisposableContextPort for CleanupProbePort {
         self.destroyed_handles
             .borrow_mut()
             .push(request.context().clone());
-        Ok(())
+        if self.fail_destroy {
+            Err(DisposableContextDestroyError::DestroyFailed)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -68,6 +73,7 @@ fn bound_session(
     isolation: &str,
     adapter_calls: &Rc<Cell<usize>>,
     destroyed_handles: &Rc<RefCell<Vec<DisposableContextHandle>>>,
+    fail_destroy: bool,
 ) -> originweave_browser_session::BoundBrowserSession<CleanupProbePort> {
     let handle = DisposableContextHandle::new(
         DisposableIsolationId::parse(isolation).expect("valid isolation id"),
@@ -77,6 +83,7 @@ fn bound_session(
         handle: Some(handle),
         adapter_calls: Rc::clone(adapter_calls),
         destroyed_handles: Rc::clone(destroyed_handles),
+        fail_destroy,
     };
     BrowserSession::start(BrowserSessionId::new(session).expect("valid session id"))
         .expect("incarnation capacity")
@@ -102,6 +109,7 @@ fn navigation_invalidation_does_not_strand_owned_disposable_cleanup() {
         isolation,
         &adapter_calls,
         &destroyed_handles,
+        false,
     );
 
     let pre_navigation = bound
@@ -176,6 +184,7 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
         isolation,
         &adapter_calls,
         &destroyed_handles,
+        false,
     );
 
     let initial = bound
@@ -228,6 +237,7 @@ fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_a
         isolation,
         &adapter_calls,
         &destroyed_handles,
+        false,
     );
 
     bound
@@ -259,5 +269,73 @@ fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_a
     assert_eq!(
         destroyed_handles.borrow().as_slice(),
         &[expected_handle(owned, isolation)]
+    );
+}
+
+#[test]
+fn failed_cleanup_after_navigation_preserves_exact_recovery_evidence_without_reopening_presentation() {
+    let context = BrowsingContextId::new(951).expect("valid browsing context");
+    let isolation = "navigation-cleanup-user-context-951";
+    let adapter_calls = Rc::new(Cell::new(0));
+    let destroyed_handles = Rc::new(RefCell::new(Vec::new()));
+    let mut bound = bound_session(
+        951,
+        context,
+        isolation,
+        &adapter_calls,
+        &destroyed_handles,
+        true,
+    );
+
+    bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    bound
+        .record_observed_navigation(context)
+        .expect("navigation invalidates presentation authority without changing lifecycle ownership");
+
+    let calls_before_destroy = adapter_calls.get();
+    assert_eq!(
+        bound.destroy_owned_disposable_context(context),
+        Err(BrowserSessionError::ContextDestructionFailed),
+        "unproven remote destruction must fail closed"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_destroy + 1,
+        "one cleanup attempt may reach the exact bound lifecycle port"
+    );
+    let exact_handle = expected_handle(context, isolation);
+    assert_eq!(
+        destroyed_handles.borrow().as_slice(),
+        &[exact_handle.clone()],
+        "failed cleanup must still target the exact retained browser-issued handle"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "unproven destruction must enter recovery instead of consuming ownership"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        &[BrowserSessionRecoveryEvidence::UnprovenDestruction(
+            exact_handle
+        )],
+        "recovery must retain the exact handle instead of reconstructing cleanup from raw identifiers"
+    );
+
+    let calls_after_failure = adapter_calls.get();
+    assert!(
+        bound.reestablish_presentation_authority(context).is_err(),
+        "cleanup uncertainty must not reopen presentation mutation authority"
+    );
+    assert!(
+        bound.destroy_owned_disposable_context(context).is_err(),
+        "normal cleanup must not silently retry once exact ownership has entered recovery"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_failure,
+        "re-authorize and normal retry must fail before any additional adapter I/O"
     );
 }
