@@ -201,6 +201,7 @@ fn pending_navigation_witness_cannot_outlive_normal_session_end() {
         .expect("proven lifecycle cleanup is independent from presentation settlement");
     bound.end().expect("clean session end after proven lifecycle cleanup");
     let calls_after_end = adapter_calls.get();
+    let recovery_evidence_after_end = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(bound.browser_session().state(), BrowserSessionState::Ended);
     assert_eq!(
@@ -217,6 +218,11 @@ fn pending_navigation_witness_cannot_outlive_normal_session_end() {
         "an ended aggregate must reject all terminal replay before witness validation"
     );
     assert_eq!(bound.browser_session().state(), BrowserSessionState::Ended);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_end.as_slice(),
+        "terminal replay after end must not manufacture recovery evidence"
+    );
     assert_eq!(
         adapter_calls.get(),
         calls_after_end,
