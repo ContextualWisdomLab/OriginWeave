@@ -47,8 +47,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             "an admitted navigation start must issue an opaque aggregate-bound settlement authority",
         )
 
-    def test_navigation_settlement_requires_aggregate_issued_authority(self) -> None:
-        """Raw provenance must never become authority to unlock presentation re-establishment."""
+    def test_navigation_settlement_requires_aggregate_issued_authority_and_terminal_outcome(self) -> None:
+        """Settlement needs an opaque witness plus an explicit browser-observed terminal outcome."""
 
         source = SOURCE.read_text(encoding="utf-8")
         signature = re.search(
@@ -60,6 +60,11 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         self.assertIsNotNone(signature)
         params = signature.group("params")
         self.assertIn("NavigationSettlementAuthority", params)
+        self.assertIn(
+            "NavigationSettlementOutcome",
+            params,
+            "commit, fragment, abort, and failure are distinct terminal browser observations and must not collapse into an untyped settlement",
+        )
         self.assertNotIn(
             "BrowserSessionIncarnation",
             params,
@@ -75,6 +80,21 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             params,
             "a reconstructible epoch is correlation evidence, not a settlement capability",
         )
+
+    def test_navigation_terminal_outcomes_are_explicit_and_bounded(self) -> None:
+        """Every WebDriver BiDi navigation terminal path must close pending state explicitly."""
+
+        source = SOURCE.read_text(encoding="utf-8")
+        declaration = re.search(
+            r"pub enum NavigationSettlementOutcome\s*\{(?P<body>.*?)\}",
+            source,
+            flags=re.DOTALL,
+        )
+
+        self.assertIsNotNone(declaration)
+        body = declaration.group("body")
+        for variant in ("Committed", "FragmentNavigated", "Aborted", "Failed"):
+            self.assertRegex(body, rf"\b{variant}\b")
 
     def test_navigation_settlement_authority_is_not_publicly_constructible(self) -> None:
         """Only Browser Session may mint the witness that unlocks settlement."""
