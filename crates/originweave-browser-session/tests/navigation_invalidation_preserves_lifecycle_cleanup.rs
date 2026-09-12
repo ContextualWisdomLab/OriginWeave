@@ -287,7 +287,7 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
         true,
     );
 
-    bound
+    let pre_navigation = bound
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
@@ -322,6 +322,13 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
     );
 
     let calls_after_failure = adapter_calls.get();
+    assert_eq!(
+        bound.execute_authorized_context_operation(&pre_navigation, "stale-after-failed-cleanup"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch
+        )),
+        "recovery after unproven destruction must not revive a retained pre-navigation authority"
+    );
     assert!(
         bound.reestablish_presentation_authority(context).is_err(),
         "cleanup uncertainty must not reopen presentation mutation authority"
@@ -333,6 +340,6 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
     assert_eq!(
         adapter_calls.get(),
         calls_after_failure,
-        "re-authorize and normal retry must fail before any additional adapter I/O"
+        "retained stale authority, re-authorize, and normal retry must all fail before any additional adapter I/O"
     );
 }
