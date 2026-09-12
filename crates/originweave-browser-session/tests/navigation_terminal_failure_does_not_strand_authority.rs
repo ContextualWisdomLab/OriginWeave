@@ -7,7 +7,7 @@ use originweave_browser_session::{
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId, NavigationSettlementOutcome,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -91,9 +91,9 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
     assert_eq!(adapter_calls.get(), calls_before_failure);
 
     bound
-        .record_observed_navigation_settled(
+        .record_observed_navigation_terminated(
             &failed_navigation,
-            NavigationSettlementOutcome::Failed,
+            NavigationTerminationOutcome::Failed,
         )
         .expect("matching navigationFailed terminates the pending navigation");
     assert_eq!(
@@ -124,12 +124,12 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
 
     let calls_before_stale_failure_replay = adapter_calls.get();
     assert_eq!(
-        bound.record_observed_navigation_settled(
+        bound.record_observed_navigation_terminated(
             &failed_navigation,
-            NavigationSettlementOutcome::Committed,
+            NavigationTerminationOutcome::Failed,
         ),
         Err(BrowserSessionError::AuthorityMismatch),
-        "one terminal outcome consumes the exact pending witness; a conflicting replay cannot rewrite it"
+        "one terminal outcome consumes the exact pending witness; replay cannot rewrite a newer generation"
     );
     assert_eq!(adapter_calls.get(), calls_before_stale_failure_replay);
     assert_eq!(
@@ -147,9 +147,9 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
         .expect("later navigation enters pending state");
     assert_eq!(adapter_calls.get(), calls_before_abort);
     bound
-        .record_observed_navigation_settled(
+        .record_observed_navigation_terminated(
             &aborted_navigation,
-            NavigationSettlementOutcome::Aborted,
+            NavigationTerminationOutcome::Aborted,
         )
         .expect("matching navigationAborted terminates the later pending navigation");
     assert_eq!(adapter_calls.get(), calls_before_abort);
