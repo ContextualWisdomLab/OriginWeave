@@ -60,12 +60,12 @@ fn navigation_after_normal_end_is_rejected_before_context_ownership_lookup() {
         .expect("incarnation capacity")
         .bind_lifecycle_port(port);
 
-    let authority = bound
+    bound
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
-        .destroy_disposable_context(&authority)
-        .expect("proven cleanup permits normal session end");
+        .destroy_owned_disposable_context(context)
+        .expect("the exact bound lifecycle owner proves cleanup before normal end");
     bound.end().expect("session ends after proven destruction");
     assert_eq!(bound.browser_session().state(), BrowserSessionState::Ended);
 
