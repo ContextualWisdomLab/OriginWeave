@@ -31,7 +31,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         signature = re.search(
-            r"pub fn record_observed_navigation\s*\((?P<params>.*?)\)\s*->",
+            r"pub fn record_observed_navigation\s*\((?P<params>.*?)\)\s*->(?P<return_type>[^\{]+)\{",
             source,
             flags=re.DOTALL,
         )
@@ -41,9 +41,14 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         self.assertIn("BrowserSessionIncarnation", params)
         self.assertIn("BrowsingContextId", params)
         self.assertIn("BrowserContextEpoch", params)
+        self.assertIn(
+            "NavigationSettlementAuthority",
+            signature.group("return_type"),
+            "an admitted navigation start must issue an opaque aggregate-bound settlement authority",
+        )
 
-    def test_navigation_settlement_is_bound_to_the_same_domain_generation(self) -> None:
-        """Only a matching browser-settled generation may reopen re-establishment eligibility."""
+    def test_navigation_settlement_requires_aggregate_issued_authority(self) -> None:
+        """Raw provenance must never become authority to unlock presentation re-establishment."""
 
         source = SOURCE.read_text(encoding="utf-8")
         signature = re.search(
@@ -54,9 +59,22 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         self.assertIsNotNone(signature)
         params = signature.group("params")
-        self.assertIn("BrowserSessionIncarnation", params)
-        self.assertIn("BrowsingContextId", params)
-        self.assertIn("BrowserContextEpoch", params)
+        self.assertIn("NavigationSettlementAuthority", params)
+        self.assertNotIn(
+            "BrowserSessionIncarnation",
+            params,
+            "session incarnation is provenance for minting the settlement authority, not settlement authority itself",
+        )
+        self.assertNotIn(
+            "BrowsingContextId",
+            params,
+            "raw browser addressability must not unlock a pending navigation",
+        )
+        self.assertNotIn(
+            "BrowserContextEpoch",
+            params,
+            "a reconstructible epoch is correlation evidence, not a settlement capability",
+        )
 
 
 if __name__ == "__main__":
