@@ -25,8 +25,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         self.assertIn("pub fn record_observed_navigation(", source)
         self.assertIn("pub fn reestablish_presentation_authority(", source)
 
-    def test_navigation_observation_is_bound_to_the_observed_context_epoch(self) -> None:
-        """A delayed prior-generation event must not invalidate newer authority by raw id alone."""
+    def test_navigation_observation_is_bound_to_exact_session_context_generation(self) -> None:
+        """A delayed event must not alias across aggregate incarnations, contexts, or epochs."""
 
         source = SOURCE.read_text(encoding="utf-8")
         signature = re.search(
@@ -37,6 +37,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         self.assertIsNotNone(signature)
         params = signature.group("params")
+        self.assertIn("BrowserSessionIncarnation", params)
         self.assertIn("BrowsingContextId", params)
         self.assertIn("BrowserContextEpoch", params)
 
