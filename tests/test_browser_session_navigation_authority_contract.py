@@ -10,21 +10,105 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "crates/originweave-browser-session/src/lib.rs"
 
 
-def _inherent_impl_blocks(source: str, type_name: str) -> list[str]:
-    """Return exact inherent impl bodies without depending on a Rust parser."""
+def _mask_rust_non_code(source: str) -> str:
+    """Mask Rust comments and literals while preserving byte-for-byte positions."""
 
+    masked = list(source)
+    length = len(source)
+
+    def blank(start: int, end: int) -> None:
+        for index in range(start, end):
+            if masked[index] != "\n":
+                masked[index] = " "
+
+    index = 0
+    while index < length:
+        if source.startswith("//", index):
+            end = source.find("\n", index + 2)
+            if end == -1:
+                end = length
+            blank(index, end)
+            index = end
+            continue
+
+        if source.startswith("/*", index):
+            depth = 1
+            cursor = index + 2
+            while cursor < length and depth:
+                if source.startswith("/*", cursor):
+                    depth += 1
+                    cursor += 2
+                elif source.startswith("*/", cursor):
+                    depth -= 1
+                    cursor += 2
+                else:
+                    cursor += 1
+            blank(index, cursor)
+            index = cursor
+            continue
+
+        raw_match = re.match(r'(?:br|r)(?P<hashes>#{0,16})"', source[index:])
+        if raw_match:
+            hashes = raw_match.group("hashes")
+            terminator = '"' + hashes
+            body_start = index + raw_match.end()
+            end = source.find(terminator, body_start)
+            end = length if end == -1 else end + len(terminator)
+            blank(index, end)
+            index = end
+            continue
+
+        string_prefix = 2 if source.startswith('b"', index) else 1 if source[index] == '"' else 0
+        if string_prefix:
+            cursor = index + string_prefix
+            escaped = False
+            while cursor < length:
+                char = source[cursor]
+                cursor += 1
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    break
+            blank(index, cursor)
+            index = cursor
+            continue
+
+        char_match = re.match(
+            r"(?:b)?'(?:\\(?:[nrt0\\'\" ]|x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f_]{1,6}\})|[^'\\\n])'",
+            source[index:],
+        )
+        if char_match:
+            end = index + char_match.end()
+            blank(index, end)
+            index = end
+            continue
+
+        index += 1
+
+    return "".join(masked)
+
+
+def _inherent_impl_blocks(source: str, type_name: str) -> list[str]:
+    """Return masked inherent impl bodies, including generic impl headers."""
+
+    code = _mask_rust_non_code(source)
+    pattern = re.compile(
+        rf"\bimpl(?:\s*<[^{{}};]*>)?\s+{re.escape(type_name)}"
+        rf"(?:\s*<[^{{}};]*>)?(?:\s+where\b[^{{}};]*)?\s*\{{"
+    )
     blocks: list[str] = []
-    pattern = re.compile(rf"\bimpl\s+{re.escape(type_name)}\s*\{{")
-    for match in pattern.finditer(source):
-        opening_brace = source.find("{", match.start())
+    for match in pattern.finditer(code):
+        opening_brace = code.find("{", match.start(), match.end())
         depth = 0
-        for index in range(opening_brace, len(source)):
-            if source[index] == "{":
+        for index in range(opening_brace, len(code)):
+            if code[index] == "{":
                 depth += 1
-            elif source[index] == "}":
+            elif code[index] == "}":
                 depth -= 1
                 if depth == 0:
-                    blocks.append(source[opening_brace + 1 : index])
+                    blocks.append(code[opening_brace + 1 : index])
                     break
     return blocks
 
@@ -128,9 +212,10 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         """Only Browser Session may mint the witness that unlocks settlement."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        code = _mask_rust_non_code(source)
         declaration = re.search(
             r"pub struct NavigationSettlementAuthority\s*\{(?P<body>.*?)\}",
-            source,
+            code,
             flags=re.DOTALL,
         )
 
@@ -141,19 +226,26 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             "settlement-authority state must remain private to the Browser Session crate",
         )
         self.assertNotRegex(
-            source,
-            r"#\[derive\([^\]]*\bDefault\b[^\]]*\)\]\s*pub struct NavigationSettlementAuthority",
+            code,
+            r"#\s*\[\s*derive\s*\([^\]]*\bDefault\b[^\]]*\)\s*\]"
+            r"(?:(?:\s*#\s*\[[^\]]*\])|\s)*"
+            r"pub\s+struct\s+NavigationSettlementAuthority\b",
             "Default would let raw callers fabricate a settlement witness",
         )
         self.assertNotRegex(
-            source,
-            r"impl\s+(?:Default|From<[^>]+>|TryFrom<[^>]+>)\s+for\s+NavigationSettlementAuthority\b",
+            code,
+            r"\bimpl(?:\s*<[^{};]*>)?\s+"
+            r"(?:Default|From\s*<[^{};]+>|TryFrom\s*<[^{};]+>)\s+for\s+"
+            r"NavigationSettlementAuthority\b",
             "conversion/default traits must not expose a caller-mintable witness path",
         )
 
         impl_blocks = _inherent_impl_blocks(source, "NavigationSettlementAuthority")
         public_functions = re.compile(
-            r"\bpub(?:\([^)]*\))?\s+(?:const\s+)?fn\s+(?P<name>\w+)\s*\((?P<params>.*?)\)",
+            r"\bpub(?:\([^)]*\))?\s+"
+            r"(?:(?:const|async|unsafe|extern)\s+)*"
+            r"fn\s+(?P<name>\w+)\s*(?:<[^>{}]*>)?\s*"
+            r"\((?P<params>.*?)\)",
             flags=re.DOTALL,
         )
         for impl_block in impl_blocks:
@@ -162,7 +254,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
                 first_param = params.split(",", 1)[0].strip() if params else ""
                 self.assertRegex(
                     first_param,
-                    r"^(?:&\s*(?:mut\s+)?self|(?:mut\s+)?self)\b",
+                    r"^(?:&\s*(?:'\w+\s*)?(?:mut\s+)?self|(?:mut\s+)?self)\b",
                     f"public associated function {public_function.group('name')} would let raw callers construct or transform settlement authority without an existing witness",
                 )
 
