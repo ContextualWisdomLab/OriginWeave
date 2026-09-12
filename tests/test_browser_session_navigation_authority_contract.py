@@ -24,6 +24,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         self.assertNotIn("pub fn presentation_authority(", browser_session_impl)
         self.assertIn("pub fn record_observed_navigation(", source)
         self.assertIn("pub fn record_observed_navigation_settled(", source)
+        self.assertIn("pub fn record_observed_navigation_terminated(", source)
         self.assertIn("pub fn reestablish_presentation_authority(", source)
 
     def test_navigation_observation_is_bound_to_exact_session_context_generation(self) -> None:
@@ -47,8 +48,8 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             "an admitted navigation start must issue an opaque aggregate-bound settlement authority",
         )
 
-    def test_navigation_settlement_requires_aggregate_issued_authority_and_terminal_outcome(self) -> None:
-        """Settlement needs an opaque witness plus an explicit browser-observed terminal outcome."""
+    def test_navigation_settlement_requires_aggregate_issued_authority(self) -> None:
+        """Raw provenance must never become authority to unlock presentation re-establishment."""
 
         source = SOURCE.read_text(encoding="utf-8")
         signature = re.search(
@@ -60,11 +61,6 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         self.assertIsNotNone(signature)
         params = signature.group("params")
         self.assertIn("NavigationSettlementAuthority", params)
-        self.assertIn(
-            "NavigationSettlementOutcome",
-            params,
-            "commit, fragment, abort, and failure are distinct terminal browser observations and must not collapse into an untyped settlement",
-        )
         self.assertNotIn(
             "BrowserSessionIncarnation",
             params,
@@ -81,20 +77,33 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             "a reconstructible epoch is correlation evidence, not a settlement capability",
         )
 
-    def test_navigation_terminal_outcomes_are_explicit_and_bounded(self) -> None:
-        """Every WebDriver BiDi navigation terminal path must close pending state explicitly."""
+    def test_navigation_abort_and_failure_have_explicit_terminal_transition(self) -> None:
+        """Negative terminal events must close pending state without pretending they committed."""
 
         source = SOURCE.read_text(encoding="utf-8")
+        signature = re.search(
+            r"pub fn record_observed_navigation_terminated\s*\((?P<params>.*?)\)\s*->",
+            source,
+            flags=re.DOTALL,
+        )
         declaration = re.search(
-            r"pub enum NavigationSettlementOutcome\s*\{(?P<body>.*?)\}",
+            r"pub enum NavigationTerminationOutcome\s*\{(?P<body>.*?)\}",
             source,
             flags=re.DOTALL,
         )
 
+        self.assertIsNotNone(signature)
+        params = signature.group("params")
+        self.assertIn("NavigationSettlementAuthority", params)
+        self.assertIn("NavigationTerminationOutcome", params)
+        self.assertNotIn("BrowserSessionIncarnation", params)
+        self.assertNotIn("BrowsingContextId", params)
+        self.assertNotIn("BrowserContextEpoch", params)
+
         self.assertIsNotNone(declaration)
         body = declaration.group("body")
-        for variant in ("Committed", "FragmentNavigated", "Aborted", "Failed"):
-            self.assertRegex(body, rf"\b{variant}\b")
+        self.assertRegex(body, r"\bAborted\b")
+        self.assertRegex(body, r"\bFailed\b")
 
     def test_navigation_settlement_authority_is_not_publicly_constructible(self) -> None:
         """Only Browser Session may mint the witness that unlocks settlement."""
