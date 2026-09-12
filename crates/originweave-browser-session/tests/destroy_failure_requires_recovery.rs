@@ -1,27 +1,37 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionIncarnation, BrowserSessionRecoveryEvidence,
-    BrowserSessionState, DisposableContextCreateError, DisposableContextDestroyError,
-    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    BrowserSession, BrowserSessionError, BrowserSessionRecoveryEvidence, BrowserSessionState,
+    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
+    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
+    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
+    DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
 #[derive(Debug)]
 struct FailingDestroyPort {
     next_handle: DisposableContextHandle,
-    create_calls: usize,
-    destroy_calls: usize,
+    create_calls: Rc<Cell<usize>>,
+    destroy_calls: Rc<Cell<usize>>,
 }
 
 impl FailingDestroyPort {
-    fn new(context: u64, isolation: &str) -> Result<Self, &'static str> {
+    fn new(
+        context: u64,
+        isolation: &str,
+        create_calls: Rc<Cell<usize>>,
+        destroy_calls: Rc<Cell<usize>>,
+    ) -> Result<Self, &'static str> {
         let isolation = DisposableIsolationId::parse(isolation)
             .map_err(|_| "static fixture isolation id must be valid")?;
         let browsing_context = BrowsingContextId::new(context)
             .map_err(|_| "static fixture browsing context id must be valid")?;
         Ok(Self {
             next_handle: DisposableContextHandle::new(isolation, browsing_context),
-            create_calls: 0,
-            destroy_calls: 0,
+            create_calls,
+            destroy_calls,
         })
     }
 }
@@ -29,20 +39,24 @@ impl FailingDestroyPort {
 impl DisposableContextPort for FailingDestroyPort {
     fn create_disposable_context(
         &mut self,
-        _browser_session: BrowserSessionId,
-        _incarnation: BrowserSessionIncarnation,
+        _request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
-        self.create_calls += 1;
+        self.create_calls.set(self.create_calls.get() + 1);
         Ok(self.next_handle.clone())
+    }
+
+    fn complete_disposable_context_creation(
+        &mut self,
+        _completion: &DisposableContextCreateCompletion,
+    ) -> Result<(), DisposableContextCreateCompletionError> {
+        Ok(())
     }
 
     fn destroy_disposable_context(
         &mut self,
-        _browser_session: BrowserSessionId,
-        _incarnation: BrowserSessionIncarnation,
-        _context: &DisposableContextHandle,
+        _request: &DisposableContextDestroyRequest,
     ) -> Result<(), DisposableContextDestroyError> {
-        self.destroy_calls += 1;
+        self.destroy_calls.set(self.destroy_calls.get() + 1);
         Err(DisposableContextDestroyError::DestroyFailed)
     }
 }
@@ -57,46 +71,58 @@ fn destroy_failure_requires_recovery_before_any_new_authority() -> Result<(), &'
     let expected_isolation = DisposableIsolationId::parse("user-context-501")
         .map_err(|_| "static fixture recovery isolation id must be valid")?;
     let expected_handle = DisposableContextHandle::new(expected_isolation, context_id);
-    let mut session = BrowserSession::start(session_id)
+    let session = BrowserSession::start(session_id)
         .map_err(|_| "browser session incarnation must be available")?;
-    let mut failing_port = FailingDestroyPort::new(5010, "user-context-501")?;
+    let create_calls = Rc::new(Cell::new(0));
+    let destroy_calls = Rc::new(Cell::new(0));
+    let failing_port = FailingDestroyPort::new(
+        5010,
+        "user-context-501",
+        Rc::clone(&create_calls),
+        Rc::clone(&destroy_calls),
+    )?;
+    let mut bound = session.bind_lifecycle_port(failing_port);
 
-    let authority = session
-        .create_disposable_context(&mut failing_port)
+    let authority = bound
+        .create_disposable_context()
         .map_err(|_| "fixture disposable context creation must succeed")?;
     assert_eq!(
-        session.destroy_disposable_context(&authority, &mut failing_port),
+        bound.destroy_disposable_context(&authority),
         Err(BrowserSessionError::ContextDestructionFailed)
     );
-    assert_eq!(failing_port.destroy_calls, 1);
-    assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(destroy_calls.get(), 1);
     assert_eq!(
-        session.recovery_evidence(),
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
         &[BrowserSessionRecoveryEvidence::UnprovenDestruction(
             expected_handle
         )]
     );
-    assert!(!session.transport_is_lost());
+    assert!(!bound.browser_session().transport_is_lost());
 
-    assert!(session.record_transport_loss());
-    assert!(session.transport_is_lost());
-    assert_eq!(session.state(), BrowserSessionState::RecoveryRequired);
-    assert!(!session.record_transport_loss());
-
-    let mut later_port = FailingDestroyPort::new(5011, "user-context-501-later")?;
+    assert!(bound.record_transport_loss());
+    assert!(bound.browser_session().transport_is_lost());
     assert_eq!(
-        session.create_disposable_context(&mut later_port),
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired
+    );
+    assert!(!bound.record_transport_loss());
+    assert_eq!(
+        bound.create_disposable_context(),
         Err(BrowserSessionError::SessionNotActive)
     );
-    assert_eq!(later_port.create_calls, 0);
+    assert_eq!(create_calls.get(), 1);
     assert_eq!(
-        session.presentation_authority(context_id),
+        bound.presentation_authority(context_id),
         Err(BrowserSessionError::SessionNotActive)
     );
     assert_eq!(
-        session.advance_context_epoch(context_id),
+        bound.advance_context_epoch(context_id),
         Err(BrowserSessionError::SessionNotActive)
     );
-    assert_eq!(session.end(), Err(BrowserSessionError::SessionNotActive));
+    assert_eq!(bound.end(), Err(BrowserSessionError::SessionNotActive));
     Ok(())
 }
