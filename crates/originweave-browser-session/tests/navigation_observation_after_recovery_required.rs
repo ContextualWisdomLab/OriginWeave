@@ -85,9 +85,25 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
         "aggregate recovery state must take precedence over duplicate-while-invalidated idempotency"
     );
     assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "rejected navigation must not rewrite the aggregate out of RecoveryRequired"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_failure.as_slice(),
+        "rejected navigation must leave the original unproven-destruction evidence unchanged"
+    );
+
+    assert_eq!(
         bound.record_observed_navigation(context),
         Err(BrowserSessionError::SessionNotActive),
         "replayed navigation cannot be accepted after ownership recovery begins"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "replayed navigation must not rewrite RecoveryRequired into another inactive state"
     );
     assert_eq!(
         adapter_calls.get(),
