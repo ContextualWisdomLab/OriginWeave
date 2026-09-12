@@ -95,7 +95,11 @@ fn sibling_context_epoch_cannot_invalidate_another_owned_context() {
 
     let calls_before_cross_context_observation = adapter_calls.get();
     assert_eq!(
-        bound.record_observed_navigation(first_context, second_authority.context_epoch()),
+        bound.record_observed_navigation(
+            first_authority.incarnation(),
+            first_context,
+            second_authority.context_epoch(),
+        ),
         Err(BrowserSessionError::AuthorityMismatch),
         "an epoch observed for a sibling context is provenance for that sibling only and cannot revoke another context"
     );
@@ -118,7 +122,11 @@ fn sibling_context_epoch_cannot_invalidate_another_owned_context() {
 
     let calls_before_real_navigation = adapter_calls.get();
     bound
-        .record_observed_navigation(first_context, first_authority.context_epoch())
+        .record_observed_navigation(
+            first_authority.incarnation(),
+            first_context,
+            first_authority.context_epoch(),
+        )
         .expect("the exact first-context generation may invalidate its own presentation authority");
     assert_eq!(
         adapter_calls.get(),
