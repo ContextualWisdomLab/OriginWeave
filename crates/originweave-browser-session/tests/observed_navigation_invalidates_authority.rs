@@ -102,20 +102,20 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     );
 
     let calls_before_navigation = adapter_calls.get();
-    bound
+    let settlement_authority = bound
         .record_observed_navigation(
             pre_navigation.incarnation(),
             context,
             pre_navigation.context_epoch(),
         )
-        .expect("owned context navigation invalidates the prior authority epoch");
+        .expect("owned context navigation invalidates the prior authority epoch and issues settlement authority");
     assert_eq!(
         adapter_calls.get(),
         calls_before_navigation,
         "observed navigation invalidation must not perform adapter I/O"
     );
 
-    bound
+    let _duplicate_settlement_authority = bound
         .record_observed_navigation(
             pre_navigation.incarnation(),
             context,
@@ -167,12 +167,8 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     );
 
     bound
-        .record_observed_navigation_settled(
-            pre_navigation.incarnation(),
-            context,
-            pre_navigation.context_epoch(),
-        )
-        .expect("adapter-qualified navigation settlement unlocks explicit re-establishment");
+        .record_observed_navigation_settled(&settlement_authority)
+        .expect("adapter-qualified navigation settlement presents the aggregate-issued witness");
     assert_eq!(
         adapter_calls.get(),
         calls_before_navigation,
@@ -194,13 +190,15 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     assert_eq!(adapter_calls.get(), calls_before_navigation + 1);
 
     let calls_before_stale_replay = adapter_calls.get();
-    assert_eq!(
-        bound.record_observed_navigation(
-            pre_navigation.incarnation(),
-            context,
-            pre_navigation.context_epoch(),
+    assert!(
+        matches!(
+            bound.record_observed_navigation(
+                pre_navigation.incarnation(),
+                context,
+                pre_navigation.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
         ),
-        Err(BrowserSessionError::AuthorityMismatch),
         "a delayed replay for the prior document generation must not invalidate re-established current authority"
     );
     assert_eq!(
@@ -215,7 +213,7 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     );
 
     let calls_before_second_navigation = adapter_calls.get();
-    bound
+    let later_settlement_authority = bound
         .record_observed_navigation(
             reestablished.incarnation(),
             context,
@@ -257,12 +255,8 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     assert_eq!(adapter_calls.get(), calls_before_second_navigation);
 
     bound
-        .record_observed_navigation_settled(
-            reestablished.incarnation(),
-            context,
-            reestablished.context_epoch(),
-        )
-        .expect("the later navigation settlement unlocks the next explicit re-establishment");
+        .record_observed_navigation_settled(&later_settlement_authority)
+        .expect("the later navigation settlement presents the next aggregate-issued witness");
     assert_eq!(adapter_calls.get(), calls_before_second_navigation);
 
     let second_reestablished = bound
@@ -292,14 +286,14 @@ fn foreign_navigation_observation_is_rejected_without_invalidating_owned_authori
         .expect("accepted disposable context");
     let calls_before_foreign_observation = adapter_calls.get();
 
-    assert_eq!(
+    assert!(matches!(
         bound.record_observed_navigation(
             authority.incarnation(),
             foreign,
             authority.context_epoch(),
         ),
         Err(BrowserSessionError::ContextNotOwned)
-    );
+    ));
     assert_eq!(
         bound.reestablish_presentation_authority(foreign),
         Err(BrowserSessionError::ContextNotOwned)
