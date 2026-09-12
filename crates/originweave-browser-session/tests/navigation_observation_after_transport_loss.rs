@@ -61,6 +61,7 @@ impl AuthorizedContextOperationPort for TransportLossProbePort {
 #[test]
 fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revive_authority() {
     let context = BrowsingContextId::new(961).expect("valid browsing context");
+    let foreign = BrowsingContextId::new(962).expect("valid foreign browsing context");
     let handle = DisposableContextHandle::new(
         DisposableIsolationId::parse("transport-loss-navigation-user-context-961")
             .expect("valid isolation id"),
@@ -93,6 +94,21 @@ fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revi
         "a buffered navigation event from a dead transport must not be accepted as current browser state"
     );
     assert_eq!(
+        bound.record_observed_navigation(foreign),
+        Err(BrowserSessionError::SessionNotActive),
+        "aggregate transport trust must be rejected before a raw context selector can reveal ownership"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::TransportLost,
+        "foreign navigation probing must not rewrite transport-loss aggregate state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_transport_loss.as_slice(),
+        "foreign navigation probing must not rewrite exact transport-loss recovery evidence"
+    );
+    assert_eq!(
         bound.record_observed_navigation(context),
         Err(BrowserSessionError::SessionNotActive),
         "replayed buffered navigation after transport loss must remain fail-closed"
@@ -112,7 +128,7 @@ fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revi
     assert_eq!(
         adapter_calls.get(),
         calls_after_transport_loss,
-        "late navigation and retained authority must both fail before adapter I/O after transport loss"
+        "late navigation, foreign probing, and retained authority must fail before adapter I/O after transport loss"
     );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
