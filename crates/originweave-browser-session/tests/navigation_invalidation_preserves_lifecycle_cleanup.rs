@@ -322,6 +322,7 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
     );
 
     let calls_after_failure = adapter_calls.get();
+    let recovery_evidence_after_failure = bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-after-failed-cleanup"),
         Err(AuthorizedContextOperationError::BrowserSession(
@@ -329,13 +330,35 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
         )),
         "recovery after unproven destruction must not revive a retained pre-navigation authority"
     );
-    assert!(
-        bound.reestablish_presentation_authority(context).is_err(),
-        "cleanup uncertainty must not reopen presentation mutation authority"
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::SessionNotActive),
+        "cleanup uncertainty must preserve lifecycle ownership while closing the normal presentation-authority surface"
     );
-    assert!(
-        bound.destroy_owned_disposable_context(context).is_err(),
-        "normal cleanup must not silently retry once exact ownership has entered recovery"
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "presentation re-establishment must not consume or rewrite unresolved lifecycle ownership"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_failure.as_slice(),
+        "presentation re-establishment must leave the original unproven-destruction evidence unchanged"
+    );
+    assert_eq!(
+        bound.destroy_owned_disposable_context(context),
+        Err(BrowserSessionError::SessionNotActive),
+        "ordinary cleanup retry must remain closed while exact lifecycle ownership is preserved for reviewed recovery"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "ordinary cleanup retry must not consume unresolved lifecycle ownership"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_failure.as_slice(),
+        "ordinary cleanup retry must leave the original recovery evidence unchanged"
     );
     assert_eq!(
         adapter_calls.get(),
