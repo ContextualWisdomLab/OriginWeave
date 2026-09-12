@@ -155,14 +155,37 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
         calls_before_navigation,
         "rejected generic epoch rotation after navigation must remain zero-I/O"
     );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "navigation start alone must not re-open presentation authority before browser settlement"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "pending-navigation re-establishment must remain zero-I/O"
+    );
+
+    bound
+        .record_observed_navigation_settled(
+            pre_navigation.incarnation(),
+            context,
+            pre_navigation.context_epoch(),
+        )
+        .expect("adapter-qualified navigation settlement unlocks explicit re-establishment");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "navigation settlement must also be a zero-I/O Browser Session transition"
+    );
 
     let reestablished = bound
         .reestablish_presentation_authority(context)
-        .expect("the exact bound owner explicitly re-establishes authority after invalidation");
+        .expect("the exact bound owner explicitly re-establishes authority after settled invalidation");
     assert_eq!(
         reestablished.context_epoch().value(),
         pre_navigation.context_epoch().value() + 1,
-        "duplicate delivery and rejected generic rotation while invalidated must not consume additional epochs"
+        "duplicate delivery, rejected generic rotation, and settlement must not consume additional epochs"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&reestablished, "post-navigation"),
@@ -226,14 +249,29 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
         calls_before_second_navigation,
         "rejected generic epoch rotation after a later navigation must remain zero-I/O"
     );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "later navigation also remains pending until matching browser settlement"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_second_navigation);
+
+    bound
+        .record_observed_navigation_settled(
+            reestablished.incarnation(),
+            context,
+            reestablished.context_epoch(),
+        )
+        .expect("the later navigation settlement unlocks the next explicit re-establishment");
+    assert_eq!(adapter_calls.get(), calls_before_second_navigation);
 
     let second_reestablished = bound
         .reestablish_presentation_authority(context)
-        .expect("the exact bound owner can establish a fresh authority for the later document");
+        .expect("the exact bound owner can establish a fresh authority for the settled later document");
     assert_eq!(
         second_reestablished.context_epoch().value(),
         reestablished.context_epoch().value() + 1,
-        "a later distinct navigation must consume exactly one new epoch despite rejected generic rotation"
+        "a later distinct settled navigation must consume exactly one new epoch despite rejected generic rotation"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&second_reestablished, "second-document"),
