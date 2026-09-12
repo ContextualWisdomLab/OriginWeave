@@ -73,12 +73,20 @@ fn navigation_after_normal_end_is_rejected_before_context_ownership_lookup() {
     let recovery_evidence_after_end = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
-        bound.record_observed_navigation(context, authority.context_epoch()),
+        bound.record_observed_navigation(
+            authority.incarnation(),
+            context,
+            authority.context_epoch(),
+        ),
         Err(BrowserSessionError::SessionNotActive),
         "a late navigation from an ended session must not expose historical ownership"
     );
     assert_eq!(
-        bound.record_observed_navigation(foreign, authority.context_epoch()),
+        bound.record_observed_navigation(
+            authority.incarnation(),
+            foreign,
+            authority.context_epoch(),
+        ),
         Err(BrowserSessionError::SessionNotActive),
         "aggregate inactivity must be rejected before a foreign raw selector can become an ownership oracle"
     );
