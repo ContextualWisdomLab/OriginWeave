@@ -60,11 +60,11 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
         .expect("incarnation capacity")
         .bind_lifecycle_port(port);
 
-    bound
+    let pre_navigation = bound
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
-        .record_observed_navigation(context)
+        .record_observed_navigation(context, pre_navigation.context_epoch())
         .expect("active owned navigation invalidates presentation authority");
 
     assert_eq!(
@@ -81,7 +81,7 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
     let recovery_evidence_after_failure = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
-        bound.record_observed_navigation(foreign),
+        bound.record_observed_navigation(foreign, pre_navigation.context_epoch()),
         Err(BrowserSessionError::SessionNotActive),
         "aggregate recovery trust must be rejected before a raw context selector can reveal ownership"
     );
@@ -96,7 +96,7 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
         "foreign navigation probing must leave the original unproven-destruction evidence unchanged"
     );
     assert_eq!(
-        bound.record_observed_navigation(context),
+        bound.record_observed_navigation(context, pre_navigation.context_epoch()),
         Err(BrowserSessionError::SessionNotActive),
         "aggregate recovery state must take precedence over duplicate-while-invalidated idempotency"
     );
@@ -112,7 +112,7 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
     );
 
     assert_eq!(
-        bound.record_observed_navigation(context),
+        bound.record_observed_navigation(context, pre_navigation.context_epoch()),
         Err(BrowserSessionError::SessionNotActive),
         "replayed navigation cannot be accepted after ownership recovery begins"
     );
