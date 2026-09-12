@@ -8,7 +8,7 @@ use originweave_browser_session::{
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -146,34 +146,44 @@ fn sibling_context_provenance_or_settlement_authority_cannot_mutate_another_owne
             second_authority.context_epoch(),
         )
         .expect("the sibling context may independently enter navigation-pending state");
-    let calls_before_sibling_settlement = adapter_calls.get();
+    let calls_before_first_terminal = adapter_calls.get();
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_settlement_authority,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        Ok(()),
+        "the first context's negative terminal outcome applies only to its own pending navigation"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_first_terminal);
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "terminating a sibling navigation must not unlock another context that is still pending"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_first_terminal);
+
     assert_eq!(
         bound.record_observed_navigation_settled(&second_settlement_authority),
         Ok(()),
         "the sibling witness settles only its own pending navigation"
     );
-    assert_eq!(adapter_calls.get(), calls_before_sibling_settlement);
-    assert_eq!(
-        bound.reestablish_presentation_authority(first_context),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "settling a sibling context must not unlock the first pending navigation"
-    );
+    assert_eq!(adapter_calls.get(), calls_before_first_terminal);
 
-    bound
-        .record_observed_navigation_settled(&first_settlement_authority)
-        .expect("only the first context's aggregate-issued witness settles the first pending navigation");
     let first_reestablished = bound
         .reestablish_presentation_authority(first_context)
-        .expect("the exact settled first context may receive fresh authority");
+        .expect("the exact terminated first context may receive fresh authority explicitly");
     let second_reestablished = bound
         .reestablish_presentation_authority(second_context)
         .expect("the independently settled sibling may receive its own fresh authority");
     assert_eq!(
         first_reestablished.context_epoch().value(),
-        first_authority.context_epoch().value() + 1
+        second_authority.context_epoch().value() + 1,
+        "re-establishment must continue the aggregate-wide epoch sequence after both initial contexts"
     );
     assert_eq!(
         second_reestablished.context_epoch().value(),
-        second_authority.context_epoch().value() + 1
+        first_reestablished.context_epoch().value() + 1,
+        "the next sibling re-establishment must receive the next aggregate-issued epoch"
     );
 }
