@@ -77,7 +77,8 @@ fn bound_session(
 }
 
 #[test]
-fn browser_observed_navigation_invalidates_only_the_observed_context_generation_before_adapter_io() {
+fn browser_observed_navigation_invalidates_only_the_observed_context_generation_before_adapter_io()
+{
     let context = BrowsingContextId::new(901).expect("valid browsing context");
     let adapter_calls = Rc::new(Cell::new(0));
     let mut bound = bound_session(901, context, "navigation-user-context-901", &adapter_calls);
@@ -164,11 +165,9 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
         "navigation settlement must also be a zero-I/O Browser Session transition"
     );
 
-    let reestablished = bound
-        .reestablish_presentation_authority(context)
-        .expect(
-            "the exact bound owner explicitly re-establishes authority after settled invalidation",
-        );
+    let reestablished = bound.reestablish_presentation_authority(context).expect(
+        "the exact bound owner explicitly re-establishes authority after settled invalidation",
+    );
     assert_eq!(
         reestablished.context_epoch().value(),
         pre_navigation.context_epoch().value() + 1,
@@ -255,11 +254,9 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
         .expect("the later navigation settlement presents the next aggregate-issued witness");
     assert_eq!(adapter_calls.get(), calls_before_second_navigation);
 
-    let second_reestablished = bound
-        .reestablish_presentation_authority(context)
-        .expect(
-            "the exact bound owner can establish a fresh authority for the settled later document",
-        );
+    let second_reestablished = bound.reestablish_presentation_authority(context).expect(
+        "the exact bound owner can establish a fresh authority for the settled later document",
+    );
     assert_eq!(
         second_reestablished.context_epoch().value(),
         reestablished.context_epoch().value() + 1,

@@ -2,11 +2,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionState,
-    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
-    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
-    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId, NavigationTerminationOutcome,
+    BrowserSession, BrowserSessionError, BrowserSessionState, DisposableContextCreateCompletion,
+    DisposableContextCreateCompletionError, DisposableContextCreateError,
+    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
+    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -76,16 +76,12 @@ fn positive_terminal_witness_cannot_outlive_proven_context_destruction() {
         .create_disposable_context()
         .expect("accepted disposable context");
     let pending = bound
-        .record_observed_navigation(
-            authority.incarnation(),
-            context,
-            authority.context_epoch(),
-        )
+        .record_observed_navigation(authority.incarnation(), context, authority.context_epoch())
         .expect("active owned navigation issues one pending witness");
 
-    bound
-        .destroy_owned_disposable_context(context)
-        .expect("proven lifecycle destruction consumes context ownership while navigation remains pending");
+    bound.destroy_owned_disposable_context(context).expect(
+        "proven lifecycle destruction consumes context ownership while navigation remains pending",
+    );
     assert_eq!(bound.browser_session().state(), BrowserSessionState::Active);
     let calls_after_destroy = adapter_calls.get();
     let recovery_evidence_after_destroy = bound.browser_session().recovery_evidence().to_vec();
@@ -132,25 +128,19 @@ fn negative_terminal_witness_cannot_outlive_proven_context_destruction() {
         .create_disposable_context()
         .expect("accepted disposable context");
     let pending = bound
-        .record_observed_navigation(
-            authority.incarnation(),
-            context,
-            authority.context_epoch(),
-        )
+        .record_observed_navigation(authority.incarnation(), context, authority.context_epoch())
         .expect("active owned navigation issues one pending witness");
 
-    bound
-        .destroy_owned_disposable_context(context)
-        .expect("proven lifecycle destruction consumes context ownership while navigation remains pending");
+    bound.destroy_owned_disposable_context(context).expect(
+        "proven lifecycle destruction consumes context ownership while navigation remains pending",
+    );
     assert_eq!(bound.browser_session().state(), BrowserSessionState::Active);
     let calls_after_destroy = adapter_calls.get();
     let recovery_evidence_after_destroy = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
-        bound.record_observed_navigation_terminated(
-            &pending,
-            NavigationTerminationOutcome::Failed,
-        ),
+        bound
+            .record_observed_navigation_terminated(&pending, NavigationTerminationOutcome::Failed,),
         Err(BrowserSessionError::ContextNotOwned),
         "a late failure for a proven-destroyed context must not consume historical pending state"
     );

@@ -59,7 +59,8 @@ impl AuthorizedContextOperationPort for ConflictingTerminalOutcomeProbePort {
 }
 
 #[test]
-fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_and_negative_paths() {
+fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_and_negative_paths()
+{
     let context = BrowsingContextId::new(1012).expect("valid browsing context");
     let adapter_calls = Rc::new(Cell::new(0));
     let port = ConflictingTerminalOutcomeProbePort {
@@ -109,7 +110,10 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         initial.context_epoch().value() + 1
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&after_positive, "usable-after-positive-terminal"),
+        bound.execute_authorized_context_operation(
+            &after_positive,
+            "usable-after-positive-terminal"
+        ),
         Ok(context)
     );
 
@@ -141,7 +145,10 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         "conflicting positive replay must fail before adapter I/O"
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&after_positive, "still-stale-after-negative-terminal"),
+        bound.execute_authorized_context_operation(
+            &after_positive,
+            "still-stale-after-negative-terminal"
+        ),
         Err(AuthorizedContextOperationError::BrowserSession(
             BrowserSessionError::AuthorityMismatch,
         )),
@@ -149,15 +156,18 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
     );
     assert_eq!(adapter_calls.get(), calls_before_negative);
 
-    let after_negative = bound
-        .reestablish_presentation_authority(context)
-        .expect("negative terminal observation closes pending state without stranding the owned context");
+    let after_negative = bound.reestablish_presentation_authority(context).expect(
+        "negative terminal observation closes pending state without stranding the owned context",
+    );
     assert_eq!(
         after_negative.context_epoch().value(),
         after_positive.context_epoch().value() + 1
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&after_negative, "usable-after-negative-terminal"),
+        bound.execute_authorized_context_operation(
+            &after_negative,
+            "usable-after-negative-terminal"
+        ),
         Ok(context)
     );
 }

@@ -86,7 +86,9 @@ fn newer_navigation_start_supersedes_prior_pending_witness_until_its_own_termina
 
     let second_pending = bound
         .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
-        .expect("a distinct later navigation start may supersede an earlier still-pending navigation");
+        .expect(
+            "a distinct later navigation start may supersede an earlier still-pending navigation",
+        );
     assert_eq!(adapter_calls.get(), calls_after_create);
 
     assert_eq!(

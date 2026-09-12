@@ -3,11 +3,10 @@ use std::rc::Rc;
 
 use originweave_browser_session::{
     AuthorizedContextOperationPort, AuthorizedContextOperationRequest, BrowserSession,
-    BrowserSessionError, DisposableContextCreateCompletion,
-    DisposableContextCreateCompletionError, DisposableContextCreateError,
-    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
-    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
-    NavigationTerminationOutcome,
+    BrowserSessionError, DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
+    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
+    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -182,7 +181,9 @@ fn navigation_generation_from_prior_session_incarnation_cannot_revoke_current_se
         .expect("only the current aggregate's witness may settle its pending navigation");
     let second_reestablished = second
         .reestablish_presentation_authority(reused_context)
-        .expect("the current aggregate may explicitly re-establish after its own terminal observation");
+        .expect(
+            "the current aggregate may explicitly re-establish after its own terminal observation",
+        );
     assert_eq!(
         second.execute_authorized_context_operation(&second_reestablished, "second-fresh"),
         Ok(reused_context)

@@ -86,7 +86,8 @@ fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revi
 
     assert!(bound.record_transport_loss());
     let calls_after_transport_loss = adapter_calls.get();
-    let recovery_evidence_after_transport_loss = bound.browser_session().recovery_evidence().to_vec();
+    let recovery_evidence_after_transport_loss =
+        bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
         bound.record_observed_navigation(

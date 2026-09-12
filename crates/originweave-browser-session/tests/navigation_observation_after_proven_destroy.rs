@@ -64,11 +64,7 @@ fn late_navigation_after_proven_destroy_cannot_resurrect_consumed_context_owners
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
-        .record_observed_navigation(
-            authority.incarnation(),
-            context,
-            authority.context_epoch(),
-        )
+        .record_observed_navigation(authority.incarnation(), context, authority.context_epoch())
         .expect("navigation invalidates presentation authority before lifecycle cleanup");
     bound
         .destroy_owned_disposable_context(context)

@@ -151,7 +151,9 @@ fn raw_navigation_provenance_cannot_be_replayed_as_settlement_authority() {
 
     second
         .record_observed_navigation_settled(&second_settlement_authority)
-        .expect("only the Browser Session-issued authority for this pending navigation may settle it");
+        .expect(
+            "only the Browser Session-issued authority for this pending navigation may settle it",
+        );
     assert_eq!(
         second_adapter_calls.get(),
         calls_before_cross_aggregate_settlement,

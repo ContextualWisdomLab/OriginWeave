@@ -179,7 +179,8 @@ fn navigation_invalidation_does_not_strand_owned_disposable_cleanup() {
 }
 
 #[test]
-fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without_reissuing_presentation_authority() {
+fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without_reissuing_presentation_authority()
+ {
     let context = BrowsingContextId::new(931).expect("valid browsing context");
     let isolation = "navigation-cleanup-user-context-931";
     let adapter_calls = Rc::new(Cell::new(0));
@@ -243,7 +244,8 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
 }
 
 #[test]
-fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_after_navigation_invalidation() {
+fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_after_navigation_invalidation()
+ {
     let owned = BrowsingContextId::new(941).expect("valid owned context");
     let foreign = BrowsingContextId::new(942).expect("valid foreign context");
     let isolation = "navigation-cleanup-user-context-941";

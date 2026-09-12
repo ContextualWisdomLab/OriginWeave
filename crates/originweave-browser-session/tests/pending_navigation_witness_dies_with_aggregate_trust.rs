@@ -2,11 +2,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionError, BrowserSessionState,
-    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
-    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
-    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId, NavigationTerminationOutcome,
+    BrowserSession, BrowserSessionError, BrowserSessionState, DisposableContextCreateCompletion,
+    DisposableContextCreateCompletionError, DisposableContextCreateError,
+    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
+    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -69,11 +69,7 @@ fn pending_navigation_witness_cannot_settle_after_transport_loss() {
         .create_disposable_context()
         .expect("accepted disposable context");
     let pending = bound
-        .record_observed_navigation(
-            authority.incarnation(),
-            context,
-            authority.context_epoch(),
-        )
+        .record_observed_navigation(authority.incarnation(), context, authority.context_epoch())
         .expect("active owned navigation issues one pending witness");
 
     assert!(bound.record_transport_loss());
@@ -93,7 +89,10 @@ fn pending_navigation_witness_cannot_settle_after_transport_loss() {
         Err(BrowserSessionError::SessionNotActive),
         "a negative terminal replay from the dead transport must not consume or revive pending navigation state"
     );
-    assert_eq!(bound.browser_session().state(), BrowserSessionState::TransportLost);
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::TransportLost
+    );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
         recovery_evidence_after_loss.as_slice()
@@ -126,11 +125,7 @@ fn pending_navigation_witness_cannot_mutate_recovery_required() {
         .create_disposable_context()
         .expect("accepted disposable context");
     let pending = bound
-        .record_observed_navigation(
-            authority.incarnation(),
-            context,
-            authority.context_epoch(),
-        )
+        .record_observed_navigation(authority.incarnation(), context, authority.context_epoch())
         .expect("active owned navigation issues one pending witness");
 
     assert_eq!(
@@ -138,7 +133,10 @@ fn pending_navigation_witness_cannot_mutate_recovery_required() {
         Err(BrowserSessionError::ContextDestructionFailed),
         "unproven lifecycle cleanup must enter recovery even while presentation is pending"
     );
-    assert_eq!(bound.browser_session().state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired
+    );
     let calls_after_failure = adapter_calls.get();
     let recovery_evidence_after_failure = bound.browser_session().recovery_evidence().to_vec();
 
@@ -148,14 +146,15 @@ fn pending_navigation_witness_cannot_mutate_recovery_required() {
         "recovery state must take precedence over an otherwise exact pending witness"
     );
     assert_eq!(
-        bound.record_observed_navigation_terminated(
-            &pending,
-            NavigationTerminationOutcome::Failed,
-        ),
+        bound
+            .record_observed_navigation_terminated(&pending, NavigationTerminationOutcome::Failed,),
         Err(BrowserSessionError::SessionNotActive),
         "late failure evidence must not rewrite lifecycle recovery state"
     );
-    assert_eq!(bound.browser_session().state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired
+    );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
         recovery_evidence_after_failure.as_slice(),
@@ -189,17 +188,15 @@ fn pending_navigation_witness_cannot_outlive_normal_session_end() {
         .create_disposable_context()
         .expect("accepted disposable context");
     let pending = bound
-        .record_observed_navigation(
-            authority.incarnation(),
-            context,
-            authority.context_epoch(),
-        )
+        .record_observed_navigation(authority.incarnation(), context, authority.context_epoch())
         .expect("active owned navigation issues one pending witness");
 
     bound
         .destroy_owned_disposable_context(context)
         .expect("proven lifecycle cleanup is independent from presentation settlement");
-    bound.end().expect("clean session end after proven lifecycle cleanup");
+    bound
+        .end()
+        .expect("clean session end after proven lifecycle cleanup");
     let calls_after_end = adapter_calls.get();
     let recovery_evidence_after_end = bound.browser_session().recovery_evidence().to_vec();
 

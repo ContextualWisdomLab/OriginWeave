@@ -133,7 +133,10 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
     );
     assert_eq!(adapter_calls.get(), calls_before_stale_failure_replay);
     assert_eq!(
-        bound.execute_authorized_context_operation(&after_failure, "still-usable-after-stale-failure-replay"),
+        bound.execute_authorized_context_operation(
+            &after_failure,
+            "still-usable-after-stale-failure-replay"
+        ),
         Ok(context)
     );
 
@@ -162,9 +165,9 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
     );
     assert_eq!(adapter_calls.get(), calls_before_abort);
 
-    let after_abort = bound
-        .reestablish_presentation_authority(context)
-        .expect("a terminal abort must close pending state without permanently denying the owned context");
+    let after_abort = bound.reestablish_presentation_authority(context).expect(
+        "a terminal abort must close pending state without permanently denying the owned context",
+    );
     assert_eq!(
         after_abort.context_epoch().value(),
         after_failure.context_epoch().value() + 1
@@ -200,10 +203,7 @@ fn navigation_after_negative_terminal_before_reestablishment_waits_for_latest_te
         .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
         .expect("first navigation enters pending state");
     bound
-        .record_observed_navigation_terminated(
-            &first_pending,
-            NavigationTerminationOutcome::Failed,
-        )
+        .record_observed_navigation_terminated(&first_pending, NavigationTerminationOutcome::Failed)
         .expect("first navigation failure closes only its pending transition");
     assert_eq!(adapter_calls.get(), calls_before_navigation);
 
@@ -249,19 +249,24 @@ fn navigation_after_negative_terminal_before_reestablishment_waits_for_latest_te
             &second_pending,
             NavigationTerminationOutcome::Aborted,
         )
-        .expect("the latest navigation's own terminal outcome closes the current pending transition");
+        .expect(
+            "the latest navigation's own terminal outcome closes the current pending transition",
+        );
     assert_eq!(adapter_calls.get(), calls_before_navigation);
 
-    let reestablished = bound
-        .reestablish_presentation_authority(context)
-        .expect("the owner may re-establish only after the latest navigation reaches a terminal outcome");
+    let reestablished = bound.reestablish_presentation_authority(context).expect(
+        "the owner may re-establish only after the latest navigation reaches a terminal outcome",
+    );
     assert_eq!(
         reestablished.context_epoch().value(),
         initial.context_epoch().value() + 1,
         "negative terminals and later navigation starts while invalidated must not spend presentation epochs"
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&reestablished, "usable-after-latest-negative-terminal"),
+        bound.execute_authorized_context_operation(
+            &reestablished,
+            "usable-after-latest-negative-terminal"
+        ),
         Ok(context)
     );
 }

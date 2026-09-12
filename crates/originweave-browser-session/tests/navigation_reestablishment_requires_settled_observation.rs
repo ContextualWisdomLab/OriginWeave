@@ -90,7 +90,10 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
         );
     assert_eq!(adapter_calls.get(), calls_before_navigation);
     assert_eq!(
-        bound.execute_authorized_context_operation(&pre_navigation, "stale-while-navigation-pending"),
+        bound.execute_authorized_context_operation(
+            &pre_navigation,
+            "stale-while-navigation-pending"
+        ),
         Err(AuthorizedContextOperationError::BrowserSession(
             BrowserSessionError::AuthorityMismatch,
         ))
@@ -200,7 +203,8 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
 }
 
 #[test]
-fn navigation_after_settlement_before_reestablishment_keeps_authority_closed_until_latest_terminal() {
+fn navigation_after_settlement_before_reestablishment_keeps_authority_closed_until_latest_terminal()
+{
     let context = BrowsingContextId::new(982).expect("valid browsing context");
     let adapter_calls = Rc::new(Cell::new(0));
     let port = NavigationSettlementProbePort {
