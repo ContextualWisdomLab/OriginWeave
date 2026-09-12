@@ -197,9 +197,17 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
     bound
         .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
         .expect("first navigation invalidates initial presentation authority");
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "navigation start alone must not reissue presentation authority"
+    );
+    bound
+        .record_observed_navigation_settled(initial.incarnation(), context, initial.context_epoch())
+        .expect("matching browser settlement unlocks explicit re-establishment");
     let reestablished = bound
         .reestablish_presentation_authority(context)
-        .expect("owner explicitly establishes authority for the next document");
+        .expect("owner explicitly establishes authority for the settled next document");
     assert_eq!(
         reestablished.context_epoch().value(),
         initial.context_epoch().value() + 1
