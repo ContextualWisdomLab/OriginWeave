@@ -10,6 +10,25 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "crates/originweave-browser-session/src/lib.rs"
 
 
+def _inherent_impl_blocks(source: str, type_name: str) -> list[str]:
+    """Return exact inherent impl bodies without depending on a Rust parser."""
+
+    blocks: list[str] = []
+    pattern = re.compile(rf"\bimpl\s+{re.escape(type_name)}\s*\{{")
+    for match in pattern.finditer(source):
+        opening_brace = source.find("{", match.start())
+        depth = 0
+        for index in range(opening_brace, len(source)):
+            if source[index] == "{":
+                depth += 1
+            elif source[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    blocks.append(source[opening_brace + 1 : index])
+                    break
+    return blocks
+
+
 class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
     """Keep fresh presentation authority on the exact mutable bound owner."""
 
@@ -121,11 +140,31 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             r"\bpub(?:\([^)]*\))?\s+\w+\s*:",
             "settlement-authority state must remain private to the Browser Session crate",
         )
-        self.assertNotIn(
-            "impl NavigationSettlementAuthority {\n    pub fn new(",
+        self.assertNotRegex(
             source,
-            "raw callers must not reconstruct settlement authority through a public constructor",
+            r"#\[derive\([^\]]*\bDefault\b[^\]]*\)\]\s*pub struct NavigationSettlementAuthority",
+            "Default would let raw callers fabricate a settlement witness",
         )
+        self.assertNotRegex(
+            source,
+            r"impl\s+(?:Default|From<[^>]+>|TryFrom<[^>]+>)\s+for\s+NavigationSettlementAuthority\b",
+            "conversion/default traits must not expose a caller-mintable witness path",
+        )
+
+        impl_blocks = _inherent_impl_blocks(source, "NavigationSettlementAuthority")
+        public_functions = re.compile(
+            r"\bpub(?:\([^)]*\))?\s+(?:const\s+)?fn\s+(?P<name>\w+)\s*\((?P<params>.*?)\)",
+            flags=re.DOTALL,
+        )
+        for impl_block in impl_blocks:
+            for public_function in public_functions.finditer(impl_block):
+                params = public_function.group("params").strip()
+                first_param = params.split(",", 1)[0].strip() if params else ""
+                self.assertRegex(
+                    first_param,
+                    r"^(?:&\s*(?:mut\s+)?self|(?:mut\s+)?self)\b",
+                    f"public associated function {public_function.group('name')} would let raw callers construct or transform settlement authority without an existing witness",
+                )
 
 
 if __name__ == "__main__":
