@@ -23,6 +23,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         self.assertNotIn("pub fn presentation_authority(", browser_session_impl)
         self.assertIn("pub fn record_observed_navigation(", source)
+        self.assertIn("pub fn record_observed_navigation_settled(", source)
         self.assertIn("pub fn reestablish_presentation_authority(", source)
 
     def test_navigation_observation_is_bound_to_exact_session_context_generation(self) -> None:
@@ -31,6 +32,22 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         source = SOURCE.read_text(encoding="utf-8")
         signature = re.search(
             r"pub fn record_observed_navigation\s*\((?P<params>.*?)\)\s*->",
+            source,
+            flags=re.DOTALL,
+        )
+
+        self.assertIsNotNone(signature)
+        params = signature.group("params")
+        self.assertIn("BrowserSessionIncarnation", params)
+        self.assertIn("BrowsingContextId", params)
+        self.assertIn("BrowserContextEpoch", params)
+
+    def test_navigation_settlement_is_bound_to_the_same_domain_generation(self) -> None:
+        """Only a matching browser-settled generation may reopen re-establishment eligibility."""
+
+        source = SOURCE.read_text(encoding="utf-8")
+        signature = re.search(
+            r"pub fn record_observed_navigation_settled\s*\((?P<params>.*?)\)\s*->",
             source,
             flags=re.DOTALL,
         )
