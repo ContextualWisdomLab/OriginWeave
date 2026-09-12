@@ -121,13 +121,24 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
         "pre-navigation authority must be rejected before adapter I/O"
     );
 
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "generic epoch rotation must not bypass the explicit post-navigation re-establishment boundary"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "rejected generic epoch rotation after navigation must remain zero-I/O"
+    );
+
     let reestablished = bound
         .reestablish_presentation_authority(context)
         .expect("the exact bound owner explicitly re-establishes authority after invalidation");
     assert_eq!(
         reestablished.context_epoch().value(),
         pre_navigation.context_epoch().value() + 1,
-        "duplicate delivery while invalidated must not consume additional epochs"
+        "duplicate delivery and rejected generic rotation while invalidated must not consume additional epochs"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&reestablished, "post-navigation"),
@@ -156,13 +167,24 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
         "the re-established authority must become stale before adapter I/O on a later navigation"
     );
 
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "generic epoch rotation must stay closed after every later observed navigation"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_second_navigation,
+        "rejected generic epoch rotation after a later navigation must remain zero-I/O"
+    );
+
     let second_reestablished = bound
         .reestablish_presentation_authority(context)
         .expect("the exact bound owner can establish a fresh authority for the later document");
     assert_eq!(
         second_reestablished.context_epoch().value(),
         reestablished.context_epoch().value() + 1,
-        "a later distinct navigation must consume exactly one new epoch"
+        "a later distinct navigation must consume exactly one new epoch despite rejected generic rotation"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&second_reestablished, "second-document"),
