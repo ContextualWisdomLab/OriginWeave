@@ -2,12 +2,12 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use originweave_browser_session::{
-    AuthorizedContextOperationError, AuthorizedContextOperationPort,
-    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError,
-    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
-    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
-    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    AuthorizedContextOperationPort, AuthorizedContextOperationRequest, BrowserSession,
+    BrowserSessionError, DisposableContextCreateCompletion,
+    DisposableContextCreateCompletionError, DisposableContextCreateError,
+    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
+    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -137,8 +137,15 @@ fn navigation_generation_from_prior_session_incarnation_cannot_revoke_current_se
         "rejecting prior-incarnation provenance must leave current presentation authority usable"
     );
 
+    let first_pending = first
+        .record_observed_navigation(
+            first_authority.incarnation(),
+            reused_context,
+            first_authority.context_epoch(),
+        )
+        .expect("the prior aggregate can independently enter navigation-pending state");
     let calls_before_current_navigation = second_adapter_calls.get();
-    let _second_settlement_authority = second
+    let second_pending = second
         .record_observed_navigation(
             second_authority.incarnation(),
             reused_context,
@@ -150,22 +157,43 @@ fn navigation_generation_from_prior_session_incarnation_cannot_revoke_current_se
         calls_before_current_navigation,
         "valid navigation invalidation remains a zero-I/O domain transition"
     );
+
     assert_eq!(
-        second.execute_authorized_context_operation(&second_authority, "second-now-stale"),
-        Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch,
-        )),
-        "the exact current-session observation invalidates only the matching aggregate generation"
+        second.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Failed,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a negative terminal witness minted by a prior aggregate incarnation must not terminate the current aggregate's pending navigation"
+    );
+    assert_eq!(
+        second.reestablish_presentation_authority(reused_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "rejecting the prior-incarnation terminal witness must leave the current navigation pending"
     );
     assert_eq!(
         second_adapter_calls.get(),
         calls_before_current_navigation,
-        "stale current-session authority must be rejected before adapter I/O"
+        "cross-incarnation negative-terminal rejection must remain zero-I/O"
+    );
+
+    second
+        .record_observed_navigation_settled(&second_pending)
+        .expect("only the current aggregate's witness may settle its pending navigation");
+    let second_reestablished = second
+        .reestablish_presentation_authority(reused_context)
+        .expect("the current aggregate may explicitly re-establish after its own terminal observation");
+    assert_eq!(
+        second.execute_authorized_context_operation(&second_reestablished, "second-fresh"),
+        Ok(reused_context)
     );
 
     assert_eq!(
-        first.execute_authorized_context_operation(&first_authority, "first-remains-current"),
-        Ok(reused_context),
-        "navigation observed for the second aggregate must not mutate the independent first aggregate"
+        first.reestablish_presentation_authority(reused_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "settling the second aggregate must not close the independent first aggregate's pending navigation"
     );
+    first
+        .record_observed_navigation_terminated(&first_pending, NavigationTerminationOutcome::Failed)
+        .expect("the originating aggregate may consume its own negative terminal witness");
 }
