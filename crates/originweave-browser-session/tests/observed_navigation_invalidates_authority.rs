@@ -77,7 +77,7 @@ fn bound_session(
 }
 
 #[test]
-fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapter_io() {
+fn browser_observed_navigation_invalidates_only_the_observed_context_generation_before_adapter_io() {
     let context = BrowsingContextId::new(901).expect("valid browsing context");
     let adapter_calls = Rc::new(Cell::new(0));
     let mut bound = bound_session(901, context, "navigation-user-context-901", &adapter_calls);
@@ -103,7 +103,7 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
 
     let calls_before_navigation = adapter_calls.get();
     bound
-        .record_observed_navigation(context)
+        .record_observed_navigation(context, pre_navigation.context_epoch())
         .expect("owned context navigation invalidates the prior authority epoch");
     assert_eq!(
         adapter_calls.get(),
@@ -112,8 +112,8 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
     );
 
     bound
-        .record_observed_navigation(context)
-        .expect("duplicate observation while authority is already invalidated is idempotent");
+        .record_observed_navigation(context, pre_navigation.context_epoch())
+        .expect("duplicate observation for the same invalidated generation is idempotent");
     assert_eq!(
         adapter_calls.get(),
         calls_before_navigation,
@@ -162,10 +162,27 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
     );
     assert_eq!(adapter_calls.get(), calls_before_navigation + 1);
 
+    let calls_before_stale_replay = adapter_calls.get();
+    assert_eq!(
+        bound.record_observed_navigation(context, pre_navigation.context_epoch()),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a delayed replay for the prior document generation must not invalidate re-established current authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_stale_replay,
+        "stale generation replay must be rejected before adapter I/O"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&reestablished, "still-current-after-stale-replay"),
+        Ok(context),
+        "rejecting a replay from the prior generation must leave the current generation usable"
+    );
+
     let calls_before_second_navigation = adapter_calls.get();
     bound
-        .record_observed_navigation(context)
-        .expect("a later navigation after explicit re-establishment invalidates the new authority");
+        .record_observed_navigation(context, reestablished.context_epoch())
+        .expect("a later navigation for the current generation invalidates the re-established authority");
     assert_eq!(
         adapter_calls.get(),
         calls_before_second_navigation,
@@ -222,7 +239,7 @@ fn foreign_navigation_observation_is_rejected_without_invalidating_owned_authori
     let calls_before_foreign_observation = adapter_calls.get();
 
     assert_eq!(
-        bound.record_observed_navigation(foreign),
+        bound.record_observed_navigation(foreign, authority.context_epoch()),
         Err(BrowserSessionError::ContextNotOwned)
     );
     assert_eq!(
