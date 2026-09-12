@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use originweave_browser_session::{
     AuthorizedContextOperationError, AuthorizedContextOperationPort,
-    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError,
+    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError, BrowserSessionState,
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
@@ -96,6 +96,11 @@ fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revi
         bound.record_observed_navigation(context),
         Err(BrowserSessionError::SessionNotActive),
         "replayed buffered navigation after transport loss must remain fail-closed"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::TransportLost,
+        "buffered navigation must not rewrite transport-loss aggregate state"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_loss_authority, "after-loss"),
