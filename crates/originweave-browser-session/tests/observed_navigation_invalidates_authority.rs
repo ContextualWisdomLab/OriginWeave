@@ -85,6 +85,17 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
     let pre_navigation = bound
         .create_disposable_context()
         .expect("accepted disposable context");
+    let calls_before_invalid_reestablish = adapter_calls.get();
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "re-establishment is reserved for an observed-navigation invalidation"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_invalid_reestablish,
+        "rejected re-establishment on an already-established context must remain zero-I/O"
+    );
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "pre-navigation"),
         Ok(context)
@@ -107,6 +118,11 @@ fn browser_observed_navigation_invalidates_pre_navigation_authority_before_adapt
         adapter_calls.get(),
         calls_before_navigation,
         "duplicate navigation observation must remain zero-I/O"
+    );
+    assert_eq!(
+        bound.presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the owner must not re-mint authority from a raw context id while navigation is invalidated"
     );
 
     assert_eq!(
@@ -210,9 +226,13 @@ fn foreign_navigation_observation_is_rejected_without_invalidating_owned_authori
         Err(BrowserSessionError::ContextNotOwned)
     );
     assert_eq!(
+        bound.reestablish_presentation_authority(foreign),
+        Err(BrowserSessionError::ContextNotOwned)
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_before_foreign_observation,
-        "foreign navigation observation must be rejected without adapter I/O"
+        "foreign navigation observation and re-establishment must be rejected without adapter I/O"
     );
 
     assert_eq!(
