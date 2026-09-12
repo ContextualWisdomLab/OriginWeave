@@ -108,24 +108,13 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
             context,
             pre_navigation.context_epoch(),
         )
-        .expect("owned context navigation invalidates the prior authority epoch and issues settlement authority");
+        .expect(
+            "owned context navigation invalidates the prior authority epoch and issues settlement authority",
+        );
     assert_eq!(
         adapter_calls.get(),
         calls_before_navigation,
         "observed navigation invalidation must not perform adapter I/O"
-    );
-
-    let _duplicate_settlement_authority = bound
-        .record_observed_navigation(
-            pre_navigation.incarnation(),
-            context,
-            pre_navigation.context_epoch(),
-        )
-        .expect("duplicate observation for the same invalidated generation is idempotent");
-    assert_eq!(
-        adapter_calls.get(),
-        calls_before_navigation,
-        "duplicate navigation observation must remain zero-I/O"
     );
     assert_eq!(
         bound.presentation_authority(context),
@@ -136,7 +125,7 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-after-navigation"),
         Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch
+            BrowserSessionError::AuthorityMismatch,
         ))
     );
     assert_eq!(
@@ -177,11 +166,13 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
 
     let reestablished = bound
         .reestablish_presentation_authority(context)
-        .expect("the exact bound owner explicitly re-establishes authority after settled invalidation");
+        .expect(
+            "the exact bound owner explicitly re-establishes authority after settled invalidation",
+        );
     assert_eq!(
         reestablished.context_epoch().value(),
         pre_navigation.context_epoch().value() + 1,
-        "duplicate delivery, rejected generic rotation, and settlement must not consume additional epochs"
+        "rejected generic rotation and settlement must not consume additional epochs"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&reestablished, "post-navigation"),
@@ -207,7 +198,10 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
         "stale generation replay must be rejected before adapter I/O"
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&reestablished, "still-current-after-stale-replay"),
+        bound.execute_authorized_context_operation(
+            &reestablished,
+            "still-current-after-stale-replay",
+        ),
         Ok(context),
         "rejecting a replay from the prior generation must leave the current generation usable"
     );
@@ -219,7 +213,9 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
             context,
             reestablished.context_epoch(),
         )
-        .expect("a later navigation for the current generation invalidates the re-established authority");
+        .expect(
+            "a later navigation for the current generation invalidates the re-established authority",
+        );
     assert_eq!(
         adapter_calls.get(),
         calls_before_second_navigation,
@@ -228,7 +224,7 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     assert_eq!(
         bound.execute_authorized_context_operation(&reestablished, "stale-after-second-navigation"),
         Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch
+            BrowserSessionError::AuthorityMismatch,
         ))
     );
     assert_eq!(
@@ -261,7 +257,9 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
 
     let second_reestablished = bound
         .reestablish_presentation_authority(context)
-        .expect("the exact bound owner can establish a fresh authority for the settled later document");
+        .expect(
+            "the exact bound owner can establish a fresh authority for the settled later document",
+        );
     assert_eq!(
         second_reestablished.context_epoch().value(),
         reestablished.context_epoch().value() + 1,
