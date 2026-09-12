@@ -141,6 +141,24 @@ fn navigation_invalidation_does_not_strand_owned_disposable_cleanup() {
         &[expected_handle(context, isolation)],
         "destruction must use the exact browser-issued handle retained at creation"
     );
+
+    let calls_after_destroy = adapter_calls.get();
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::ContextNotOwned),
+        "proven destruction must consume lifecycle ownership and cannot reopen presentation authority"
+    );
+    assert_eq!(
+        bound.destroy_owned_disposable_context(context),
+        Err(BrowserSessionError::ContextNotOwned),
+        "proven destruction must not permit a second remote cleanup attempt from the same raw selector"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "post-destroy re-establishment and duplicate cleanup must fail before adapter I/O"
+    );
+
     bound
         .end()
         .expect("proven destruction leaves no owned disposable context behind");
