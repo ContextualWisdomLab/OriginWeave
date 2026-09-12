@@ -76,6 +76,28 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             "a reconstructible epoch is correlation evidence, not a settlement capability",
         )
 
+    def test_navigation_settlement_authority_is_not_publicly_constructible(self) -> None:
+        """Only Browser Session may mint the witness that unlocks settlement."""
+
+        source = SOURCE.read_text(encoding="utf-8")
+        declaration = re.search(
+            r"pub struct NavigationSettlementAuthority\s*\{(?P<body>.*?)\}",
+            source,
+            flags=re.DOTALL,
+        )
+
+        self.assertIsNotNone(declaration)
+        self.assertNotRegex(
+            declaration.group("body"),
+            r"\bpub(?:\([^)]*\))?\s+\w+\s*:",
+            "settlement-authority state must remain private to the Browser Session crate",
+        )
+        self.assertNotIn(
+            "impl NavigationSettlementAuthority {\n    pub fn new(",
+            source,
+            "raw callers must not reconstruct settlement authority through a public constructor",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
