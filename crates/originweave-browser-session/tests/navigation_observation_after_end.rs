@@ -60,7 +60,7 @@ fn navigation_after_normal_end_is_rejected_before_context_ownership_lookup() {
         .expect("incarnation capacity")
         .bind_lifecycle_port(port);
 
-    bound
+    let authority = bound
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
@@ -73,12 +73,12 @@ fn navigation_after_normal_end_is_rejected_before_context_ownership_lookup() {
     let recovery_evidence_after_end = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
-        bound.record_observed_navigation(context),
+        bound.record_observed_navigation(context, authority.context_epoch()),
         Err(BrowserSessionError::SessionNotActive),
         "a late navigation from an ended session must not expose historical ownership"
     );
     assert_eq!(
-        bound.record_observed_navigation(foreign),
+        bound.record_observed_navigation(foreign, authority.context_epoch()),
         Err(BrowserSessionError::SessionNotActive),
         "aggregate inactivity must be rejected before a foreign raw selector can become an ownership oracle"
     );
