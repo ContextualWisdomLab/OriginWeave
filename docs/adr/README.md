@@ -54,18 +54,23 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 |---|---|---|---|
 | [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
 | [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
+| [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
+| [0111](0111-bounded-stealth-normalization-surfaces.md) | Bounded stealth-normalization surfaces | Proposed | canvas/WebGL/WebAudio/WebRTC bounded enumerated classes and surface admission |
+| [0112](0112-bounded-user-agent-client-hints.md) | Bounded User-Agent Client Hints | Proposed | UA-CH bounded enumerated tokens, brand grammar, and cross-field coherence |
 
-ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
+ADR 0013, ADR 0014, ADR 0110, ADR 0111, and ADR 0112 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all five decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
 ### Proposed decisions introduced by active feature work
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
+| [0113](0113-webdriver-bidi-screen-area-ownership.md) | WebDriver BiDi screen-area ownership witness | Proposed | Browser Session-owned screen-settings mutation, destructive reset boundary, and fail-closed adapter authority |
+| [0114](0114-browser-session-disposable-context-authority.md) | Browser Session disposable-context authority | Proposed | owned disposable context lifecycle, exact context epochs, presentation mutation authority, cleanup uncertainty and transport-loss invalidation |
 
-ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
+ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0113 belongs to the active WebDriver BiDi screen-area ownership successor. ADR 0114 belongs to the Browser Session lifecycle successor for issue #312. Indexing them makes the branch documentation graph complete while preserving Proposed lifecycle and active-PR, non-protected-main maturity.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016, ADR 0113, or ADR 0114 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 

@@ -268,6 +268,20 @@ name = "originweave-bap"
 version = "0.1.0"
 
 [[package]]
+name = "originweave-bidi"
+version = "0.1.0"
+dependencies = [
+ "originweave-fingerprint",
+]
+
+[[package]]
+name = "originweave-browser-session"
+version = "0.1.0"
+dependencies = [
+ "originweave-core",
+]
+
+[[package]]
 name = "originweave-core"
 version = "0.1.0"
 dependencies = [
@@ -286,6 +300,13 @@ name = "originweave-evidence"
 version = "0.1.0"
 dependencies = [
  "originweave-core",
+]
+
+[[package]]
+name = "originweave-fingerprint"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]

@@ -73,10 +73,17 @@ Delivered document-node authority foundation:
 - deterministic rejection of cross-session, cross-context, cross-origin, or stale-document node reuse before a future browser adapter performs an action;
 - reusable core contracts without Chromium, WebDriver, selector, script-execution, network, storage, or secret dependencies.
 
+Active-branch WebDriver BiDi foundation:
+
+- a version-pinned capability and command-planning boundary in `originweave-bidi` for the 3 September 2026 W3C Working Draft;
+- fail-closed distinction between the complete canonical presentation profile and the standard surfaces BiDi can express;
+- reusable viewport/DPR and timezone intents built only from validated presentation value objects;
+- no live protocol transport, acknowledgement, page-observed application, Browser Session ownership, or cleanup proof is claimed by the planning boundary.
+
 Remaining vertical-slice work:
 
 - launch and terminate ephemeral Chromium user contexts;
-- WebDriver BiDi adapter behind a versioned interface;
+- live WebDriver BiDi transport that consumes the version-pinned capability and command-planning boundary, including serialization, request/response correlation, page-observed post-conditions, and cleanup observation;
 - session-scoped translation from external protocol identifiers to collision-free internal browser-session, browsing-context, document-epoch, and node identities;
 - navigation and accessibility-tree observation;
 - typed `navigate`, `observe`, `query`, and `click` actions;
@@ -157,7 +164,7 @@ Each phase expands a stable benchmark suite:
 
 - rewriting Blink or V8 in Rust;
 - supporting NPAPI, Flash, or obsolete plugin models;
-- CAPTCHA bypass or fingerprint-evasion features;
+- CAPTCHA bypass or fingerprint impersonation/evasion intended to defeat bot-management or access controls;
 - arbitrary script execution as a default agent action;
 - sharing the user's unrestricted default profile with autonomous tasks;
 - describing a pure policy, proxy-route, direct TCP, or TLS identity kernel as a supported production browser.

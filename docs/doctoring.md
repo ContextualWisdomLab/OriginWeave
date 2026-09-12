@@ -6,7 +6,7 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ### Browser automation and interoperability
 
-The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+The 3 September 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. OriginWeave pins this publication to the immutable dated TR `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`; the mutable `w3c.github.io/webdriver-bidi/` Editor's Draft is tracked separately and cannot silently redefine the adapter contract. Because the standard remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
@@ -15,6 +15,68 @@ The final Model Context Protocol `2026-07-28` specification defines the currentl
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
 
 The exact Chromium regression evidence is pinned to revision `446d05d21720f0b3505ec21057b3e9f909784262`. A mutable `HEAD` reference is not sufficient for a reproducible security contract.
+
+### Browser fingerprinting and presentation identity
+
+RFC 6973 defines a fingerprint as information elements that identify a device
+or application instance and recommends data minimization and meaningful
+anonymity sets. Browser-fingerprinting research shows that browser, operating
+system, graphics, processor, and other host characteristics can support
+identification across browsers. The W3C Privacy Working Group's 2025 guidance
+therefore recommends limiting unnecessary entropy and generally prefers
+standardized or null values over randomization, because independently varied
+values can reduce usability and introduce new distinguishers.
+
+OriginWeave consequently separates privacy-preserving presentation
+normalization from block evasion. The Rust kernel accepts only explicit,
+bounded, internally consistent profiles, standardizes its first named
+time-zone surface to `UTC`, and declines to invent a randomized default before
+cited cohort evidence defines a meaningful anonymity set. A future Chromium
+adapter must apply all claimed surfaces before page script and prove that no
+ambient host value leaks. Camoufox is reviewed only as implementation precedent
+for native-layer consistency, not as policy authority for anti-detect, CAPTCHA,
+or access-control circumvention. Render and media surfaces (canvas readback,
+WebGL renderer tokens, Web Audio sample rate, WebRTC interface exposure) are
+themselves strong re-identification signals (Laperdrix et al., 2020), so
+OriginWeave models them as bounded enumerated classes with a fail-closed
+surface-admission contract (see ADR 0110, ADR 0111) rather than per-session
+randomization, which W3C guidance warns can create new distinguishers. The
+legacy `User-Agent` header packs "quite a bit of information ... [that] form[s]
+the basis for fingerprinting schemes of all sorts" (Web Platform Incubator
+Community Group, 2026), so OriginWeave bounds the User-Agent Client Hints
+object with enumerated architecture/bitness/platform tokens, an at-most-32
+ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
+that a non-mobile user agent reports an empty model (see ADR 0112).
+
+The pinned 3 September 2026 WebDriver BiDi Working Draft exposes locale, media,
+screen, user-agent, viewport, and time-zone emulation commands under the immutable
+publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. The screen
+shape contains width and height but not color depth, and locale accepts one value
+rather than an ordered language list, so neither proves the corresponding complete
+OriginWeave surface. The draft also does not define a hardware-concurrency
+override. Chromium's tip-of-tree DevTools Protocol exposes
+`Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
+tip-of-tree commands can change without notice. OriginWeave therefore records
+required presentation surfaces in a protocol-neutral Rust admission contract;
+the adapter records those four complete standard surfaces as protocol
+capabilities, while the reusable-context plan emits only two typed command
+intents—viewport/DPR and timezone—bound to one bounded opaque browsing context.
+
+Cleanup authority is asymmetric. Nullable viewport and timezone operations can
+restore those adapter-owned overrides on a reusable context, so generic cleanup
+plans reset viewport/DPR and timezone. By contrast,
+`emulation.setMediaFeaturesOverride` with `features: null` unsets the target's
+complete media-feature override configuration rather than selectively reversing
+only `prefers-reduced-motion`. The reusable-context plan therefore neither
+installs reduced motion nor emits a media reset. No caller-mintable exclusive
+reset is exposed as ownership evidence; a Browser Session owner must prove a
+disposable context lifecycle or restore the complete prior media configuration. Constructing application or cleanup
+intents performs no transport I/O and cannot be treated as acknowledgement,
+successful cleanup, ownership evidence, or page-observed presentation evidence.
+A later pinned Chromium adapter must capability-negotiate every surface, observe
+post-conditions after apply and cleanup, and either prove exclusive disposable
+context ownership or restore the complete pre-existing media configuration
+before reusing the browser boundary.
 
 ### Extension-to-Agent grant origin binding
 
@@ -122,9 +184,15 @@ Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifi
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
+Cao, Y., Li, S., & Wijmans, E. (2017). (Cross-)browser fingerprinting via OS and hardware level features. *Proceedings of the Network and Distributed System Security Symposium*. https://doi.org/10.14722/ndss.2017.23152
+
+Chrome DevTools Protocol. (2026). *Emulation domain*. https://chromedevtools.github.io/devtools-protocol/tot/Emulation/
+
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
+
+Cooper, A., Tschofenig, H., Aboba, B., Peterson, J., Morris, J., Hansen, M., & Smith, R. (2013). *Privacy considerations for Internet protocols* (RFC 6973). Internet Architecture Board. https://doi.org/10.17487/RFC6973
 
 Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
@@ -151,6 +219,8 @@ Internet Assigned Numbers Authority. (2025, October 10). *IPv6 global unicast ad
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
+
+Laperdrix, P., Bielova, N., Baudry, B., & Avoine, G. (2020). Browser fingerprinting: A survey. *ACM Transactions on the Web, 14*(2), Article 8. https://doi.org/10.1145/3386040
 
 Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
 
@@ -190,9 +260,15 @@ Unicode-RS Project Developers. (2025). *unicode-normalization 0.1.25* [Computer 
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
+Web Platform Incubator Community Group. (2026, February 10). *User-Agent Client Hints* (Draft Community Group Report). https://wicg.github.io/ua-client-hints/
+
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
-World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+
+World Wide Web Consortium. (2026). *WebDriver BiDi* (Editor's Draft). https://w3c.github.io/webdriver-bidi/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 

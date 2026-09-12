@@ -1,0 +1,17 @@
+[package]
+name = "originweave-fingerprint"
+description = "OriginWeave presentation-identity contracts: explicit, internally consistent browser profiles with quantized fingerprint surfaces."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+sha2 = "=0.10.9"
+
+[lints]
+workspace = true
