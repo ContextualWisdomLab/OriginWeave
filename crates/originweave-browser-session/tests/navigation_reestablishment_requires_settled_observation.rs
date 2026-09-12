@@ -7,7 +7,7 @@ use originweave_browser_session::{
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -85,7 +85,9 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
             context,
             pre_navigation.context_epoch(),
         )
-        .expect("navigation start invalidates presentation authority and issues settlement authority");
+        .expect(
+            "navigation start invalidates presentation authority and issues settlement authority",
+        );
     assert_eq!(adapter_calls.get(), calls_before_navigation);
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-while-navigation-pending"),
@@ -108,7 +110,9 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
 
     bound
         .record_observed_navigation_settled(&settlement_authority)
-        .expect("adapter-qualified commit or fragment completion presents the exact aggregate-issued settlement authority");
+        .expect(
+            "adapter-qualified commit or fragment completion presents the exact aggregate-issued settlement authority",
+        );
     assert_eq!(
         adapter_calls.get(),
         calls_before_navigation,
@@ -140,7 +144,10 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
         "stale settlement replay must fail before adapter I/O"
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&reestablished, "still-current-after-stale-settlement"),
+        bound.execute_authorized_context_operation(
+            &reestablished,
+            "still-current-after-stale-settlement",
+        ),
         Ok(context),
         "rejecting stale settlement must leave current authority usable"
     );
@@ -154,10 +161,29 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
         )
         .expect("later navigation start invalidates the current presentation generation");
     assert_eq!(adapter_calls.get(), calls_before_later_navigation);
+
+    assert_eq!(
+        bound.record_observed_navigation_settled(&settlement_authority),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the prior generation's consumed settlement witness must stay dead while a later navigation is pending"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &settlement_authority,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the prior generation's witness must not terminate a later pending navigation through the negative path"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_later_navigation,
+        "stale positive and negative terminal evidence must fail before adapter I/O"
+    );
     assert_eq!(
         bound.reestablish_presentation_authority(context),
         Err(BrowserSessionError::AuthorityMismatch),
-        "every later navigation must also remain closed until matching browser settlement"
+        "every later navigation must remain closed until its own matching browser settlement"
     );
     assert_eq!(adapter_calls.get(), calls_before_later_navigation);
 
