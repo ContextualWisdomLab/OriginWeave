@@ -243,7 +243,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         impl_blocks = _inherent_impl_blocks(source, "NavigationSettlementAuthority")
         public_functions = re.compile(
             r"\bpub(?:\([^)]*\))?\s+"
-            r"(?:(?:const|async|unsafe|extern)\s+)*"
+            r"(?:(?:const|async|unsafe|extern(?:\s+\"[^\"]+\")?)\s+)*"
             r"fn\s+(?P<name>\w+)\s*(?:<[^>{}]*>)?\s*"
             r"\((?P<params>.*?)\)",
             flags=re.DOTALL,
