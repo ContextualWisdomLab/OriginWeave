@@ -45,6 +45,7 @@ impl DisposableContextPort for RecoveryProbePort {
 #[test]
 fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_idempotency() {
     let context = BrowsingContextId::new(971).expect("valid browsing context");
+    let foreign = BrowsingContextId::new(972).expect("valid foreign browsing context");
     let handle = DisposableContextHandle::new(
         DisposableIsolationId::parse("recovery-navigation-user-context-971")
             .expect("valid isolation id"),
@@ -80,6 +81,21 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
     let recovery_evidence_after_failure = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
+        bound.record_observed_navigation(foreign),
+        Err(BrowserSessionError::SessionNotActive),
+        "aggregate recovery trust must be rejected before a raw context selector can reveal ownership"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "foreign navigation probing must not rewrite RecoveryRequired"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_failure.as_slice(),
+        "foreign navigation probing must leave the original unproven-destruction evidence unchanged"
+    );
+    assert_eq!(
         bound.record_observed_navigation(context),
         Err(BrowserSessionError::SessionNotActive),
         "aggregate recovery state must take precedence over duplicate-while-invalidated idempotency"
@@ -108,7 +124,7 @@ fn navigation_replay_after_recovery_required_cannot_become_invalidated_state_ide
     assert_eq!(
         adapter_calls.get(),
         calls_after_failure,
-        "navigation received after RecoveryRequired must fail before adapter I/O"
+        "foreign probing and navigation received after RecoveryRequired must fail before adapter I/O"
     );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
