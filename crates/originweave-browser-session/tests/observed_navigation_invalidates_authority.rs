@@ -103,7 +103,11 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
 
     let calls_before_navigation = adapter_calls.get();
     bound
-        .record_observed_navigation(context, pre_navigation.context_epoch())
+        .record_observed_navigation(
+            pre_navigation.incarnation(),
+            context,
+            pre_navigation.context_epoch(),
+        )
         .expect("owned context navigation invalidates the prior authority epoch");
     assert_eq!(
         adapter_calls.get(),
@@ -112,7 +116,11 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
     );
 
     bound
-        .record_observed_navigation(context, pre_navigation.context_epoch())
+        .record_observed_navigation(
+            pre_navigation.incarnation(),
+            context,
+            pre_navigation.context_epoch(),
+        )
         .expect("duplicate observation for the same invalidated generation is idempotent");
     assert_eq!(
         adapter_calls.get(),
@@ -164,7 +172,11 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
 
     let calls_before_stale_replay = adapter_calls.get();
     assert_eq!(
-        bound.record_observed_navigation(context, pre_navigation.context_epoch()),
+        bound.record_observed_navigation(
+            pre_navigation.incarnation(),
+            context,
+            pre_navigation.context_epoch(),
+        ),
         Err(BrowserSessionError::AuthorityMismatch),
         "a delayed replay for the prior document generation must not invalidate re-established current authority"
     );
@@ -181,7 +193,11 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
 
     let calls_before_second_navigation = adapter_calls.get();
     bound
-        .record_observed_navigation(context, reestablished.context_epoch())
+        .record_observed_navigation(
+            reestablished.incarnation(),
+            context,
+            reestablished.context_epoch(),
+        )
         .expect("a later navigation for the current generation invalidates the re-established authority");
     assert_eq!(
         adapter_calls.get(),
@@ -239,7 +255,11 @@ fn foreign_navigation_observation_is_rejected_without_invalidating_owned_authori
     let calls_before_foreign_observation = adapter_calls.get();
 
     assert_eq!(
-        bound.record_observed_navigation(foreign, authority.context_epoch()),
+        bound.record_observed_navigation(
+            authority.incarnation(),
+            foreign,
+            authority.context_epoch(),
+        ),
         Err(BrowserSessionError::ContextNotOwned)
     );
     assert_eq!(
