@@ -131,7 +131,7 @@ fn navigation_invalidation_does_not_strand_owned_disposable_cleanup() {
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-presentation"),
         Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch
+            BrowserSessionError::AuthorityMismatch,
         ))
     );
     assert_eq!(
@@ -142,7 +142,9 @@ fn navigation_invalidation_does_not_strand_owned_disposable_cleanup() {
 
     bound
         .destroy_owned_disposable_context(context)
-        .expect("the exact bound lifecycle owner must destroy its isolation without presentation re-establishment");
+        .expect(
+            "the exact bound lifecycle owner must destroy its isolation without presentation re-establishment",
+        );
     assert_eq!(
         adapter_calls.get(),
         calls_after_navigation + 1,
@@ -224,7 +226,7 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
     assert_eq!(
         bound.execute_authorized_context_operation(&reestablished, "stale-second-document"),
         Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch
+            BrowserSessionError::AuthorityMismatch,
         ))
     );
     assert_eq!(adapter_calls.get(), calls_before_destroy);
@@ -280,7 +282,9 @@ fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_a
 
     bound
         .destroy_owned_disposable_context(owned)
-        .expect("the same bound owner can destroy its exact retained handle while presentation remains invalidated");
+        .expect(
+            "the same bound owner can destroy its exact retained handle while presentation remains invalidated",
+        );
     assert_eq!(adapter_calls.get(), calls_before_foreign_destroy + 1);
     assert_eq!(
         destroyed_handles.borrow().as_slice(),
@@ -312,7 +316,9 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
             context,
             pre_navigation.context_epoch(),
         )
-        .expect("navigation invalidates presentation authority without changing lifecycle ownership");
+        .expect(
+            "navigation invalidates presentation authority without changing lifecycle ownership",
+        );
 
     let calls_before_destroy = adapter_calls.get();
     assert_eq!(
@@ -346,9 +352,19 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-after-failed-cleanup"),
         Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch
+            BrowserSessionError::SessionNotActive,
         )),
-        "recovery after unproven destruction must not revive a retained pre-navigation authority"
+        "inactive aggregate trust must take precedence over stale presentation-generation inspection"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::RecoveryRequired,
+        "stale authority rejection must not rewrite the recovery-required aggregate state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_evidence_after_failure.as_slice(),
+        "stale authority rejection must leave the original unproven-destruction evidence unchanged"
     );
     assert_eq!(
         bound.reestablish_presentation_authority(context),
