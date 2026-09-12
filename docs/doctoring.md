@@ -6,7 +6,9 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ### Browser automation and interoperability
 
-The 3 September 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. OriginWeave pins this publication to the immutable dated TR `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`; the mutable `w3c.github.io/webdriver-bidi/` Editor's Draft is tracked separately and cannot silently redefine the adapter contract. Because the standard remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+The 9 September 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, user contexts, and navigation lifecycle events. OriginWeave pins this publication to the immutable dated TR `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/`; the mutable `w3c.github.io/webdriver-bidi/` Editor's Draft is tracked separately and cannot silently redefine the adapter contract. Because the standard remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+
+The dated Working Draft defines `browsingContext.Navigation` as a UUID-derived string used to identify one navigation and carries it through `NavigationInfo` alongside the browsing context, timestamp, URL, and user context. It exposes distinct lifecycle events including `navigationStarted`, `navigationCommitted`, `fragmentNavigated`, `navigationAborted`, and `navigationFailed`. OriginWeave uses the protocol navigation identifier only inside the WebDriver BiDi adapter to distinguish a genuinely newer navigation from delivery replay and to correlate terminal evidence. The identifier is not Browser Session policy authority. After adapter qualification, Browser Session issues an opaque pending witness. OriginWeave chooses matching commit or same-document fragment evidence as positive settlement and abort/failure as typed negative termination; neither outcome implicitly remints presentation authority. Explicit Browser Session re-establishment is required. When a later adapter-qualified start arrives before an earlier navigation terminates, the later pending witness supersedes the earlier witness so delayed terminal evidence for navigation A cannot reopen mutation authority while navigation B is still in flight.
 
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
@@ -48,9 +50,9 @@ object with enumerated architecture/bitness/platform tokens, an at-most-32
 ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
 that a non-mobile user agent reports an empty model (see ADR 0112).
 
-The pinned 3 September 2026 WebDriver BiDi Working Draft exposes locale, media,
+The pinned 9 September 2026 WebDriver BiDi Working Draft exposes locale, media,
 screen, user-agent, viewport, and time-zone emulation commands under the immutable
-publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. The screen
+publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/`. The screen
 shape contains width and height but not color depth, and locale accepts one value
 rather than an ordered language list, so neither proves the corresponding complete
 OriginWeave surface. The draft also does not define a hardware-concurrency
@@ -194,7 +196,7 @@ Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium
 
 Cooper, A., Tschofenig, H., Aboba, B., Peterson, J., Morris, J., Hansen, M., & Smith, R. (2013). *Privacy considerations for Internet protocols* (RFC 6973). Internet Architecture Board. https://doi.org/10.17487/RFC6973
 
-Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
+Cooper, D., Santesson, S., Farrell, S., Boeyen, R., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
@@ -266,7 +268,7 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 
 World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
 
-World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 World Wide Web Consortium. (2026). *WebDriver BiDi* (Editor's Draft). https://w3c.github.io/webdriver-bidi/
 
