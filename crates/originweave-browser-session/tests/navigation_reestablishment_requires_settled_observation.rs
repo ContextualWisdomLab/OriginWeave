@@ -79,13 +79,13 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
         .expect("accepted disposable context");
     let calls_before_navigation = adapter_calls.get();
 
-    bound
+    let settlement_authority = bound
         .record_observed_navigation(
             pre_navigation.incarnation(),
             context,
             pre_navigation.context_epoch(),
         )
-        .expect("navigation start invalidates presentation authority");
+        .expect("navigation start invalidates presentation authority and issues settlement authority");
     assert_eq!(adapter_calls.get(), calls_before_navigation);
     assert_eq!(
         bound.execute_authorized_context_operation(&pre_navigation, "stale-while-navigation-pending"),
@@ -107,12 +107,8 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
     );
 
     bound
-        .record_observed_navigation_settled(
-            pre_navigation.incarnation(),
-            context,
-            pre_navigation.context_epoch(),
-        )
-        .expect("adapter-qualified commit or fragment completion settles the invalidated generation");
+        .record_observed_navigation_settled(&settlement_authority)
+        .expect("adapter-qualified commit or fragment completion presents the exact aggregate-issued settlement authority");
     assert_eq!(
         adapter_calls.get(),
         calls_before_navigation,
@@ -134,13 +130,9 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
 
     let calls_before_stale_settlement_replay = adapter_calls.get();
     assert_eq!(
-        bound.record_observed_navigation_settled(
-            pre_navigation.incarnation(),
-            context,
-            pre_navigation.context_epoch(),
-        ),
+        bound.record_observed_navigation_settled(&settlement_authority),
         Err(BrowserSessionError::AuthorityMismatch),
-        "a delayed settlement from the prior generation must not alter the newly established generation"
+        "a delayed settlement witness from the prior generation must not alter the newly established generation"
     );
     assert_eq!(
         adapter_calls.get(),
@@ -154,7 +146,7 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
     );
 
     let calls_before_later_navigation = adapter_calls.get();
-    bound
+    let later_settlement_authority = bound
         .record_observed_navigation(
             reestablished.incarnation(),
             context,
@@ -170,12 +162,8 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
     assert_eq!(adapter_calls.get(), calls_before_later_navigation);
 
     bound
-        .record_observed_navigation_settled(
-            reestablished.incarnation(),
-            context,
-            reestablished.context_epoch(),
-        )
-        .expect("later matching navigation settlement unlocks explicit re-establishment");
+        .record_observed_navigation_settled(&later_settlement_authority)
+        .expect("later matching navigation settlement presents its aggregate-issued witness");
     let second_reestablished = bound
         .reestablish_presentation_authority(context)
         .expect("the later settled document can receive a fresh authority");
