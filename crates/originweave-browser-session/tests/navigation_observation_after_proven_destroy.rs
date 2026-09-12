@@ -60,11 +60,11 @@ fn late_navigation_after_proven_destroy_cannot_resurrect_consumed_context_owners
         .expect("incarnation capacity")
         .bind_lifecycle_port(port);
 
-    bound
+    let authority = bound
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
-        .record_observed_navigation(context)
+        .record_observed_navigation(context, authority.context_epoch())
         .expect("navigation invalidates presentation authority before lifecycle cleanup");
     bound
         .destroy_owned_disposable_context(context)
@@ -79,7 +79,7 @@ fn late_navigation_after_proven_destroy_cannot_resurrect_consumed_context_owners
     let recovery_evidence_after_destroy = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
-        bound.record_observed_navigation(context),
+        bound.record_observed_navigation(context, authority.context_epoch()),
         Err(BrowserSessionError::ContextNotOwned),
         "a buffered navigation for a proven-destroyed context must not revive historical ownership"
     );
@@ -100,7 +100,7 @@ fn late_navigation_after_proven_destroy_cannot_resurrect_consumed_context_owners
     );
 
     assert_eq!(
-        bound.record_observed_navigation(foreign),
+        bound.record_observed_navigation(foreign, authority.context_epoch()),
         Err(BrowserSessionError::ContextNotOwned),
         "an unrelated raw selector remains unowned while the aggregate is active"
     );
