@@ -95,12 +95,17 @@ fn newer_navigation_start_supersedes_prior_pending_witness_until_its_own_termina
             NavigationTerminationOutcome::Aborted,
         ),
         Err(BrowserSessionError::AuthorityMismatch),
-        "a late terminal event for a superseded navigation must not close the newer pending generation"
+        "a late negative terminal event for a superseded navigation must not close the newer pending generation"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_settled(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a late positive terminal event for a superseded navigation must not settle the newer pending generation"
     );
     assert_eq!(
         bound.reestablish_presentation_authority(context),
         Err(BrowserSessionError::AuthorityMismatch),
-        "settling the superseded navigation must not reopen authority while the newer navigation is pending"
+        "superseded terminal evidence must not reopen authority while the newer navigation is pending"
     );
     assert_eq!(
         adapter_calls.get(),
