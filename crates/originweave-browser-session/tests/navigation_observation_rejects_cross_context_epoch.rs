@@ -187,3 +187,79 @@ fn sibling_context_provenance_or_settlement_authority_cannot_mutate_another_owne
         "the next sibling re-establishment must receive the next aggregate-issued epoch"
     );
 }
+
+#[test]
+fn positive_settlement_on_one_context_cannot_unlock_a_sibling_pending_navigation() {
+    let first_context = BrowsingContextId::new(963).expect("valid first context");
+    let second_context = BrowsingContextId::new(964).expect("valid second context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = CrossContextEpochProbePort {
+        handles: VecDeque::from([
+            handle(first_context, "cross-context-positive-user-context-963"),
+            handle(second_context, "cross-context-positive-user-context-964"),
+        ]),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(963).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let first_authority = bound
+        .create_disposable_context()
+        .expect("first disposable context accepted");
+    let second_authority = bound
+        .create_disposable_context()
+        .expect("second disposable context accepted");
+
+    let first_pending = bound
+        .record_observed_navigation(
+            first_authority.incarnation(),
+            first_context,
+            first_authority.context_epoch(),
+        )
+        .expect("first context enters navigation-pending state");
+    let second_pending = bound
+        .record_observed_navigation(
+            second_authority.incarnation(),
+            second_context,
+            second_authority.context_epoch(),
+        )
+        .expect("second context independently enters navigation-pending state");
+    let calls_before_terminal = adapter_calls.get();
+
+    assert_eq!(
+        bound.record_observed_navigation_settled(&first_pending),
+        Ok(()),
+        "positive settlement applies only to the witness's own context"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_terminal);
+
+    let first_reestablished = bound
+        .reestablish_presentation_authority(first_context)
+        .expect("the settled first context may receive fresh authority explicitly");
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "settling one context must not clear a sibling navigation that remains pending"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_terminal,
+        "cross-context settlement and re-establishment checks remain zero-I/O"
+    );
+
+    assert_eq!(
+        bound.record_observed_navigation_settled(&second_pending),
+        Ok(()),
+        "the sibling remains pending until its own witness reaches a terminal outcome"
+    );
+    let second_reestablished = bound
+        .reestablish_presentation_authority(second_context)
+        .expect("the independently settled sibling may receive fresh authority explicitly");
+    assert_eq!(
+        second_reestablished.context_epoch().value(),
+        first_reestablished.context_epoch().value() + 1,
+        "sibling re-establishment continues the aggregate-wide monotonic epoch sequence"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_terminal);
+}
