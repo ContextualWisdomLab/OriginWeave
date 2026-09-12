@@ -198,7 +198,7 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
 }
 
 #[test]
-fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership() {
+fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_after_navigation_invalidation() {
     let owned = BrowsingContextId::new(941).expect("valid owned context");
     let foreign = BrowsingContextId::new(942).expect("valid foreign context");
     let isolation = "navigation-cleanup-user-context-941";
@@ -215,18 +215,28 @@ fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership()
     bound
         .create_disposable_context()
         .expect("accepted disposable context");
+    let calls_before_navigation = adapter_calls.get();
+    bound
+        .record_observed_navigation(owned)
+        .expect("owned navigation invalidates presentation authority before cleanup selection");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "navigation invalidation must not perform adapter I/O"
+    );
+
     let calls_before_foreign_destroy = adapter_calls.get();
     assert_eq!(
         bound.destroy_owned_disposable_context(foreign),
         Err(BrowserSessionError::ContextNotOwned),
-        "a raw browser identifier is only a selector inside the exact bound owner and cannot manufacture cleanup authority"
+        "navigation invalidation must not let a raw foreign browser identifier manufacture cleanup authority"
     );
     assert_eq!(adapter_calls.get(), calls_before_foreign_destroy);
     assert!(destroyed_handles.borrow().is_empty());
 
     bound
         .destroy_owned_disposable_context(owned)
-        .expect("the same bound owner can destroy its exact retained handle");
+        .expect("the same bound owner can destroy its exact retained handle while presentation remains invalidated");
     assert_eq!(adapter_calls.get(), calls_before_foreign_destroy + 1);
     assert_eq!(
         destroyed_handles.borrow().as_slice(),
