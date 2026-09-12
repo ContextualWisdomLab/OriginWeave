@@ -66,7 +66,7 @@ fn handle(context: BrowsingContextId, isolation: &str) -> DisposableContextHandl
 }
 
 #[test]
-fn sibling_context_epoch_cannot_invalidate_another_owned_context() {
+fn sibling_context_epoch_cannot_invalidate_or_settle_another_owned_context() {
     let first_context = BrowsingContextId::new(961).expect("valid first context");
     let second_context = BrowsingContextId::new(962).expect("valid second context");
     let adapter_calls = Rc::new(Cell::new(0));
@@ -149,5 +149,43 @@ fn sibling_context_epoch_cannot_invalidate_another_owned_context() {
         bound.execute_authorized_context_operation(&second_authority, "second-remains-current"),
         Ok(second_context),
         "first-context navigation must not revoke the sibling context"
+    );
+
+    let calls_before_sibling_settlement = adapter_calls.get();
+    assert_eq!(
+        bound.record_observed_navigation_settled(
+            first_authority.incarnation(),
+            first_context,
+            second_authority.context_epoch(),
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a sibling context epoch cannot settle another context's pending navigation"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_sibling_settlement);
+    assert_eq!(
+        bound.reestablish_presentation_authority(first_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "rejecting sibling settlement provenance must leave the first navigation pending"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_sibling_settlement);
+
+    bound
+        .record_observed_navigation_settled(
+            first_authority.incarnation(),
+            first_context,
+            first_authority.context_epoch(),
+        )
+        .expect("only the exact first-context generation may settle its pending navigation");
+    let first_reestablished = bound
+        .reestablish_presentation_authority(first_context)
+        .expect("the exact settled first context may receive fresh authority");
+    assert_eq!(
+        first_reestablished.context_epoch().value(),
+        first_authority.context_epoch().value() + 1
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&second_authority, "second-still-current-after-first-settlement"),
+        Ok(second_context),
+        "settling and re-establishing the first context must not rotate the sibling context"
     );
 }
