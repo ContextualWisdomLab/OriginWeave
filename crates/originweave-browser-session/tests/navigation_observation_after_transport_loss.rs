@@ -89,12 +89,20 @@ fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revi
     let recovery_evidence_after_transport_loss = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
-        bound.record_observed_navigation(context, pre_loss_authority.context_epoch()),
+        bound.record_observed_navigation(
+            pre_loss_authority.incarnation(),
+            context,
+            pre_loss_authority.context_epoch(),
+        ),
         Err(BrowserSessionError::SessionNotActive),
         "a buffered navigation event from a dead transport must not be accepted as current browser state"
     );
     assert_eq!(
-        bound.record_observed_navigation(foreign, pre_loss_authority.context_epoch()),
+        bound.record_observed_navigation(
+            pre_loss_authority.incarnation(),
+            foreign,
+            pre_loss_authority.context_epoch(),
+        ),
         Err(BrowserSessionError::SessionNotActive),
         "aggregate transport trust must be rejected before a raw context selector can reveal ownership"
     );
@@ -109,7 +117,11 @@ fn buffered_navigation_after_transport_loss_cannot_mutate_recovery_state_or_revi
         "foreign navigation probing must not rewrite exact transport-loss recovery evidence"
     );
     assert_eq!(
-        bound.record_observed_navigation(context, pre_loss_authority.context_epoch()),
+        bound.record_observed_navigation(
+            pre_loss_authority.incarnation(),
+            context,
+            pre_loss_authority.context_epoch(),
+        ),
         Err(BrowserSessionError::SessionNotActive),
         "replayed buffered navigation after transport loss must remain fail-closed"
     );
