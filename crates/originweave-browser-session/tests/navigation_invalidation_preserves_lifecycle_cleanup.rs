@@ -121,7 +121,11 @@ fn navigation_invalidation_does_not_strand_owned_disposable_cleanup() {
     );
 
     bound
-        .record_observed_navigation(context, pre_navigation.context_epoch())
+        .record_observed_navigation(
+            pre_navigation.incarnation(),
+            context,
+            pre_navigation.context_epoch(),
+        )
         .expect("observed navigation invalidates presentation authority");
     let calls_after_navigation = adapter_calls.get();
     assert_eq!(
@@ -191,7 +195,7 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
-        .record_observed_navigation(context, initial.context_epoch())
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
         .expect("first navigation invalidates initial presentation authority");
     let reestablished = bound
         .reestablish_presentation_authority(context)
@@ -201,7 +205,11 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
         initial.context_epoch().value() + 1
     );
     bound
-        .record_observed_navigation(context, reestablished.context_epoch())
+        .record_observed_navigation(
+            reestablished.incarnation(),
+            context,
+            reestablished.context_epoch(),
+        )
         .expect("later navigation invalidates the re-established presentation authority");
 
     let calls_before_destroy = adapter_calls.get();
@@ -245,7 +253,7 @@ fn raw_foreign_context_cannot_select_cleanup_outside_bound_lifecycle_ownership_a
         .expect("accepted disposable context");
     let calls_before_navigation = adapter_calls.get();
     bound
-        .record_observed_navigation(owned, authority.context_epoch())
+        .record_observed_navigation(authority.incarnation(), owned, authority.context_epoch())
         .expect("owned navigation invalidates presentation authority before cleanup selection");
     assert_eq!(
         adapter_calls.get(),
@@ -291,7 +299,11 @@ fn failed_cleanup_after_navigation_enters_recovery_without_reopening_presentatio
         .create_disposable_context()
         .expect("accepted disposable context");
     bound
-        .record_observed_navigation(context, pre_navigation.context_epoch())
+        .record_observed_navigation(
+            pre_navigation.incarnation(),
+            context,
+            pre_navigation.context_epoch(),
+        )
         .expect("navigation invalidates presentation authority without changing lifecycle ownership");
 
     let calls_before_destroy = adapter_calls.get();
