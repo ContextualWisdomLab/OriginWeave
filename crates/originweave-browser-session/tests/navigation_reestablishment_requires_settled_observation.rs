@@ -198,3 +198,81 @@ fn navigation_start_cannot_reissue_presentation_authority_before_settled_browser
         reestablished.context_epoch().value() + 1
     );
 }
+
+#[test]
+fn navigation_after_settlement_before_reestablishment_keeps_authority_closed_until_latest_terminal() {
+    let context = BrowsingContextId::new(982).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = NavigationSettlementProbePort {
+        handle: Some(DisposableContextHandle::new(
+            DisposableIsolationId::parse("navigation-settlement-user-context-982")
+                .expect("valid isolation id"),
+            context,
+        )),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(982).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_before_navigation = adapter_calls.get();
+
+    let first_pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("first navigation start invalidates initial presentation authority");
+    bound
+        .record_observed_navigation_settled(&first_pending)
+        .expect("first navigation reaches its terminal browser observation");
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+
+    let second_pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect(
+            "a browser may navigate again after settlement before the owner re-establishes presentation authority",
+        );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "observing a second navigation before re-establishment must remain zero-I/O"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the first terminal event must not authorize a document that has already begun a later navigation"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+
+    assert_eq!(
+        bound.record_observed_navigation_settled(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the consumed first witness must remain dead after the second navigation starts"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Failed,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a late negative terminal for the first navigation must not terminate the second navigation"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+
+    bound
+        .record_observed_navigation_settled(&second_pending)
+        .expect("only the latest navigation witness can close the current pending transition");
+    let reestablished = bound
+        .reestablish_presentation_authority(context)
+        .expect("the owner may re-establish only after the latest navigation settles");
+    assert_eq!(
+        reestablished.context_epoch().value(),
+        initial.context_epoch().value() + 1,
+        "multiple browser navigations while authority is invalidated must not spend presentation epochs"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&reestablished, "latest-settled-document"),
+        Ok(context)
+    );
+}
