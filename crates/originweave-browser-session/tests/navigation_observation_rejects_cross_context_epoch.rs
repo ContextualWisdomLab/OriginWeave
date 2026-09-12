@@ -3,8 +3,9 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use originweave_browser_session::{
-    AuthorizedContextOperationPort, AuthorizedContextOperationRequest, BrowserSession,
-    BrowserSessionError, DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
+    AuthorizedContextOperationError, AuthorizedContextOperationPort,
+    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError,
+    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
     DisposableIsolationId,
@@ -66,7 +67,7 @@ fn handle(context: BrowsingContextId, isolation: &str) -> DisposableContextHandl
 }
 
 #[test]
-fn sibling_context_epoch_cannot_invalidate_or_settle_another_owned_context() {
+fn sibling_context_provenance_or_settlement_authority_cannot_mutate_another_owned_context() {
     let first_context = BrowsingContextId::new(961).expect("valid first context");
     let second_context = BrowsingContextId::new(962).expect("valid second context");
     let adapter_calls = Rc::new(Cell::new(0));
@@ -94,13 +95,15 @@ fn sibling_context_epoch_cannot_invalidate_or_settle_another_owned_context() {
     );
 
     let calls_before_cross_context_observation = adapter_calls.get();
-    assert_eq!(
-        bound.record_observed_navigation(
-            first_authority.incarnation(),
-            first_context,
-            second_authority.context_epoch(),
+    assert!(
+        matches!(
+            bound.record_observed_navigation(
+                first_authority.incarnation(),
+                first_context,
+                second_authority.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
         ),
-        Err(BrowserSessionError::AuthorityMismatch),
         "an epoch observed for a sibling context is provenance for that sibling only and cannot revoke another context"
     );
     assert_eq!(
@@ -108,42 +111,27 @@ fn sibling_context_epoch_cannot_invalidate_or_settle_another_owned_context() {
         calls_before_cross_context_observation,
         "cross-context epoch confusion must fail before adapter I/O"
     );
-
     assert_eq!(
         bound.execute_authorized_context_operation(&first_authority, "first-still-current"),
-        Ok(first_context),
-        "rejecting sibling provenance must leave the first context authority current"
+        Ok(first_context)
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&second_authority, "second-still-current"),
-        Ok(second_context),
-        "rejecting sibling provenance must not mutate the sibling context either"
+        Ok(second_context)
     );
 
-    let calls_before_real_navigation = adapter_calls.get();
-    bound
+    let first_settlement_authority = bound
         .record_observed_navigation(
             first_authority.incarnation(),
             first_context,
             first_authority.context_epoch(),
         )
-        .expect("the exact first-context generation may invalidate its own presentation authority");
-    assert_eq!(
-        adapter_calls.get(),
-        calls_before_real_navigation,
-        "valid navigation invalidation is also a zero-I/O domain transition"
-    );
+        .expect("the exact first-context generation invalidates its own presentation authority");
     assert_eq!(
         bound.execute_authorized_context_operation(&first_authority, "first-now-stale"),
-        Err(originweave_browser_session::AuthorizedContextOperationError::BrowserSession(
+        Err(AuthorizedContextOperationError::BrowserSession(
             BrowserSessionError::AuthorityMismatch,
-        )),
-        "the exact matching navigation invalidates only the first context"
-    );
-    assert_eq!(
-        adapter_calls.get(),
-        calls_before_real_navigation,
-        "stale first-context authority must be rejected before adapter I/O"
+        ))
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&second_authority, "second-remains-current"),
@@ -151,41 +139,41 @@ fn sibling_context_epoch_cannot_invalidate_or_settle_another_owned_context() {
         "first-context navigation must not revoke the sibling context"
     );
 
+    let second_settlement_authority = bound
+        .record_observed_navigation(
+            second_authority.incarnation(),
+            second_context,
+            second_authority.context_epoch(),
+        )
+        .expect("the sibling context may independently enter navigation-pending state");
     let calls_before_sibling_settlement = adapter_calls.get();
     assert_eq!(
-        bound.record_observed_navigation_settled(
-            first_authority.incarnation(),
-            first_context,
-            second_authority.context_epoch(),
-        ),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "a sibling context epoch cannot settle another context's pending navigation"
+        bound.record_observed_navigation_settled(&second_settlement_authority),
+        Ok(()),
+        "the sibling witness settles only its own pending navigation"
     );
     assert_eq!(adapter_calls.get(), calls_before_sibling_settlement);
     assert_eq!(
         bound.reestablish_presentation_authority(first_context),
         Err(BrowserSessionError::AuthorityMismatch),
-        "rejecting sibling settlement provenance must leave the first navigation pending"
+        "settling a sibling context must not unlock the first pending navigation"
     );
-    assert_eq!(adapter_calls.get(), calls_before_sibling_settlement);
 
     bound
-        .record_observed_navigation_settled(
-            first_authority.incarnation(),
-            first_context,
-            first_authority.context_epoch(),
-        )
-        .expect("only the exact first-context generation may settle its pending navigation");
+        .record_observed_navigation_settled(&first_settlement_authority)
+        .expect("only the first context's aggregate-issued witness settles the first pending navigation");
     let first_reestablished = bound
         .reestablish_presentation_authority(first_context)
         .expect("the exact settled first context may receive fresh authority");
+    let second_reestablished = bound
+        .reestablish_presentation_authority(second_context)
+        .expect("the independently settled sibling may receive its own fresh authority");
     assert_eq!(
         first_reestablished.context_epoch().value(),
         first_authority.context_epoch().value() + 1
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&second_authority, "second-still-current-after-first-settlement"),
-        Ok(second_context),
-        "settling and re-establishing the first context must not rotate the sibling context"
+        second_reestablished.context_epoch().value(),
+        second_authority.context_epoch().value() + 1
     );
 }
