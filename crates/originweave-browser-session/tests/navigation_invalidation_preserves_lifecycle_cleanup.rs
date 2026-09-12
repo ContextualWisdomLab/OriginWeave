@@ -194,7 +194,7 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
     let initial = bound
         .create_disposable_context()
         .expect("accepted disposable context");
-    bound
+    let first_settlement_authority = bound
         .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
         .expect("first navigation invalidates initial presentation authority");
     assert_eq!(
@@ -203,8 +203,8 @@ fn later_navigation_after_reestablishment_still_allows_lifecycle_cleanup_without
         "navigation start alone must not reissue presentation authority"
     );
     bound
-        .record_observed_navigation_settled(initial.incarnation(), context, initial.context_epoch())
-        .expect("matching browser settlement unlocks explicit re-establishment");
+        .record_observed_navigation_settled(&first_settlement_authority)
+        .expect("matching browser settlement presents the aggregate-issued witness");
     let reestablished = bound
         .reestablish_presentation_authority(context)
         .expect("owner explicitly establishes authority for the settled next document");
