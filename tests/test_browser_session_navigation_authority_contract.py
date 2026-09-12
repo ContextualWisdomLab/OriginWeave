@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -23,6 +24,21 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         self.assertNotIn("pub fn presentation_authority(", browser_session_impl)
         self.assertIn("pub fn record_observed_navigation(", source)
         self.assertIn("pub fn reestablish_presentation_authority(", source)
+
+    def test_navigation_observation_is_bound_to_the_observed_context_epoch(self) -> None:
+        """A delayed prior-generation event must not invalidate newer authority by raw id alone."""
+
+        source = SOURCE.read_text(encoding="utf-8")
+        signature = re.search(
+            r"pub fn record_observed_navigation\s*\((?P<params>.*?)\)\s*->",
+            source,
+            flags=re.DOTALL,
+        )
+
+        self.assertIsNotNone(signature)
+        params = signature.group("params")
+        self.assertIn("BrowsingContextId", params)
+        self.assertIn("BrowserContextEpoch", params)
 
 
 if __name__ == "__main__":
