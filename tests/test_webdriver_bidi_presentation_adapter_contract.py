@@ -34,9 +34,9 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             "RED: #292 has no version-pinned BiDi presentation capability map",
         )
         text = source.read_text(encoding="utf-8")
-        self.assertIn('"2026-09-03"', text)
+        self.assertIn('"2026-08-18"', text)
         self.assertIn(
-            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/",
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/",
             text,
         )
 
@@ -48,13 +48,13 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             "RED: latest WebDriver BiDi publication is not traceable beside the qualified runtime pin",
         )
         receipt = publication_receipt.read_text(encoding="utf-8")
-        self.assertIn("2026-09-09", receipt)
+        self.assertIn("2026-08-18", receipt)
         self.assertIn(
-            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/",
+            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/",
             receipt,
         )
-        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
-        self.assertIn("Latest published Working Draft: `2026-09-09`", receipt)
+        self.assertIn("Runtime-compatible pin: `2026-08-18`", receipt)
+        self.assertIn("Latest published Working Draft: `2026-08-18`", receipt)
 
         self.assertIn("PresentationSurface::Screen", text)
         self.assertIn("PresentationSurface::Viewport", text)
@@ -81,7 +81,7 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             "CHANGELOG.md": (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
             "docs/doctoring.md": (ROOT / "docs/doctoring.md").read_text(encoding="utf-8"),
         }
-        dated_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        dated_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/"
         stale_publication = "18 August 2026 published W3C Working Draft"
         for path, text in documents.items():
             with self.subTest(path=path):

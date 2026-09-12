@@ -2,7 +2,7 @@
 
 ## Problem
 
-The runtime-qualified WebDriver BiDi adapter plans reversible viewport/device-pixel-ratio and time-zone overrides, while the 3 September 2026 Working Draft also defines `emulation.setScreenSettingsOverride`. The screen operation is wider and more destructive than its width/height payload initially suggests.
+The runtime-qualified WebDriver BiDi adapter plans reversible viewport/device-pixel-ratio and time-zone overrides, while the 18 August 2026 Working Draft also defines `emulation.setScreenSettingsOverride`. The screen operation is wider and more destructive than its width/height payload initially suggests.
 
 WebDriver BiDi applies one `screenArea` rectangle to both the web-exposed total screen area and the web-exposed available screen area. OriginWeave `ScreenMetrics` currently models width, height, and color depth, but not `screen.availWidth` or `screen.availHeight`. Automatically deriving the command from `ScreenMetrics` inside the reusable profile plan would therefore mutate a page-observable fingerprint surface that the profile neither selected nor digest-bound. Color depth remains independently uncontrolled.
 
@@ -13,7 +13,7 @@ A third reachability defect became executable after the ownership witness was in
 ## Constraints
 
 - Keep browser-domain truth in OriginWeave; WebDriver BiDi remains an adapter, not policy authority.
-- Preserve the runtime-qualified 3 September 2026 Working Draft pin. Publication freshness is owned separately by `webdriver-bidi-publication-current.md`.
+- Preserve the runtime-qualified 18 August 2026 Working Draft pin. Publication freshness is owned separately by `webdriver-bidi-publication-current.md`.
 - Reuse validated presentation value objects rather than reopen raw width/height validation in the adapter.
 - Do not treat a browsing-context identifier as mutation authority.
 - A reusable browsing context may automatically plan only observables represented by the explicit presentation contract and paired with non-destructive cleanup.
@@ -65,4 +65,4 @@ Hosted exact-head repository checks, 100% owned-production coverage, security ch
 
 ## References
 
-World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft; runtime-qualified OriginWeave adapter pin]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+World Wide Web Consortium. (2026, August 18). *WebDriver BiDi* [Working Draft; runtime-qualified OriginWeave adapter pin]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/
