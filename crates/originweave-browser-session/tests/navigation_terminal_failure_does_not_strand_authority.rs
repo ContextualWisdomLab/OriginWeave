@@ -174,3 +174,94 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
         Ok(context)
     );
 }
+
+#[test]
+fn navigation_after_negative_terminal_before_reestablishment_waits_for_latest_terminal() {
+    let context = BrowsingContextId::new(1012).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = TerminalNavigationProbePort {
+        handle: Some(DisposableContextHandle::new(
+            DisposableIsolationId::parse("terminal-navigation-user-context-1012")
+                .expect("valid isolation id"),
+            context,
+        )),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(1012).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_before_navigation = adapter_calls.get();
+
+    let first_pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("first navigation enters pending state");
+    bound
+        .record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Failed,
+        )
+        .expect("first navigation failure closes only its pending transition");
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+
+    let second_pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect(
+            "a browser may start another navigation after failure before presentation authority is re-established",
+        );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "admitting the later navigation must remain a zero-I/O Browser Session transition"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the earlier navigation failure must not authorize the document while a later navigation is pending"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+
+    assert_eq!(
+        bound.record_observed_navigation_settled(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the consumed failure witness must stay dead after a later navigation starts"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the prior terminal witness must not terminate the later pending navigation through a different outcome"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "rejecting stale terminal evidence must leave the latest navigation pending"
+    );
+
+    bound
+        .record_observed_navigation_terminated(
+            &second_pending,
+            NavigationTerminationOutcome::Aborted,
+        )
+        .expect("the latest navigation's own terminal outcome closes the current pending transition");
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+
+    let reestablished = bound
+        .reestablish_presentation_authority(context)
+        .expect("the owner may re-establish only after the latest navigation reaches a terminal outcome");
+    assert_eq!(
+        reestablished.context_epoch().value(),
+        initial.context_epoch().value() + 1,
+        "negative terminals and later navigation starts while invalidated must not spend presentation epochs"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&reestablished, "usable-after-latest-negative-terminal"),
+        Ok(context)
+    );
+}
