@@ -13,7 +13,7 @@ Lifecycle failures also need lossless evidence. A BiDi adapter can successfully 
 
 Transport liveness is independent from ownership certainty. A session already in `RecoveryRequired` can subsequently lose its transport; that new fact must be recorded without erasing the recovery evidence. Conversely, merely entering recovery does not prove the transport is dead.
 
-The 18 August 2026 WebDriver BiDi Working Draft defines user-context identifiers and the `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext` lifecycle. Those commands remain adapter capabilities rather than OriginWeave policy authority, and command ACK alone is not destruction proof.
+The 9 September 2026 WebDriver BiDi Working Draft defines user-context identifiers and the `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext` lifecycle. Those commands remain adapter capabilities rather than OriginWeave policy authority, and command ACK alone is not destruction proof.
 
 ## Decision drivers
 
@@ -123,4 +123,4 @@ Supersede this ADR if the browser platform provides a complete, queryable, gener
 
 ## References
 
-Browser Testing and Tools Working Group. (2026, August 18). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/
+Browser Testing and Tools Working Group. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/

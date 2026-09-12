@@ -75,7 +75,7 @@ Delivered document-node authority foundation:
 
 Active-branch WebDriver BiDi foundation:
 
-- a version-pinned capability and command-planning boundary in `originweave-bidi` for the 18 August 2026 W3C Working Draft;
+- a version-pinned capability and command-planning boundary in `originweave-bidi` for the 3 September 2026 W3C Working Draft;
 - fail-closed distinction between the complete canonical presentation profile and the standard surfaces BiDi can express;
 - reusable viewport/DPR and timezone intents built only from validated presentation value objects;
 - no live protocol transport, acknowledgement, page-observed application, Browser Session ownership, or cleanup proof is claimed by the planning boundary.

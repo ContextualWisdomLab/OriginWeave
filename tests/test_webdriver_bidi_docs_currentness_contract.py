@@ -26,8 +26,8 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
             "docs/traceability/webdriver-bidi-publication-current.md",
             adr,
         )
-        self.assertIn("runtime-qualified 18 August 2026", adr)
-        self.assertIn("latest published 18 August 2026", adr)
+        self.assertIn("runtime-qualified 3 September 2026", adr)
+        self.assertIn("latest published 9 September 2026", adr)
 
     def test_publication_freshness_is_single_sourced_from_runtime_qualification_docs(self) -> None:
         """Architecture and doctoring stay qualification records; the receipt owns latest-publication churn."""
@@ -37,8 +37,8 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
             ROOT / "docs/traceability/webdriver-bidi-publication-current.md"
         ).read_text(encoding="utf-8")
 
-        runtime_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/"
-        latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/"
+        runtime_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/"
 
         for path, text in {
             "ARCHITECTURE.md": architecture,
@@ -46,9 +46,10 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
         }.items():
             with self.subTest(path=path):
                 self.assertIn(runtime_uri, text)
+                self.assertNotIn(latest_uri, text)
 
-        self.assertIn("Runtime-compatible pin: `2026-08-18`", receipt)
-        self.assertIn("Latest published Working Draft: `2026-08-18`", receipt)
+        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
+        self.assertIn("Latest published Working Draft: `2026-09-09`", receipt)
         self.assertIn(latest_uri, receipt)
         self.assertIn(
             "PR #229, which has inherited merged PR #293",

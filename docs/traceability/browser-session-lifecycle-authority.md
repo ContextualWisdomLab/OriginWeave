@@ -49,11 +49,11 @@ The port also receives the incarnation on create/destroy. This closes the prior 
 
 ## Standards trace
 
-The design dossier references the 18 August 2026 WebDriver BiDi Working Draft. A user context has a user-context id set on creation. `browser.createUserContext` creates it, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables.
+The design dossier references the 9 September 2026 WebDriver BiDi Working Draft. A user context has a user-context id set on creation. `browser.createUserContext` creates it, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables.
 
 OriginWeave does not turn that protocol identifier into policy authority or assume historical non-reuse after removal. `DisposableIsolationId` remains lifecycle addressability. A successful command ACK is insufficient evidence that the disposable boundary is actually gone.
 
-The active `originweave-bidi` adapter remains separately runtime-qualified against its documented 18 August 2026 revision. The canonical W3C publication does not silently repin that runtime contract.
+The active `originweave-bidi` adapter remains separately runtime-qualified against its documented 3 September 2026 revision. Tracking the 9 September publication here does not silently repin that runtime contract.
 
 ## Source and executable evidence
 
@@ -92,4 +92,4 @@ This slice does not yet prove:
 
 ## Reference
 
-Browser Testing and Tools Working Group. (2026, August 18). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/
+Browser Testing and Tools Working Group. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/

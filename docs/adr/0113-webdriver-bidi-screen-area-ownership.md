@@ -27,7 +27,7 @@ The first ownership-witness implementation retained public explicit planner func
 
 - Browser-domain and Browser Session lifecycle authority remain in OriginWeave.
 - WebDriver BiDi remains an adapter; protocol addressability is not product authorization.
-- The runtime-qualified 18 August 2026 Working Draft pin remains unchanged until a separate compatibility change proves a newer revision.
+- The runtime-qualified 3 September 2026 Working Draft pin remains unchanged until a separate compatibility change proves a newer revision.
 - `WebDriverBidiScreenArea` remains the typed width/height representation of the protocol's coupled total/available-area rectangle.
 - This slice has no authoritative predecessor-state snapshot and does not invent one.
 - A command acknowledgement is not page-observed application, ownership evidence, cleanup evidence, or restoration evidence.
@@ -101,6 +101,6 @@ It is reversed only if OriginWeave removes the screen-area capability entirely o
 
 ## References
 
-World Wide Web Consortium. (2026, August 18). *WebDriver BiDi* [Working Draft; runtime-qualified OriginWeave adapter pin]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft; runtime-qualified OriginWeave adapter pin]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
 Related repository evidence: ADR 0107, `docs/doctoring/webdriver-bidi-screen-area.md`, `docs/traceability/webdriver-bidi-screen-area-planning.md`, and `docs/traceability/webdriver-bidi-publication-current.md`.

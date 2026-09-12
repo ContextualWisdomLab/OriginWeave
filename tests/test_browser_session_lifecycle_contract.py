@@ -98,7 +98,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("Status: Proposed", adr)
-        self.assertIn("WD-webdriver-bidi-20260818", adr)
+        self.assertIn("WD-webdriver-bidi-20260909", adr)
         self.assertIn("RecoveryRequired", adr)
         self.assertIn("BrowserSessionIncarnation", adr)
         self.assertIn("BrowserSessionRecoveryEvidence", adr)
