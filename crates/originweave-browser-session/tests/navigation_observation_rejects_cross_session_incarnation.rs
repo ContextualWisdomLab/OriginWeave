@@ -77,7 +77,7 @@ fn bound_session(
 }
 
 #[test]
-fn navigation_generation_from_prior_session_incarnation_cannot_revoke_current_session() {
+fn navigation_generation_from_prior_session_incarnation_cannot_revoke_or_settle_current_session() {
     let reused_session = BrowserSessionId::new(971).expect("valid session id");
     let reused_context = BrowsingContextId::new(971).expect("valid browsing context");
     let first_adapter_calls = Rc::new(Cell::new(0));
@@ -161,9 +161,46 @@ fn navigation_generation_from_prior_session_incarnation_cannot_revoke_current_se
         "stale current-session authority must be rejected before adapter I/O"
     );
 
+    let calls_before_prior_incarnation_settlement = second_adapter_calls.get();
+    assert_eq!(
+        second.record_observed_navigation_settled(
+            first_authority.incarnation(),
+            reused_context,
+            first_authority.context_epoch(),
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a prior Browser Session incarnation cannot settle the current aggregate's pending navigation even when context and epoch numerically alias"
+    );
+    assert_eq!(
+        second_adapter_calls.get(),
+        calls_before_prior_incarnation_settlement,
+        "prior-incarnation settlement confusion must fail before adapter I/O"
+    );
+    assert_eq!(
+        second.reestablish_presentation_authority(reused_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "rejecting prior-incarnation settlement must leave current navigation pending"
+    );
+    assert_eq!(second_adapter_calls.get(), calls_before_prior_incarnation_settlement);
+
+    second
+        .record_observed_navigation_settled(
+            second_authority.incarnation(),
+            reused_context,
+            second_authority.context_epoch(),
+        )
+        .expect("only the current aggregate generation may settle its pending navigation");
+    let second_reestablished = second
+        .reestablish_presentation_authority(reused_context)
+        .expect("the current aggregate may re-establish authority after exact settlement");
+    assert_eq!(
+        second_reestablished.context_epoch().value(),
+        second_authority.context_epoch().value() + 1
+    );
+
     assert_eq!(
         first.execute_authorized_context_operation(&first_authority, "first-remains-current"),
         Ok(reused_context),
-        "a navigation observed for the second aggregate must not mutate the independent first aggregate"
+        "navigation and settlement observed for the second aggregate must not mutate the independent first aggregate"
     );
 }
