@@ -59,6 +59,93 @@ impl AuthorizedContextOperationPort for DownloadWitnessConsumptionProbePort {
 }
 
 #[test]
+fn duplicate_download_start_before_reestablishment_preserves_single_eligibility() {
+    let context = BrowsingContextId::new(1220).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = DownloadWitnessConsumptionProbePort {
+        handle: Some(DisposableContextHandle::new(
+            DisposableIsolationId::parse("duplicate-download-before-reestablishment")
+                .expect("valid isolation id"),
+            context,
+        )),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(1220).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_after_create = adapter_calls.get();
+    let pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("navigation start issues a pending witness");
+    bound
+        .record_observed_navigation_download_started(&pending)
+        .expect("matching download start closes this exact navigation liveness boundary");
+
+    let state_after_download = bound.browser_session().state();
+    let recovery_after_download = bound.browser_session().recovery_evidence().to_vec();
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "duplicate download-start delivery must not reuse a consumed witness"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_download,
+        "duplicate download-start replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_download.as_slice(),
+        "duplicate download-start replay must not mutate recovery evidence"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-duplicate-download"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "duplicate download-start replay must not reactivate retained authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "duplicate download-start replay and rejected retained authority must remain zero-I/O"
+    );
+
+    let current = bound
+        .reestablish_presentation_authority(context)
+        .expect("duplicate replay must preserve the original single re-establishment opportunity");
+    assert_eq!(
+        current.context_epoch().value(),
+        initial.context_epoch().value() + 1,
+        "duplicate replay must not spend an aggregate presentation epoch"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the preserved download-derived opportunity must remain single-use"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "re-establishment bookkeeping must remain inside the deterministic aggregate"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&current, "current-authority-after-duplicate"),
+        Ok(context),
+        "the authority minted from the preserved opportunity must be usable"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create + 1,
+        "only the explicitly authorized operation may cross the adapter boundary"
+    );
+}
+
+#[test]
 fn download_start_consumes_navigation_witness_against_late_terminal_replay() {
     let context = BrowsingContextId::new(1221).expect("valid browsing context");
     let adapter_calls = Rc::new(Cell::new(0));
