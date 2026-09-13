@@ -191,7 +191,10 @@ fn explicit_reestablishment_is_single_use_after_negative_termination() {
         )
         .expect("a later navigation may invalidate the re-established generation");
     bound
-        .record_observed_navigation_terminated(&later_pending, NavigationTerminationOutcome::Aborted)
+        .record_observed_navigation_terminated(
+            &later_pending,
+            NavigationTerminationOutcome::Aborted,
+        )
         .expect("the later negative terminal applies only to the later pending navigation");
     let second_reestablished = bound
         .reestablish_presentation_authority(context)
