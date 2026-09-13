@@ -149,7 +149,9 @@ fn prior_session_download_witness_cannot_close_current_incarnation_pending_navig
 
     second
         .record_observed_navigation_download_started(&second_pending)
-        .expect("only the current incarnation's witness may close its navigation liveness boundary");
+        .expect(
+            "only the current incarnation's witness may close its navigation liveness boundary",
+        );
     let reestablished = second
         .reestablish_presentation_authority(reused_context)
         .expect("current incarnation may explicitly re-establish after its own qualified download start");
@@ -253,7 +255,9 @@ fn recreated_raw_context_rejects_download_witness_from_destroyed_ownership_gener
 
     bound
         .record_observed_navigation_download_started(&new_pending)
-        .expect("only the recreated ownership generation's current witness may close on download start");
+        .expect(
+            "only the recreated ownership generation's current witness may close on download start",
+        );
     let reestablished = bound
         .reestablish_presentation_authority(reused_context)
         .expect("fresh ownership may re-establish after its own qualified download start");
