@@ -13,6 +13,7 @@ NAVIGATION_PRODUCTION_MARKERS = (
     "pub struct NavigationSettlementAuthority",
     "pub enum NavigationTerminationOutcome",
     "pub fn record_observed_navigation(",
+    "pub fn record_observed_navigation_committed(",
     "pub fn record_observed_navigation_settled(",
     "pub fn record_observed_navigation_terminated(",
     "pub fn reestablish_presentation_authority(",
@@ -150,6 +151,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         self.assertNotIn("pub fn presentation_authority(", browser_session_impl)
         self.assertIn("pub fn record_observed_navigation(", source)
+        self.assertIn("pub fn record_observed_navigation_committed(", source)
         self.assertIn("pub fn record_observed_navigation_settled(", source)
         self.assertIn("pub fn record_observed_navigation_terminated(", source)
         self.assertIn("pub fn reestablish_presentation_authority(", source)
@@ -176,6 +178,25 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
             signature.group("return_type"),
             "an admitted navigation start must issue an opaque aggregate-bound settlement authority",
         )
+
+    def test_navigation_commit_is_non_terminal_progress(self) -> None:
+        """Commit progress must preserve the witness for a later complete or negative terminal outcome."""
+
+        source = SOURCE.read_text(encoding="utf-8")
+        if not _navigation_production_slice_present(source):
+            return
+        signature = re.search(
+            r"pub fn record_observed_navigation_committed\s*\((?P<params>.*?)\)\s*->",
+            source,
+            flags=re.DOTALL,
+        )
+
+        self.assertIsNotNone(signature)
+        params = signature.group("params")
+        self.assertIn("NavigationSettlementAuthority", params)
+        self.assertNotIn("BrowserSessionIncarnation", params)
+        self.assertNotIn("BrowsingContextId", params)
+        self.assertNotIn("BrowserContextEpoch", params)
 
     def test_navigation_settlement_requires_aggregate_issued_authority(self) -> None:
         """Raw provenance must never become authority to unlock presentation re-establishment."""
@@ -209,7 +230,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
         )
 
     def test_navigation_abort_and_failure_have_explicit_terminal_transition(self) -> None:
-        """Negative terminal events must close pending state without pretending they committed."""
+        """Negative terminal events must close pending state without pretending they completed."""
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
