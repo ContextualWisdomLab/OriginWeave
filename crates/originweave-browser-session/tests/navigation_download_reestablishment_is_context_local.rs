@@ -66,6 +66,133 @@ fn handle(context: BrowsingContextId, isolation: &str) -> DisposableContextHandl
     )
 }
 
+#[derive(Clone, Copy)]
+enum ConsumedFirstReplay {
+    DownloadStarted,
+    Settled,
+    Aborted,
+    Failed,
+}
+
+fn assert_consumed_first_replay_is_non_mutating(replay: ConsumedFirstReplay, session_id: u64) {
+    let first_context =
+        BrowsingContextId::new(session_id * 10 + 1).expect("valid first context");
+    let second_context =
+        BrowsingContextId::new(session_id * 10 + 2).expect("valid second context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = CrossContextDownloadProbePort {
+        handles: VecDeque::from([
+            handle(first_context, "cross-context-download-replay-first"),
+            handle(second_context, "cross-context-download-replay-second"),
+        ]),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(
+        BrowserSessionId::new(session_id).expect("valid browser session id"),
+    )
+    .expect("incarnation capacity")
+    .bind_lifecycle_port(port);
+
+    let first_authority = bound
+        .create_disposable_context()
+        .expect("first disposable context accepted");
+    let second_authority = bound
+        .create_disposable_context()
+        .expect("second disposable context accepted");
+    let calls_after_create = adapter_calls.get();
+    let first_pending = bound
+        .record_observed_navigation(
+            first_authority.incarnation(),
+            first_context,
+            first_authority.context_epoch(),
+        )
+        .expect("first context enters navigation-pending state");
+    bound
+        .record_observed_navigation_download_started(&first_pending)
+        .expect("first download start closes only the first navigation");
+    let second_pending = bound
+        .record_observed_navigation(
+            second_authority.incarnation(),
+            second_context,
+            second_authority.context_epoch(),
+        )
+        .expect("sibling context independently enters navigation-pending state");
+
+    let state_before_replay = bound.browser_session().state();
+    let recovery_before_replay = bound.browser_session().recovery_evidence().to_vec();
+    let replay_result = match replay {
+        ConsumedFirstReplay::DownloadStarted => {
+            bound.record_observed_navigation_download_started(&first_pending)
+        }
+        ConsumedFirstReplay::Settled => bound.record_observed_navigation_settled(&first_pending),
+        ConsumedFirstReplay::Aborted => bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        ConsumedFirstReplay::Failed => bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Failed,
+        ),
+    };
+
+    assert_eq!(
+        replay_result,
+        Err(BrowserSessionError::AuthorityMismatch),
+        "consumed first-context evidence must remain non-authorizing while its sibling is pending"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_before_replay,
+        "one rejected replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_before_replay.as_slice(),
+        "one rejected replay must not mutate recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "one rejected replay must not create sibling re-establishment eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "second-remains-stale-after-one-first-context-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "one rejected replay must not reactivate sibling retained authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "one rejected replay and authority checks must remain zero-I/O"
+    );
+
+    let first_reestablished = bound
+        .reestablish_presentation_authority(first_context)
+        .expect("one rejected replay must preserve first-context download eligibility");
+    assert_eq!(
+        first_reestablished.context_epoch().value(),
+        second_authority.context_epoch().value() + 1,
+        "one rejected replay must not spend an aggregate presentation epoch"
+    );
+
+    bound
+        .record_observed_navigation_download_started(&second_pending)
+        .expect("only the sibling's own witness may close its pending navigation");
+    let second_reestablished = bound
+        .reestablish_presentation_authority(second_context)
+        .expect("sibling may re-establish only after its own qualified closing evidence");
+    assert_eq!(
+        second_reestablished.context_epoch().value(),
+        first_reestablished.context_epoch().value() + 1,
+        "sibling closure must continue the aggregate-wide epoch sequence exactly once"
+    );
+}
+
 #[test]
 fn sibling_navigation_preserves_download_reestablishment_eligibility() {
     let first_context = BrowsingContextId::new(1233).expect("valid first context");
@@ -100,14 +227,6 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
     bound
         .record_observed_navigation_download_started(&first_pending)
         .expect("first context download start creates one re-establishment opportunity");
-    assert_eq!(
-        adapter_calls.get(),
-        calls_after_create,
-        "navigation and download-start observations must remain zero-I/O"
-    );
-
-    let state_after_first_download = bound.browser_session().state();
-    let recovery_after_first_download = bound.browser_session().recovery_evidence().to_vec();
     let second_pending = bound
         .record_observed_navigation(
             second_authority.incarnation(),
@@ -115,19 +234,11 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
             second_authority.context_epoch(),
         )
         .expect("sibling navigation may start while first download eligibility remains unused");
-    assert_eq!(bound.browser_session().state(), state_after_first_download);
-    assert_eq!(
-        bound.browser_session().recovery_evidence(),
-        recovery_after_first_download.as_slice(),
-        "sibling navigation start must not manufacture recovery evidence"
-    );
     assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "sibling navigation admission must remain zero-I/O"
+        "navigation and download-start observations must remain zero-I/O"
     );
-    let state_after_second_start = bound.browser_session().state();
-    let recovery_after_second_start = bound.browser_session().recovery_evidence().to_vec();
 
     let first_reestablished = bound
         .reestablish_presentation_authority(first_context)
@@ -150,69 +261,12 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
         Err(AuthorizedContextOperationError::BrowserSession(
             BrowserSessionError::AuthorityMismatch,
         )),
-        "first-context re-establishment must not revive the sibling retained authority"
+        "first-context re-establishment must not revive sibling retained authority"
     );
     assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "re-establishment gating and stale sibling authority rejection must fail before adapter I/O"
-    );
-
-    assert_eq!(
-        bound.record_observed_navigation_download_started(&first_pending),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "the first download witness remains consumed after sibling navigation starts"
-    );
-    assert_eq!(
-        bound.record_observed_navigation_settled(&first_pending),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "late complete-positive evidence for consumed A must not settle sibling B"
-    );
-    assert_eq!(
-        bound.record_observed_navigation_terminated(
-            &first_pending,
-            NavigationTerminationOutcome::Aborted,
-        ),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "late aborted evidence for consumed A must not terminate sibling B"
-    );
-    assert_eq!(
-        bound.record_observed_navigation_terminated(
-            &first_pending,
-            NavigationTerminationOutcome::Failed,
-        ),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "late failed evidence for consumed A must not terminate sibling B"
-    );
-    assert_eq!(
-        bound.browser_session().state(),
-        state_after_second_start,
-        "consumed A replay must not change aggregate lifecycle state while B is pending"
-    );
-    assert_eq!(
-        bound.browser_session().recovery_evidence(),
-        recovery_after_second_start.as_slice(),
-        "consumed A replay must not mutate recovery evidence"
-    );
-    assert_eq!(
-        bound.reestablish_presentation_authority(second_context),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "consumed A replay must not create re-establishment eligibility for B"
-    );
-    assert_eq!(
-        bound.execute_authorized_context_operation(
-            &second_authority,
-            "second-still-stale-after-first-replay",
-        ),
-        Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch,
-        )),
-        "consumed A replay must not reactivate B retained authority"
-    );
-    assert_eq!(
-        adapter_calls.get(),
-        calls_after_create,
-        "every consumed A replay and B authority check must fail before adapter I/O"
+        "sibling authority gating must remain zero-I/O"
     );
 
     bound
@@ -226,11 +280,6 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
         first_reestablished.context_epoch().value() + 1,
         "independent sibling re-establishment must continue the aggregate-wide epoch sequence"
     );
-    assert_eq!(
-        adapter_calls.get(),
-        calls_after_create,
-        "both download liveness closures and re-establishments must remain zero-I/O"
-    );
 
     assert_eq!(
         bound.execute_authorized_context_operation(&first_reestablished, "first-still-usable"),
@@ -242,4 +291,24 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
         Ok(second_context),
         "the sibling authority becomes usable only after its own explicit re-establishment"
     );
+}
+
+#[test]
+fn duplicate_download_replay_is_individually_non_mutating_across_sibling_navigation() {
+    assert_consumed_first_replay_is_non_mutating(ConsumedFirstReplay::DownloadStarted, 1235);
+}
+
+#[test]
+fn complete_positive_replay_is_individually_non_mutating_across_sibling_navigation() {
+    assert_consumed_first_replay_is_non_mutating(ConsumedFirstReplay::Settled, 1236);
+}
+
+#[test]
+fn aborted_replay_is_individually_non_mutating_across_sibling_navigation() {
+    assert_consumed_first_replay_is_non_mutating(ConsumedFirstReplay::Aborted, 1237);
+}
+
+#[test]
+fn failed_replay_is_individually_non_mutating_across_sibling_navigation() {
+    assert_consumed_first_replay_is_non_mutating(ConsumedFirstReplay::Failed, 1238);
 }
