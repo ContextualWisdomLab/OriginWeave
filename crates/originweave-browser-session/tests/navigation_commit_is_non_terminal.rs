@@ -219,3 +219,69 @@ fn commit_progress_preserves_witness_until_positive_completion() {
         Ok(context)
     );
 }
+
+#[test]
+fn commit_progress_preserves_witness_until_download_start_liveness_closure() {
+    let context = BrowsingContextId::new(1104).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let mut bound = bound_session(1104, 1104, Rc::clone(&adapter_calls));
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_after_create = adapter_calls.get();
+    let pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("navigation start issues a pending witness");
+
+    bound
+        .record_observed_navigation_committed(&pending)
+        .expect("commit is non-terminal progress and must leave the witness pending");
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "commit alone must not create a re-establishment opportunity before download liveness closes"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
+    bound
+        .record_observed_navigation_download_started(&pending)
+        .expect("downloadWillBegin after commit must close the same navigation liveness witness");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "commit and download-start observations are authority-state transitions, not browser I/O"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-committed-download"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "the pre-navigation authority must remain revoked after download-start closure"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
+    let after_download = bound
+        .reestablish_presentation_authority(context)
+        .expect("download-start liveness closure permits exactly one explicit fresh authority");
+    assert_eq!(
+        after_download.context_epoch().value(),
+        initial.context_epoch().value() + 1,
+        "neither commit progress nor download-start closure may spend a presentation epoch"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "download-derived re-establishment remains single-use after commit progress"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "duplicate re-establishment rejection must remain zero-I/O"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&after_download, "usable-after-committed-download"),
+        Ok(context),
+        "the fresh authority minted after committed navigation becomes a download must be executable"
+    );
+}
