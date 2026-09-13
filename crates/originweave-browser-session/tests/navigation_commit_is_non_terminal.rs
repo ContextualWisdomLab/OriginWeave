@@ -134,6 +134,57 @@ fn commit_progress_does_not_restore_authority_and_later_failure_can_still_termin
 }
 
 #[test]
+fn commit_progress_preserves_witness_until_later_abort_and_reestablishment_is_single_use() {
+    let context = BrowsingContextId::new(1103).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let mut bound = bound_session(1103, 1103, Rc::clone(&adapter_calls));
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_after_create = adapter_calls.get();
+    let pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("navigation start issues a pending witness");
+
+    bound
+        .record_observed_navigation_committed(&pending)
+        .expect("commit records non-terminal progress without consuming the witness");
+    bound
+        .record_observed_navigation_terminated(&pending, NavigationTerminationOutcome::Aborted)
+        .expect("a matching abort after commit remains an admissible terminal outcome");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "commit and abort lifecycle observations must remain zero-I/O"
+    );
+
+    let after_abort = bound
+        .reestablish_presentation_authority(context)
+        .expect("abort terminal permits one explicit fresh authority");
+    assert_eq!(
+        after_abort.context_epoch().value(),
+        initial.context_epoch().value() + 1,
+        "commit progress must not spend the epoch reserved for explicit re-establishment"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the abort-derived re-establishment opportunity must be single-use"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "duplicate re-establishment rejection must not perform browser I/O"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&after_abort, "usable-after-abort-terminal"),
+        Ok(context),
+        "the one authority minted after abort remains usable after duplicate rejection"
+    );
+}
+
+#[test]
 fn commit_progress_preserves_witness_until_positive_completion() {
     let context = BrowsingContextId::new(1102).expect("valid browsing context");
     let adapter_calls = Rc::new(Cell::new(0));
