@@ -85,7 +85,9 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         .expect("navigation start issues one pending-navigation witness");
     bound
         .record_observed_navigation_settled(&positively_terminal)
-        .expect("the exact witness may be consumed once by a complete positive terminal observation");
+        .expect(
+            "the exact witness may be consumed once by a complete positive terminal observation",
+        );
     assert_eq!(adapter_calls.get(), calls_after_create);
 
     assert_eq!(
