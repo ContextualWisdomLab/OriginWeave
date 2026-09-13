@@ -168,7 +168,7 @@ fn assert_consumed_first_replay_is_non_mutating(replay: ConsumedFirstReplay, ses
     assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "one rejected replay and authority checks must remain zero-I/O"
+        "one rejected replay and rejected sibling authority checks must remain zero-I/O"
     );
 
     let first_reestablished = bound
@@ -178,6 +178,24 @@ fn assert_consumed_first_replay_is_non_mutating(replay: ConsumedFirstReplay, ses
         first_reestablished.context_epoch().value(),
         second_authority.context_epoch().value() + 1,
         "one rejected replay must not spend an aggregate presentation epoch"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &first_reestablished,
+            "first-fresh-authority-usable-while-sibling-remains-pending",
+        ),
+        Ok(first_context),
+        "one rejected replay must not produce a hollow first-context authority while its sibling remains pending"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create + 1,
+        "only the explicitly authorized first-context operation may cross the adapter boundary"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "using the first-context fresh authority must not close sibling navigation"
     );
 
     bound
