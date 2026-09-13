@@ -175,6 +175,21 @@ fn prior_session_download_witness_cannot_close_current_incarnation_pending_navig
         calls_before_replay,
         "qualified download evidence and authority re-establishment remain zero-I/O domain transitions"
     );
+    assert_eq!(
+        second
+            .execute_authorized_context_operation(
+                &reestablished,
+                "fresh-authority-works-after-prior-incarnation-replay",
+            )
+            .expect("fresh authority must remain executable after hostile prior-incarnation replay"),
+        reused_context,
+        "re-establishment must return usable authority, not only advance the epoch"
+    );
+    assert_eq!(
+        second_adapter_calls.get(),
+        calls_before_replay + 1,
+        "only the explicit post-reestablishment authorized operation may reach the adapter"
+    );
 }
 
 #[test]
@@ -290,5 +305,20 @@ fn recreated_raw_context_rejects_download_witness_from_destroyed_ownership_gener
         adapter_calls.get(),
         calls_before_replay,
         "valid download evidence and explicit re-establishment remain zero-I/O"
+    );
+    assert_eq!(
+        bound
+            .execute_authorized_context_operation(
+                &reestablished,
+                "fresh-authority-works-after-destroyed-generation-replay",
+            )
+            .expect("fresh recreated-generation authority must be executable"),
+        reused_context,
+        "recreated generation must receive usable authority after its own download closure"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_replay + 1,
+        "only the explicit fresh-authority operation may reach the adapter after ABA replay rejection"
     );
 }
