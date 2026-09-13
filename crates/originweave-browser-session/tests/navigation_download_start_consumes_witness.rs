@@ -86,6 +86,30 @@ fn download_start_consumes_navigation_witness_against_late_terminal_replay() {
     bound
         .record_observed_navigation_download_started(&pending)
         .expect("matching download start closes this exact navigation liveness boundary");
+
+    let state_after_download = bound.browser_session().state();
+    let recovery_after_download = bound.browser_session().recovery_evidence().to_vec();
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "duplicate download-start delivery must not reuse a witness already consumed by download start"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_download,
+        "duplicate download-start replay before re-establishment must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_download.as_slice(),
+        "duplicate download-start replay before re-establishment must not mutate recovery evidence"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "duplicate download-start replay before re-establishment must fail before adapter I/O"
+    );
+
     assert_eq!(
         bound.execute_authorized_context_operation(&initial, "stale-after-download-start"),
         Err(AuthorizedContextOperationError::BrowserSession(
@@ -137,6 +161,11 @@ fn download_start_consumes_navigation_witness_against_late_terminal_replay() {
     let recovery_before_post_reestablishment_replay =
         bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(
+        bound.record_observed_navigation_download_started(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "consumed download witness must remain stale after fresh authority is minted"
+    );
+    assert_eq!(
         bound.record_observed_navigation_settled(&pending),
         Err(BrowserSessionError::AuthorityMismatch),
         "consumed download witness must remain stale after fresh authority is minted"
@@ -159,11 +188,11 @@ fn download_start_consumes_navigation_witness_against_late_terminal_replay() {
     assert_eq!(
         adapter_calls.get(),
         calls_before_post_reestablishment_replay,
-        "post-re-establishment terminal replay must fail before adapter I/O"
+        "post-re-establishment replay must fail before adapter I/O"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&current, "usable-after-late-terminal-replay"),
         Ok(context),
-        "late terminal replay for the consumed witness must not revoke the fresh authority"
+        "late replay for the consumed witness must not revoke the fresh authority"
     );
 }
