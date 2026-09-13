@@ -420,9 +420,19 @@ fn destroying_terminal_context_preserves_sibling_pending_navigation() {
         "destroying a terminal sibling must not clear the surviving context's pending navigation"
     );
     assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "surviving-sibling-stale-while-navigation-pending",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "the surviving sibling's retained presentation authority stays revoked while its own navigation is pending"
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_after_destroy,
-        "cross-context state checks after destruction remain zero-I/O"
+        "destroying a sibling must not reopen pending presentation authority or perform adapter I/O"
     );
 
     bound
