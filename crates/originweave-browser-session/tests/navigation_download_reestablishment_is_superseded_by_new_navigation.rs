@@ -129,6 +129,36 @@ fn newer_navigation_supersedes_unspent_download_reestablishment_eligibility() {
         "the consumed first witness must remain stale after the newer navigation starts"
     );
     assert_eq!(
+        bound.browser_session().state(),
+        state_after_second_start,
+        "duplicate stale download-start replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_second_start.as_slice(),
+        "duplicate stale download-start replay must not manufacture recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "duplicate stale download-start replay must not reopen the superseded download opportunity"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &initial,
+            "stale-after-duplicate-download-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "duplicate stale download-start replay must not reactivate retained authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "duplicate stale download-start replay and its authority checks must fail before adapter I/O"
+    );
+    assert_eq!(
         bound.record_observed_navigation_settled(&first_pending),
         Err(BrowserSessionError::AuthorityMismatch),
         "late complete-positive evidence from the consumed first witness must not settle the newer navigation"
