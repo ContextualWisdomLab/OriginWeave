@@ -94,13 +94,15 @@ fn invalid_later_navigation_does_not_consume_positive_terminal_reestablishment_e
         .expect("matching positive terminal creates one re-establishment eligibility");
     let calls_before_invalid_observation = adapter_calls.get();
 
-    assert_eq!(
-        bound.record_observed_navigation(
-            first_authority.incarnation(),
-            first_context,
-            second_authority.context_epoch(),
+    assert!(
+        matches!(
+            bound.record_observed_navigation(
+                first_authority.incarnation(),
+                first_context,
+                second_authority.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
         ),
-        Err(BrowserSessionError::AuthorityMismatch),
         "a stale or cross-context epoch must be rejected before it can replace terminal-derived re-establishment eligibility"
     );
     assert_eq!(
@@ -157,13 +159,15 @@ fn invalid_later_navigation_does_not_consume_negative_terminal_reestablishment_e
         .expect("matching negative terminal creates one re-establishment eligibility");
     let calls_before_invalid_observation = adapter_calls.get();
 
-    assert_eq!(
-        bound.record_observed_navigation(
-            first_authority.incarnation(),
-            first_context,
-            second_authority.context_epoch(),
+    assert!(
+        matches!(
+            bound.record_observed_navigation(
+                first_authority.incarnation(),
+                first_context,
+                second_authority.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
         ),
-        Err(BrowserSessionError::AuthorityMismatch),
         "invalid later navigation provenance must not erase eligibility created by a negative terminal outcome"
     );
     assert_eq!(
@@ -181,4 +185,74 @@ fn invalid_later_navigation_does_not_consume_negative_terminal_reestablishment_e
         "the rejected observation must not spend an aggregate epoch"
     );
     assert_eq!(adapter_calls.get(), calls_before_invalid_observation);
+}
+
+#[test]
+fn prior_incarnation_navigation_does_not_consume_current_terminal_reestablishment_eligibility() {
+    let reused_context = BrowsingContextId::new(1045).expect("valid reused context");
+    let sibling_context = BrowsingContextId::new(1046).expect("valid sibling context");
+    let prior_adapter_calls = Rc::new(Cell::new(0));
+    let current_adapter_calls = Rc::new(Cell::new(0));
+    let mut prior = bound_session(
+        1045,
+        reused_context,
+        sibling_context,
+        &prior_adapter_calls,
+    );
+    let mut current = bound_session(
+        1045,
+        reused_context,
+        sibling_context,
+        &current_adapter_calls,
+    );
+
+    let prior_authority = prior
+        .create_disposable_context()
+        .expect("prior incarnation accepts its disposable context");
+    let current_authority = current
+        .create_disposable_context()
+        .expect("current incarnation accepts its disposable context");
+    let current_pending = current
+        .record_observed_navigation(
+            current_authority.incarnation(),
+            reused_context,
+            current_authority.context_epoch(),
+        )
+        .expect("current incarnation navigation invalidates presentation authority");
+    current
+        .record_observed_navigation_settled(&current_pending)
+        .expect("current terminal creates one re-establishment eligibility");
+    let calls_before_stale_incarnation = current_adapter_calls.get();
+
+    assert_ne!(
+        prior_authority.incarnation(),
+        current_authority.incarnation(),
+        "test requires distinct Browser Session incarnations for reused raw identities"
+    );
+    assert!(
+        matches!(
+            current.record_observed_navigation(
+                prior_authority.incarnation(),
+                reused_context,
+                current_authority.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
+        ),
+        "a prior-incarnation navigation must be rejected before replacing current terminal-derived eligibility"
+    );
+    assert_eq!(
+        current_adapter_calls.get(),
+        calls_before_stale_incarnation,
+        "cross-incarnation rejection must happen before adapter I/O"
+    );
+
+    let reestablished = current
+        .reestablish_presentation_authority(reused_context)
+        .expect("rejected prior-incarnation evidence must leave current terminal eligibility intact");
+    assert_eq!(
+        reestablished.context_epoch().value(),
+        current_authority.context_epoch().value() + 1,
+        "rejected prior-incarnation evidence must not spend an aggregate epoch"
+    );
+    assert_eq!(current_adapter_calls.get(), calls_before_stale_incarnation);
 }
