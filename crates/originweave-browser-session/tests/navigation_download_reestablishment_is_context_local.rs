@@ -8,7 +8,7 @@ use originweave_browser_session::{
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -126,6 +126,8 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
         calls_after_create,
         "sibling navigation admission must remain zero-I/O"
     );
+    let state_after_second_start = bound.browser_session().state();
+    let recovery_after_second_start = bound.browser_session().recovery_evidence().to_vec();
 
     let first_reestablished = bound
         .reestablish_presentation_authority(first_context)
@@ -162,14 +164,55 @@ fn sibling_navigation_preserves_download_reestablishment_eligibility() {
         "the first download witness remains consumed after sibling navigation starts"
     );
     assert_eq!(
+        bound.record_observed_navigation_settled(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late complete-positive evidence for consumed A must not settle sibling B"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late aborted evidence for consumed A must not terminate sibling B"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Failed,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late failed evidence for consumed A must not terminate sibling B"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_second_start,
+        "consumed A replay must not change aggregate lifecycle state while B is pending"
+    );
+    assert_eq!(
         bound.browser_session().recovery_evidence(),
-        recovery_after_first_download.as_slice(),
-        "consumed first-witness replay must not mutate recovery evidence"
+        recovery_after_second_start.as_slice(),
+        "consumed A replay must not mutate recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "consumed A replay must not create re-establishment eligibility for B"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "second-still-stale-after-first-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "consumed A replay must not reactivate B retained authority"
     );
     assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "consumed first-witness replay must fail before adapter I/O"
+        "every consumed A replay and B authority check must fail before adapter I/O"
     );
 
     bound
