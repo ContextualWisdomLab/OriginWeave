@@ -137,6 +137,16 @@ fn prior_session_download_witness_cannot_close_current_incarnation_pending_navig
         "rejecting prior-incarnation download evidence must leave the current navigation pending"
     );
     assert_eq!(
+        second.execute_authorized_context_operation(
+            &second_authority,
+            "current-authority-stays-revoked-after-prior-incarnation-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "rejected prior-incarnation download evidence must not reactivate the current retained presentation authority"
+    );
+    assert_eq!(
         second.browser_session().recovery_evidence(),
         recovery_before_replay.as_slice(),
         "prior-incarnation download replay must not manufacture recovery evidence"
@@ -240,6 +250,16 @@ fn recreated_raw_context_rejects_download_witness_from_destroyed_ownership_gener
             BrowserSessionError::AuthorityMismatch,
         )),
         "the destroyed generation's retained presentation authority must stay unusable after raw-context ABA reuse"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &new_authority,
+            "current-authority-stays-revoked-after-destroyed-generation-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "rejected destroyed-generation download evidence must not reactivate the recreated generation's retained presentation authority"
     );
     assert_eq!(bound.browser_session().state(), BrowserSessionState::Active);
     assert_eq!(
