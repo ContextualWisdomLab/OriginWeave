@@ -109,6 +109,16 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
         "navigationFailed must not silently revive pre-navigation presentation authority"
     );
     assert_eq!(adapter_calls.get(), calls_before_failure);
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "navigationFailed must not let generic epoch rotation bypass explicit presentation re-establishment"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_failure,
+        "generic rotation after navigationFailed must fail before adapter I/O"
+    );
 
     let after_failure = bound
         .reestablish_presentation_authority(context)
@@ -164,6 +174,16 @@ fn failed_or_aborted_navigation_closes_pending_state_without_silently_minting_au
         "navigationAborted must not silently restore the pre-navigation authority"
     );
     assert_eq!(adapter_calls.get(), calls_before_abort);
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "navigationAborted must not let generic epoch rotation bypass explicit presentation re-establishment"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_abort,
+        "generic rotation after navigationAborted must fail before adapter I/O"
+    );
 
     let after_abort = bound.reestablish_presentation_authority(context).expect(
         "a terminal abort must close pending state without permanently denying the owned context",
@@ -206,6 +226,16 @@ fn navigation_after_negative_terminal_before_reestablishment_waits_for_latest_te
         .record_observed_navigation_terminated(&first_pending, NavigationTerminationOutcome::Failed)
         .expect("first navigation failure closes only its pending transition");
     assert_eq!(adapter_calls.get(), calls_before_navigation);
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a negative terminal must leave generic epoch rotation closed until explicit re-establishment"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "rejected generic rotation after the first negative terminal must remain zero-I/O"
+    );
 
     let second_pending = bound
         .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
@@ -252,6 +282,12 @@ fn navigation_after_negative_terminal_before_reestablishment_waits_for_latest_te
         .expect(
             "the latest navigation's own terminal outcome closes the current pending transition",
         );
+    assert_eq!(adapter_calls.get(), calls_before_navigation);
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the latest negative terminal must still require explicit re-establishment instead of generic epoch rotation"
+    );
     assert_eq!(adapter_calls.get(), calls_before_navigation);
 
     let reestablished = bound.reestablish_presentation_authority(context).expect(
