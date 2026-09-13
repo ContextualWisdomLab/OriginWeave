@@ -127,3 +127,68 @@ fn matching_download_start_closes_pending_navigation_without_reviving_old_author
         "only the explicitly re-established authority is usable after download start"
     );
 }
+
+#[test]
+fn superseded_download_start_cannot_close_the_current_pending_navigation() {
+    let context = BrowsingContextId::new(1202).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = DownloadNavigationProbePort {
+        handle: Some(DisposableContextHandle::new(
+            DisposableIsolationId::parse("superseded-download-navigation-user-context")
+                .expect("valid isolation id"),
+            context,
+        )),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(1202).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_after_create = adapter_calls.get();
+    let first_pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("first navigation start issues a pending witness");
+    let second_pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("later qualified navigation supersedes the earlier pending witness");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "navigation state transitions must remain zero-I/O"
+    );
+
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a delayed download start for the superseded navigation must not close the current pending navigation"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "rejecting stale download evidence must leave the newer navigation pending"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "stale download evidence and premature re-establishment rejection must perform no browser I/O"
+    );
+
+    bound
+        .record_observed_navigation_download_started(&second_pending)
+        .expect("only the current pending witness may close on download start");
+    let current = bound
+        .reestablish_presentation_authority(context)
+        .expect("current download start permits one explicit fresh authority");
+    assert_eq!(
+        current.context_epoch().value(),
+        initial.context_epoch().value() + 1,
+        "rejected stale download evidence must not spend a presentation epoch"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&current, "usable-after-current-download-start"),
+        Ok(context)
+    );
+}
