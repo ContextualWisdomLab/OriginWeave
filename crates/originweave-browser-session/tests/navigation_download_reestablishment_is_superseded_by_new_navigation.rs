@@ -7,7 +7,7 @@ use originweave_browser_session::{
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -105,6 +105,8 @@ fn newer_navigation_supersedes_unspent_download_reestablishment_eligibility() {
         calls_after_create,
         "starting the newer navigation must not perform browser I/O"
     );
+    let state_after_second_start = bound.browser_session().state();
+    let recovery_after_second_start = bound.browser_session().recovery_evidence().to_vec();
 
     assert_eq!(
         bound.reestablish_presentation_authority(context),
@@ -127,9 +129,111 @@ fn newer_navigation_supersedes_unspent_download_reestablishment_eligibility() {
         "the consumed first witness must remain stale after the newer navigation starts"
     );
     assert_eq!(
+        bound.record_observed_navigation_settled(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late complete-positive evidence from the consumed first witness must not settle the newer navigation"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_second_start,
+        "late complete-positive replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_second_start.as_slice(),
+        "late complete-positive replay must not manufacture recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late complete-positive replay must not reopen the superseded download opportunity"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &initial,
+            "stale-after-late-positive-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "late complete-positive replay must not reactivate retained authority"
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "premature re-establishment and stale download replay must fail before adapter I/O"
+        "late complete-positive replay and its authority checks must fail before adapter I/O"
+    );
+
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late abort evidence from the consumed first witness must not terminate the newer navigation"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_second_start,
+        "late abort replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_second_start.as_slice(),
+        "late abort replay must not manufacture recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late abort replay must not reopen the superseded download opportunity"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-late-abort-replay"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "late abort replay must not reactivate retained authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "late abort replay and its authority checks must fail before adapter I/O"
+    );
+
+    assert_eq!(
+        bound.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Failed,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late failure evidence from the consumed first witness must not terminate the newer navigation"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_second_start,
+        "late failure replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_second_start.as_slice(),
+        "late failure replay must not manufacture recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late failure replay must not reopen the superseded download opportunity"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-late-failure-replay"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "late failure replay must not reactivate retained authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "premature re-establishment and every stale terminal replay must fail before adapter I/O"
     );
 
     bound
@@ -141,7 +245,7 @@ fn newer_navigation_supersedes_unspent_download_reestablishment_eligibility() {
     assert_eq!(
         current.context_epoch().value(),
         initial.context_epoch().value() + 1,
-        "superseding the older opportunity must not spend a presentation epoch"
+        "superseding the older opportunity and rejecting its late terminal replay must not spend a presentation epoch"
     );
     assert_eq!(
         bound.reestablish_presentation_authority(context),
