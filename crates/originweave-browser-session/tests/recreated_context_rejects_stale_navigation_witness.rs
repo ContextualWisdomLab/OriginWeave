@@ -148,7 +148,8 @@ fn recreated_raw_context_id_rejects_navigation_witness_from_destroyed_ownership_
         "stale failed evidence from the destroyed ownership generation must not terminate the recreated context"
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&old_authority, "stale-old-generation-authority"),
+        bound
+            .execute_authorized_context_operation(&old_authority, "stale-old-generation-authority"),
         Err(AuthorizedContextOperationError::BrowserSession(
             BrowserSessionError::AuthorityMismatch,
         )),
