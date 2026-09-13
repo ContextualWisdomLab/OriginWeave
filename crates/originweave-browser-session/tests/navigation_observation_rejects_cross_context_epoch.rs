@@ -271,7 +271,10 @@ fn sibling_navigation_started_after_terminal_preserves_existing_reestablishment_
     let adapter_calls = Rc::new(Cell::new(0));
     let port = CrossContextEpochProbePort {
         handles: VecDeque::from([
-            handle(first_context, "cross-context-terminal-first-user-context-965"),
+            handle(
+                first_context,
+                "cross-context-terminal-first-user-context-965",
+            ),
             handle(second_context, "cross-context-later-start-user-context-966"),
         ]),
         adapter_calls: Rc::clone(&adapter_calls),
@@ -304,7 +307,9 @@ fn sibling_navigation_started_after_terminal_preserves_existing_reestablishment_
             second_context,
             second_authority.context_epoch(),
         )
-        .expect("sibling navigation may start while first-context re-establishment remains unconsumed");
+        .expect(
+            "sibling navigation may start while first-context re-establishment remains unconsumed",
+        );
     assert_eq!(
         adapter_calls.get(),
         calls_before_sibling_start,
