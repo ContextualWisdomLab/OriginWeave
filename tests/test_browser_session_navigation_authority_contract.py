@@ -144,7 +144,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
-            return
+            self.skipTest("Browser Session navigation production API is not implemented yet")
         browser_session_impl = source.split("impl BrowserSession {", 1)[1].split(
             "impl<P: DisposableContextPort> BoundBrowserSession<P>", 1
         )[0]
@@ -161,7 +161,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
-            return
+            self.skipTest("Browser Session navigation production API is not implemented yet")
         signature = re.search(
             r"pub fn record_observed_navigation\s*\((?P<params>.*?)\)\s*->(?P<return_type>[^\{]+)\{",
             source,
@@ -184,7 +184,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
-            return
+            self.skipTest("Browser Session navigation production API is not implemented yet")
         signature = re.search(
             r"pub fn record_observed_navigation_committed\s*\((?P<params>.*?)\)\s*->",
             source,
@@ -203,7 +203,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
-            return
+            self.skipTest("Browser Session navigation production API is not implemented yet")
         signature = re.search(
             r"pub fn record_observed_navigation_settled\s*\((?P<params>.*?)\)\s*->",
             source,
@@ -234,7 +234,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
-            return
+            self.skipTest("Browser Session navigation production API is not implemented yet")
         signature = re.search(
             r"pub fn record_observed_navigation_terminated\s*\((?P<params>.*?)\)\s*->",
             source,
@@ -264,7 +264,7 @@ class BrowserSessionNavigationAuthorityContractTests(unittest.TestCase):
 
         source = SOURCE.read_text(encoding="utf-8")
         if not _navigation_production_slice_present(source):
-            return
+            self.skipTest("Browser Session navigation production API is not implemented yet")
         code = _mask_rust_non_code(source)
         declaration = re.search(
             r"pub struct NavigationSettlementAuthority\s*\{(?P<body>.*?)\}",
