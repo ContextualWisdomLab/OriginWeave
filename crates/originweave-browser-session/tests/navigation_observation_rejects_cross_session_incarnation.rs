@@ -179,6 +179,26 @@ fn navigation_generation_from_prior_session_incarnation_cannot_revoke_current_se
     second
         .record_observed_navigation_settled(&second_pending)
         .expect("only the current aggregate's witness may settle its pending navigation");
+    let calls_before_stale_terminal_replay = second_adapter_calls.get();
+    assert_eq!(
+        second.record_observed_navigation_settled(&first_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "prior-incarnation positive terminal evidence must not consume the current aggregate's valid re-establishment opportunity"
+    );
+    assert_eq!(
+        second.record_observed_navigation_terminated(
+            &first_pending,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "prior-incarnation negative terminal evidence must not consume the current aggregate's valid re-establishment opportunity"
+    );
+    assert_eq!(
+        second_adapter_calls.get(),
+        calls_before_stale_terminal_replay,
+        "rejected stale terminal evidence after a valid terminal transition must remain zero-I/O"
+    );
+
     let second_reestablished = second
         .reestablish_presentation_authority(reused_context)
         .expect(
