@@ -164,6 +164,16 @@ fn browser_observed_navigation_invalidates_only_the_observed_context_generation_
         calls_before_navigation,
         "navigation settlement must also be a zero-I/O Browser Session transition"
     );
+    assert_eq!(
+        bound.advance_context_epoch(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "settlement alone must not let generic epoch rotation mint presentation authority before explicit re-establishment"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_navigation,
+        "settled-but-not-reestablished generic epoch rotation must fail before adapter I/O"
+    );
 
     let reestablished = bound.reestablish_presentation_authority(context).expect(
         "the exact bound owner explicitly re-establishes authority after settled invalidation",
