@@ -85,7 +85,7 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         .expect("navigation start issues one pending-navigation witness");
     bound
         .record_observed_navigation_settled(&positively_terminal)
-        .expect("the exact witness may be consumed once by a positive terminal observation");
+        .expect("the exact witness may be consumed once by a complete positive terminal observation");
     assert_eq!(adapter_calls.get(), calls_after_create);
 
     assert_eq!(
@@ -94,7 +94,7 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
             NavigationTerminationOutcome::Failed,
         ),
         Err(BrowserSessionError::AuthorityMismatch),
-        "a witness already consumed by commit/fragment settlement must not be reusable by a conflicting failed outcome"
+        "a witness already consumed by complete load/fragment settlement must not be reusable by a conflicting failed outcome"
     );
     assert_eq!(
         adapter_calls.get(),
@@ -104,7 +104,7 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
 
     let after_positive = bound
         .reestablish_presentation_authority(context)
-        .expect("positive terminal observation permits explicit fresh authority");
+        .expect("complete positive terminal observation permits explicit fresh authority");
     assert_eq!(
         after_positive.context_epoch().value(),
         initial.context_epoch().value() + 1
@@ -137,7 +137,7 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
     assert_eq!(
         bound.record_observed_navigation_settled(&negatively_terminal),
         Err(BrowserSessionError::AuthorityMismatch),
-        "a witness already consumed by abort/failure must not be reusable by a conflicting commit/fragment outcome"
+        "a witness already consumed by abort/failure must not be reusable by a conflicting complete positive outcome"
     );
     assert_eq!(
         adapter_calls.get(),
