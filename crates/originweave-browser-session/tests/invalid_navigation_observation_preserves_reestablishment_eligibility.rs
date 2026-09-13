@@ -114,7 +114,10 @@ fn invalid_later_navigation_does_not_consume_positive_terminal_reestablishment_e
     let sibling_current = bound
         .presentation_authority(second_context)
         .expect("invalid first-context observation must not disturb the sibling authority");
-    assert_eq!(sibling_current.incarnation(), second_authority.incarnation());
+    assert_eq!(
+        sibling_current.incarnation(),
+        second_authority.incarnation()
+    );
     assert_eq!(
         sibling_current.context_epoch(),
         second_authority.context_epoch()
@@ -122,7 +125,9 @@ fn invalid_later_navigation_does_not_consume_positive_terminal_reestablishment_e
 
     let reestablished = bound
         .reestablish_presentation_authority(first_context)
-        .expect("rejected invalid navigation must leave the prior valid terminal eligibility intact");
+        .expect(
+            "rejected invalid navigation must leave the prior valid terminal eligibility intact",
+        );
     assert_eq!(
         reestablished.context_epoch().value(),
         second_authority.context_epoch().value() + 1,
@@ -193,12 +198,7 @@ fn prior_incarnation_navigation_does_not_consume_current_terminal_reestablishmen
     let sibling_context = BrowsingContextId::new(1046).expect("valid sibling context");
     let prior_adapter_calls = Rc::new(Cell::new(0));
     let current_adapter_calls = Rc::new(Cell::new(0));
-    let mut prior = bound_session(
-        1045,
-        reused_context,
-        sibling_context,
-        &prior_adapter_calls,
-    );
+    let mut prior = bound_session(1045, reused_context, sibling_context, &prior_adapter_calls);
     let mut current = bound_session(
         1045,
         reused_context,
@@ -248,7 +248,9 @@ fn prior_incarnation_navigation_does_not_consume_current_terminal_reestablishmen
 
     let reestablished = current
         .reestablish_presentation_authority(reused_context)
-        .expect("rejected prior-incarnation evidence must leave current terminal eligibility intact");
+        .expect(
+            "rejected prior-incarnation evidence must leave current terminal eligibility intact",
+        );
     assert_eq!(
         reestablished.context_epoch().value(),
         current_authority.context_epoch().value() + 1,
