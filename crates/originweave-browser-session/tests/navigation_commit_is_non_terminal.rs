@@ -242,7 +242,18 @@ fn commit_progress_preserves_witness_until_download_start_liveness_closure() {
         Err(BrowserSessionError::AuthorityMismatch),
         "commit alone must not create a re-establishment opportunity before download liveness closes"
     );
-    assert_eq!(adapter_calls.get(), calls_after_create);
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-commit-before-download"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "commit progress must keep retained pre-navigation authority revoked before download-start closure"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "commit progress, premature re-establishment, and retained-authority rejection must remain zero-I/O"
+    );
 
     bound
         .record_observed_navigation_download_started(&pending)
