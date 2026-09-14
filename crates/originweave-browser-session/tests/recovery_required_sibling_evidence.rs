@@ -51,9 +51,9 @@ fn existing_exact_handle(
     match evidence {
         BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(handle)
         | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(handle)
-        | BrowserSessionRecoveryEvidence::UnprovenDestruction(handle)
         | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(handle)
         | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(handle) => Some(handle),
+        BrowserSessionRecoveryEvidence::UnprovenDestruction { context, .. } => Some(context),
         BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => None,
     }
 }
@@ -72,6 +72,7 @@ fn recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings() 
     let first_authority = bound
         .create_disposable_context()
         .expect("first accepted context");
+    let first_epoch = first_authority.context_epoch();
     let _sibling_authority = bound
         .create_disposable_context()
         .expect("second accepted context");
@@ -87,10 +88,11 @@ fn recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings() 
 
     let evidence = bound.browser_session().recovery_evidence();
     assert!(
-        evidence.contains(&BrowserSessionRecoveryEvidence::UnprovenDestruction(
-            first.clone()
-        )),
-        "the directly failed destruction must keep its cause-specific evidence"
+        evidence.contains(&BrowserSessionRecoveryEvidence::UnprovenDestruction {
+            context: first.clone(),
+            context_epoch: first_epoch,
+        }),
+        "the directly failed destruction must keep its cause-specific handle and validated epoch"
     );
     assert!(
         evidence.contains(
