@@ -247,10 +247,75 @@ fn assert_destroyed_sibling_replay_preserves_survivor_eligibility(
         calls_after_destroy,
         "survivor re-establishment must remain zero-I/O",
     );
+
+    let replay_after_reestablishment = match replay {
+        DestroyedSiblingReplay::Committed => {
+            bound.record_observed_navigation_committed(&second_pending)
+        }
+        DestroyedSiblingReplay::Settled => {
+            bound.record_observed_navigation_settled(&second_pending)
+        }
+        DestroyedSiblingReplay::Aborted => bound.record_observed_navigation_terminated(
+            &second_pending,
+            NavigationTerminationOutcome::Aborted,
+        ),
+        DestroyedSiblingReplay::Failed => bound.record_observed_navigation_terminated(
+            &second_pending,
+            NavigationTerminationOutcome::Failed,
+        ),
+        DestroyedSiblingReplay::DownloadStarted => {
+            bound.record_observed_navigation_download_started(&second_pending)
+        }
+    };
+    assert_eq!(
+        replay_after_reestablishment,
+        Err(BrowserSessionError::ContextNotOwned),
+        "destroyed-sibling evidence remains ownership-invalid after survivor re-establishment",
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_destroy,
+        "post-reestablishment sibling replay must not alter aggregate lifecycle state",
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_destroy.as_slice(),
+        "post-reestablishment sibling replay must not rewrite recovery evidence",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "post-reestablishment sibling replay must fail before adapter I/O",
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::ContextNotOwned),
+        "post-reestablishment replay must not resurrect the destroyed sibling",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "destroyed sibling must remain non-authorizing without adapter I/O",
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &first_authority,
+            "survivor-retained-authority-after-post-reestablishment-replay",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "post-reestablishment sibling replay must not reactivate retained survivor authority",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "retained survivor authority must still fail before adapter I/O",
+    );
     assert_eq!(
         bound.reestablish_presentation_authority(first_context),
         Err(BrowserSessionError::AuthorityMismatch),
-        "survivor eligibility remains single-use after hostile sibling replay",
+        "post-reestablishment sibling replay must not manufacture a second survivor eligibility",
     );
     assert_eq!(
         adapter_calls.get(),
@@ -260,7 +325,7 @@ fn assert_destroyed_sibling_replay_preserves_survivor_eligibility(
     assert_eq!(
         bound.execute_authorized_context_operation(&first_reestablished, "survivor-current"),
         Ok(first_context),
-        "the preserved survivor eligibility must mint executable fresh authority",
+        "the preserved survivor authority must remain executable after hostile sibling replay",
     );
     assert_eq!(adapter_calls.get(), calls_after_destroy + 1);
 }
