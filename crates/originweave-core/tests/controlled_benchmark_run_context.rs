@@ -135,3 +135,42 @@ fn surrounding_whitespace_reproducibility_context_field_fails_closed() {
         "controlled benchmark run context field chromium_revision contains non-canonical surrounding whitespace"
     );
 }
+
+#[test]
+fn control_character_in_reproducibility_context_fails_closed() {
+    for hostile in ["runner\nspoofed=passed", "runner\0suffix", "runner\u{0085}suffix"] {
+        let mut context = run_context();
+        context.reasoning_configuration = hostile;
+
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                field: "reasoning_configuration",
+            }),
+            "hostile context identity must not become benchmark evidence: {hostile:?}"
+        );
+    }
+}
+
+#[test]
+fn visible_unicode_reproducibility_context_remains_valid() {
+    let mut context = run_context();
+    context.reasoning_configuration = "결정적-ブラウザ-oráculo-v1";
+
+    assert_eq!(
+        evaluate_controlled_benchmark_suite_for_run(
+            context,
+            context,
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            base_profile(),
+            &[],
+        ),
+        Ok(BenchmarkSuiteOutcome::Inconclusive)
+    );
+}
