@@ -3,10 +3,10 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use originweave_browser_session::{
-    AuthorizedContextOperationPort, AuthorizedContextOperationRequest, BrowserSession,
-    BrowserSessionError, DisposableContextCreateCompletion,
-    DisposableContextCreateCompletionError, DisposableContextCreateError,
-    DisposableContextCreateRequest, DisposableContextDestroyError,
+    AuthorizedContextOperationError, AuthorizedContextOperationPort,
+    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError,
+    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
+    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
     DisposableIsolationId, NavigationTerminationOutcome,
 };
@@ -66,6 +66,33 @@ fn handle(context: BrowsingContextId, isolation: &str) -> DisposableContextHandl
     )
 }
 
+fn assert_pending_authority_remains_revoked(
+    bound: &mut originweave_browser_session::BoundBrowserSession<ContextLocalCommitProbePort>,
+    context: BrowsingContextId,
+    retained_authority: &originweave_browser_session::PresentationMutationAuthority,
+    operation: &'static str,
+    adapter_calls: &Rc<Cell<usize>>,
+    expected_calls: usize,
+) {
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "commit bookkeeping must not manufacture re-establishment eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(retained_authority, operation),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "commit bookkeeping must not reactivate retained pre-navigation authority"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        expected_calls,
+        "re-establishment and retained-authority checks must fail before adapter I/O"
+    );
+}
+
 #[test]
 fn navigation_commit_progress_and_duplicate_rejection_are_context_local() {
     let first_context = BrowsingContextId::new(1341).expect("valid first context");
@@ -116,6 +143,22 @@ fn navigation_commit_progress_and_duplicate_rejection_are_context_local() {
         bound.browser_session().recovery_evidence(),
         recovery_after_starts.as_slice()
     );
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        first_context,
+        &first_authority,
+        "first-stale-after-own-commit",
+        &adapter_calls,
+        calls_after_create,
+    );
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        second_context,
+        &second_authority,
+        "second-stale-after-sibling-commit",
+        &adapter_calls,
+        calls_after_create,
+    );
 
     assert_eq!(
         bound.record_observed_navigation_committed(&first_pending),
@@ -128,10 +171,49 @@ fn navigation_commit_progress_and_duplicate_rejection_are_context_local() {
         bound.browser_session().recovery_evidence(),
         recovery_after_starts.as_slice()
     );
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        first_context,
+        &first_authority,
+        "first-stale-after-duplicate-first-commit",
+        &adapter_calls,
+        calls_after_create,
+    );
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        second_context,
+        &second_authority,
+        "second-stale-after-duplicate-first-commit",
+        &adapter_calls,
+        calls_after_create,
+    );
 
     bound
         .record_observed_navigation_committed(&second_pending)
         .expect("duplicate rejection on the first context must not consume the sibling commit slot");
+    assert_eq!(adapter_calls.get(), calls_after_create);
+    assert_eq!(bound.browser_session().state(), state_after_starts);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_starts.as_slice()
+    );
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        first_context,
+        &first_authority,
+        "first-stale-after-second-commit",
+        &adapter_calls,
+        calls_after_create,
+    );
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        second_context,
+        &second_authority,
+        "second-stale-after-own-commit",
+        &adapter_calls,
+        calls_after_create,
+    );
+
     assert_eq!(
         bound.record_observed_navigation_committed(&second_pending),
         Err(BrowserSessionError::AuthorityMismatch),
@@ -143,18 +225,22 @@ fn navigation_commit_progress_and_duplicate_rejection_are_context_local() {
         bound.browser_session().recovery_evidence(),
         recovery_after_starts.as_slice()
     );
-
-    assert_eq!(
-        bound.reestablish_presentation_authority(first_context),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "commit progress must remain non-terminal for the first context"
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        first_context,
+        &first_authority,
+        "first-stale-after-duplicate-second-commit",
+        &adapter_calls,
+        calls_after_create,
     );
-    assert_eq!(
-        bound.reestablish_presentation_authority(second_context),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "commit progress must remain non-terminal for the sibling context"
+    assert_pending_authority_remains_revoked(
+        &mut bound,
+        second_context,
+        &second_authority,
+        "second-stale-after-duplicate-own-commit",
+        &adapter_calls,
+        calls_after_create,
     );
-    assert_eq!(adapter_calls.get(), calls_after_create);
 
     bound
         .record_observed_navigation_settled(&first_pending)
@@ -171,6 +257,16 @@ fn navigation_commit_progress_and_duplicate_rejection_are_context_local() {
         bound.reestablish_presentation_authority(second_context),
         Err(BrowserSessionError::AuthorityMismatch),
         "closing the first context must not unlock a committed-but-pending sibling"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "second-stale-while-first-reestablished",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "first-context re-establishment must not reactivate the sibling's retained authority"
     );
     assert_eq!(adapter_calls.get(), calls_after_create);
 
