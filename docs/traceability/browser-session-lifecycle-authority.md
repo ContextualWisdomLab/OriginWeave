@@ -2,7 +2,7 @@
 
 - Status: IMPLEMENTED_ON_ACTIVE_PR
 - Owning bounded context: `originweave-browser-session`
-- Governing proposal: ADR 0114
+- Governing proposals: ADR 0114; ADR 0115
 - Requirement owner: issue #312
 - Integration prerequisites: #229 presentation-ownership witnesses; #314/#316 WebDriver BiDi ACL after this foundation is exact-head GREEN
 
