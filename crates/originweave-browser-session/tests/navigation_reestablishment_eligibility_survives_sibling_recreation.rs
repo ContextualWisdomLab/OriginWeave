@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use originweave_browser_session::{
     AuthorizedContextOperationError, AuthorizedContextOperationPort,
-    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError, BrowserSessionState,
+    AuthorizedContextOperationRequest, BrowserSession, BrowserSessionError,
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
