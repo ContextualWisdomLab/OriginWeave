@@ -180,3 +180,137 @@ fn duplicate_commit_replay_is_rejected_without_consuming_the_pending_witness() {
     );
     assert_eq!(adapter_calls.get(), calls_after_create + 1);
 }
+
+#[test]
+fn duplicate_commit_rejection_preserves_negative_terminal_closure() {
+    let context = BrowsingContextId::new(1322).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = DuplicateCommitProbePort {
+        handle: Some(DisposableContextHandle::new(
+            DisposableIsolationId::parse("duplicate-commit-user-context-1322")
+                .expect("valid isolation id"),
+            context,
+        )),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(1322).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_after_create = adapter_calls.get();
+    let pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("navigation start issues one pending witness");
+    bound
+        .record_observed_navigation_committed(&pending)
+        .expect("the first commit records progress");
+    assert_eq!(
+        bound.record_observed_navigation_committed(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "duplicate commit must fail closed"
+    );
+
+    bound
+        .record_observed_navigation_terminated(&pending, NavigationTerminationOutcome::Aborted)
+        .expect("duplicate commit rejection must preserve a later negative terminal closure");
+    let state_after_closure = bound.browser_session().state();
+    let recovery_after_closure = bound.browser_session().recovery_evidence().to_vec();
+    assert_eq!(
+        bound.record_observed_navigation_settled(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "negative closure remains single-assignment after duplicate commit rejection"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "download closure must not overwrite the accepted negative closure"
+    );
+    assert_eq!(bound.browser_session().state(), state_after_closure);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_closure.as_slice()
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
+    let fresh = bound
+        .reestablish_presentation_authority(context)
+        .expect("negative closure permits exactly one explicit fresh authority");
+    assert_eq!(
+        fresh.context_epoch().value(),
+        initial.context_epoch().value() + 1
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&fresh, "usable-after-negative-closure"),
+        Ok(context)
+    );
+}
+
+#[test]
+fn duplicate_commit_rejection_preserves_download_liveness_closure() {
+    let context = BrowsingContextId::new(1323).expect("valid browsing context");
+    let adapter_calls = Rc::new(Cell::new(0));
+    let port = DuplicateCommitProbePort {
+        handle: Some(DisposableContextHandle::new(
+            DisposableIsolationId::parse("duplicate-commit-user-context-1323")
+                .expect("valid isolation id"),
+            context,
+        )),
+        adapter_calls: Rc::clone(&adapter_calls),
+    };
+    let mut bound = BrowserSession::start(BrowserSessionId::new(1323).expect("valid session id"))
+        .expect("incarnation capacity")
+        .bind_lifecycle_port(port);
+
+    let initial = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    let calls_after_create = adapter_calls.get();
+    let pending = bound
+        .record_observed_navigation(initial.incarnation(), context, initial.context_epoch())
+        .expect("navigation start issues one pending witness");
+    bound
+        .record_observed_navigation_committed(&pending)
+        .expect("the first commit records progress");
+    assert_eq!(
+        bound.record_observed_navigation_committed(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "duplicate commit must fail closed"
+    );
+
+    bound
+        .record_observed_navigation_download_started(&pending)
+        .expect("duplicate commit rejection must preserve a later download-start liveness closure");
+    let state_after_closure = bound.browser_session().state();
+    let recovery_after_closure = bound.browser_session().recovery_evidence().to_vec();
+    assert_eq!(
+        bound.record_observed_navigation_settled(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "positive closure must not overwrite the accepted download-start closure"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(&pending, NavigationTerminationOutcome::Failed),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "negative closure must not overwrite the accepted download-start closure"
+    );
+    assert_eq!(bound.browser_session().state(), state_after_closure);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_closure.as_slice()
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
+    let fresh = bound
+        .reestablish_presentation_authority(context)
+        .expect("download liveness closure permits exactly one explicit fresh authority");
+    assert_eq!(
+        fresh.context_epoch().value(),
+        initial.context_epoch().value() + 1
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&fresh, "usable-after-download-closure"),
+        Ok(context)
+    );
+}
