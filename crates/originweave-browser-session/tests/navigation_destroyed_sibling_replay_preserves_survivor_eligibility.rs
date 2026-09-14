@@ -328,6 +328,83 @@ fn assert_destroyed_sibling_replay_preserves_survivor_eligibility(
         "the preserved survivor authority must remain executable after hostile sibling replay",
     );
     assert_eq!(adapter_calls.get(), calls_after_destroy + 1);
+
+    let calls_after_current_operation = adapter_calls.get();
+    let followup_pending = bound
+        .record_observed_navigation(
+            first_reestablished.incarnation(),
+            first_context,
+            first_reestablished.context_epoch(),
+        )
+        .expect("a new qualified survivor navigation must remain available after stale sibling replay");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_current_operation,
+        "new survivor navigation observation must remain zero-I/O",
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &first_reestablished,
+            "survivor-authority-after-followup-navigation",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "the next qualified survivor navigation must revoke the prior fresh authority",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_current_operation,
+        "revoked survivor authority must fail before adapter I/O",
+    );
+    bound
+        .record_observed_navigation_settled(&followup_pending)
+        .expect("follow-up survivor navigation may independently close positively");
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_current_operation,
+        "follow-up survivor settlement must remain zero-I/O",
+    );
+
+    let second_reestablished = bound
+        .reestablish_presentation_authority(first_context)
+        .expect("only the follow-up qualified navigation may create the next eligibility");
+    assert_eq!(
+        second_reestablished.context_epoch().value(),
+        first_reestablished.context_epoch().value() + 1,
+        "destroyed-sibling replay must not consume a hidden aggregate presentation epoch",
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_destroy,
+        "follow-up re-establishment must not alter aggregate lifecycle state",
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_destroy.as_slice(),
+        "follow-up re-establishment must not rewrite recovery evidence",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_current_operation,
+        "follow-up re-establishment must remain zero-I/O",
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(first_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "follow-up navigation eligibility remains exactly once",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_current_operation,
+        "duplicate follow-up re-establishment must fail before adapter I/O",
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&second_reestablished, "survivor-followup-current"),
+        Ok(first_context),
+        "the follow-up authority minted after stale sibling replay must be executable",
+    );
+    assert_eq!(adapter_calls.get(), calls_after_current_operation + 1);
 }
 
 #[test]
