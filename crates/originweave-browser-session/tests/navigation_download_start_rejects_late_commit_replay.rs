@@ -153,6 +153,16 @@ fn download_start_consumption_rejects_late_commit_before_and_after_reestablishme
         "post-re-establishment late commit replay must fail before adapter I/O"
     );
     assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "late commit replay after re-establishment must not create a second re-establishment opportunity"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "post-re-establishment late commit replay and duplicate eligibility probe must remain zero-I/O"
+    );
+    assert_eq!(
         bound.execute_authorized_context_operation(&fresh, "usable-after-download-late-commit"),
         Ok(context),
         "late commit replay for the consumed witness must leave the fresh authority executable"
