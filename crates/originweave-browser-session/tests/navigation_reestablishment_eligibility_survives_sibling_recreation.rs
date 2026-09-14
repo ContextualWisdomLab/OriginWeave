@@ -225,6 +225,14 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
     );
 
     assert_eq!(
+        bound.execute_authorized_context_operation(&second_new_authority, "second-new-current"),
+        Ok(second_context),
+        "A re-establishment must not revoke B-new fresh authority before stale predecessor evidence is observed",
+    );
+    let calls_after_second_new_operation = adapter_calls.get();
+    assert_eq!(calls_after_second_new_operation, calls_after_recreate + 1);
+
+    assert_eq!(
         bound.record_observed_navigation_committed(&second_old_pending),
         Err(BrowserSessionError::AuthorityMismatch),
         "commit evidence from the destroyed sibling generation must remain stale after raw-id recreation",
@@ -237,21 +245,24 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
     );
     assert_eq!(
         adapter_calls.get(),
-        calls_after_recreate,
+        calls_after_second_new_operation,
         "stale old-generation commit replay must fail before adapter I/O",
     );
-
+    let second_current_after_stale = bound
+        .presentation_authority(second_context)
+        .expect("stale B-old evidence must not revoke B-new current authority");
     assert_eq!(
-        bound.execute_authorized_context_operation(&second_new_authority, "second-new-current"),
-        Ok(second_context),
-        "stale predecessor evidence and A re-establishment must not revoke B-new fresh authority",
+        second_current_after_stale.context_epoch(),
+        second_new_authority.context_epoch(),
     );
+    assert_eq!(second_current_after_stale.context(), second_context);
+
     assert_eq!(
         bound.execute_authorized_context_operation(&first_reestablished, "first-current"),
         Ok(first_context),
-        "A's preserved eligibility must yield executable authority after sibling recreation",
+        "stale predecessor evidence must not revoke A's re-established authority",
     );
-    assert_eq!(adapter_calls.get(), calls_after_recreate + 2);
+    assert_eq!(adapter_calls.get(), calls_after_second_new_operation + 1);
 }
 
 #[test]
