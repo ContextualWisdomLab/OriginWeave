@@ -136,6 +136,11 @@ fn assert_predecessor_replay_never_reactivates_any_historical_new_generation_aut
     let retained_new_authority = bound
         .create_disposable_context()
         .expect("same raw context id is recreated under a new ownership generation");
+    assert_eq!(
+        retained_new_authority.context_epoch().value(),
+        old_authority.context_epoch().value() + 1,
+        "same-raw-id recreation must use exactly the next aggregate epoch",
+    );
 
     let first_pending = bound
         .record_observed_navigation(
@@ -153,6 +158,11 @@ fn assert_predecessor_replay_never_reactivates_any_historical_new_generation_aut
     let first_fresh_authority = bound
         .reestablish_presentation_authority(context)
         .expect("navigation one mints its fresh authority");
+    assert_eq!(
+        first_fresh_authority.context_epoch().value(),
+        retained_new_authority.context_epoch().value() + 1,
+        "navigation one must mint exactly the next aggregate epoch",
+    );
 
     let second_pending = bound
         .record_observed_navigation(
@@ -170,6 +180,11 @@ fn assert_predecessor_replay_never_reactivates_any_historical_new_generation_aut
     let second_fresh_authority = bound
         .reestablish_presentation_authority(context)
         .expect("navigation two mints its fresh authority");
+    assert_eq!(
+        second_fresh_authority.context_epoch().value(),
+        first_fresh_authority.context_epoch().value() + 1,
+        "navigation two must mint exactly the next aggregate epoch",
+    );
 
     let calls_before_replay = adapter_calls.get();
     assert_eq!(
@@ -248,6 +263,48 @@ fn assert_predecessor_replay_never_reactivates_any_historical_new_generation_aut
         "only the newest authority remains executable after stale predecessor replay",
     );
     assert_eq!(adapter_calls.get(), calls_before_replay + 1);
+
+    let third_pending = bound
+        .record_observed_navigation(
+            second_fresh_authority.incarnation(),
+            context,
+            second_fresh_authority.context_epoch(),
+        )
+        .expect("a valid navigation after stale replay must still be admitted");
+    bound
+        .record_observed_navigation_committed(&third_pending)
+        .expect("post-replay navigation records its own commit progress");
+    bound
+        .record_observed_navigation_settled(&third_pending)
+        .expect("post-replay navigation closes only with its own witness");
+    let third_fresh_authority = bound
+        .reestablish_presentation_authority(context)
+        .expect("post-replay navigation mints the next authority");
+    assert_eq!(
+        third_fresh_authority.context_epoch().value(),
+        second_fresh_authority.context_epoch().value() + 1,
+        "rejected predecessor replay must not consume a hidden aggregate epoch",
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_fresh_authority,
+            "second-fresh-after-third-navigation",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "the authority consumed by the post-replay navigation must become permanently stale",
+    );
+    assert_eq!(adapter_calls.get(), calls_before_replay + 1);
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &third_fresh_authority,
+            "third-fresh-after-predecessor-replay",
+        ),
+        Ok(context),
+        "the exact next authority after rejected replay must remain executable",
+    );
+    assert_eq!(adapter_calls.get(), calls_before_replay + 2);
 }
 
 #[test]
