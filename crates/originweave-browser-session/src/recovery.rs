@@ -10,6 +10,64 @@ use crate::browser_session::{
 /// presentation-authority, epoch-advance, destroy, or authorized-operation methods. The concrete
 /// adapter remains private and is moved, not reconstructed or replaced.
 ///
+/// Ordinary context creation is not available from recovery custody:
+///
+/// ```compile_fail
+/// use originweave_browser_session::{BoundBrowserSessionRecovery, DisposableContextPort};
+/// fn forbidden<P: DisposableContextPort>(mut recovery: BoundBrowserSessionRecovery<P>) {
+///     let _ = recovery.create_disposable_context();
+/// }
+/// ```
+///
+/// Presentation-authority lookup is not available from recovery custody:
+///
+/// ```compile_fail
+/// use originweave_browser_session::{BoundBrowserSessionRecovery, DisposableContextPort};
+/// use originweave_core::BrowsingContextId;
+/// fn forbidden<P: DisposableContextPort>(
+///     recovery: BoundBrowserSessionRecovery<P>,
+///     context: BrowsingContextId,
+/// ) {
+///     let _ = recovery.presentation_authority(context);
+/// }
+/// ```
+///
+/// Context-epoch advancement is not available from recovery custody:
+///
+/// ```compile_fail
+/// use originweave_browser_session::{BoundBrowserSessionRecovery, DisposableContextPort};
+/// use originweave_core::BrowsingContextId;
+/// fn forbidden<P: DisposableContextPort>(
+///     mut recovery: BoundBrowserSessionRecovery<P>,
+///     context: BrowsingContextId,
+/// ) {
+///     let _ = recovery.advance_context_epoch(context);
+/// }
+/// ```
+///
+/// Ordinary destruction is not available from recovery custody:
+///
+/// ```compile_fail
+/// use originweave_browser_session::{
+///     BoundBrowserSessionRecovery, DisposableContextPort, PresentationMutationAuthority,
+/// };
+/// fn forbidden<P: DisposableContextPort>(
+///     mut recovery: BoundBrowserSessionRecovery<P>,
+///     authority: PresentationMutationAuthority,
+/// ) {
+///     let _ = recovery.destroy_disposable_context(&authority);
+/// }
+/// ```
+///
+/// Normal session completion is not available from recovery custody:
+///
+/// ```compile_fail
+/// use originweave_browser_session::{BoundBrowserSessionRecovery, DisposableContextPort};
+/// fn forbidden<P: DisposableContextPort>(mut recovery: BoundBrowserSessionRecovery<P>) {
+///     let _ = recovery.finish();
+/// }
+/// ```
+///
 /// Dropping this wrapper performs no browser I/O. The contained [`BoundBrowserSession`] retains its
 /// existing abandonment accounting when unresolved remote ownership is finally dropped.
 #[must_use = "persist or reconcile unresolved Browser Session ownership before dropping recovery custody"]
