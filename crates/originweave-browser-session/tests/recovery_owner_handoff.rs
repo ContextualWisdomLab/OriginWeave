@@ -118,12 +118,14 @@ fn unproven_destroy_hands_exact_bound_adapter_and_evidence_to_recovery_owner(
         .into_recovery()
         .map_err(|_| "RecoveryRequired must permit consuming recovery handoff")?;
 
-    assert_eq!(drop_calls.get(), 0, "handoff must move, not replace, the bound adapter");
     assert_eq!(
-        recovery.browser_session().state(),
-        BrowserSessionState::RecoveryRequired
+        drop_calls.get(),
+        0,
+        "handoff must move, not replace, the bound adapter"
     );
-    assert_eq!(recovery.browser_session().recovery_evidence(), expected_evidence);
+    assert_eq!(recovery.state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(recovery.recovery_evidence(), expected_evidence);
+    assert!(recovery.create_attempt_recovery_evidence().is_empty());
     assert_eq!(create_calls.get(), 1, "handoff must not create browser state");
     assert_eq!(destroy_calls.get(), 1, "handoff must not imply cleanup I/O");
 
@@ -178,12 +180,14 @@ fn transport_loss_hands_exact_bound_adapter_and_evidence_to_recovery_owner(
         .into_recovery()
         .map_err(|_| "TransportLost must permit consuming recovery handoff")?;
 
-    assert_eq!(drop_calls.get(), 0, "handoff must preserve the same bound adapter instance");
     assert_eq!(
-        recovery.browser_session().state(),
-        BrowserSessionState::TransportLost
+        drop_calls.get(),
+        0,
+        "handoff must preserve the same bound adapter instance"
     );
-    assert_eq!(recovery.browser_session().recovery_evidence(), expected_evidence);
+    assert_eq!(recovery.state(), BrowserSessionState::TransportLost);
+    assert_eq!(recovery.recovery_evidence(), expected_evidence);
+    assert!(recovery.create_attempt_recovery_evidence().is_empty());
     assert_eq!(create_calls.get(), 1, "handoff must not create browser state");
     assert_eq!(destroy_calls.get(), 0, "transport loss is not destruction proof");
 
