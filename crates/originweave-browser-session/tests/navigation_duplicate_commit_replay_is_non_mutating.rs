@@ -7,7 +7,7 @@ use originweave_browser_session::{
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
     DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId,
+    DisposableIsolationId, NavigationTerminationOutcome,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -124,15 +124,48 @@ fn duplicate_commit_replay_is_rejected_without_consuming_the_pending_witness() {
     bound
         .record_observed_navigation_settled(&pending)
         .expect("duplicate commit rejection must leave the original pending witness available for one qualified closure");
+    let state_after_closure = bound.browser_session().state();
+    let recovery_after_closure = bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(adapter_calls.get(), calls_after_create);
+
+    assert_eq!(
+        bound.record_observed_navigation_settled(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the witness may accept the positive closure only once after duplicate commit rejection"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_terminated(&pending, NavigationTerminationOutcome::Failed),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the consumed witness must also reject a conflicting negative closure after duplicate commit rejection"
+    );
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the consumed witness must reject a conflicting download-start closure after duplicate commit rejection"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_closure,
+        "second or conflicting closure rejection must not mutate aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_closure.as_slice(),
+        "second or conflicting closure rejection must not mutate recovery evidence"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "all second-closure probes must fail before adapter I/O"
+    );
 
     let fresh = bound
         .reestablish_presentation_authority(context)
-        .expect("the later qualified closure permits exactly one explicit fresh authority");
+        .expect("the one qualified closure permits exactly one explicit fresh authority");
     assert_eq!(
         fresh.context_epoch().value(),
         initial.context_epoch().value() + 1,
-        "duplicate commit replay must not spend a presentation epoch"
+        "duplicate commit replay and rejected second closures must not spend a presentation epoch"
     );
     assert_eq!(
         bound.reestablish_presentation_authority(context),
@@ -143,7 +176,7 @@ fn duplicate_commit_replay_is_rejected_without_consuming_the_pending_witness() {
     assert_eq!(
         bound.execute_authorized_context_operation(&fresh, "usable-after-duplicate-commit"),
         Ok(context),
-        "the authority minted after the qualified closure must remain executable"
+        "the authority minted after the one qualified closure must remain executable"
     );
     assert_eq!(adapter_calls.get(), calls_after_create + 1);
 }
