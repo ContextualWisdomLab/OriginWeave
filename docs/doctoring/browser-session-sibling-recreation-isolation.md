@@ -12,6 +12,8 @@ A second failure mode appears after B-new is accepted under the reused raw id. A
 
 A third failure mode appears only after B-new has completed one valid navigation and re-established authority. An implementation can retire the predecessor-generation tombstone or raw-id generation discriminator after that successful cycle. B-old evidence then remains stale during B-new's first navigation but becomes eligible for accidental remapping when B-new starts a second navigation. This is a long-lived-session defect: a recreated context can look correct at admission and first settlement while becoming vulnerable only on a later navigation cycle.
 
+A fourth failure mode is capability resurrection rather than witness remapping. A stale predecessor replay can leave the newest B-new authority apparently correct while reactivating an older B-new capability that was already consumed by navigation 1 or navigation 2. Checking only the current projection or the immediately previous authority is insufficient: every capability superseded within the recreated ownership generation must stay permanently non-executable across later predecessor replay.
+
 ## Acceptance decision
 
 For each qualified A closure family—complete-positive settlement, `navigationAborted`, `navigationFailed`, and `downloadWillBegin`—the first hostile sequence is:
@@ -32,6 +34,12 @@ The third hostile matrix extends the same generation boundary across repeated na
 
 A successful first B-new re-establishment is not a reason to forget B-old's ownership generation. During navigation 2, stale B-old replay must neither consume B-new's still-available first commit nor reset an already-consumed commit slot; it must not close navigation 2, reactivate navigation 1 authority, create eligibility, spend an aggregate epoch, or perform adapter I/O. Navigation 2 must mint exactly one next authority, and the authority consumed by navigation 2 must remain permanently stale after both the second re-establishment and another B-old replay. Only the second fresh authority may remain executable.
 
+The fourth hostile check preserves cumulative revocation rather than only the current slot:
+
+`B-old start + commit → destroy(B-old) → recreate B-new → B-new navigation 1 close + re-establish → B-new navigation 2 close + re-establish → prove both the original B-new creation authority and navigation-1 fresh authority are stale → replay one B-old family → prove both historical authorities remain stale → prove only navigation-2 fresh authority executes`.
+
+A stale predecessor event must not resurrect any historical capability inside the recreated ownership generation even if the current projection, epoch, lifecycle state, and recovery evidence remain unchanged. Capability revocation is monotonic for the lifetime of each issued authority value: once a later navigation consumes an authority, neither same-generation progress nor predecessor-generation replay may make it executable again.
+
 The required invariants are:
 
 - B-old destruction and B-new creation may change only B's ownership generation and the aggregate-wide epoch allocator. They must not erase or recreate A's already-earned eligibility, mutate lifecycle/recovery state, or reactivate A's retained pre-navigation authority.
@@ -42,6 +50,7 @@ The required invariants are:
 - If B-new has a current navigation, all five B-old progress/terminal/liveness replay families remain generation-stale before B-new's first commit, after B-new's first commit, and after B-new re-establishment. They may not consume or reset B-new's own commit-progress slot, close its witness, spend a hidden epoch, or create eligibility.
 - B-old generation staleness survives any number of later valid B-new navigation/re-establishment cycles. A successful B-new re-establishment must not retire predecessor-generation correlation state needed to reject delayed evidence on a later navigation.
 - Every later B-new navigation independently revokes the authority that started it, owns its own exactly-once commit-progress slot and closure witness, and mints at most one next authority. Stale B-old evidence cannot bridge from an earlier ownership generation into a later navigation cycle.
+- Revocation is cumulative across B-new navigation cycles. After multiple re-establishments, every older B-new authority remains permanently `AuthorityMismatch`; predecessor replay may not resurrect the original creation authority or any intermediate fresh authority while leaving the newest authority apparently valid.
 - B-new has no navigation-derived re-establishment eligibility merely because its predecessor did.
 - Fresh authorities must execute against their exact current contexts. Projection equality or epoch arithmetic without executable authority is insufficient evidence.
 
@@ -51,7 +60,7 @@ Browser Session remains the deterministic authority owner. WebDriver BiDi naviga
 
 The test-first Rust acceptance in the stacked successor remains structural RED until PR #317 supplies the production navigation state machine. The exact successor must then pass repository contracts, Rust 1.97.1 `cargo fmt --all -- --check`, locked workspace tests, strict Clippy, rustdoc/API documentation, and production function/line/region/branch coverage at 100% on one exact head.
 
-A later explicitly qualified Chromium/WebDriver BiDi lane must reproduce sibling raw-id recreation and prove browser-observed post-conditions for both the preserved sibling authority and the fresh B generation. It must replay all five B-old navigation evidence families while B-new is idle, pre-commit pending, and already committed, then repeat stale replay after B-new re-establishment. It must also start a second B-new navigation after successful first re-establishment and repeat all five B-old replay families both before and after that second navigation's first commit, followed by another replay after the second re-establishment. B-new's own navigation starts, first commits, closures, fresh authorities, and browser-observed post-conditions must remain attributable to B-new throughout. Command ACK alone is not acceptance evidence.
+A later explicitly qualified Chromium/WebDriver BiDi lane must reproduce sibling raw-id recreation and prove browser-observed post-conditions for both the preserved sibling authority and the fresh B generation. It must replay all five B-old navigation evidence families while B-new is idle, pre-commit pending, and already committed, then repeat stale replay after B-new re-establishment. It must also start a second B-new navigation after successful first re-establishment and repeat all five B-old replay families both before and after that second navigation's first commit, followed by another replay after the second re-establishment. At that final replay point, both the original B-new creation authority and every intermediate re-established authority must still fail closed while only the newest authority remains executable. B-new's own navigation starts, first commits, closures, fresh authorities, and browser-observed post-conditions must remain attributable to B-new throughout. Command ACK alone is not acceptance evidence.
 
 ## Traceability
 
