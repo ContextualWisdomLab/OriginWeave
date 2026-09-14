@@ -7,21 +7,27 @@ use originweave_browser_session::{
     DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-#[derive(Debug)]
-struct SameHandleRejectedCompletionPort {
-    handle: DisposableContextHandle,
+#[derive(Debug, Default)]
+struct CreateAttemptLedger {
     create_attempts: Vec<u64>,
     completion_attempts: Vec<(u64, DisposableContextCreateDisposition)>,
 }
 
+#[derive(Debug)]
+struct SameHandleRejectedCompletionPort {
+    handle: DisposableContextHandle,
+    ledger: Rc<RefCell<CreateAttemptLedger>>,
+}
+
 impl SameHandleRejectedCompletionPort {
-    fn new(handle: DisposableContextHandle) -> Self {
-        Self {
-            handle,
-            create_attempts: Vec::new(),
-            completion_attempts: Vec::new(),
-        }
+    fn new(
+        handle: DisposableContextHandle,
+        ledger: Rc<RefCell<CreateAttemptLedger>>,
+    ) -> Self {
+        Self { handle, ledger }
     }
 }
 
@@ -30,7 +36,10 @@ impl DisposableContextPort for SameHandleRejectedCompletionPort {
         &mut self,
         request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
-        self.create_attempts.push(request.attempt_epoch().value());
+        self.ledger
+            .borrow_mut()
+            .create_attempts
+            .push(request.attempt_epoch().value());
         Ok(self.handle.clone())
     }
 
@@ -38,8 +47,10 @@ impl DisposableContextPort for SameHandleRejectedCompletionPort {
         &mut self,
         completion: &DisposableContextCreateCompletion,
     ) -> Result<(), DisposableContextCreateCompletionError> {
-        self.completion_attempts
-            .push((completion.attempt_epoch().value(), completion.disposition()));
+        self.ledger.borrow_mut().completion_attempts.push((
+            completion.attempt_epoch().value(),
+            completion.disposition(),
+        ));
         if completion.disposition() == DisposableContextCreateDisposition::Rejected {
             Err(DisposableContextCreateCompletionError::CompletionFailed)
         } else {
@@ -66,7 +77,8 @@ fn same_valued_rejected_create_keeps_prior_ownership_as_a_distinct_recovery_fact
         BrowserSessionId::new(94_001).expect("valid browser-session identity"),
     )
     .expect("browser-session incarnation capacity");
-    let port = SameHandleRejectedCompletionPort::new(handle.clone());
+    let ledger = Rc::new(RefCell::new(CreateAttemptLedger::default()));
+    let port = SameHandleRejectedCompletionPort::new(handle.clone(), Rc::clone(&ledger));
     let mut bound = session.bind_lifecycle_port(port);
 
     let first_authority = bound
@@ -79,6 +91,18 @@ fn same_valued_rejected_create_keeps_prior_ownership_as_a_distinct_recovery_fact
         Err(BrowserSessionError::ContextCreationUncertain),
         "attempt 2 returns the same remote handle but its rejected completion is unproven"
     );
+
+    let observed = ledger.borrow();
+    assert_eq!(observed.create_attempts, vec![1, 2]);
+    assert_eq!(
+        observed.completion_attempts,
+        vec![
+            (1, DisposableContextCreateDisposition::Accepted),
+            (2, DisposableContextCreateDisposition::Rejected),
+        ],
+        "the adapter must observe the same aggregate-issued attempt identity that recovery evidence retains"
+    );
+    drop(observed);
 
     assert_eq!(bound.browser_session().recovery_evidence().len(), 3);
     assert!(bound
