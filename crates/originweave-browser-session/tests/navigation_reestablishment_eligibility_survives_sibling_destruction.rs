@@ -236,6 +236,21 @@ fn assert_sibling_destruction_preserves_reestablishment_eligibility(
         "successful re-establishment is an in-memory authority transition and must remain zero-I/O",
     );
     assert_eq!(
+        bound.execute_authorized_context_operation(
+            &first_authority,
+            "first-retained-authority-after-reestablishment",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "explicit re-establishment must not reactivate retained first-context authority",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "the retained-authority probe must fail before adapter I/O",
+    );
+    assert_eq!(
         bound.reestablish_presentation_authority(first_context),
         Err(BrowserSessionError::AuthorityMismatch),
         "the preserved first-context eligibility remains single-use",
