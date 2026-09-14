@@ -595,7 +595,6 @@ impl BrowserSession {
     ///
     /// Binding invokes no adapter method. All subsequent create/destroy I/O is reachable only through
     /// the owned port inside the returned wrapper.
-    #[must_use]
     pub fn bind_lifecycle_port<P: DisposableContextPort>(self, port: P) -> BoundBrowserSession<P> {
         BoundBrowserSession {
             session: self,
@@ -1365,7 +1364,7 @@ mod tests {
         let first = DisposableContextHandle::new(isolation_id("isolation-316-a"), context_id(316));
         let duplicate =
             DisposableContextHandle::new(isolation_id("isolation-316-b"), context_id(316));
-        let mut port = TestPort::with_handles(vec![first.clone(), duplicate.clone()]);
+        let port = TestPort::with_handles(vec![first.clone(), duplicate.clone()]);
         let mut bound = session(316).bind_lifecycle_port(port);
 
         bound
