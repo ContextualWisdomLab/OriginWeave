@@ -129,15 +129,33 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         initial.context_epoch().value() + 1
     );
     let calls_before_positive_post_reestablishment_replay = adapter_calls.get();
+    let state_after_positive_reestablishment = bound.browser_session().state();
+    let recovery_after_positive_reestablishment =
+        bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(
         bound.record_observed_navigation_download_started(&positively_terminal),
         Err(BrowserSessionError::AuthorityMismatch),
         "positive-terminal witness must remain consumed after fresh authority is minted"
     );
     assert_eq!(
+        bound.browser_session().state(),
+        state_after_positive_reestablishment,
+        "post-reestablishment download-start replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_positive_reestablishment.as_slice(),
+        "post-reestablishment download-start replay must not mutate recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "post-reestablishment download-start replay must not manufacture a hidden second eligibility"
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_before_positive_post_reestablishment_replay,
-        "post-reestablishment download-start replay must fail before adapter I/O"
+        "post-reestablishment replay and hidden-eligibility probe must fail before adapter I/O"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(
@@ -212,15 +230,33 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         after_positive.context_epoch().value() + 1
     );
     let calls_before_negative_post_reestablishment_replay = adapter_calls.get();
+    let state_after_negative_reestablishment = bound.browser_session().state();
+    let recovery_after_negative_reestablishment =
+        bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(
         bound.record_observed_navigation_download_started(&negatively_terminal),
         Err(BrowserSessionError::AuthorityMismatch),
         "negative-terminal witness must remain consumed after fresh authority is minted"
     );
     assert_eq!(
+        bound.browser_session().state(),
+        state_after_negative_reestablishment,
+        "post-reestablishment download-start replay must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_negative_reestablishment.as_slice(),
+        "post-reestablishment download-start replay must not mutate recovery evidence"
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "post-reestablishment download-start replay must not manufacture a hidden second eligibility"
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_before_negative_post_reestablishment_replay,
-        "post-reestablishment download-start replay must fail before adapter I/O"
+        "post-reestablishment replay and hidden-eligibility probe must fail before adapter I/O"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(
