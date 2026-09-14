@@ -178,6 +178,52 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
     );
     let calls_after_recreate = adapter_calls.get();
 
+    let first_reestablished = bound
+        .reestablish_presentation_authority(first_context)
+        .expect("A eligibility must survive B recreation without a compensating later event");
+    assert_eq!(
+        first_reestablished.context_epoch().value(),
+        second_new_authority.context_epoch().value() + 1,
+        "re-establishment must continue the aggregate-wide epoch sequence after sibling recreation",
+    );
+    assert_eq!(bound.browser_session().state(), state_before_recreation);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_before_recreation.as_slice(),
+        "first-context re-establishment must not rewrite lifecycle recovery evidence",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_recreate,
+        "re-establishment remains an in-memory authority transition",
+    );
+
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &first_authority,
+            "first-retained-authority-after-reestablishment",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "re-establishment must not reactivate the first context's retained pre-navigation authority",
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(first_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the preserved first-context eligibility remains single-use",
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a recreated sibling with no navigation closure has no re-establishment eligibility",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_recreate,
+        "authority and eligibility rejection after re-establishment must remain zero-I/O",
+    );
+
     assert_eq!(
         bound.record_observed_navigation_committed(&second_old_pending),
         Err(BrowserSessionError::AuthorityMismatch),
@@ -196,61 +242,14 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
     );
 
     assert_eq!(
-        bound.execute_authorized_context_operation(
-            &first_authority,
-            "first-retained-authority-after-sibling-recreation",
-        ),
-        Err(AuthorizedContextOperationError::BrowserSession(
-            BrowserSessionError::AuthorityMismatch,
-        )),
-        "sibling recreation must not reactivate the first context's retained authority",
-    );
-    assert_eq!(
-        adapter_calls.get(),
-        calls_after_recreate,
-        "retained first-context authority must fail before adapter I/O",
-    );
-
-    let first_reestablished = bound
-        .reestablish_presentation_authority(first_context)
-        .expect("sibling recreation must preserve the first context's already-earned eligibility");
-    assert_eq!(
-        first_reestablished.context_epoch().value(),
-        second_new_authority.context_epoch().value() + 1,
-        "re-establishment must continue the aggregate-wide epoch sequence after sibling recreation",
-    );
-    assert_eq!(bound.browser_session().state(), state_before_recreation);
-    assert_eq!(
-        bound.browser_session().recovery_evidence(),
-        recovery_before_recreation.as_slice(),
-        "first-context re-establishment must not rewrite lifecycle recovery evidence",
-    );
-    assert_eq!(
-        adapter_calls.get(),
-        calls_after_recreate,
-        "re-establishment remains an in-memory authority transition",
-    );
-    assert_eq!(
-        bound.reestablish_presentation_authority(first_context),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "the preserved first-context eligibility remains single-use",
-    );
-    assert_eq!(
-        bound.reestablish_presentation_authority(second_context),
-        Err(BrowserSessionError::AuthorityMismatch),
-        "a recreated sibling with no navigation closure has no re-establishment eligibility",
-    );
-    assert_eq!(adapter_calls.get(), calls_after_recreate);
-
-    assert_eq!(
         bound.execute_authorized_context_operation(&second_new_authority, "second-new-current"),
         Ok(second_context),
-        "first-context re-establishment must not revoke the recreated sibling's fresh authority",
+        "stale predecessor evidence and A re-establishment must not revoke B-new fresh authority",
     );
     assert_eq!(
         bound.execute_authorized_context_operation(&first_reestablished, "first-current"),
         Ok(first_context),
-        "the first context's eligibility must yield executable authority after sibling recreation",
+        "A's preserved eligibility must yield executable authority after sibling recreation",
     );
     assert_eq!(adapter_calls.get(), calls_after_recreate + 2);
 }
