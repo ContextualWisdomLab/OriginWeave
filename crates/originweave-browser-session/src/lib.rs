@@ -88,8 +88,6 @@ pub enum DisposableContextDestroyError {
 pub enum DisposableIsolationIdError {
     /// The identity is empty.
     Empty,
-    /// The identity exceeds the bounded adapter evidence size.
-    TooLong,
     /// The identity contains surrounding whitespace or control characters.
     InvalidCharacter,
 }
@@ -103,13 +101,10 @@ pub enum DisposableIsolationIdError {
 pub struct DisposableIsolationId(String);
 
 impl DisposableIsolationId {
-    /// Parse one bounded browser-issued isolation identity.
+    /// Parse one browser-issued isolation identity without inventing a protocol length limit.
     pub fn parse(value: &str) -> Result<Self, DisposableIsolationIdError> {
         if value.is_empty() {
             return Err(DisposableIsolationIdError::Empty);
-        }
-        if value.len() > 4096 {
-            return Err(DisposableIsolationIdError::TooLong);
         }
         if value.trim() != value || value.chars().any(char::is_control) {
             return Err(DisposableIsolationIdError::InvalidCharacter);
@@ -931,15 +926,13 @@ impl BrowserSession {
     }
 
     fn has_unresolved_remote_ownership(&self) -> bool {
-        matches!(
-            self.state,
-            BrowserSessionState::TransportLost | BrowserSessionState::RecoveryRequired
-        ) || self.contexts.values().any(|record| {
-            matches!(
-                record.state,
-                OwnedContextState::Active | OwnedContextState::Uncertain
-            )
-        })
+        matches!(self.state, BrowserSessionState::RecoveryRequired)
+            || self.contexts.values().any(|record| {
+                matches!(
+                    record.state,
+                    OwnedContextState::Active | OwnedContextState::Uncertain
+                )
+            })
     }
 }
 
@@ -1177,15 +1170,15 @@ mod tests {
     }
 
     #[test]
-    fn isolation_identity_validation_is_bounded() {
+    fn isolation_identity_validation_preserves_protocol_text() {
         assert_eq!(
             DisposableIsolationId::parse(""),
             Err(DisposableIsolationIdError::Empty)
         );
-        assert_eq!(
-            DisposableIsolationId::parse(&"x".repeat(4097)),
-            Err(DisposableIsolationIdError::TooLong)
-        );
+        let long = "x".repeat(4097);
+        let long_identity = DisposableIsolationId::parse(&long)
+            .expect("WebDriver BiDi browser.UserContext does not define a 4096-byte limit");
+        assert_eq!(long_identity.as_str(), long);
         assert_eq!(
             DisposableIsolationId::parse(" user-context "),
             Err(DisposableIsolationIdError::InvalidCharacter)
