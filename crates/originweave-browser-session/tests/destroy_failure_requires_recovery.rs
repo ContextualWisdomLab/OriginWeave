@@ -15,6 +15,7 @@ struct FailingDestroyPort {
     next_handle: DisposableContextHandle,
     create_calls: Rc<Cell<usize>>,
     destroy_calls: Rc<Cell<usize>>,
+    observed_destroy_epoch: Rc<Cell<Option<u64>>>,
 }
 
 impl FailingDestroyPort {
@@ -23,6 +24,7 @@ impl FailingDestroyPort {
         isolation: &str,
         create_calls: Rc<Cell<usize>>,
         destroy_calls: Rc<Cell<usize>>,
+        observed_destroy_epoch: Rc<Cell<Option<u64>>>,
     ) -> Result<Self, &'static str> {
         let isolation = DisposableIsolationId::parse(isolation)
             .map_err(|_| "static fixture isolation id must be valid")?;
@@ -32,6 +34,7 @@ impl FailingDestroyPort {
             next_handle: DisposableContextHandle::new(isolation, browsing_context),
             create_calls,
             destroy_calls,
+            observed_destroy_epoch,
         })
     }
 }
@@ -54,9 +57,11 @@ impl DisposableContextPort for FailingDestroyPort {
 
     fn destroy_disposable_context(
         &mut self,
-        _request: &DisposableContextDestroyRequest,
+        request: &DisposableContextDestroyRequest,
     ) -> Result<(), DisposableContextDestroyError> {
         self.destroy_calls.set(self.destroy_calls.get() + 1);
+        self.observed_destroy_epoch
+            .set(Some(request.context_epoch().value()));
         Err(DisposableContextDestroyError::DestroyFailed)
     }
 }
@@ -75,31 +80,36 @@ fn destroy_failure_requires_recovery_before_any_new_authority() -> Result<(), &'
         .map_err(|_| "browser session incarnation must be available")?;
     let create_calls = Rc::new(Cell::new(0));
     let destroy_calls = Rc::new(Cell::new(0));
+    let observed_destroy_epoch = Rc::new(Cell::new(None));
     let failing_port = FailingDestroyPort::new(
         5010,
         "user-context-501",
         Rc::clone(&create_calls),
         Rc::clone(&destroy_calls),
+        Rc::clone(&observed_destroy_epoch),
     )?;
     let mut bound = session.bind_lifecycle_port(failing_port);
 
     let authority = bound
         .create_disposable_context()
         .map_err(|_| "fixture disposable context creation must succeed")?;
+    let expected_epoch = authority.context_epoch();
     assert_eq!(
         bound.destroy_disposable_context(&authority),
         Err(BrowserSessionError::ContextDestructionFailed)
     );
     assert_eq!(destroy_calls.get(), 1);
+    assert_eq!(observed_destroy_epoch.get(), Some(expected_epoch.value()));
     assert_eq!(
         bound.browser_session().state(),
         BrowserSessionState::RecoveryRequired
     );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
-        &[BrowserSessionRecoveryEvidence::UnprovenDestruction(
-            expected_handle
-        )]
+        &[BrowserSessionRecoveryEvidence::UnprovenDestruction {
+            context: expected_handle,
+            context_epoch: expected_epoch,
+        }]
     );
     assert!(!bound.browser_session().transport_is_lost());
 
