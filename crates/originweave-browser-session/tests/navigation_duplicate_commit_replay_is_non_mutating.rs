@@ -243,9 +243,16 @@ fn duplicate_commit_rejection_preserves_negative_terminal_closure() {
         initial.context_epoch().value() + 1
     );
     assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "negative closure derived from the duplicate-commit path must remain single-use"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+    assert_eq!(
         bound.execute_authorized_context_operation(&fresh, "usable-after-negative-closure"),
         Ok(context)
     );
+    assert_eq!(adapter_calls.get(), calls_after_create + 1);
 }
 
 #[test]
@@ -310,7 +317,14 @@ fn duplicate_commit_rejection_preserves_download_liveness_closure() {
         initial.context_epoch().value() + 1
     );
     assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "download closure derived from the duplicate-commit path must remain single-use"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+    assert_eq!(
         bound.execute_authorized_context_operation(&fresh, "usable-after-download-closure"),
         Ok(context)
     );
+    assert_eq!(adapter_calls.get(), calls_after_create + 1);
 }
