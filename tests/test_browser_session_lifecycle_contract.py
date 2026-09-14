@@ -174,6 +174,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         recovery_handoff = (CRATE / "tests/recovery_owner_handoff.rs").read_text(
             encoding="utf-8"
         )
+        hot_ownership = (CRATE / "tests/proven_destroy_releases_hot_ownership.rs").read_text(
+            encoding="utf-8"
+        )
         operation_hostile = (CRATE / "tests/authorized_context_operation.rs").read_text(
             encoding="utf-8"
         )
@@ -234,6 +237,17 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("handoff must not imply cleanup I/O", recovery_handoff)
         self.assertIn("transport loss is not destruction proof", recovery_handoff)
 
+        self.assertIn(
+            "proven_destroy_releases_hot_ownership_without_resurrecting_stale_authority",
+            hot_ownership,
+        )
+        self.assertIn("for _ in 0..256", hot_ownership)
+        self.assertIn("Err(BrowserSessionError::ContextNotOwned)", hot_ownership)
+        self.assertIn("Err(BrowserSessionError::AuthorityMismatch)", hot_ownership)
+        self.assertIn("stale authority must fail before lifecycle adapter I/O", hot_ownership)
+        self.assertIn("create_calls.get(), 258", hot_ownership)
+        self.assertIn("destroy_calls.get(), 258", hot_ownership)
+
         self.assertIn("authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before_io", operation_hostile)
         self.assertIn("AuthorizedContextOperationError::BrowserSession", operation_hostile)
         self.assertIn("AuthorizedContextOperationError::Adapter", operation_hostile)
@@ -253,6 +267,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         adr = (ROOT / "docs/adr/0114-browser-session-disposable-context-authority.md").read_text(
             encoding="utf-8"
         )
+        recovery_adr = (
+            ROOT / "docs/adr/0115-browser-session-recovery-custody-and-hot-ownership.md"
+        ).read_text(encoding="utf-8")
         trace = (ROOT / "docs/traceability/browser-session-lifecycle-authority.md").read_text(
             encoding="utf-8"
         )
@@ -290,8 +307,28 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             self.assertIn(token, adr)
 
         for token in (
+            "Status: Proposed",
+            "Extends: ADR 0114",
+            "BoundBrowserSessionRecovery",
+            "into_recovery(self)",
+            "same non-`Clone` adapter instance",
+            "non-authorizing",
+            "hot command-authority state",
+            "ContextNotOwned",
+            "AuthorityMismatch",
+            "monotonic",
+            "process-restart",
+            "#316",
+            "compile_fail",
+            "protected `main`",
+        ):
+            self.assertIn(token, recovery_adr)
+
+        for token in (
             "IMPLEMENTED_ON_ACTIVE_PR",
+            "ADR 0115",
             "BoundBrowserSession",
+            "BoundBrowserSessionRecovery",
             "DisposableContextCreateCompletion",
             "per-create transaction",
             "no public raw port accessor",
@@ -306,12 +343,17 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "TransportLossOwnedHandle",
             "abandoned_bound_session_count",
             "durable crash/process-restart recovery",
+            "258-generation",
+            "ContextNotOwned",
+            "AuthorityMismatch",
         ):
             self.assertIn(token, trace)
 
         for token in (
             "PresentationMutationAuthority",
             "BoundBrowserSession",
+            "BoundBrowserSessionRecovery",
+            "RecoveryCustody",
             "DisposableContextCreateCompletion",
             "BrowserSessionIncarnation",
             "RecoveryRequired",
@@ -323,6 +365,8 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "TransportLossOwnedHandle",
             "abandoned_bound_session_count",
             "finish()",
+            "remove live hot-ownership record",
+            "258 ownership generations",
         ):
             self.assertIn(token, uml)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", trace)
