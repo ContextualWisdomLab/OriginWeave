@@ -18,6 +18,7 @@ struct SecondNavigationReplayProbePort {
 }
 
 impl DisposableContextPort for SecondNavigationReplayProbePort {
+    /// Count real lifecycle I/O so rejected evidence cannot hide an adapter side effect.
     fn create_disposable_context(
         &mut self,
         _request: &DisposableContextCreateRequest,
@@ -28,6 +29,7 @@ impl DisposableContextPort for SecondNavigationReplayProbePort {
             .ok_or(DisposableContextCreateError::CreateFailedClean)
     }
 
+    /// Treat completion as adapter I/O for the same zero-I/O rejection invariant.
     fn complete_disposable_context_creation(
         &mut self,
         _completion: &DisposableContextCreateCompletion,
@@ -36,6 +38,7 @@ impl DisposableContextPort for SecondNavigationReplayProbePort {
         Ok(())
     }
 
+    /// Count proven destruction separately from later in-memory navigation transitions.
     fn destroy_disposable_context(
         &mut self,
         _request: &DisposableContextDestroyRequest,
@@ -50,6 +53,7 @@ impl AuthorizedContextOperationPort for SecondNavigationReplayProbePort {
     type Output = BrowsingContextId;
     type Error = ();
 
+    /// Make capability executability observable instead of relying on projection equality alone.
     fn execute_authorized_context_operation(
         &mut self,
         request: &AuthorizedContextOperationRequest<Self::Operation>,
@@ -338,9 +342,11 @@ fn assert_predecessor_replay_cannot_hijack_second_navigation(
     );
     assert_eq!(adapter_calls.get(), calls_before_replay);
 
+    let projected = bound
+        .presentation_authority(context)
+        .expect("second fresh authority remains current after stale replay");
     assert_eq!(
-        bound.presentation_authority(context),
-        Some(second_fresh_authority.clone()),
+        projected, second_fresh_authority,
         "post-cycle stale replay must preserve the exact current authority projection",
     );
     assert_eq!(
