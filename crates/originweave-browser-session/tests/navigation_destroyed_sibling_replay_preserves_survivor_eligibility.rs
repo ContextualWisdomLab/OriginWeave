@@ -275,7 +275,7 @@ fn destroyed_sibling_replay_cannot_consume_survivor_reestablishment_eligibility(
     for closure in closures {
         for replay in replays {
             assert_destroyed_sibling_replay_preserves_survivor_eligibility(
-                closure, session_id, replay,
+                closure, replay, session_id,
             );
             session_id += 1;
         }
