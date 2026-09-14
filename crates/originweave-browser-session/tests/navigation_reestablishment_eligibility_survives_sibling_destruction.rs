@@ -221,6 +221,21 @@ fn assert_sibling_destruction_preserves_reestablishment_eligibility(
         "sibling destruction must not spend or reset the aggregate presentation epoch",
     );
     assert_eq!(
+        bound.browser_session().state(),
+        state_before_destroy,
+        "successful first-context re-establishment must not mutate aggregate lifecycle state",
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_before_destroy.as_slice(),
+        "successful first-context re-establishment must not rewrite lifecycle recovery evidence",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "successful re-establishment is an in-memory authority transition and must remain zero-I/O",
+    );
+    assert_eq!(
         bound.reestablish_presentation_authority(first_context),
         Err(BrowserSessionError::AuthorityMismatch),
         "the preserved first-context eligibility remains single-use",
