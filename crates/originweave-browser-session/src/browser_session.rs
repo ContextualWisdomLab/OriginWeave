@@ -83,12 +83,16 @@ pub enum DisposableContextDestroyError {
     DestroyFailed,
 }
 
-/// Validation failure for a browser-issued disposable isolation identity.
+/// Compatibility error type for parsing a browser-issued disposable isolation identity.
+///
+/// Browser Session preserves protocol text exactly and therefore does not currently emit either
+/// variant. The result-shaped API remains stable for callers while protocol/runtime qualification
+/// stays in the adapter boundary rather than being redefined as Browser Session lexical grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisposableIsolationIdError {
-    /// The identity is empty.
+    /// Reserved for compatibility with callers compiled against the earlier non-empty constraint.
     Empty,
-    /// The identity contains surrounding whitespace or control characters.
+    /// Reserved for compatibility with callers compiled against the earlier character constraint.
     InvalidCharacter,
 }
 
@@ -101,18 +105,16 @@ pub enum DisposableIsolationIdError {
 pub struct DisposableIsolationId(String);
 
 impl DisposableIsolationId {
-    /// Parse one browser-issued isolation identity without inventing a protocol length limit.
+    /// Preserve one browser-issued isolation identity exactly as protocol text.
+    ///
+    /// Browser Session does not trim, normalize, reject empty text, reject control characters, or
+    /// impose an implementation-selected length limit. Any narrower runtime grammar must be proven
+    /// and enforced by the versioned adapter before this remote lifecycle address enters the domain.
     pub fn parse(value: &str) -> Result<Self, DisposableIsolationIdError> {
-        if value.is_empty() {
-            return Err(DisposableIsolationIdError::Empty);
-        }
-        if value.trim() != value || value.chars().any(char::is_control) {
-            return Err(DisposableIsolationIdError::InvalidCharacter);
-        }
         Ok(Self(value.to_owned()))
     }
 
-    /// Return the validated browser-issued isolation identity.
+    /// Return the exact browser-issued isolation identity.
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
@@ -1229,7 +1231,7 @@ mod tests {
     }
 
     fn isolation_id(value: &str) -> DisposableIsolationId {
-        DisposableIsolationId::parse(value).expect("valid isolation id")
+        DisposableIsolationId::parse(value).expect("protocol text representation is infallible")
     }
 
     fn session(value: u64) -> BrowserSession {
@@ -1237,25 +1239,22 @@ mod tests {
     }
 
     #[test]
-    fn isolation_identity_validation_preserves_protocol_text() {
-        assert_eq!(
-            DisposableIsolationId::parse(""),
-            Err(DisposableIsolationIdError::Empty)
-        );
-        let long = "x".repeat(4097);
-        let long_identity = DisposableIsolationId::parse(&long)
-            .expect("WebDriver BiDi browser.UserContext does not define a 4096-byte limit");
-        assert_eq!(long_identity.as_str(), long);
-        assert_eq!(
-            DisposableIsolationId::parse(" user-context "),
-            Err(DisposableIsolationIdError::InvalidCharacter)
-        );
-        assert_eq!(
-            DisposableIsolationId::parse("user\ncontext"),
-            Err(DisposableIsolationIdError::InvalidCharacter)
-        );
+    fn isolation_identity_preserves_protocol_text_without_domain_grammar() {
+        let cases = [
+            String::new(),
+            " user-context ".to_owned(),
+            "user\ncontext".to_owned(),
+            "x".repeat(4097),
+            "webdriver-user-context-10".to_owned(),
+        ];
+
+        for remote_user_context in cases {
+            let identity = DisposableIsolationId::parse(&remote_user_context)
+                .expect("protocol text representation is infallible");
+            assert_eq!(identity.as_str(), remote_user_context);
+        }
+
         let valid = isolation_id("webdriver-user-context-10");
-        assert_eq!(valid.as_str(), "webdriver-user-context-10");
         let handle = DisposableContextHandle::new(valid.clone(), context_id(10));
         assert_eq!(handle.isolation(), &valid);
         assert_eq!(handle.browsing_context(), context_id(10));
