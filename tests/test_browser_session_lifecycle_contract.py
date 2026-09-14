@@ -30,6 +30,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
     def test_domain_source_mints_authority_only_from_owned_lifecycle(self) -> None:
         """Raw driver identifiers must never become caller-mintable authority tokens."""
 
+        recovery_source = (CRATE / "src/recovery.rs").read_text(encoding="utf-8")
         source = "\n".join(
             (CRATE / relative_path).read_text(encoding="utf-8")
             for relative_path in (
@@ -104,6 +105,17 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertNotIn("pub fn finish(mut self)", source)
         self.assertNotIn("pub const fn port", source)
         self.assertNotIn("pub fn port", source)
+
+        self.assertIn("pub const fn state(&self) -> BrowserSessionState", recovery_source)
+        self.assertIn("pub fn recovery_evidence(&self)", recovery_source)
+        self.assertIn("pub fn create_attempt_recovery_evidence(&self)", recovery_source)
+        self.assertNotIn("pub const fn browser_session(&self)", recovery_source)
+        self.assertNotIn("pub fn browser_session(&self)", recovery_source)
+        self.assertIn(
+            "recovery.browser_session().presentation_authority(context)",
+            recovery_source,
+        )
+        self.assertGreaterEqual(recovery_source.count("```compile_fail"), 6)
 
         authority_impl = source.split("impl PresentationMutationAuthority", 1)[1].split(
             "enum OwnedContextState", 1
@@ -215,6 +227,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             recovery_handoff,
         )
         self.assertIn(".into_recovery()", recovery_handoff)
+        self.assertIn("recovery.state()", recovery_handoff)
+        self.assertIn("recovery.recovery_evidence()", recovery_handoff)
+        self.assertNotIn("recovery.browser_session()", recovery_handoff)
         self.assertIn("handoff must move, not replace, the bound adapter", recovery_handoff)
         self.assertIn("handoff must not imply cleanup I/O", recovery_handoff)
         self.assertIn("transport loss is not destruction proof", recovery_handoff)
