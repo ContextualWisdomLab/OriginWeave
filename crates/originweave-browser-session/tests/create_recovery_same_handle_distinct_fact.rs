@@ -2,8 +2,9 @@ use originweave_browser_session::{
     BrowserSession, BrowserSessionError, BrowserSessionRecoveryEvidence,
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
     DisposableContextCreateDisposition, DisposableContextCreateError,
-    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
-    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    DisposableContextCreateRecoveryEvidence, DisposableContextCreateRequest,
+    DisposableContextDestroyError, DisposableContextDestroyRequest, DisposableContextHandle,
+    DisposableContextPort, DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -96,8 +97,33 @@ fn same_valued_rejected_create_keeps_prior_ownership_as_a_distinct_recovery_fact
         .browser_session()
         .recovery_evidence()
         .contains(&BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(
-            handle
+            handle.clone()
         )),
         "attempt 1 ownership and attempt 2 candidate are distinct lifecycle facts even when their remote handle values are equal"
     );
+
+    let create_evidence = bound.browser_session().create_attempt_recovery_evidence();
+    assert_eq!(create_evidence.len(), 2);
+    match &create_evidence[0] {
+        DisposableContextCreateRecoveryEvidence::DuplicateCandidate {
+            attempt_epoch,
+            context,
+        } => {
+            assert_eq!(attempt_epoch.value(), 2);
+            assert_eq!(context, &handle);
+        }
+        other => panic!("unexpected duplicate recovery evidence: {other:?}"),
+    }
+    match &create_evidence[1] {
+        DisposableContextCreateRecoveryEvidence::CompletionUnsettled {
+            attempt_epoch,
+            disposition,
+            context,
+        } => {
+            assert_eq!(attempt_epoch.value(), 2);
+            assert_eq!(*disposition, DisposableContextCreateDisposition::Rejected);
+            assert_eq!(context, &handle);
+        }
+        other => panic!("unexpected completion recovery evidence: {other:?}"),
+    }
 }
