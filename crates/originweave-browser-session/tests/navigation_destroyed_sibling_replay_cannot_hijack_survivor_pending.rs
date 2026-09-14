@@ -212,9 +212,70 @@ fn assert_destroyed_sibling_replay_cannot_hijack_survivor_pending(
                 .record_observed_navigation_committed(&survivor_pending)
                 .expect("stale sibling replay must leave the survivor's first commit slot available");
             assert_eq!(
+                bound.browser_session().state(),
+                state_before_replay,
+                "the survivor's first commit must not alter aggregate lifecycle state",
+            );
+            assert_eq!(
+                bound.browser_session().recovery_evidence(),
+                recovery_before_replay.as_slice(),
+                "the survivor's first commit must not rewrite recovery evidence",
+            );
+            assert_eq!(
+                bound.reestablish_presentation_authority(survivor_context),
+                Err(BrowserSessionError::AuthorityMismatch),
+                "the survivor's first non-terminal commit must not manufacture re-establishment eligibility",
+            );
+            assert_eq!(
+                bound.execute_authorized_context_operation(
+                    &survivor_authority,
+                    "survivor-retained-authority-after-first-commit",
+                ),
+                Err(AuthorizedContextOperationError::BrowserSession(
+                    BrowserSessionError::AuthorityMismatch,
+                )),
+                "the survivor's first commit must keep retained pre-navigation authority revoked",
+            );
+            assert_eq!(
+                adapter_calls.get(),
+                calls_before_replay,
+                "the survivor's first commit and immediate authority probes remain zero-I/O",
+            );
+
+            assert_eq!(
                 bound.record_observed_navigation_committed(&survivor_pending),
                 Err(BrowserSessionError::AuthorityMismatch),
                 "only the survivor's first matching commit may consume its commit-progress slot",
+            );
+            assert_eq!(
+                bound.browser_session().state(),
+                state_before_replay,
+                "duplicate survivor commit rejection must not alter aggregate lifecycle state",
+            );
+            assert_eq!(
+                bound.browser_session().recovery_evidence(),
+                recovery_before_replay.as_slice(),
+                "duplicate survivor commit rejection must not rewrite recovery evidence",
+            );
+            assert_eq!(
+                bound.reestablish_presentation_authority(survivor_context),
+                Err(BrowserSessionError::AuthorityMismatch),
+                "duplicate survivor commit rejection must not manufacture re-establishment eligibility",
+            );
+            assert_eq!(
+                bound.execute_authorized_context_operation(
+                    &survivor_authority,
+                    "survivor-retained-authority-after-duplicate-commit",
+                ),
+                Err(AuthorizedContextOperationError::BrowserSession(
+                    BrowserSessionError::AuthorityMismatch,
+                )),
+                "duplicate survivor commit rejection must keep retained authority revoked",
+            );
+            assert_eq!(
+                adapter_calls.get(),
+                calls_before_replay,
+                "duplicate survivor commit rejection and immediate authority probes remain zero-I/O",
             );
         }
         SurvivorProgress::Committed => {
@@ -222,6 +283,36 @@ fn assert_destroyed_sibling_replay_cannot_hijack_survivor_pending(
                 bound.record_observed_navigation_committed(&survivor_pending),
                 Err(BrowserSessionError::AuthorityMismatch),
                 "stale sibling replay must not reset an already-consumed survivor commit-progress slot",
+            );
+            assert_eq!(
+                bound.browser_session().state(),
+                state_before_replay,
+                "duplicate survivor commit rejection must not alter aggregate lifecycle state",
+            );
+            assert_eq!(
+                bound.browser_session().recovery_evidence(),
+                recovery_before_replay.as_slice(),
+                "duplicate survivor commit rejection must not rewrite recovery evidence",
+            );
+            assert_eq!(
+                bound.reestablish_presentation_authority(survivor_context),
+                Err(BrowserSessionError::AuthorityMismatch),
+                "duplicate survivor commit rejection must not manufacture re-establishment eligibility",
+            );
+            assert_eq!(
+                bound.execute_authorized_context_operation(
+                    &survivor_authority,
+                    "committed-survivor-retained-authority-after-duplicate",
+                ),
+                Err(AuthorizedContextOperationError::BrowserSession(
+                    BrowserSessionError::AuthorityMismatch,
+                )),
+                "duplicate survivor commit rejection must keep retained authority revoked",
+            );
+            assert_eq!(
+                adapter_calls.get(),
+                calls_before_replay,
+                "duplicate survivor commit rejection and immediate authority probes remain zero-I/O",
             );
         }
     }
