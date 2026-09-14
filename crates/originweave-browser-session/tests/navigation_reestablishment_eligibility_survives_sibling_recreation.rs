@@ -257,13 +257,21 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
         second_current_after_stale, second_new_authority,
         "stale B-old evidence must preserve the complete B-new authority identity, including isolation, incarnation, context, and epoch",
     );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_new_authority,
+            "second-new-current-after-stale-replay",
+        ),
+        Ok(second_context),
+        "stale B-old evidence must not make B-new's unchanged authority non-executable",
+    );
 
     assert_eq!(
         bound.execute_authorized_context_operation(&first_reestablished, "first-current"),
         Ok(first_context),
         "stale predecessor evidence must not revoke A's re-established authority",
     );
-    assert_eq!(adapter_calls.get(), calls_after_second_new_operation + 1);
+    assert_eq!(adapter_calls.get(), calls_after_second_new_operation + 2);
 }
 
 /// Complete-positive navigation eligibility survives sibling raw-id recreation.
