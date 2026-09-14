@@ -535,7 +535,6 @@ impl PresentationMutationAuthority {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OwnedContextState {
     Active,
-    Destroyed,
     Uncertain,
 }
 
@@ -748,11 +747,7 @@ impl BrowserSession {
     /// End the Browser Session only after every owned context has proven destruction.
     pub fn end(&mut self) -> Result<(), BrowserSessionError> {
         self.require_active()?;
-        if self
-            .contexts
-            .values()
-            .any(|record| record.state != OwnedContextState::Destroyed)
-        {
+        if !self.contexts.is_empty() {
             return Err(BrowserSessionError::ActiveContextRemains);
         }
         self.state = BrowserSessionState::Ended;
@@ -887,25 +882,30 @@ impl BrowserSession {
     ) -> Result<(), BrowserSessionError> {
         let browser_session = self.id;
         let incarnation = self.incarnation;
-        let record = self.context_for_authority_mut(authority)?;
-        let context_epoch = record.epoch;
-        let request = DisposableContextDestroyRequest {
-            browser_session,
-            incarnation,
-            context: record.handle.clone(),
-            context_epoch,
+        let request = {
+            let record = self.context_for_authority_mut(authority)?;
+            DisposableContextDestroyRequest {
+                browser_session,
+                incarnation,
+                context: record.handle.clone(),
+                context_epoch: record.epoch,
+            }
         };
         match port.destroy_disposable_context(&request) {
             Ok(()) => {
-                record.state = OwnedContextState::Destroyed;
+                // Exclusive aggregate mutation plus the pre-I/O authority check guarantee this key is
+                // still the generation just proven destroyed. Removing it keeps command-authority hot
+                // state proportional to live/uncertain ownership; the monotonic epoch rejects any stale
+                // authority if the browser later reuses the same raw context and isolation identifiers.
+                let _ = self.contexts.remove(&authority.browsing_context);
                 Ok(())
             }
             Err(DisposableContextDestroyError::DestroyFailed) => {
-                record.state = OwnedContextState::Uncertain;
+                self.context_for_authority_mut(authority)?.state = OwnedContextState::Uncertain;
                 self.recovery_evidence
                     .push(BrowserSessionRecoveryEvidence::UnprovenDestruction {
                         context: request.context,
-                        context_epoch,
+                        context_epoch: request.context_epoch,
                     });
                 self.enter_recovery_required();
                 Err(BrowserSessionError::ContextDestructionFailed)
@@ -998,10 +998,7 @@ impl BrowserSession {
     fn has_unresolved_remote_ownership(&self) -> bool {
         matches!(self.state, BrowserSessionState::RecoveryRequired)
             || self.contexts.values().any(|record| {
-                matches!(
-                    record.state,
-                    OwnedContextState::Active | OwnedContextState::Uncertain
-                )
+                matches!(record.state, OwnedContextState::Active | OwnedContextState::Uncertain)
             })
     }
 }
