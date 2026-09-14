@@ -436,6 +436,11 @@ pub enum ControlledBenchmarkSuiteError {
         /// Name of the non-canonical reproducibility-context field.
         field: &'static str,
     },
+    /// A required or observed reproducibility-context field contains a control character.
+    ControlCharacterRunContext {
+        /// Name of the invalid reproducibility-context field.
+        field: &'static str,
+    },
     /// Observed execution context does not match the required reproducibility context.
     RunContextMismatch {
         /// Name of the mismatched reproducibility-context field.
@@ -477,6 +482,10 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
                 formatter,
                 "controlled benchmark run context field {field} contains non-canonical surrounding whitespace"
             ),
+            Self::ControlCharacterRunContext { field } => write!(
+                formatter,
+                "controlled benchmark run context field {field} contains a control character"
+            ),
             Self::RunContextMismatch { field } => write!(
                 formatter,
                 "controlled benchmark run context field {field} does not match the required reproducibility context"
@@ -508,6 +517,7 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
             | Self::RegistryVersionMismatch
             | Self::InvalidRunContext { .. }
             | Self::NonCanonicalRunContext { .. }
+            | Self::ControlCharacterRunContext { .. }
             | Self::RunContextMismatch { .. }
             | Self::DuplicateCase { .. }
             | Self::UnexpectedConditionalCase { .. } => None,
@@ -586,18 +596,18 @@ fn evaluate_valid_controlled_benchmark_case(
 
 /// Evaluate raw controlled-suite evidence only when execution context is reproducible.
 ///
-/// Every required identity in the expected and observed contexts must be nonblank
-/// and free of surrounding whitespace, and the observed context must match the
-/// expected context byte-for-byte before case evidence is allowed to influence the
-/// suite outcome. This does not authenticate either context; it is a fail-closed
-/// comparison boundary for a benchmark runner or durable evidence pipeline that
-/// performs that authentication.
+/// Every required identity in the expected and observed contexts must be nonblank,
+/// free of surrounding whitespace, and free of control characters before the
+/// observed context is compared byte-for-byte with the expected context. This does
+/// not authenticate either context; it is a fail-closed comparison boundary for a
+/// benchmark runner or durable evidence pipeline that performs that authentication.
 ///
 /// # Errors
 ///
 /// Returns [`ControlledBenchmarkSuiteError::InvalidRunContext`] for a blank
 /// required or observed identity, [`ControlledBenchmarkSuiteError::NonCanonicalRunContext`]
-/// for surrounding whitespace, and [`ControlledBenchmarkSuiteError::RunContextMismatch`]
+/// for surrounding whitespace, [`ControlledBenchmarkSuiteError::ControlCharacterRunContext`]
+/// for control characters, and [`ControlledBenchmarkSuiteError::RunContextMismatch`]
 /// for the first mismatched identity. After context validation, all errors from
 /// [`evaluate_controlled_benchmark_suite`] are preserved unchanged.
 pub fn evaluate_controlled_benchmark_suite_for_run(
@@ -714,6 +724,9 @@ fn validate_run_context_field(
     }
     if trimmed != value {
         return Err(ControlledBenchmarkSuiteError::NonCanonicalRunContext { field });
+    }
+    if value.chars().any(char::is_control) {
+        return Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext { field });
     }
     Ok(())
 }
