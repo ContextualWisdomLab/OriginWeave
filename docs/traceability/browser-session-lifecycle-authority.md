@@ -23,6 +23,7 @@ validated BrowserSessionId
 → aggregate validates returned isolation/context against current ownership
 → aggregate privately constructs DisposableContextCreateCompletion(attempt, Accepted|Rejected)
 → accepted candidate may become adapter-authorizing; rejected candidate remains quarantined
+→ uncertain/rejected create paths retain exact aggregate-issued attempt identity as non-authorizing recovery evidence
 → aggregate records accepted exact handle + epoch
 → opaque PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
 → exact authority validation before any lifecycle or purpose-bounded adapter I/O
@@ -50,7 +51,11 @@ Browser Session examines the returned `DisposableContextHandle`:
 - if the handle aliases an existing isolation or browsing context, `Rejected` settles that exact attempt and the aggregate enters `RecoveryRequired`;
 - if exact completion cannot be proven, Browser Session stores the complete handle as `UnsettledAdapterHandle`, enters recovery, and mints no normal authority.
 
-Protocol-specific tuple contents and pending/accepted/quarantined storage remain #314/#316 responsibilities. Browser Session owns only attempt identity, domain validation, accept/reject decision, and current authority validation.
+`DisposableContextCreateRecoveryEvidence` preserves the transaction dimension that raw handle evidence cannot represent. `FailedUncertain` stores the exact aggregate-issued `attempt_epoch` even when no complete handle exists; `DuplicateCandidate` binds an aliased returned handle to its exact rejected attempt; `CompletionUnsettled` binds the exact attempt, `Accepted|Rejected` disposition, and complete returned handle when settlement cannot be proven. This evidence grants no browser authority.
+
+Identity-oriented `BrowserSessionRecoveryEvidence` remains separately useful for exact remote reconciliation. Candidate evidence such as `DuplicateAdapterHandle(H)` or `UnsettledAdapterHandle(H)` is not treated as proof that an already-owned same-valued `H` has been recorded: the existing owner is retained independently as `RecoveryRequiredOwnedHandle(H)`. Equal remote values therefore cannot collapse distinct lifecycle facts from different create attempts.
+
+Protocol-specific tuple contents and pending/accepted/quarantined storage remain #314/#316 responsibilities. Browser Session owns only attempt identity, domain validation, accept/reject decision, current authority validation, and non-authorizing recovery facts.
 
 ## Same-bound-adapter authorized operations
 
@@ -60,17 +65,19 @@ Stale or foreign authority returns `AuthorizedContextOperationError::BrowserSess
 
 ## Lossless recovery evidence while retained
 
-`CreateFailedClean` is valid only when no disposable browser state exists. `CreateFailedUncertain(Some(isolation))` retains the exact known isolation identity. Duplicate output stores the complete offending handle. Completion failure retains an unsettled complete handle. Failed or unproven destruction records both the exact owned handle and the exact validated `BrowserContextEpoch` that was sent on the destroy request. When any such failure moves the aggregate to `RecoveryRequired`, every other still-active sibling is projected exactly once as `RecoveryRequiredOwnedHandle` before becoming uncertain. Transport loss records each previously active exact handle as `TransportLossOwnedHandle`. None of this evidence grants browser command authority.
+`CreateFailedClean` is valid only when no disposable browser state exists. `CreateFailedUncertain(Some(isolation))` retains both the exact known isolation identity and the exact aggregate-issued create-attempt epoch; `CreateFailedUncertain(None)` still retains the exact attempt epoch. Duplicate output stores the complete offending handle and its exact rejected attempt. Completion failure retains the complete handle, attempt epoch, and aggregate disposition. Failed or unproven destruction records both the exact owned handle and the exact validated `BrowserContextEpoch` that was sent on the destroy request. When any such failure moves the aggregate to `RecoveryRequired`, every other still-active sibling is projected exactly once as `RecoveryRequiredOwnedHandle` before becoming uncertain. Transport loss records each previously active exact handle as `TransportLossOwnedHandle`. None of this evidence grants browser command authority.
 
-Cause-specific evidence is retained for the triggering handle and is not duplicated as generic sibling evidence. Repeated transport-loss reports are idempotent, so exact transport-loss evidence is not duplicated by repeated notification.
+Cause-specific candidate evidence is retained separately from generic sibling ownership evidence. A same-valued candidate from a later failed attempt cannot erase a previously accepted ownership fact. Repeated transport-loss reports are idempotent, so exact transport-loss evidence is not duplicated by repeated notification.
 
-Operation/destroy epoch provenance is now implemented on the active #317 lineage: `AuthorizedContextOperationRequest::context_epoch` and `DisposableContextDestroyRequest::context_epoch` are copied only after exact authority validation; stale authority remains zero-I/O; `UnprovenDestruction` preserves that same epoch. The active successor still has open recovery-correlation work: create uncertainty and create-completion failures must retain the exact aggregate-issued attempt epoch; `RecoveryRequired`/`TransportLost` need a purpose-bounded handoff that keeps the exact same adapter with the exact evidence instead of reconstructing a second adapter.
+Operation/destroy/create-attempt provenance is implemented on the active #317 lineage: `AuthorizedContextOperationRequest::context_epoch` and `DisposableContextDestroyRequest::context_epoch` are copied only after exact authority validation; stale authority remains zero-I/O; `UnprovenDestruction` preserves that same epoch; create uncertainty and completion failure retain the reserved `attempt_epoch` in `DisposableContextCreateRecoveryEvidence`. The remaining recovery-boundary gap is a purpose-bounded `RecoveryRequired`/`TransportLost` handoff that keeps the exact same adapter and exact evidence instead of reconstructing a second adapter or restoring ordinary mutation authority.
 
 ## Abandonment and lifecycle completion
 
 `BoundBrowserSession<P>` is `#[must_use]`. `finish(&mut self)` succeeds only after all owned contexts have proven destruction. If it returns `ActiveContextRemains`, the wrapper, exact bound adapter, and private ownership ledger remain intact. The same owner can therefore destroy or reconcile the remaining context and retry `finish()` without introducing a second adapter or ambient cleanup capability.
 
-`Drop` never performs browser I/O and never treats object destruction as browser destruction proof. Dropping a wrapper with active/uncertain ownership increments the process-local `abandoned_bound_session_count()` signal. This makes ordinary abandonment observable to operability/recovery code without reviving adapter authority. The counter is not durable storage and contains no exact handle payload. Exact durable crash/process-restart recovery therefore remains open until a canonical recovery owner persists `BrowserSessionRecoveryEvidence` before process termination.
+`Drop` never performs browser I/O and never treats object destruction as browser destruction proof. Dropping a wrapper with active/uncertain ownership increments the process-local `abandoned_bound_session_count()` signal. This makes ordinary abandonment observable to operability/recovery code without reviving adapter authority. The counter is not durable storage and contains no exact handle payload. Exact durable crash/process-restart recovery therefore remains open until a canonical recovery owner persists Browser Session recovery evidence before process termination.
+
+The abandonment counter and Browser Session incarnation allocator use `AtomicU64::try_update` with the same memory-ordering and closure semantics as the predecessor `fetch_update` calls. This removes the pinned-nightly deprecation without weakening overflow behavior or synchronization semantics.
 
 ## Orthogonal transport liveness
 
@@ -82,11 +89,11 @@ Aggregate A may create `(S,U,C,epoch=1)`, prove destruction, and end. Aggregate 
 
 ## Browser-issued user-context identity
 
-`DisposableIsolationId` maps one-to-one to the browser-issued WebDriver BiDi `browser.UserContext` identity. That value is addressability and recovery evidence, not command authority. OriginWeave must preserve a protocol-valid browser identity losslessly so the exact remote boundary can later be destroyed or reconciled. The current active branch still contains a historical 4096-byte parser ceiling; `user_context_identity_length.rs` intentionally keeps that mismatch RED until the arbitrary domain constant is removed or replaced by a cited, versioned protocol/runtime/deployment boundary. No truncation or normalization is acceptable for a browser-issued identity.
+`DisposableIsolationId` maps one-to-one to the browser-issued WebDriver BiDi `browser.UserContext` identity. That value is addressability and recovery evidence, not command authority. OriginWeave preserves a protocol-valid browser identity losslessly so the exact remote boundary can later be destroyed or reconciled. The previous arbitrary 4096-byte parser ceiling has been removed; the hostile 4097-byte fixture and internal round-trip test now require lossless preservation. No truncation or normalization is acceptable for a browser-issued identity.
 
 ## Standards trace
 
-The latest W3C-published WebDriver BiDi Working Draft verified on 2026-09-12 is the **9 September 2026** publication (`WD-webdriver-bidi-20260909`), with 3 September 2026 as the previous published version. `browser.createUserContext` creates a user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables. `browser.UserContext` is defined as `text`; the published protocol does not define the active branch's 4096-byte domain ceiling.
+The latest immutable W3C WebDriver BiDi Working Draft directly verified on 2026-09-15 is the **9 September 2026** publication (`WD-webdriver-bidi-20260909`), with 3 September 2026 as the previous published version. The mutable `/TR/webdriver-bidi/` index can lag this dated publication and is not used to erase immutable provenance. `browser.createUserContext` creates a user context, `browsingContext.create` can create a browsing context inside it, and `browser.removeUserContext` removes the selected user context after closing its navigables. `browser.UserContext` is defined as `text`; the published protocol defines no 4096-byte domain ceiling.
 
 Standards freshness and runtime qualification are separate controls. Updating this citation does not repin the separately qualified Chromium/WebDriver BiDi runtime revision.
 
@@ -102,6 +109,10 @@ OriginWeave does not treat protocol identifiers as policy authority or assume hi
 | binding performs no arbitrary adapter callback | `BrowserSession::bind_lifecycle_port`; `lifecycle_binding_invokes_no_adapter_callback_before_authorized_create` |
 | no self-asserted adapter id authority | absence of `DisposableContextPortId` / `port_id()` |
 | create requests are aggregate-issued and attempt-scoped | `DisposableContextCreateRequest::attempt_epoch`; transaction hostile fixture |
+| uncertain create preserves exact transaction identity with or without a complete handle | `DisposableContextCreateRecoveryEvidence::FailedUncertain`; internal Some/None recovery tests |
+| duplicate candidate retains exact rejected attempt | `DisposableContextCreateRecoveryEvidence::DuplicateCandidate`; `create_recovery_same_handle_distinct_fact.rs` |
+| completion failure retains exact attempt + disposition + handle | `DisposableContextCreateRecoveryEvidence::CompletionUnsettled`; internal accepted/rejected completion tests |
+| same-valued prior owner and later candidate remain distinct recovery facts | `RecoveryRequiredOwnedHandle`; `create_recovery_same_handle_distinct_fact.rs` |
 | per-create transaction settles accepted/rejected candidates | `DisposableContextCreateCompletion`; `accepted_and_rejected_create_candidates_are_correlated_by_exact_attempt` |
 | completion failure fails closed | `UnsettledAdapterHandle`; internal completion-failure tests |
 | raw context cannot mint presentation authority | `BrowserSession::presentation_authority`; `bound_creation_is_the_only_raw_context_entry_to_authority` |
@@ -112,13 +123,14 @@ OriginWeave does not treat protocol identifiers as policy authority or assume hi
 | unproven destroy preserves exact handle + validated epoch | `BrowserSessionRecoveryEvidence::UnprovenDestruction`; `destroy_failure_requires_recovery_before_any_new_authority` |
 | adapter-owned Debug is not executed or rendered | manual `Debug for BoundBrowserSession<P>`; `bound_session_debug_never_executes_or_exposes_adapter_debug` |
 | sequential ABA authority is rejected before I/O | `BrowserSessionIncarnation`; `stale_authority_cannot_cross_sequential_session_incarnations` |
-| lossless recovery evidence while aggregate is retained | `BrowserSessionRecoveryEvidence`; recovery tests |
+| lossless recovery evidence while aggregate is retained | `BrowserSessionRecoveryEvidence`; `DisposableContextCreateRecoveryEvidence`; recovery tests |
 | `RecoveryRequired` preserves indirectly invalidated siblings | `RecoveryRequiredOwnedHandle`; `recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings` |
 | transport loss preserves exact active handles | `TransportLossOwnedHandle`; `transport_loss_preserves_exact_owned_handle_as_non_authorizing_recovery_evidence` |
 | unresolved wrapper drop performs no browser I/O and is observable | `abandoned_bound_session_count`; `dropping_unresolved_bound_session_is_observable_without_implicit_browser_io` |
 | failed finish retains exact bound owner | `BoundBrowserSession::finish`; `failed_finish_retains_same_bound_owner_for_cleanup_and_retry` |
 | normal completion requires proven destruction | `BoundBrowserSession::finish`; `proven_destruction_can_finish_without_abandonment_path` |
-| protocol-valid user-context identity is preserved losslessly | `user_context_identity_length.rs` (currently RED against the historical 4096-byte ceiling) |
+| protocol-valid user-context identity is preserved losslessly | `user_context_identity_length.rs`; internal 4097-byte round-trip test |
+| atomic lifecycle counters use the non-deprecated API without changing ordering | `ABANDONED_BOUND_SESSIONS.try_update`; `allocate_incarnation` |
 | transport liveness remains orthogonal | `BrowserSession::record_transport_loss` |
 | normal end requires proved destruction | `BrowserSession::end` |
 | incarnation exhaustion fails closed | `allocate_incarnation` |
