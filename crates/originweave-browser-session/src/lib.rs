@@ -196,6 +196,39 @@ pub enum BrowserSessionRecoveryEvidence {
     TransportLossOwnedHandle(DisposableContextHandle),
 }
 
+/// Exact create-attempt facts retained when one Browser Session creation transaction becomes uncertain.
+///
+/// The legacy identity-oriented [`BrowserSessionRecoveryEvidence`] remains useful to recovery code that
+/// reconciles remote handles. This companion evidence preserves the aggregate-issued attempt epoch and
+/// completion disposition so two lifecycle facts with the same remote values cannot be collapsed into
+/// one transaction. These values grant no browser command authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DisposableContextCreateRecoveryEvidence {
+    /// The adapter reported an uncertain create failure before a complete handle was available.
+    FailedUncertain {
+        /// Exact aggregate-issued epoch reserved for the failed create attempt.
+        attempt_epoch: BrowserContextEpoch,
+        /// Browser-issued isolation identity known at the failure boundary, when available.
+        isolation: Option<DisposableIsolationId>,
+    },
+    /// A complete candidate aliased already-owned browser state and was rejected by the aggregate.
+    DuplicateCandidate {
+        /// Exact aggregate-issued epoch reserved for the rejected create attempt.
+        attempt_epoch: BrowserContextEpoch,
+        /// Exact adapter-returned candidate associated with that attempt.
+        context: DisposableContextHandle,
+    },
+    /// The adapter could not prove completion settlement for one exact create attempt.
+    CompletionUnsettled {
+        /// Exact aggregate-issued epoch reserved for the unsettled create attempt.
+        attempt_epoch: BrowserContextEpoch,
+        /// Aggregate decision whose delivery to the adapter could not be proven.
+        disposition: DisposableContextCreateDisposition,
+        /// Exact adapter-returned candidate associated with that attempt.
+        context: DisposableContextHandle,
+    },
+}
+
 /// Opaque Browser Session-issued request for one disposable-context creation attempt.
 ///
 /// There is deliberately no public constructor. A request is created only inside a
@@ -523,6 +556,7 @@ pub struct BrowserSession {
     next_epoch: u64,
     contexts: BTreeMap<BrowsingContextId, OwnedContextRecord>,
     recovery_evidence: Vec<BrowserSessionRecoveryEvidence>,
+    create_recovery_evidence: Vec<DisposableContextCreateRecoveryEvidence>,
 }
 
 /// Browser Session composed with the one lifecycle-port instance allowed to mutate its remote state.
@@ -549,6 +583,10 @@ impl<P> fmt::Debug for BoundBrowserSession<P> {
                 "recovery_evidence_count",
                 &self.session.recovery_evidence.len(),
             )
+            .field(
+                "create_recovery_evidence_count",
+                &self.session.create_recovery_evidence.len(),
+            )
             .field("port", &"<redacted>")
             .finish()
     }
@@ -557,7 +595,7 @@ impl<P> fmt::Debug for BoundBrowserSession<P> {
 impl<P> Drop for BoundBrowserSession<P> {
     fn drop(&mut self) {
         if self.session.has_unresolved_remote_ownership() {
-            let _ = ABANDONED_BOUND_SESSIONS.fetch_update(
+            let _ = ABANDONED_BOUND_SESSIONS.try_update(
                 Ordering::Relaxed,
                 Ordering::Relaxed,
                 |value| Some(value.saturating_add(1)),
@@ -588,6 +626,7 @@ impl BrowserSession {
             next_epoch: 1,
             contexts: BTreeMap::new(),
             recovery_evidence: Vec::new(),
+            create_recovery_evidence: Vec::new(),
         })
     }
 
@@ -630,6 +669,12 @@ impl BrowserSession {
     #[must_use]
     pub fn recovery_evidence(&self) -> &[BrowserSessionRecoveryEvidence] {
         &self.recovery_evidence
+    }
+
+    /// Return exact create-attempt recovery facts retained for transaction correlation.
+    #[must_use]
+    pub fn create_attempt_recovery_evidence(&self) -> &[DisposableContextCreateRecoveryEvidence] {
+        &self.create_recovery_evidence
     }
 
     /// Return current presentation authority for an already-owned active context.
@@ -731,6 +776,12 @@ impl BrowserSession {
                 return Err(BrowserSessionError::ContextCreationFailed);
             }
             Err(DisposableContextCreateError::CreateFailedUncertain(isolation)) => {
+                self.create_recovery_evidence.push(
+                    DisposableContextCreateRecoveryEvidence::FailedUncertain {
+                        attempt_epoch: epoch,
+                        isolation: isolation.clone(),
+                    },
+                );
                 if let Some(isolation) = isolation {
                     self.recovery_evidence.push(
                         BrowserSessionRecoveryEvidence::PartialCreationIsolation(isolation),
@@ -760,6 +811,12 @@ impl BrowserSession {
                 attempt_epoch: epoch,
                 disposition: DisposableContextCreateDisposition::Rejected,
             };
+            self.create_recovery_evidence.push(
+                DisposableContextCreateRecoveryEvidence::DuplicateCandidate {
+                    attempt_epoch: epoch,
+                    context: handle.clone(),
+                },
+            );
             self.recovery_evidence
                 .push(BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(
                     handle.clone(),
@@ -768,6 +825,13 @@ impl BrowserSession {
                 .complete_disposable_context_creation(&completion)
                 .is_err()
             {
+                self.create_recovery_evidence.push(
+                    DisposableContextCreateRecoveryEvidence::CompletionUnsettled {
+                        attempt_epoch: epoch,
+                        disposition: DisposableContextCreateDisposition::Rejected,
+                        context: handle.clone(),
+                    },
+                );
                 self.recovery_evidence.push(
                     BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(handle),
                 );
@@ -788,6 +852,13 @@ impl BrowserSession {
             .complete_disposable_context_creation(&completion)
             .is_err()
         {
+            self.create_recovery_evidence.push(
+                DisposableContextCreateRecoveryEvidence::CompletionUnsettled {
+                    attempt_epoch: epoch,
+                    disposition: DisposableContextCreateDisposition::Accepted,
+                    context: handle.clone(),
+                },
+            );
             self.recovery_evidence
                 .push(BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(
                     handle,
@@ -893,10 +964,10 @@ impl BrowserSession {
             .map(|record| record.handle.clone())
             .filter(|handle| {
                 !self.recovery_evidence.iter().any(|evidence| match evidence {
-                    BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => false,
-                    BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(existing)
-                    | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(existing)
-                    | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
+                    BrowserSessionRecoveryEvidence::PartialCreationIsolation(_)
+                    | BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(_)
+                    | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(_) => false,
+                    BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
                     | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(existing) => {
                         existing == handle
                     }
@@ -1038,7 +1109,7 @@ fn allocate_incarnation(
     counter: &AtomicU64,
 ) -> Result<BrowserSessionIncarnation, BrowserSessionError> {
     let value = counter
-        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+        .try_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
             current.checked_add(1)
         })
         .map_err(|_| BrowserSessionError::IncarnationExhausted)?;
@@ -1254,6 +1325,17 @@ mod tests {
             Err(BrowserSessionError::ContextCreationUncertain)
         );
         assert!(unknown.browser_session().recovery_evidence().is_empty());
+        assert_eq!(unknown.browser_session().create_attempt_recovery_evidence().len(), 1);
+        match &unknown.browser_session().create_attempt_recovery_evidence()[0] {
+            DisposableContextCreateRecoveryEvidence::FailedUncertain {
+                attempt_epoch,
+                isolation,
+            } => {
+                assert_eq!(attempt_epoch.value(), 1);
+                assert_eq!(isolation, &None);
+            }
+            other => panic!("unexpected recovery evidence: {other:?}"),
+        }
 
         let known = isolation_id("partial-user-context-211");
         let mut known_port = TestPort::new(211, "unused");
@@ -1268,9 +1350,20 @@ mod tests {
         assert_eq!(
             known_session.browser_session().recovery_evidence(),
             &[BrowserSessionRecoveryEvidence::PartialCreationIsolation(
-                known
+                known.clone()
             )]
         );
+        assert_eq!(known_session.browser_session().create_attempt_recovery_evidence().len(), 1);
+        match &known_session.browser_session().create_attempt_recovery_evidence()[0] {
+            DisposableContextCreateRecoveryEvidence::FailedUncertain {
+                attempt_epoch,
+                isolation,
+            } => {
+                assert_eq!(attempt_epoch.value(), 1);
+                assert_eq!(isolation.as_ref(), Some(&known));
+            }
+            other => panic!("unexpected recovery evidence: {other:?}"),
+        }
         assert_eq!(
             known_session.end(),
             Err(BrowserSessionError::SessionNotActive)
@@ -1346,9 +1439,22 @@ mod tests {
         assert_eq!(
             bound.browser_session().recovery_evidence(),
             &[BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(
-                expected
+                expected.clone()
             )]
         );
+        assert_eq!(bound.browser_session().create_attempt_recovery_evidence().len(), 1);
+        match &bound.browser_session().create_attempt_recovery_evidence()[0] {
+            DisposableContextCreateRecoveryEvidence::CompletionUnsettled {
+                attempt_epoch,
+                disposition,
+                context,
+            } => {
+                assert_eq!(attempt_epoch.value(), 1);
+                assert_eq!(*disposition, DisposableContextCreateDisposition::Accepted);
+                assert_eq!(context, &expected);
+            }
+            other => panic!("unexpected recovery evidence: {other:?}"),
+        }
         assert_eq!(
             bound.port.create_completions[0].3,
             DisposableContextCreateDisposition::Accepted
@@ -1379,10 +1485,33 @@ mod tests {
             bound.browser_session().recovery_evidence(),
             &[
                 BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(duplicate.clone()),
-                BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(duplicate),
+                BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(duplicate.clone()),
                 BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(first),
             ]
         );
+        assert_eq!(bound.browser_session().create_attempt_recovery_evidence().len(), 2);
+        match &bound.browser_session().create_attempt_recovery_evidence()[0] {
+            DisposableContextCreateRecoveryEvidence::DuplicateCandidate {
+                attempt_epoch,
+                context,
+            } => {
+                assert_eq!(attempt_epoch.value(), 2);
+                assert_eq!(context, &duplicate);
+            }
+            other => panic!("unexpected recovery evidence: {other:?}"),
+        }
+        match &bound.browser_session().create_attempt_recovery_evidence()[1] {
+            DisposableContextCreateRecoveryEvidence::CompletionUnsettled {
+                attempt_epoch,
+                disposition,
+                context,
+            } => {
+                assert_eq!(attempt_epoch.value(), 2);
+                assert_eq!(*disposition, DisposableContextCreateDisposition::Rejected);
+                assert_eq!(context, &duplicate);
+            }
+            other => panic!("unexpected recovery evidence: {other:?}"),
+        }
         assert_eq!(
             bound.port.create_completions[1].3,
             DisposableContextCreateDisposition::Rejected
