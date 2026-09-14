@@ -268,7 +268,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         recovery_adr = (
-            ROOT / "docs/adr/0115-browser-session-recovery-custody-and-hot-ownership.md"
+            ROOT / "docs/adr/0116-browser-session-recovery-custody-and-hot-ownership.md"
         ).read_text(encoding="utf-8")
         trace = (ROOT / "docs/traceability/browser-session-lifecycle-authority.md").read_text(
             encoding="utf-8"
@@ -307,6 +307,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             self.assertIn(token, adr)
 
         for token in (
+            "ADR 0116",
             "Status: Proposed",
             "Extends: ADR 0114",
             "BoundBrowserSessionRecovery",
@@ -321,12 +322,15 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "#316",
             "compile_fail",
             "protected `main`",
+            "Assumptions and authority boundaries",
+            "Migration and rollback",
+            "Supersession / reversal conditions",
         ):
             self.assertIn(token, recovery_adr)
 
         for token in (
             "IMPLEMENTED_ON_ACTIVE_PR",
-            "ADR 0115",
+            "ADR 0116",
             "BoundBrowserSession",
             "BoundBrowserSessionRecovery",
             "DisposableContextCreateCompletion",
