@@ -199,6 +199,16 @@ fn assert_destroyed_sibling_replay_preserves_survivor_eligibility(
         "destroyed-sibling replay must fail before adapter I/O",
     );
     assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::ContextNotOwned),
+        "stale destroyed-sibling evidence must not reconstruct sibling ownership or eligibility",
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "destroyed-sibling resurrection probe must fail before adapter I/O",
+    );
+    assert_eq!(
         bound.execute_authorized_context_operation(
             &first_authority,
             "survivor-retained-authority-after-destroyed-sibling-replay",
