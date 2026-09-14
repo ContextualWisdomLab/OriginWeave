@@ -116,6 +116,37 @@ fn newer_navigation_kills_an_older_witness_even_after_commit_progress() {
     );
     assert_eq!(adapter_calls.get(), calls_after_create);
 
+    bound
+        .record_observed_navigation_committed(&second_pending)
+        .expect("stale commit from A must not consume B's own first commit-progress transition");
+    assert_eq!(
+        bound.record_observed_navigation_committed(&second_pending),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "B itself may record commit progress exactly once"
+    );
+    assert_eq!(bound.browser_session().state(), state_after_supersession);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_supersession.as_slice()
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "B commit progress remains non-terminal and must not open authority"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-current-commit"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "B commit progress must keep retained pre-navigation authority revoked"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_create,
+        "stale-A commit rejection and B's own commit bookkeeping must remain zero-I/O"
+    );
+
     assert_eq!(
         bound.record_observed_navigation_settled(&first_pending),
         Err(BrowserSessionError::AuthorityMismatch),
