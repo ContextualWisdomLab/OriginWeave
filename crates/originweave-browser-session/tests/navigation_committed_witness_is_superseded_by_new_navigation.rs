@@ -97,11 +97,49 @@ fn newer_navigation_kills_an_older_witness_even_after_commit_progress() {
         Err(BrowserSessionError::AuthorityMismatch),
         "commit progress from the superseded witness must not survive into the newer navigation"
     );
+    assert_eq!(bound.browser_session().state(), state_after_supersession);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_supersession.as_slice()
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a stale duplicate commit must not manufacture re-establishment eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-old-commit"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "a stale duplicate commit must not reactivate retained authority"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
     assert_eq!(
         bound.record_observed_navigation_settled(&first_pending),
         Err(BrowserSessionError::AuthorityMismatch),
         "late positive settlement from the superseded committed witness must not close the newer navigation"
     );
+    assert_eq!(bound.browser_session().state(), state_after_supersession);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_supersession.as_slice()
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "stale positive evidence must not manufacture re-establishment eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-old-positive"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "stale positive evidence must not reactivate retained authority"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
     assert_eq!(
         bound.record_observed_navigation_terminated(
             &first_pending,
@@ -110,6 +148,25 @@ fn newer_navigation_kills_an_older_witness_even_after_commit_progress() {
         Err(BrowserSessionError::AuthorityMismatch),
         "late negative settlement from the superseded committed witness must not close the newer navigation"
     );
+    assert_eq!(bound.browser_session().state(), state_after_supersession);
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_supersession.as_slice()
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "stale negative evidence must not manufacture re-establishment eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(&initial, "stale-after-old-negative"),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "stale negative evidence must not reactivate retained authority"
+    );
+    assert_eq!(adapter_calls.get(), calls_after_create);
+
     assert_eq!(
         bound.record_observed_navigation_download_started(&first_pending),
         Err(BrowserSessionError::AuthorityMismatch),
@@ -118,29 +175,29 @@ fn newer_navigation_kills_an_older_witness_even_after_commit_progress() {
     assert_eq!(
         bound.browser_session().state(),
         state_after_supersession,
-        "all stale evidence from the committed predecessor must be rejected before aggregate lifecycle mutation"
+        "each stale observation from the committed predecessor must be rejected before aggregate lifecycle mutation"
     );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
         recovery_after_supersession.as_slice(),
-        "stale evidence from the committed predecessor must not manufacture recovery evidence"
+        "each stale observation from the committed predecessor must not manufacture recovery evidence"
     );
     assert_eq!(
         bound.reestablish_presentation_authority(context),
         Err(BrowserSessionError::AuthorityMismatch),
-        "stale evidence from the committed predecessor must not manufacture re-establishment eligibility while the newer navigation is pending"
+        "stale download evidence must not manufacture re-establishment eligibility while the newer navigation is pending"
     );
     assert_eq!(
-        bound.execute_authorized_context_operation(&initial, "stale-after-committed-supersession"),
+        bound.execute_authorized_context_operation(&initial, "stale-after-old-download"),
         Err(AuthorizedContextOperationError::BrowserSession(
             BrowserSessionError::AuthorityMismatch,
         )),
-        "the retained pre-navigation authority must remain revoked across supersession"
+        "stale download evidence must not reactivate retained pre-navigation authority"
     );
     assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "commit progress, supersession, stale-evidence rejection, and authority rejection must remain zero-I/O"
+        "commit progress, supersession, each stale-evidence rejection, and authority rejection must remain zero-I/O"
     );
 
     bound
