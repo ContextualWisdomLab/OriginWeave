@@ -173,6 +173,10 @@ pub struct ControlledBenchmarkRunContext<'a> {
 }
 
 impl<'a> ControlledBenchmarkRunContext<'a> {
+    /// Returns every reproducibility identity in the single stable comparison order.
+    ///
+    /// Keeping the field name beside its value lets fail-closed validation report the
+    /// first causal boundary without maintaining a second hand-written comparison map.
     fn fields(self) -> [(&'static str, &'a str); 9] {
         [
             ("originweave_revision", self.originweave_revision),
@@ -282,6 +286,7 @@ pub enum ControlledBenchmarkTrialAggregationError {
 }
 
 impl fmt::Display for ControlledBenchmarkTrialAggregationError {
+    /// Formats the first malformed-trial boundary without discarding its exact ordinal.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidTrialOrdinal { observed, maximum } => write!(
@@ -395,6 +400,7 @@ pub enum ControlledBenchmarkError {
 }
 
 impl fmt::Display for ControlledBenchmarkError {
+    /// Formats malformed aggregate evidence while preserving the offending counter.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NonCanonicalTrialCount { observed, maximum } => write!(
@@ -466,6 +472,7 @@ pub enum ControlledBenchmarkSuiteError {
 }
 
 impl fmt::Display for ControlledBenchmarkSuiteError {
+    /// Formats suite-admission errors without normalizing case or context identity.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidSupportProfile => formatter.write_str(
@@ -510,6 +517,7 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
 }
 
 impl std::error::Error for ControlledBenchmarkSuiteError {
+    /// Exposes only the underlying trial-shape error; other variants are causal roots.
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidTrialEvidence { source, .. } => Some(source),
@@ -576,6 +584,10 @@ pub fn evaluate_controlled_benchmark_case(
     Ok(evaluate_valid_controlled_benchmark_case(evidence))
 }
 
+/// Classifies evidence after structural counters have already been validated.
+///
+/// Keeping this branch free of additional admission logic lets suite evaluation reuse
+/// the exact same threshold decision only after it derives canonical raw-trial evidence.
 fn evaluate_valid_controlled_benchmark_case(
     evidence: ControlledBenchmarkCaseEvidence,
 ) -> ControlledBenchmarkCaseOutcome {
@@ -714,6 +726,11 @@ pub fn evaluate_controlled_benchmark_suite(
     Ok(BenchmarkSuiteOutcome::Passed)
 }
 
+/// Rejects benchmark-owned run identities that would make evidence boundaries ambiguous.
+///
+/// The controlled benchmark owns these labels, so surrounding whitespace and control
+/// characters are invalid here even though browser-issued protocol identifiers are
+/// preserved losslessly at their own bounded-context boundary.
 fn validate_run_context_field(
     field: &'static str,
     value: &str,
@@ -731,6 +748,7 @@ fn validate_run_context_field(
     Ok(())
 }
 
+/// Verifies that a per-trial outcome counter cannot claim more observations than trials.
 fn validate_counter(
     counter: &'static str,
     observed: u32,
