@@ -12,14 +12,16 @@ A cleanup implementation that stores re-establishment eligibility in aggregate-g
 
 For each qualified A closure family—complete-positive settlement, `navigationAborted`, `navigationFailed`, and `downloadWillBegin`—the hostile sequence is:
 
-`A earns unused eligibility → B starts and records navigationCommitted → proven destroy(B-old) → recreate B-new with the same raw BrowsingContextId and a newer BrowserContextEpoch → stale commit(B-old) is rejected → re-establish(A)`.
+`A earns unused eligibility → B-old starts and records navigationCommitted → proven destroy(B-old) → recreate B-new with the same raw BrowsingContextId and a newer BrowserContextEpoch → immediately re-establish(A) → reject delayed commit(B-old)`.
+
+The ordering is intentional. A must re-establish immediately after B-new creation, before any later protocol observation or authority operation can compensate for cleanup that incorrectly erased A's eligibility.
 
 The required invariants are:
 
 - B-old destruction and B-new creation may change only B's ownership generation and the aggregate-wide epoch allocator. They must not erase or recreate A's already-earned eligibility, mutate lifecycle/recovery state, or reactivate A's retained pre-navigation authority.
-- Protocol evidence tied to B-old remains stale after raw-id recreation and fails before adapter I/O.
 - A re-establishment remains single-use and receives the next aggregate-issued epoch after B-new creation; it must not reset or reuse an earlier epoch.
-- B-new has no navigation-derived re-establishment eligibility merely because its predecessor did. Its fresh creation authority remains executable after A re-establishes.
+- Protocol evidence tied to B-old remains stale after raw-id recreation and fails before adapter I/O even after A has re-established.
+- B-new has no navigation-derived re-establishment eligibility merely because its predecessor did. Its fresh creation authority remains executable after A re-establishes and after stale B-old evidence is rejected.
 - A's newly minted authority and B-new's fresh authority must both execute against their exact current contexts. Epoch arithmetic without executable authority is insufficient evidence.
 
 Browser Session remains the deterministic authority owner. WebDriver BiDi navigation and browsing-context identifiers are adapter evidence only; PR #316 remains responsible for protocol correlation. Recreating or reconciling a remote browser target is not inferred from command acknowledgement.
