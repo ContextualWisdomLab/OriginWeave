@@ -142,6 +142,21 @@ fn destroying_committed_pending_context_preserves_sibling_commit_slot() {
         "destroyed context commit evidence is permanently stale"
     );
     assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::Active,
+        "rejecting the destroyed context's late commit must not perturb aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_starts.as_slice(),
+        "rejecting destroyed-context progress must not manufacture recovery evidence"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_after_destroy,
+        "destroyed-context progress must fail before adapter I/O"
+    );
+    assert_eq!(
         bound.reestablish_presentation_authority(first_context),
         Err(BrowserSessionError::ContextNotOwned),
         "destroyed committed context cannot regain presentation authority"
@@ -174,23 +189,87 @@ fn destroying_committed_pending_context_preserves_sibling_commit_slot() {
     bound
         .record_observed_navigation_committed(&second_pending)
         .expect("destroying a committed sibling must not consume the surviving context's own commit slot");
-    assert_eq!(bound.browser_session().state(), BrowserSessionState::Active);
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::Active,
+        "the surviving context's first commit remains non-terminal"
+    );
     assert_eq!(
         bound.browser_session().recovery_evidence(),
         recovery_after_starts.as_slice()
     );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "the surviving context's first commit must not create re-establishment eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "second-stale-after-own-first-commit",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "the surviving context's retained authority remains revoked after its first commit"
+    );
     assert_eq!(adapter_calls.get(), calls_after_destroy);
+
     assert_eq!(
         bound.record_observed_navigation_committed(&second_pending),
         Err(BrowserSessionError::AuthorityMismatch),
         "the surviving context still accepts commit progress exactly once"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::Active,
+        "rejecting duplicate surviving-context commit progress must not perturb lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_starts.as_slice()
+    );
+    assert_eq!(
+        bound.reestablish_presentation_authority(second_context),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "duplicate surviving-context commit progress must not manufacture eligibility"
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "second-stale-after-duplicate-commit",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "duplicate commit rejection must leave retained authority revoked"
     );
     assert_eq!(adapter_calls.get(), calls_after_destroy);
 
     bound
         .record_observed_navigation_download_started(&second_pending)
         .expect("the surviving committed navigation may close through download start");
+    assert_eq!(
+        bound.browser_session().state(),
+        BrowserSessionState::Active,
+        "download-start closure must not perturb aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_starts.as_slice()
+    );
+    assert_eq!(
+        bound.execute_authorized_context_operation(
+            &second_authority,
+            "second-stale-after-download-closure",
+        ),
+        Err(AuthorizedContextOperationError::BrowserSession(
+            BrowserSessionError::AuthorityMismatch,
+        )),
+        "download-start closure creates eligibility but never reactivates retained authority"
+    );
     assert_eq!(adapter_calls.get(), calls_after_destroy);
+
     let second_reestablished = bound
         .reestablish_presentation_authority(second_context)
         .expect("the surviving context receives one explicit fresh authority");
