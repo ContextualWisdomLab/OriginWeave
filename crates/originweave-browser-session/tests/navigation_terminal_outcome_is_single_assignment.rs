@@ -90,6 +90,8 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         );
     assert_eq!(adapter_calls.get(), calls_after_create);
 
+    let state_after_positive_terminal = bound.browser_session().state();
+    let recovery_after_positive_terminal = bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(
         bound.record_observed_navigation_terminated(
             &positively_terminal,
@@ -99,9 +101,24 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         "a witness already consumed by complete load/fragment settlement must not be reusable by a conflicting failed outcome"
     );
     assert_eq!(
+        bound.record_observed_navigation_download_started(&positively_terminal),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a witness already consumed by complete load/fragment settlement must not be reusable by a late download-start liveness outcome"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_positive_terminal,
+        "late download-start replay after positive settlement must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_positive_terminal.as_slice(),
+        "late download-start replay after positive settlement must not mutate recovery evidence"
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_after_create,
-        "conflicting terminal replay must fail before adapter I/O"
+        "conflicting terminal or download-start replay must fail before adapter I/O"
     );
 
     let after_positive = bound
@@ -111,12 +128,24 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         after_positive.context_epoch().value(),
         initial.context_epoch().value() + 1
     );
+    let calls_before_positive_post_reestablishment_replay = adapter_calls.get();
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&positively_terminal),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "positive-terminal witness must remain consumed after fresh authority is minted"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_positive_post_reestablishment_replay,
+        "post-reestablishment download-start replay must fail before adapter I/O"
+    );
     assert_eq!(
         bound.execute_authorized_context_operation(
             &after_positive,
             "usable-after-positive-terminal"
         ),
-        Ok(context)
+        Ok(context),
+        "late download-start replay must not revoke authority minted after positive settlement"
     );
 
     let calls_before_negative = adapter_calls.get();
@@ -136,15 +165,32 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         .expect("the exact witness may be consumed once by a negative terminal observation");
     assert_eq!(adapter_calls.get(), calls_before_negative);
 
+    let state_after_negative_terminal = bound.browser_session().state();
+    let recovery_after_negative_terminal = bound.browser_session().recovery_evidence().to_vec();
     assert_eq!(
         bound.record_observed_navigation_settled(&negatively_terminal),
         Err(BrowserSessionError::AuthorityMismatch),
         "a witness already consumed by abort/failure must not be reusable by a conflicting complete positive outcome"
     );
     assert_eq!(
+        bound.record_observed_navigation_download_started(&negatively_terminal),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "a witness already consumed by abort/failure must not be reusable by a late download-start liveness outcome"
+    );
+    assert_eq!(
+        bound.browser_session().state(),
+        state_after_negative_terminal,
+        "late download-start replay after negative terminal must not change aggregate lifecycle state"
+    );
+    assert_eq!(
+        bound.browser_session().recovery_evidence(),
+        recovery_after_negative_terminal.as_slice(),
+        "late download-start replay after negative terminal must not mutate recovery evidence"
+    );
+    assert_eq!(
         adapter_calls.get(),
         calls_before_negative,
-        "conflicting positive replay must fail before adapter I/O"
+        "conflicting positive or download-start replay must fail before adapter I/O"
     );
     assert_eq!(
         bound.execute_authorized_context_operation(
@@ -165,11 +211,23 @@ fn one_pending_navigation_accepts_exactly_one_terminal_outcome_across_positive_a
         after_negative.context_epoch().value(),
         after_positive.context_epoch().value() + 1
     );
+    let calls_before_negative_post_reestablishment_replay = adapter_calls.get();
+    assert_eq!(
+        bound.record_observed_navigation_download_started(&negatively_terminal),
+        Err(BrowserSessionError::AuthorityMismatch),
+        "negative-terminal witness must remain consumed after fresh authority is minted"
+    );
+    assert_eq!(
+        adapter_calls.get(),
+        calls_before_negative_post_reestablishment_replay,
+        "post-reestablishment download-start replay must fail before adapter I/O"
+    );
     assert_eq!(
         bound.execute_authorized_context_operation(
             &after_negative,
             "usable-after-negative-terminal"
         ),
-        Ok(context)
+        Ok(context),
+        "late download-start replay must not revoke authority minted after negative terminal"
     );
 }
