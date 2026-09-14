@@ -1,14 +1,15 @@
 use crate::browser_session::{
-    BoundBrowserSession, BrowserSession, BrowserSessionState, DisposableContextPort,
+    BoundBrowserSession, BrowserSessionRecoveryEvidence, BrowserSessionState,
+    DisposableContextCreateRecoveryEvidence, DisposableContextPort,
 };
 
 /// Recovery-only custody of a Browser Session and its exact consumed lifecycle adapter.
 ///
 /// This wrapper is obtained only by consuming a bound session that has already entered
 /// [`BrowserSessionState::RecoveryRequired`] or [`BrowserSessionState::TransportLost`]. It exposes
-/// immutable Browser Session evidence but deliberately provides none of the ordinary create,
-/// presentation-authority, epoch-advance, destroy, or authorized-operation methods. The concrete
-/// adapter remains private and is moved, not reconstructed or replaced.
+/// only lifecycle state and exact non-authorizing recovery evidence. It deliberately provides none
+/// of the ordinary create, presentation-authority, epoch-advance, destroy, authorized-operation, or
+/// normal-finish methods, and it does not expose the inner [`BoundBrowserSession`] or concrete port.
 ///
 /// Ordinary context creation is not available from recovery custody:
 ///
@@ -19,7 +20,7 @@ use crate::browser_session::{
 /// }
 /// ```
 ///
-/// Presentation-authority lookup is not available from recovery custody:
+/// Presentation-authority lookup is not available directly or through an inner Browser Session:
 ///
 /// ```compile_fail
 /// use originweave_browser_session::{BoundBrowserSessionRecovery, DisposableContextPort};
@@ -29,6 +30,17 @@ use crate::browser_session::{
 ///     context: BrowsingContextId,
 /// ) {
 ///     let _ = recovery.presentation_authority(context);
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use originweave_browser_session::{BoundBrowserSessionRecovery, DisposableContextPort};
+/// use originweave_core::BrowsingContextId;
+/// fn forbidden<P: DisposableContextPort>(
+///     recovery: BoundBrowserSessionRecovery<P>,
+///     context: BrowsingContextId,
+/// ) {
+///     let _ = recovery.browser_session().presentation_authority(context);
 /// }
 /// ```
 ///
@@ -92,12 +104,23 @@ impl<P: DisposableContextPort> BoundBrowserSession<P> {
 }
 
 impl<P: DisposableContextPort> BoundBrowserSessionRecovery<P> {
-    /// Return immutable Browser Session recovery state and evidence.
-    ///
-    /// No adapter reference is exposed. Protocol-specific recovery code must consume a separately
-    /// reviewed recovery operation boundary rather than regaining ordinary mutation authority.
+    /// Return the lifecycle state captured by the unresolved Browser Session aggregate.
     #[must_use]
-    pub const fn browser_session(&self) -> &BrowserSession {
-        self.bound.browser_session()
+    pub const fn state(&self) -> BrowserSessionState {
+        self.bound.browser_session().state()
+    }
+
+    /// Return exact non-authorizing ownership-recovery evidence.
+    #[must_use]
+    pub fn recovery_evidence(&self) -> &[BrowserSessionRecoveryEvidence] {
+        self.bound.browser_session().recovery_evidence()
+    }
+
+    /// Return exact non-authorizing create-attempt recovery provenance.
+    #[must_use]
+    pub fn create_attempt_recovery_evidence(&self) -> &[DisposableContextCreateRecoveryEvidence] {
+        self.bound
+            .browser_session()
+            .create_attempt_recovery_evidence()
     }
 }
