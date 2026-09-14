@@ -442,7 +442,7 @@ pub enum ControlledBenchmarkSuiteError {
         /// Name of the non-canonical reproducibility-context field.
         field: &'static str,
     },
-    /// A required or observed reproducibility-context field contains a control character.
+    /// A required or observed reproducibility-context field contains a C0/C1 control or Unicode bidirectional formatting character.
     ControlCharacterRunContext {
         /// Name of the invalid reproducibility-context field.
         field: &'static str,
@@ -491,7 +491,7 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
             ),
             Self::ControlCharacterRunContext { field } => write!(
                 formatter,
-                "controlled benchmark run context field {field} contains a control character"
+                "controlled benchmark run context field {field} contains a C0/C1 control or Unicode bidirectional formatting character"
             ),
             Self::RunContextMismatch { field } => write!(
                 formatter,
