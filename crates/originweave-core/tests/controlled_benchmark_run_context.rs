@@ -191,6 +191,14 @@ fn bidi_control_in_reproducibility_context_fails_closed() {
             "bidi formatting controls must not become benchmark evidence identity: {hostile:?}"
         );
     }
+
+    let invalid = ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+        field: "reasoning_configuration",
+    };
+    assert_eq!(
+        invalid.to_string(),
+        "controlled benchmark run context field reasoning_configuration contains a C0/C1 control or Unicode bidirectional formatting character"
+    );
 }
 
 #[test]
