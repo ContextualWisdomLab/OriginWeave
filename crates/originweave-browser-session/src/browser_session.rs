@@ -678,8 +678,7 @@ impl BrowserSession {
         &self.create_recovery_evidence
     }
 
-    /// Return current presentation authority for an already-owned active context.
-    pub fn presentation_authority(
+    fn presentation_authority(
         &self,
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
