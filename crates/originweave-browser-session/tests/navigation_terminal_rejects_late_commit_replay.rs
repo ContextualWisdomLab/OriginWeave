@@ -175,6 +175,12 @@ fn positive_terminal_consumption_rejects_late_commit_before_and_after_reestablis
         "stale commit replay must not perturb the aggregate epoch sequence"
     );
     assert_eq!(adapter_calls.get(), calls_before_next_navigation);
+    assert_eq!(
+        bound.execute_authorized_context_operation(&next, "usable-after-next-positive-navigation"),
+        Ok(context),
+        "the next epoch must represent executable authority rather than a hollow token"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_next_navigation + 1);
 }
 
 #[test]
@@ -273,4 +279,10 @@ fn negative_terminal_consumption_rejects_late_commit_before_and_after_reestablis
         "stale commit replay must not perturb the aggregate epoch sequence"
     );
     assert_eq!(adapter_calls.get(), calls_before_next_navigation);
+    assert_eq!(
+        bound.execute_authorized_context_operation(&next, "usable-after-next-negative-navigation"),
+        Ok(context),
+        "the next epoch must represent executable authority rather than a hollow token"
+    );
+    assert_eq!(adapter_calls.get(), calls_before_next_navigation + 1);
 }
