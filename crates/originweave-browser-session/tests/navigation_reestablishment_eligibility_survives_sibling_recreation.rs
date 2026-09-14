@@ -67,6 +67,7 @@ enum NavigationClosure {
     DownloadStarted,
 }
 
+/// Build one adapter-issued disposable handle with an explicit isolation identity.
 fn handle(context: BrowsingContextId, isolation: &str) -> DisposableContextHandle {
     DisposableContextHandle::new(
         DisposableIsolationId::parse(isolation).expect("valid isolation id"),
@@ -74,6 +75,7 @@ fn handle(context: BrowsingContextId, isolation: &str) -> DisposableContextHandl
     )
 }
 
+/// Exercise one closure family through sibling destroy/recreate ABA and stale replay.
 fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, session_id: u64) {
     let first_context =
         BrowsingContextId::new(session_id * 10 + 1).expect("valid first browsing context");
@@ -252,10 +254,9 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
         .presentation_authority(second_context)
         .expect("stale B-old evidence must not revoke B-new current authority");
     assert_eq!(
-        second_current_after_stale.context_epoch(),
-        second_new_authority.context_epoch(),
+        second_current_after_stale, second_new_authority,
+        "stale B-old evidence must preserve the complete B-new authority identity, including isolation, incarnation, context, and epoch",
     );
-    assert_eq!(second_current_after_stale.context(), second_context);
 
     assert_eq!(
         bound.execute_authorized_context_operation(&first_reestablished, "first-current"),
@@ -265,21 +266,25 @@ fn assert_eligibility_survives_sibling_recreation(closure: NavigationClosure, se
     assert_eq!(adapter_calls.get(), calls_after_second_new_operation + 1);
 }
 
+/// Complete-positive navigation eligibility survives sibling raw-id recreation.
 #[test]
 fn positive_eligibility_survives_sibling_raw_id_recreation() {
     assert_eligibility_survives_sibling_recreation(NavigationClosure::Settled, 1381);
 }
 
+/// Aborted-navigation eligibility survives sibling raw-id recreation.
 #[test]
 fn aborted_eligibility_survives_sibling_raw_id_recreation() {
     assert_eligibility_survives_sibling_recreation(NavigationClosure::Aborted, 1382);
 }
 
+/// Failed-navigation eligibility survives sibling raw-id recreation.
 #[test]
 fn failed_eligibility_survives_sibling_raw_id_recreation() {
     assert_eligibility_survives_sibling_recreation(NavigationClosure::Failed, 1383);
 }
 
+/// Download-start eligibility survives sibling raw-id recreation.
 #[test]
 fn download_eligibility_survives_sibling_raw_id_recreation() {
     assert_eligibility_survives_sibling_recreation(NavigationClosure::DownloadStarted, 1384);
