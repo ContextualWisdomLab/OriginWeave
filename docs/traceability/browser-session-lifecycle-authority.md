@@ -26,9 +26,10 @@ validated BrowserSessionId
 → aggregate records accepted exact handle + epoch
 → opaque PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
 → exact authority validation before any lifecycle or purpose-bounded adapter I/O
-→ lifecycle destruction uses private DisposableContextDestroyRequest
-→ presentation/reconciliation uses private AuthorizedContextOperationRequest<O>
+→ lifecycle destruction uses private DisposableContextDestroyRequest(handle, validated epoch)
+→ presentation/reconciliation uses private AuthorizedContextOperationRequest<O>(handle, validated epoch, operation)
 → exact consumed adapter only
+→ failed/unproven destruction retains exact handle + validated epoch as non-authorizing recovery evidence
 → proven destruction for every context
 → BoundBrowserSession::finish() validates normal completion without consuming the owner on rejection
 ```
@@ -37,7 +38,7 @@ validated BrowserSessionId
 
 The wrapper has a manual redacted `Debug` implementation. Formatting exposes inert Browser Session summary fields only and never calls `P::fmt`, so a side-effecting or secret-bearing adapter `Debug` cannot become a diagnostic capability escape.
 
-`DisposableContextCreateRequest`, `DisposableContextCreateCompletion`, `DisposableContextDestroyRequest`, and `AuthorizedContextOperationRequest<O>` have private construction paths. The create request carries the already-reserved context epoch as a **per-create transaction** identity. Purpose-bounded operations are constructed only after exact `PresentationMutationAuthority` validation.
+`DisposableContextCreateRequest`, `DisposableContextCreateCompletion`, `DisposableContextDestroyRequest`, and `AuthorizedContextOperationRequest<O>` have private construction paths. The create request carries the already-reserved context epoch as a **per-create transaction** identity. Destroy and purpose-bounded operation requests carry the exact context epoch that Browser Session validated immediately before adapter I/O. That epoch is correlation/provenance only: it does not authorize a command independently from the private aggregate-issued request. Purpose-bounded operations are constructed only after exact `PresentationMutationAuthority` validation.
 
 ## Transactional remote creation
 
@@ -53,17 +54,17 @@ Protocol-specific tuple contents and pending/accepted/quarantined storage remain
 
 ## Same-bound-adapter authorized operations
 
-`AuthorizedContextOperationPort` extends the lifecycle port for adapters that need post-create presentation or reconciliation work. The operation/output/error vocabulary remains adapter-owned. Browser Session validates session incarnation, isolation, browsing-context identity, and context epoch before creating `AuthorizedContextOperationRequest<O>` and routing it to the same `port: P` already consumed into `BoundBrowserSession`.
+`AuthorizedContextOperationPort` extends the lifecycle port for adapters that need post-create presentation or reconciliation work. The operation/output/error vocabulary remains adapter-owned. Browser Session validates session incarnation, isolation, browsing-context identity, and context epoch before creating `AuthorizedContextOperationRequest<O>` and routing it to the same `port: P` already consumed into `BoundBrowserSession`. The request exposes that already-validated epoch so adapter execution logs and protocol correlation cannot collapse distinct authority generations that happen to reuse the same external identifiers.
 
-Stale or foreign authority returns `AuthorizedContextOperationError::BrowserSession` before adapter I/O. An operation attempted by the exact bound adapter can return `AuthorizedContextOperationError::Adapter`. No raw `P` reference, second adapter, or unrestricted `FnOnce(&mut P)` is exposed.
+Stale or foreign authority returns `AuthorizedContextOperationError::BrowserSession` before adapter I/O, so no request and no epoch provenance reaches the adapter on rejection. An operation attempted by the exact bound adapter can return `AuthorizedContextOperationError::Adapter`. No raw `P` reference, second adapter, or unrestricted `FnOnce(&mut P)` is exposed.
 
 ## Lossless recovery evidence while retained
 
-`CreateFailedClean` is valid only when no disposable browser state exists. `CreateFailedUncertain(Some(isolation))` retains the exact known isolation identity. Duplicate output stores the complete offending handle. Completion failure retains an unsettled complete handle. Failed or unproven destruction records the exact owned handle. When any such failure moves the aggregate to `RecoveryRequired`, every other still-active sibling is projected exactly once as `RecoveryRequiredOwnedHandle` before becoming uncertain. Transport loss records each previously active exact handle as `TransportLossOwnedHandle`. None of this evidence grants browser command authority.
+`CreateFailedClean` is valid only when no disposable browser state exists. `CreateFailedUncertain(Some(isolation))` retains the exact known isolation identity. Duplicate output stores the complete offending handle. Completion failure retains an unsettled complete handle. Failed or unproven destruction records both the exact owned handle and the exact validated `BrowserContextEpoch` that was sent on the destroy request. When any such failure moves the aggregate to `RecoveryRequired`, every other still-active sibling is projected exactly once as `RecoveryRequiredOwnedHandle` before becoming uncertain. Transport loss records each previously active exact handle as `TransportLossOwnedHandle`. None of this evidence grants browser command authority.
 
 Cause-specific evidence is retained for the triggering handle and is not duplicated as generic sibling evidence. Repeated transport-loss reports are idempotent, so exact transport-loss evidence is not duplicated by repeated notification.
 
-The active successor still has open recovery-correlation work: create uncertainty and create-completion failures must retain the exact aggregate-issued attempt epoch; destructive and purpose-bounded adapter requests must retain the exact validated context epoch as non-authorizing provenance; `RecoveryRequired`/`TransportLost` need a purpose-bounded handoff that keeps the exact same adapter with the exact evidence instead of reconstructing a second adapter.
+Operation/destroy epoch provenance is now implemented on the active #317 lineage: `AuthorizedContextOperationRequest::context_epoch` and `DisposableContextDestroyRequest::context_epoch` are copied only after exact authority validation; stale authority remains zero-I/O; `UnprovenDestruction` preserves that same epoch. The active successor still has open recovery-correlation work: create uncertainty and create-completion failures must retain the exact aggregate-issued attempt epoch; `RecoveryRequired`/`TransportLost` need a purpose-bounded handoff that keeps the exact same adapter with the exact evidence instead of reconstructing a second adapter.
 
 ## Abandonment and lifecycle completion
 
@@ -105,13 +106,15 @@ OriginWeave does not treat protocol identifiers as policy authority or assume hi
 | completion failure fails closed | `UnsettledAdapterHandle`; internal completion-failure tests |
 | raw context cannot mint presentation authority | `BrowserSession::presentation_authority`; `bound_creation_is_the_only_raw_context_entry_to_authority` |
 | same consumed adapter handles authorized post-create work | `AuthorizedContextOperationPort`; `authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before_io` |
+| authorized operation carries exact validated epoch | `AuthorizedContextOperationRequest::context_epoch`; `authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before_io` |
 | stale operation authority fails before adapter I/O | `AuthorizedContextOperationError::BrowserSession`; authorized-operation hostile fixture |
+| destroy request carries exact validated epoch | `DisposableContextDestroyRequest::context_epoch`; `destroy_failure_requires_recovery_before_any_new_authority` |
+| unproven destroy preserves exact handle + validated epoch | `BrowserSessionRecoveryEvidence::UnprovenDestruction`; `destroy_failure_requires_recovery_before_any_new_authority` |
 | adapter-owned Debug is not executed or rendered | manual `Debug for BoundBrowserSession<P>`; `bound_session_debug_never_executes_or_exposes_adapter_debug` |
 | sequential ABA authority is rejected before I/O | `BrowserSessionIncarnation`; `stale_authority_cannot_cross_sequential_session_incarnations` |
 | lossless recovery evidence while aggregate is retained | `BrowserSessionRecoveryEvidence`; recovery tests |
 | `RecoveryRequired` preserves indirectly invalidated siblings | `RecoveryRequiredOwnedHandle`; `recovery_required_projects_exact_handles_for_indirectly_uncertain_siblings` |
 | transport loss preserves exact active handles | `TransportLossOwnedHandle`; `transport_loss_preserves_exact_owned_handle_as_non_authorizing_recovery_evidence` |
-| unproven destruction retains exact handle | `destroy_failure_requires_recovery_before_any_new_authority` |
 | unresolved wrapper drop performs no browser I/O and is observable | `abandoned_bound_session_count`; `dropping_unresolved_bound_session_is_observable_without_implicit_browser_io` |
 | failed finish retains exact bound owner | `BoundBrowserSession::finish`; `failed_finish_retains_same_bound_owner_for_cleanup_and_retry` |
 | normal completion requires proven destruction | `BoundBrowserSession::finish`; `proven_destruction_can_finish_without_abandonment_path` |

@@ -17,6 +17,7 @@ struct OperationPort {
     observed_operations: Rc<RefCell<Vec<&'static str>>>,
     observed_sessions: Rc<RefCell<Vec<BrowserSessionId>>>,
     observed_incarnations: Rc<RefCell<Vec<BrowserSessionIncarnation>>>,
+    observed_epochs: Rc<RefCell<Vec<u64>>>,
     fail_operation: Rc<Cell<bool>>,
 }
 
@@ -64,6 +65,9 @@ impl AuthorizedContextOperationPort for OperationPort {
         self.observed_incarnations
             .borrow_mut()
             .push(request.incarnation());
+        self.observed_epochs
+            .borrow_mut()
+            .push(request.context_epoch().value());
         if self.fail_operation.get() {
             Err(())
         } else {
@@ -78,6 +82,7 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
     let observed_operations = Rc::new(RefCell::new(Vec::new()));
     let observed_sessions = Rc::new(RefCell::new(Vec::new()));
     let observed_incarnations = Rc::new(RefCell::new(Vec::new()));
+    let observed_epochs = Rc::new(RefCell::new(Vec::new()));
     let fail_operation = Rc::new(Cell::new(false));
     let context = BrowsingContextId::new(503).expect("valid browsing context");
     let port = OperationPort {
@@ -89,6 +94,7 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
         observed_operations: Rc::clone(&observed_operations),
         observed_sessions: Rc::clone(&observed_sessions),
         observed_incarnations: Rc::clone(&observed_incarnations),
+        observed_epochs: Rc::clone(&observed_epochs),
         fail_operation: Rc::clone(&fail_operation),
     };
     let session_id = BrowserSessionId::new(503).expect("valid session id");
@@ -107,6 +113,7 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
     assert_eq!(observed_operations.borrow().as_slice(), &["set-viewport"]);
     assert_eq!(observed_sessions.borrow().as_slice(), &[session_id]);
     assert_eq!(observed_incarnations.borrow().as_slice(), &[incarnation]);
+    assert_eq!(observed_epochs.borrow().as_slice(), &[1]);
 
     fail_operation.set(true);
     assert_eq!(
@@ -114,6 +121,7 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
         Err(AuthorizedContextOperationError::Adapter(()))
     );
     assert_eq!(operation_calls.get(), 2);
+    assert_eq!(observed_epochs.borrow().as_slice(), &[1, 1]);
     fail_operation.set(false);
 
     let current = bound
@@ -129,6 +137,11 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
         operation_calls.get(),
         2,
         "stale authority must fail before the bound adapter observes an operation"
+    );
+    assert_eq!(
+        observed_epochs.borrow().as_slice(),
+        &[1, 1],
+        "stale authority must not emit an adapter request or provenance epoch"
     );
 
     assert_eq!(
@@ -149,5 +162,10 @@ fn authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before
         observed_incarnations.borrow().as_slice(),
         &[incarnation, incarnation, incarnation],
         "the purpose-bounded adapter must observe only the bound Browser Session incarnation"
+    );
+    assert_eq!(
+        observed_epochs.borrow().as_slice(),
+        &[1, 1, 2],
+        "adapter requests must retain the exact validated authority epoch"
     );
 }

@@ -188,8 +188,13 @@ pub enum BrowserSessionRecoveryEvidence {
     DuplicateAdapterHandle(DisposableContextHandle),
     /// A complete create result could not be settled with the bound adapter after domain validation.
     UnsettledAdapterHandle(DisposableContextHandle),
-    /// Destruction of this exact owned handle failed or could not be proven.
-    UnprovenDestruction(DisposableContextHandle),
+    /// Destruction of this exact owned handle and validated authority epoch failed or could not be proven.
+    UnprovenDestruction {
+        /// Exact owned context whose remote boundary remains uncertain.
+        context: DisposableContextHandle,
+        /// Browser Session epoch validated immediately before destroy I/O.
+        context_epoch: BrowserContextEpoch,
+    },
     /// A recovery condition elsewhere in the session made this active owned handle uncertain.
     RecoveryRequiredOwnedHandle(DisposableContextHandle),
     /// Transport loss made this previously active owned handle uncertain.
@@ -288,12 +293,14 @@ pub enum DisposableContextCreateCompletionError {
 ///
 /// There is deliberately no public constructor. The bound aggregate creates this request only after
 /// validating the supplied presentation authority against current ownership. A caller cannot rebuild
-/// cleanup authority from raw browser identifiers.
+/// cleanup authority from raw browser identifiers. The validated epoch is carried only as correlation
+/// evidence for the already-authorized request; it is not independently sufficient to destroy state.
 #[derive(Debug)]
 pub struct DisposableContextDestroyRequest {
     browser_session: BrowserSessionId,
     incarnation: BrowserSessionIncarnation,
     context: DisposableContextHandle,
+    context_epoch: BrowserContextEpoch,
 }
 
 impl DisposableContextDestroyRequest {
@@ -313,6 +320,12 @@ impl DisposableContextDestroyRequest {
     #[must_use]
     pub const fn context(&self) -> &DisposableContextHandle {
         &self.context
+    }
+
+    /// Return the exact Browser Session epoch validated before destroy I/O.
+    #[must_use]
+    pub const fn context_epoch(&self) -> BrowserContextEpoch {
+        self.context_epoch
     }
 }
 
@@ -360,11 +373,13 @@ pub trait DisposableContextPort {
 ///
 /// The caller supplies only the adapter-defined operation value. Browser Session validates the
 /// accompanying presentation authority first and privately binds the operation to the exact owned
-/// context before the consumed adapter can observe it. There is deliberately no public constructor.
+/// context and validated epoch before the consumed adapter can observe it. There is deliberately no
+/// public constructor, and the epoch is correlation/provenance rather than standalone authority.
 pub struct AuthorizedContextOperationRequest<O> {
     browser_session: BrowserSessionId,
     incarnation: BrowserSessionIncarnation,
     context: DisposableContextHandle,
+    context_epoch: BrowserContextEpoch,
     operation: O,
 }
 
@@ -385,6 +400,12 @@ impl<O> AuthorizedContextOperationRequest<O> {
     #[must_use]
     pub const fn context(&self) -> &DisposableContextHandle {
         &self.context
+    }
+
+    /// Return the exact Browser Session epoch validated before adapter I/O.
+    #[must_use]
+    pub const fn context_epoch(&self) -> BrowserContextEpoch {
+        self.context_epoch
     }
 
     /// Return the adapter-defined purpose-bounded operation payload.
@@ -802,10 +823,12 @@ impl BrowserSession {
         let browser_session = self.id;
         let incarnation = self.incarnation;
         let record = self.context_for_authority_mut(authority)?;
+        let context_epoch = record.epoch;
         let request = DisposableContextDestroyRequest {
             browser_session,
             incarnation,
             context: record.handle.clone(),
+            context_epoch,
         };
         match port.destroy_disposable_context(&request) {
             Ok(()) => {
@@ -815,9 +838,10 @@ impl BrowserSession {
             Err(DisposableContextDestroyError::DestroyFailed) => {
                 record.state = OwnedContextState::Uncertain;
                 self.recovery_evidence
-                    .push(BrowserSessionRecoveryEvidence::UnprovenDestruction(
-                        request.context,
-                    ));
+                    .push(BrowserSessionRecoveryEvidence::UnprovenDestruction {
+                        context: request.context,
+                        context_epoch,
+                    });
                 self.enter_recovery_required();
                 Err(BrowserSessionError::ContextDestructionFailed)
             }
@@ -868,24 +892,27 @@ impl BrowserSession {
     }
 
     fn enter_recovery_required(&mut self) {
-        let sibling_handles =
-            self.contexts
-                .values()
-                .filter(|record| record.state == OwnedContextState::Active)
-                .map(|record| record.handle.clone())
-                .filter(|handle| {
-                    !self.recovery_evidence.iter().any(|evidence| match evidence {
-                        BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => false,
-                        BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(existing)
-                        | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(existing)
-                        | BrowserSessionRecoveryEvidence::UnprovenDestruction(existing)
-                        | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
-                        | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(existing) => {
-                            existing == handle
-                        }
-                    })
+        let sibling_handles = self
+            .contexts
+            .values()
+            .filter(|record| record.state == OwnedContextState::Active)
+            .map(|record| record.handle.clone())
+            .filter(|handle| {
+                !self.recovery_evidence.iter().any(|evidence| match evidence {
+                    BrowserSessionRecoveryEvidence::PartialCreationIsolation(_) => false,
+                    BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(existing)
+                    | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(existing)
+                    | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(existing)
+                    | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(existing) => {
+                        existing == handle
+                    }
+                    BrowserSessionRecoveryEvidence::UnprovenDestruction {
+                        context: existing,
+                        ..
+                    } => existing == handle,
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         self.recovery_evidence.extend(
             sibling_handles
                 .into_iter()
@@ -988,16 +1015,17 @@ impl<P: AuthorizedContextOperationPort> BoundBrowserSession<P> {
     ) -> Result<P::Output, AuthorizedContextOperationError<P::Error>> {
         let browser_session = self.session.id;
         let incarnation = self.session.incarnation;
-        let context = self
+        let record = self
             .session
             .context_for_authority_mut(authority)
-            .map_err(AuthorizedContextOperationError::BrowserSession)?
-            .handle
-            .clone();
+            .map_err(AuthorizedContextOperationError::BrowserSession)?;
+        let context = record.handle.clone();
+        let context_epoch = record.epoch;
         let request = AuthorizedContextOperationRequest {
             browser_session,
             incarnation,
             context,
+            context_epoch,
             operation,
         };
         self.port
@@ -1510,6 +1538,7 @@ mod tests {
         port.fail_destroy = true;
         let mut bound = session(9).bind_lifecycle_port(port);
         let authority = bound.create_disposable_context().expect("owned context");
+        let expected_epoch = authority.context_epoch();
         assert_eq!(
             bound.destroy_disposable_context(&authority),
             Err(BrowserSessionError::ContextDestructionFailed)
@@ -1520,9 +1549,10 @@ mod tests {
         );
         assert_eq!(
             bound.browser_session().recovery_evidence(),
-            &[BrowserSessionRecoveryEvidence::UnprovenDestruction(
-                expected_handle
-            )]
+            &[BrowserSessionRecoveryEvidence::UnprovenDestruction {
+                context: expected_handle,
+                context_epoch: expected_epoch,
+            }]
         );
         assert!(!bound.browser_session().transport_is_lost());
         assert!(bound.record_transport_loss());
