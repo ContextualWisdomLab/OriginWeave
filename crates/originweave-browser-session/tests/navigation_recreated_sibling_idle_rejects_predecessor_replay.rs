@@ -175,9 +175,11 @@ fn assert_idle_recreated_generation_rejects_predecessor_replay(
         Err(BrowserSessionError::AuthorityMismatch),
         "stale predecessor evidence must not manufacture eligibility for an idle recreated generation",
     );
+    let new_current_after_idle_replay = bound
+        .presentation_authority(recreated_context)
+        .expect("idle stale replay must preserve the recreated generation's current authority");
     assert_eq!(
-        bound.presentation_authority(recreated_context),
-        Some(new_authority.clone()),
+        new_current_after_idle_replay, new_authority,
         "idle stale replay must preserve the complete recreated-generation authority identity",
     );
     assert_eq!(
