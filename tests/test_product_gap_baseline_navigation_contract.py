@@ -24,7 +24,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
         self.assertLessEqual(len(lines), 220)
         self.assertLessEqual(len(text.encode("utf-8")), 24_000)
-        self.assertIn("## Observed delivery cut — 2026-09-09 12:57 UTC", text)
+        self.assertIn("## Observed delivery cut — 2026-09-15 08:57 UTC", text)
         self.assertIn("## Buyer gap matrix", text)
         self.assertIn("## Evidence and history index", text)
         self.assertLess(lines.index("## Buyer gap matrix"), 90)
@@ -37,11 +37,14 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
         self.assertNotIn("## Current exact observation", text)
         self.assertIn("This is a dated observation receipt, not a continuously live counter.", text)
-        self.assertIn("130 open pull requests: 12 Ready/non-draft and 118 Draft", text)
-        self.assertIn("includes this #309 Draft successor", text)
-        self.assertIn("Live GitHub state supersedes this cut after 2026-09-09 12:57 UTC.", text)
+        self.assertIn("135 open pull requests: 13 Ready/non-draft and 122 Draft", text)
+        self.assertIn("19 open non-PR issues", text)
+        self.assertIn("#309 is merged into this #238 documentation lineage", text)
+        self.assertNotIn("includes this #309 Draft successor", text)
+        self.assertIn("Live GitHub state supersedes this cut after 2026-09-15 08:57 UTC.", text)
 
-    def test_live_changelog_uses_the_same_dated_inventory_receipt(self) -> None:
+    def test_changelog_preserves_the_previous_dated_inventory_receipt(self) -> None:
+        baseline = BASELINE.read_text(encoding="utf-8")
         changelog = CHANGELOG.read_text(encoding="utf-8")
         inventory = [
             line
@@ -49,11 +52,12 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             if line.startswith("- Current delivery inventory:")
         ]
 
+        self.assertIn("2026-09-15 08:57 UTC", baseline)
         self.assertEqual(1, len(inventory))
         self.assertIn("130 open pull requests (12 ready, 118 draft)", inventory[0])
         self.assertIn("14 open non-PR issues", inventory[0])
         self.assertIn("Observed 2026-09-09 12:57 UTC", inventory[0])
-        self.assertNotIn("131 open pull requests (14 ready, 117 draft)", inventory[0])
+        self.assertNotIn("135 open pull requests (13 ready, 122 draft)", inventory[0])
 
     def test_historical_dossier_is_preserved_outside_the_decision_surface(self) -> None:
         self.assertTrue(ARCHIVE.is_file())
