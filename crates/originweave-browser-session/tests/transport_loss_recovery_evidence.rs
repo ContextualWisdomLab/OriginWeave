@@ -2,10 +2,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use originweave_browser_session::{
-    BrowserSession, BrowserSessionState, DisposableContextCreateCompletion,
-    DisposableContextCreateCompletionError, DisposableContextCreateError,
-    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
-    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    BrowserSession, BrowserSessionRecoveryEvidence, BrowserSessionState,
+    DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
+    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
+    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
+    DisposableIsolationId,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -89,18 +90,15 @@ fn transport_loss_preserves_exact_owned_handle_as_non_authorizing_recovery_evide
 
     let evidence = bound.browser_session().recovery_evidence();
     assert_eq!(
-        evidence.len(),
-        1,
-        "the exact previously owned handle must remain externally recoverable after transport loss"
-    );
-    let rendered = format!("{:?}", evidence[0]);
-    assert!(
-        rendered.contains("transport-user-context-501"),
-        "recovery evidence lost the exact disposable isolation identity: {rendered}"
-    );
-    assert!(
-        rendered.contains("501"),
-        "recovery evidence lost the exact browsing-context identity: {rendered}"
+        evidence,
+        &[BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(
+            DisposableContextHandle::new(
+                DisposableIsolationId::parse("transport-user-context-501")
+                    .expect("valid isolation id"),
+                BrowsingContextId::new(501).expect("valid browsing context"),
+            ),
+        )],
+        "transport loss must retain the exact identity-bearing evidence discriminator and handle"
     );
 
     assert!(!bound.record_transport_loss());

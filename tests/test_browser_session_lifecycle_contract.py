@@ -30,10 +30,19 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
     def test_domain_source_mints_authority_only_from_owned_lifecycle(self) -> None:
         """Raw driver identifiers must never become caller-mintable authority tokens."""
 
-        source = (CRATE / "src/lib.rs").read_text(encoding="utf-8")
+        recovery_source = (CRATE / "src/recovery.rs").read_text(encoding="utf-8")
+        source = "\n".join(
+            (CRATE / relative_path).read_text(encoding="utf-8")
+            for relative_path in (
+                "src/lib.rs",
+                "src/browser_session.rs",
+                "src/recovery.rs",
+            )
+        )
         required_symbols = (
             "pub struct BrowserSession",
             "pub struct BoundBrowserSession",
+            "pub struct BoundBrowserSessionRecovery",
             "pub trait DisposableContextPort",
             "pub struct DisposableIsolationId",
             "pub struct DisposableContextHandle",
@@ -52,12 +61,14 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "pub enum DisposableContextDestroyError",
             "pub fn abandoned_bound_session_count",
             "pub fn finish",
+            "pub fn into_recovery",
             "pub fn execute_authorized_context_operation",
         )
         for symbol in required_symbols:
             self.assertIn(symbol, source)
 
         self.assertIn("BrowserSessionState::RecoveryRequired", source)
+        self.assertIn("BrowserSessionState::TransportLost", source)
         self.assertNotIn("pub enum DisposableContextPortError", source)
         self.assertNotIn("DisposableContextPortId", source)
         self.assertNotIn("fn port_id(&self)", source)
@@ -92,6 +103,19 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("sequential_incarnation_reuse_rejects_stale_authority", source)
         self.assertIn("pub fn finish(&mut self)", source)
         self.assertNotIn("pub fn finish(mut self)", source)
+        self.assertNotIn("pub const fn port", source)
+        self.assertNotIn("pub fn port", source)
+
+        self.assertIn("pub const fn state(&self) -> BrowserSessionState", recovery_source)
+        self.assertIn("pub fn recovery_evidence(&self)", recovery_source)
+        self.assertIn("pub fn create_attempt_recovery_evidence(&self)", recovery_source)
+        self.assertNotIn("pub const fn browser_session(&self)", recovery_source)
+        self.assertNotIn("pub fn browser_session(&self)", recovery_source)
+        self.assertIn(
+            "recovery.browser_session().presentation_authority(context)",
+            recovery_source,
+        )
+        self.assertGreaterEqual(recovery_source.count("```compile_fail"), 6)
 
         authority_impl = source.split("impl PresentationMutationAuthority", 1)[1].split(
             "enum OwnedContextState", 1
@@ -147,6 +171,12 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         recovery_hostile = (CRATE / "tests/recovery_required_sibling_evidence.rs").read_text(
             encoding="utf-8"
         )
+        recovery_handoff = (CRATE / "tests/recovery_owner_handoff.rs").read_text(
+            encoding="utf-8"
+        )
+        hot_ownership = (CRATE / "tests/proven_destroy_releases_hot_ownership.rs").read_text(
+            encoding="utf-8"
+        )
         operation_hostile = (CRATE / "tests/authorized_context_operation.rs").read_text(
             encoding="utf-8"
         )
@@ -191,6 +221,33 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertIn("BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle", recovery_hostile)
         self.assertIn("indirectly invalidated sibling", recovery_hostile)
 
+        self.assertIn(
+            "unproven_destroy_hands_exact_bound_adapter_and_evidence_to_recovery_owner",
+            recovery_handoff,
+        )
+        self.assertIn(
+            "transport_loss_hands_exact_bound_adapter_and_evidence_to_recovery_owner",
+            recovery_handoff,
+        )
+        self.assertIn(".into_recovery()", recovery_handoff)
+        self.assertIn("recovery.state()", recovery_handoff)
+        self.assertIn("recovery.recovery_evidence()", recovery_handoff)
+        self.assertNotIn("recovery.browser_session()", recovery_handoff)
+        self.assertIn("handoff must move, not replace, the bound adapter", recovery_handoff)
+        self.assertIn("handoff must not imply cleanup I/O", recovery_handoff)
+        self.assertIn("transport loss is not destruction proof", recovery_handoff)
+
+        self.assertIn(
+            "proven_destroy_releases_hot_ownership_without_resurrecting_stale_authority",
+            hot_ownership,
+        )
+        self.assertIn("for _ in 0..256", hot_ownership)
+        self.assertIn("Err(BrowserSessionError::ContextNotOwned)", hot_ownership)
+        self.assertIn("Err(BrowserSessionError::AuthorityMismatch)", hot_ownership)
+        self.assertIn("stale authority must fail before lifecycle adapter I/O", hot_ownership)
+        self.assertIn("create_calls.get(), 258", hot_ownership)
+        self.assertIn("destroy_calls.get(), 258", hot_ownership)
+
         self.assertIn("authorized_operation_uses_exact_bound_port_and_rejects_stale_authority_before_io", operation_hostile)
         self.assertIn("AuthorizedContextOperationError::BrowserSession", operation_hostile)
         self.assertIn("AuthorizedContextOperationError::Adapter", operation_hostile)
@@ -210,6 +267,9 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         adr = (ROOT / "docs/adr/0114-browser-session-disposable-context-authority.md").read_text(
             encoding="utf-8"
         )
+        recovery_adr = (
+            ROOT / "docs/adr/0116-browser-session-recovery-custody-and-hot-ownership.md"
+        ).read_text(encoding="utf-8")
         trace = (ROOT / "docs/traceability/browser-session-lifecycle-authority.md").read_text(
             encoding="utf-8"
         )
@@ -247,8 +307,32 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             self.assertIn(token, adr)
 
         for token in (
+            "ADR 0116",
+            "Status: Proposed",
+            "Extends: ADR 0114",
+            "BoundBrowserSessionRecovery",
+            "into_recovery(self)",
+            "same non-`Clone` adapter instance",
+            "non-authorizing",
+            "hot command-authority state",
+            "ContextNotOwned",
+            "AuthorityMismatch",
+            "monotonic",
+            "process-restart",
+            "#316",
+            "compile_fail",
+            "protected `main`",
+            "Assumptions and authority boundaries",
+            "Migration and rollback",
+            "Supersession / reversal conditions",
+        ):
+            self.assertIn(token, recovery_adr)
+
+        for token in (
             "IMPLEMENTED_ON_ACTIVE_PR",
+            "ADR 0116",
             "BoundBrowserSession",
+            "BoundBrowserSessionRecovery",
             "DisposableContextCreateCompletion",
             "per-create transaction",
             "no public raw port accessor",
@@ -263,12 +347,17 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "TransportLossOwnedHandle",
             "abandoned_bound_session_count",
             "durable crash/process-restart recovery",
+            "258-generation",
+            "ContextNotOwned",
+            "AuthorityMismatch",
         ):
             self.assertIn(token, trace)
 
         for token in (
             "PresentationMutationAuthority",
             "BoundBrowserSession",
+            "BoundBrowserSessionRecovery",
+            "RecoveryCustody",
             "DisposableContextCreateCompletion",
             "BrowserSessionIncarnation",
             "RecoveryRequired",
@@ -280,6 +369,8 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
             "TransportLossOwnedHandle",
             "abandoned_bound_session_count",
             "finish()",
+            "remove live hot-ownership record",
+            "258 ownership generations",
         ):
             self.assertIn(token, uml)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", trace)

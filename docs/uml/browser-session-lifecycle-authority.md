@@ -33,14 +33,14 @@ sequenceDiagram
         S->>S: register exact handle + Active epoch
         S-->>C: PresentationMutationAuthority(session, incarnation, isolation, context, epoch)
     else domain handle rejected
-        S->>S: retain duplicate handle as recovery evidence
+        S->>S: retain duplicate handle + exact rejected attempt
         S->>S: retain every other Active sibling as RecoveryRequiredOwnedHandle
         S->>S: mint DisposableContextCreateCompletion(Rejected, exact attempt)
         S->>P: complete_disposable_context_creation(completion)
         P->>P: pending exact attempt → quarantined/non-authorizing
         S->>S: RecoveryRequired
     else completion cannot be proven
-        S->>S: retain UnsettledAdapterHandle
+        S->>S: retain UnsettledAdapterHandle + exact unsettled attempt
         S->>S: retain every other Active sibling as RecoveryRequiredOwnedHandle
         S->>S: RecoveryRequired
     end
@@ -67,21 +67,23 @@ sequenceDiagram
 
     C->>BS: destroy_disposable_context(authority)
     BS->>S: validate exact session/incarnation/isolation/context/epoch before I/O
-    S->>S: mint DisposableContextDestroyRequest with exact stored handle
+    S->>S: mint DisposableContextDestroyRequest with exact stored handle + validated epoch
     S->>P: destroy_disposable_context(request)
     P->>B: remove exact owned isolation boundary
     B-->>P: observed destruction post-condition or DisposableContextDestroyError
     alt destruction proved
         P-->>S: success
-        S->>S: context = Destroyed
+        S->>S: remove live hot-ownership record
+        Note over S: epoch allocator remains monotonic; retained predecessor authority stays stale
     else destruction unproven
-        S->>S: retain UnprovenDestruction for failed handle
+        S->>S: retain UnprovenDestruction(handle, validated epoch)
         S->>S: retain each other Active sibling as RecoveryRequiredOwnedHandle
+        S->>S: keep failed record as Uncertain
         S->>S: RecoveryRequired; all active siblings become Uncertain
     end
 
     C->>BS: finish()
-    alt every owned context Destroyed
+    alt no live or uncertain ownership remains
         BS->>S: end()
         S-->>C: Ended
     else ownership remains
@@ -105,26 +107,37 @@ stateDiagram-v2
     Active --> Active: create candidate + exact Accepted completion + authority
     Active --> Active: authorized operation / current authority / exact bound adapter
     Active --> Active: context epoch advanced / prior authority stale
-    Active --> Active: exact owned isolation destruction proved
+    Active --> Active: exact owned isolation destruction proved / remove hot record
     Active --> Active: DisposableContextCreateError::CreateFailedClean
     Active --> Active: failed finish / retain same bound owner
-    Active --> RecoveryRequired: CreateFailedUncertain / retain known partial isolation
+    Active --> RecoveryRequired: CreateFailedUncertain / retain attempt provenance
     Active --> RecoveryRequired: duplicate output + exact Rejected completion + sibling RecoveryRequiredOwnedHandle
-    Active --> RecoveryRequired: completion unproven / retain UnsettledAdapterHandle + sibling RecoveryRequiredOwnedHandle
-    Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven + sibling RecoveryRequiredOwnedHandle
-    Active --> Ended: all owned contexts Destroyed + finish()
+    Active --> RecoveryRequired: completion unproven / retain UnsettledAdapterHandle + exact attempt + sibling evidence
+    Active --> RecoveryRequired: DisposableContextDestroyError / keep failed record Uncertain + sibling evidence
+    Active --> Ended: hot ownership empty + finish()
     Active --> TransportLost: browser transport lost / retain TransportLossOwnedHandle / mark uncertain
-    RecoveryRequired --> RecoveryRequired: transport_lost = true / preserve recovery evidence
+    RecoveryRequired --> RecoveryRequired: transport_lost = true / preserve stronger recovery state
+    RecoveryRequired --> RecoveryCustody: into_recovery(self) / move exact adapter + evidence / no I/O
+    TransportLost --> RecoveryCustody: into_recovery(self) / move exact adapter + evidence / no I/O
+    RecoveryCustody --> [*]: persist or protocol-reconcile elsewhere; no ordinary authority surface
     Ended --> [*]
-    RecoveryRequired --> [*]
-    TransportLost --> [*]
 
     note right of RecoveryRequired
       BrowserSessionRecoveryEvidence retains known
       partial identity, duplicate/unsettled handle,
-      exact unproven-destruction handle, and
+      exact unproven-destruction handle + epoch, and
       RecoveryRequiredOwnedHandle for indirect siblings.
-      It grants no I/O.
+      DisposableContextCreateRecoveryEvidence retains
+      create-attempt epoch/disposition separately.
+      Neither evidence family grants I/O authority.
+    end note
+
+    note right of RecoveryCustody
+      BoundBrowserSessionRecovery<P> exposes only
+      state + exact non-authorizing evidence.
+      It does not expose raw P, BrowserSession,
+      create, presentation authority, epoch advance,
+      destroy, authorized operation, or finish.
     end note
 ```
 
@@ -133,6 +146,7 @@ sequenceDiagram
     autonumber
     participant C as Application service
     participant BS as BoundBrowserSession
+    participant R as BoundBrowserSessionRecovery
     participant P as exact bound adapter
     participant O as Operability / recovery observer
 
@@ -142,8 +156,15 @@ sequenceDiagram
         BS-->>C: ActiveContextRemains; wrapper retained
         C->>BS: destroy exact authority
         BS->>P: proven remote destruction
+        BS->>BS: remove live hot-ownership record
         C->>BS: finish()
         BS-->>C: Ended
+    else unresolved ownership enters recovery
+        C->>BS: destroy failure or record_transport_loss()
+        BS-->>C: RecoveryRequired or TransportLost + exact evidence
+        C->>BS: into_recovery(self)
+        BS-->>R: move exact non-Clone adapter + evidence; adapter I/O = 0
+        Note over R,P: recovery custody cannot regain ordinary lifecycle/presentation authority
     else ordinary wrapper abandonment
         C-xBS: drop without proven cleanup
         Note over BS,P: Drop performs no browser I/O
@@ -152,7 +173,38 @@ sequenceDiagram
     end
 ```
 
-The abandonment signal is deliberately weaker than durable recovery. Exact crash/process-restart reconciliation remains open until a canonical recovery owner persists `BrowserSessionRecoveryEvidence` before process termination.
+Recovery custody is deliberately narrower than protocol reconciliation. #316 remains responsible for WebDriver BiDi pending/accepted/quarantined tuple truth and any purpose-bounded protocol recovery operation that uses the exact adapter held by recovery custody. Durable crash/process-restart persistence remains open until a canonical recovery owner stores exact recovery evidence before process termination.
+
+## Same-raw-identity hot-state hostile case
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Application service
+    participant BS as BoundBrowserSession
+    participant P as exact lifecycle port
+
+    C->>BS: create U/C
+    BS->>P: create(attempt epoch 1) + Accepted
+    BS-->>C: authority epoch 1
+    C->>BS: destroy(authority epoch 1)
+    BS->>P: destroy exact U/C + epoch 1
+    P-->>BS: destruction proved
+    BS->>BS: remove U/C from hot ownership
+
+    C->>BS: destroy(retained authority epoch 1)
+    BS-->>C: ContextNotOwned
+    Note over BS,P: stale check rejects before adapter I/O
+
+    C->>BS: create same raw U/C again
+    BS->>P: create(attempt epoch 2) + Accepted
+    BS-->>C: authority epoch 2
+    C->>BS: destroy(retained authority epoch 1)
+    BS-->>C: AuthorityMismatch
+    Note over BS,P: same raw values cannot resurrect predecessor epoch
+```
+
+The hostile acceptance repeats this create → proven destroy → same-handle recreate cycle for 258 ownership generations. Hot command-authority state remains bounded to live/uncertain ownership instead of accumulating proven-destroyed tombstones. Durable audit/history retention is a separate persistence concern.
 
 ## Sequential ABA hostile case
 
@@ -181,4 +233,4 @@ sequenceDiagram
     B->>PB: operate/destroy only with authority B + incarnation B
 ```
 
-`RecoveryRequired` and `TransportLost` remain terminal for normal authority in this slice. Later reconciliation may inspect recovery evidence, but it must not reconstruct cleanup authority from raw identifiers or treat command ACK as proof of destruction.
+`RecoveryRequired` and `TransportLost` remain closed to normal lifecycle and presentation authority. `into_recovery(self)` is a one-way custody transfer, not a command-authority resurrection path; later protocol reconciliation must stay purpose-bounded and must not infer cleanup authority from raw identifiers or treat command ACK as proof of destruction.

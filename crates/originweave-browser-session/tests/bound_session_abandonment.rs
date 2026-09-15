@@ -83,6 +83,45 @@ fn dropping_unresolved_bound_session_is_observable_without_implicit_browser_io()
 }
 
 #[test]
+fn transport_loss_without_remote_ownership_is_not_counted_as_abandonment() {
+    let _guard = ABANDONMENT_COUNTER_LOCK
+        .lock()
+        .expect("abandonment counter test lock");
+    let destroy_calls = Rc::new(Cell::new(0));
+    let before = abandoned_bound_session_count();
+
+    let empty_session = BrowserSession::start(BrowserSessionId::new(507).expect("valid session id"))
+        .expect("incarnation capacity");
+    let mut empty_bound = empty_session.bind_lifecycle_port(port_for(507, &destroy_calls));
+    assert!(empty_bound.record_transport_loss());
+    drop(empty_bound);
+    assert_eq!(
+        abandoned_bound_session_count(),
+        before,
+        "transport loss with no owned or uncertain browser context is not unresolved remote ownership"
+    );
+
+    let session = BrowserSession::start(BrowserSessionId::new(508).expect("valid session id"))
+        .expect("incarnation capacity");
+    let mut bound = session.bind_lifecycle_port(port_for(508, &destroy_calls));
+    let authority = bound
+        .create_disposable_context()
+        .expect("accepted disposable context");
+    bound
+        .destroy_disposable_context(&authority)
+        .expect("proven destruction");
+    assert!(bound.record_transport_loss());
+    drop(bound);
+
+    assert_eq!(destroy_calls.get(), 1);
+    assert_eq!(
+        abandoned_bound_session_count(),
+        before,
+        "transport loss after all remote ownership was proven destroyed must not create a false abandonment signal"
+    );
+}
+
+#[test]
 fn failed_finish_retains_same_bound_owner_for_cleanup_and_retry() {
     let _guard = ABANDONMENT_COUNTER_LOCK
         .lock()
