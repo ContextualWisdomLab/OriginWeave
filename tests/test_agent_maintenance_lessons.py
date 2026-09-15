@@ -6,7 +6,9 @@ import unittest
 
 class AgentMaintenanceLessonsTests(unittest.TestCase):
     def test_verification_lessons_remain_actionable(self) -> None:
-        text = (Path(__file__).resolve().parents[1] / "AGENTS.md").read_text()
+        text = (Path(__file__).resolve().parents[1] / "AGENTS.md").read_text(
+            encoding="utf-8"
+        )
         for instruction in (
             "## Verified maintenance lessons",
             "Resume the existing process",
@@ -22,7 +24,9 @@ class AgentMaintenanceLessonsTests(unittest.TestCase):
                 self.assertIn(instruction, text)
 
     def test_publishing_credentials_do_not_override_release_readiness(self) -> None:
-        text = (Path(__file__).resolve().parents[1] / "AGENTS.md").read_text()
+        text = (Path(__file__).resolve().parents[1] / "AGENTS.md").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("Secret availability is not release readiness", text)
         self.assertIn("Do not remove `publish = false` merely to make a publish command succeed", text)
         self.assertIn("an explicit version decision", text)
