@@ -1,6 +1,6 @@
 # OriginWeave delivery checkpoint — 2026-09-06
 
-**Historical checkpoint: 2026-09-06 12:28 UTC.** Source heads, queued checks and dependency claims below describe that predecessor observation, not the current queue. The subsequent visual-recovery note describes the integrating writer's later observation at the same source heads. Consult the [latest verified baseline](../product-technical-gap-baseline.md#latest-verified-cut-2026-09-06) for the repaired parent and adopted children. This note does not replace protected-main truth, a counted review, hosted exact-head execution, browser acceptance, or release evidence.
+**Historical checkpoint: 2026-09-06 12:28 UTC.** Source heads, queued checks and dependency claims below describe that predecessor observation, not the current queue. The subsequent visual-recovery note describes the integrating writer's later observation at the same source heads. Consult the [preserved 2026-09-06 verified baseline](product-technical-gap-baseline-through-2026-09-09.md#latest-verified-cut-2026-09-06) for the repaired parent and adopted children. This note does not replace protected-main truth, a counted review, hosted exact-head execution, browser acceptance, or release evidence.
 
 ## Historical source and dependency state
 
