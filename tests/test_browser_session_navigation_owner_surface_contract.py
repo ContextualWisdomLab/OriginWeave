@@ -58,11 +58,12 @@ class BrowserSessionNavigationOwnerSurfaceContractTests(unittest.TestCase):
         bound_surface = self.source.split(
             "impl<P: DisposableContextPort> BoundBrowserSession<P>", 1
         )[1].split("impl<P: AuthorizedContextOperationPort> BoundBrowserSession<P>", 1)[0]
+        compact_surface = "".join(bound_surface.split())
         self.assertIn(
-            "self.session.begin_observed_navigation(incarnation, browsing_context, context_epoch)",
-            " ".join(bound_surface.split()),
+            "self.session.begin_observed_navigation(incarnation,browsing_context,context_epoch)",
+            compact_surface,
         )
-        self.assertGreaterEqual(bound_surface.count("self.session.close_observed_navigation(authority)"), 3)
+        self.assertGreaterEqual(compact_surface.count("self.session.close_observed_navigation(authority)"), 3)
         self.assertIn("NavigationTerminationOutcome::Aborted", bound_surface)
         self.assertIn("NavigationTerminationOutcome::Failed", bound_surface)
 
