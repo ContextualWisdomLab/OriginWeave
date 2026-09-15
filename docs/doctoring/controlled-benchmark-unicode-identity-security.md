@@ -1,6 +1,6 @@
 # Controlled benchmark Unicode identity security
 
-Status: active successor work for #323, stacked on #322 and #237. This record does not describe protected-main shipment.
+Status: active successor work for #323, stacked on #322 and #237. This record does not describe protected-main shipment. Requirement-to-code/test evidence is indexed in [`../traceability/controlled-benchmark-unicode-identity.md`](../traceability/controlled-benchmark-unicode-identity.md).
 
 ## Problem
 
