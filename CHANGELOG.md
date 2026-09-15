@@ -72,6 +72,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Security
 
 - Active PR #322 rejects C0/C1 controls, Unicode `U+2028` LINE SEPARATOR / `U+2029` PARAGRAPH SEPARATOR, and `Bidi_Control` formatting scalars in controlled-benchmark run-context evidence identities while preserving ordinary visible RTL scripts, preventing byte-exact benchmark metadata from rendering as a misleading direction or multiple log/report records.
+- Active PR #324 pins controlled-benchmark evidence identity to the Unicode 18.0.0 Default-Ignorable Exclusion Profile, rejecting all 4,174 `Default_Ignorable_Code_Point` scalars without tailored exceptions while preserving ordinary visible multilingual and RTL text; browser-issued protocol identifiers remain outside this benchmark-owned grammar.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.

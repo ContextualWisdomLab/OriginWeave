@@ -1,6 +1,6 @@
 use originweave_core::controlled_benchmark::{
-    CONTROLLED_DETERMINISTIC_REGISTRY_VERSION, ControlledBenchmarkRunContext,
-    ControlledBenchmarkSuiteError, ControlledBenchmarkSupportProfile,
+    CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE, CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+    ControlledBenchmarkRunContext, ControlledBenchmarkSuiteError, ControlledBenchmarkSupportProfile,
     evaluate_controlled_benchmark_suite_for_run,
 };
 use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
@@ -219,8 +219,66 @@ fn bidi_control_in_reproducibility_context_fails_closed() {
     };
     assert_eq!(
         invalid.to_string(),
-        "controlled benchmark run context field reasoning_configuration contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character"
+        "controlled benchmark run context field reasoning_configuration contains a disallowed C0/C1 control, Unicode line/paragraph separator, bidirectional formatting character, or Unicode 18.0.0 Default_Ignorable_Code_Point"
     );
+}
+
+#[test]
+fn unicode_18_default_ignorable_reproducibility_context_fails_closed() {
+    assert_eq!(
+        CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE,
+        "unicode-18.0.0-default-ignorable-exclusion"
+    );
+
+    for hostile_scalar in [
+        '\u{00ad}',
+        '\u{034f}',
+        '\u{061c}',
+        '\u{115f}',
+        '\u{1160}',
+        '\u{17b4}',
+        '\u{17b5}',
+        '\u{180b}',
+        '\u{180f}',
+        '\u{200b}',
+        '\u{200c}',
+        '\u{200d}',
+        '\u{2060}',
+        '\u{2065}',
+        '\u{206f}',
+        '\u{3164}',
+        '\u{fe00}',
+        '\u{fe0f}',
+        '\u{feff}',
+        '\u{ffa0}',
+        '\u{fff0}',
+        '\u{fff8}',
+        '\u{1bca0}',
+        '\u{1bca3}',
+        '\u{1d173}',
+        '\u{1d17a}',
+        '\u{e0000}',
+        '\u{e0fff}',
+    ] {
+        let hostile = format!("runner{hostile_scalar}suffix");
+        let mut context = run_context();
+        context.reasoning_configuration = &hostile;
+
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                field: "reasoning_configuration",
+            }),
+            "Unicode 18.0.0 Default_Ignorable_Code_Point must not become benchmark evidence identity: U+{:04X}",
+            hostile_scalar as u32
+        );
+    }
 }
 
 #[test]
@@ -241,7 +299,7 @@ fn visible_unicode_reproducibility_context_remains_valid() {
                 &[],
             ),
             Ok(BenchmarkSuiteOutcome::Inconclusive),
-            "visible Unicode and RTL scripts remain valid without bidi controls: {visible:?}"
+            "visible Unicode and RTL scripts remain valid without excluded formatting scalars: {visible:?}"
         );
     }
 }

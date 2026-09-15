@@ -22,6 +22,14 @@ pub const CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS: u32 = 100;
 /// meaning of retained benchmark evidence.
 pub const CONTROLLED_DETERMINISTIC_REGISTRY_VERSION: &str = "controlled-deterministic-v1";
 
+/// Unicode security profile applied only to benchmark-owned evidence identity.
+///
+/// This profile adopts Unicode 18.0.0 `Default_Ignorable_Code_Point` without
+/// tailored exceptions. Browser-issued protocol identifiers are outside this
+/// grammar and remain lossless at their own bounded-context boundary.
+pub const CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE: &str =
+    "unicode-18.0.0-default-ignorable-exclusion";
+
 /// Stable case identities in the controlled deterministic benchmark registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ControlledBenchmarkCaseId {
@@ -442,7 +450,7 @@ pub enum ControlledBenchmarkSuiteError {
         /// Name of the non-canonical reproducibility-context field.
         field: &'static str,
     },
-    /// A required or observed reproducibility-context field contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character.
+    /// A required or observed reproducibility-context field contains a disallowed rendering control or Unicode 18.0.0 default-ignorable scalar.
     ControlCharacterRunContext {
         /// Name of the invalid reproducibility-context field.
         field: &'static str,
@@ -491,7 +499,7 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
             ),
             Self::ControlCharacterRunContext { field } => write!(
                 formatter,
-                "controlled benchmark run context field {field} contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character"
+                "controlled benchmark run context field {field} contains a disallowed C0/C1 control, Unicode line/paragraph separator, bidirectional formatting character, or Unicode 18.0.0 Default_Ignorable_Code_Point"
             ),
             Self::RunContextMismatch { field } => write!(
                 formatter,
@@ -610,19 +618,20 @@ fn evaluate_valid_controlled_benchmark_case(
 ///
 /// Every required identity in the expected and observed contexts must be nonblank,
 /// free of surrounding whitespace, and free of C0/C1 controls, Unicode line/paragraph
-/// separators, or bidirectional formatting characters before the observed context is
-/// compared byte-for-byte with the expected context. This does not authenticate either
-/// context; it is a fail-closed comparison boundary for a benchmark runner or durable
-/// evidence pipeline that performs that authentication.
+/// separators, bidirectional formatting characters, and Unicode 18.0.0
+/// `Default_Ignorable_Code_Point` scalars before the observed context is compared
+/// byte-for-byte with the expected context. This does not authenticate either context;
+/// it is a fail-closed comparison boundary for a benchmark runner or durable evidence
+/// pipeline that performs that authentication.
 ///
 /// # Errors
 ///
 /// Returns [`ControlledBenchmarkSuiteError::InvalidRunContext`] for a blank
 /// required or observed identity, [`ControlledBenchmarkSuiteError::NonCanonicalRunContext`]
 /// for surrounding whitespace, [`ControlledBenchmarkSuiteError::ControlCharacterRunContext`]
-/// for C0/C1 controls, Unicode line/paragraph separators, or bidirectional formatting
-/// characters, and [`ControlledBenchmarkSuiteError::RunContextMismatch`] for the first
-/// mismatched identity. After context validation, all errors from
+/// for disallowed rendering controls or Unicode 18.0.0 default-ignorables, and
+/// [`ControlledBenchmarkSuiteError::RunContextMismatch`] for the first mismatched
+/// identity. After context validation, all errors from
 /// [`evaluate_controlled_benchmark_suite`] are preserved unchanged.
 pub fn evaluate_controlled_benchmark_suite_for_run(
     expected_context: ControlledBenchmarkRunContext<'_>,
@@ -731,9 +740,10 @@ pub fn evaluate_controlled_benchmark_suite(
 /// Rejects benchmark-owned run identities that would make evidence boundaries ambiguous.
 ///
 /// The controlled benchmark owns these labels, so surrounding whitespace, C0/C1
-/// controls, Unicode line/paragraph separators, and bidirectional formatting controls
-/// are invalid here even though browser-issued protocol identifiers are preserved
-/// losslessly at their own bounded-context boundary.
+/// controls, Unicode line/paragraph separators, bidirectional formatting controls,
+/// and Unicode 18.0.0 `Default_Ignorable_Code_Point` scalars are invalid here even
+/// though browser-issued protocol identifiers are preserved losslessly at their own
+/// bounded-context boundary.
 fn validate_run_context_field(
     field: &'static str,
     value: &str,
@@ -746,7 +756,10 @@ fn validate_run_context_field(
         return Err(ControlledBenchmarkSuiteError::NonCanonicalRunContext { field });
     }
     if value.chars().any(|character| {
-        character.is_control() || is_unicode_line_separator(character) || is_bidi_control(character)
+        character.is_control()
+            || is_unicode_line_separator(character)
+            || is_bidi_control(character)
+            || is_unicode_18_default_ignorable(character)
     }) {
         return Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext { field });
     }
@@ -772,6 +785,36 @@ fn is_bidi_control(character: char) -> bool {
     matches!(
         character,
         '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+    )
+}
+
+/// Identifies Unicode 18.0.0 `Default_Ignorable_Code_Point` exactly.
+///
+/// The compressed ranges below are the 4,174 scalars published in Unicode 18.0.0
+/// `DerivedCoreProperties.txt`. They are intentionally version-pinned instead of
+/// delegated to a moving Unicode library so a toolchain or dependency upgrade cannot
+/// silently change benchmark evidence identity admission. This profile has no tailored
+/// ZWJ/ZWNJ, variation-selector, tag, or script-specific exception.
+fn is_unicode_18_default_ignorable(character: char) -> bool {
+    matches!(
+        character,
+        '\u{00ad}'
+            | '\u{034f}'
+            | '\u{061c}'
+            | '\u{115f}'..='\u{1160}'
+            | '\u{17b4}'..='\u{17b5}'
+            | '\u{180b}'..='\u{180f}'
+            | '\u{200b}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{206f}'
+            | '\u{3164}'
+            | '\u{fe00}'..='\u{fe0f}'
+            | '\u{feff}'
+            | '\u{ffa0}'
+            | '\u{fff0}'..='\u{fff8}'
+            | '\u{1bca0}'..='\u{1bca3}'
+            | '\u{1d173}'..='\u{1d17a}'
+            | '\u{e0000}'..='\u{e0fff}'
     )
 }
 
