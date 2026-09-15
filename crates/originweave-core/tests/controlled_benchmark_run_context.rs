@@ -224,6 +224,35 @@ fn bidi_control_in_reproducibility_context_fails_closed() {
 }
 
 #[test]
+fn unicode_18_default_ignorable_reproducibility_context_fails_closed() {
+    for hostile in [
+        "runner\u{200b}suffix",
+        "runner\u{200c}suffix",
+        "runner\u{200d}suffix",
+        "runner\u{2060}suffix",
+        "runner\u{feff}suffix",
+        "runner\u{fe0f}suffix",
+    ] {
+        let mut context = run_context();
+        context.reasoning_configuration = hostile;
+
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                field: "reasoning_configuration",
+            }),
+            "Unicode 18.0.0 Default_Ignorable_Code_Point must not become benchmark evidence identity: {hostile:?}"
+        );
+    }
+}
+
+#[test]
 fn visible_unicode_reproducibility_context_remains_valid() {
     for visible in [
         "결정적-ブラウザ-oráculo-v1",
