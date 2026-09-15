@@ -16,3 +16,4 @@ Additional constraints:
 - A discoverable protocol capability does not justify exposing an unsafe reusable command; contract tests must assert both facts.
 - A Ready transition can replace an earlier green with a queued exact-head run; wait for its terminal result before merge.
 - Never claim a test, benchmark, browser integration, TLS identity, GPU execution, release, or merge succeeded without current exact-head evidence.
+- Verify WebDriver BiDi dated-TR claims against the canonical W3C publication page before treating them as runtime evidence.
