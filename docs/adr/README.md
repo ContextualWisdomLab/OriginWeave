@@ -67,10 +67,11 @@ ADR 0013, ADR 0014, ADR 0110, ADR 0111, and ADR 0112 exist only on this document
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
 | [0113](0113-webdriver-bidi-screen-area-ownership.md) | WebDriver BiDi screen-area ownership witness | Proposed | Browser Session-owned screen-settings mutation, destructive reset boundary, and fail-closed adapter authority |
 | [0114](0114-browser-session-disposable-context-authority.md) | Browser Session disposable-context authority | Proposed | owned disposable context lifecycle, exact context epochs, presentation mutation authority, cleanup uncertainty and transport-loss invalidation |
+| [0115](0115-browser-session-webdriver-bidi-lifecycle-acl.md) | Browser Session to WebDriver BiDi lifecycle ACL | Proposed | live-authority revalidation, private remote-context mapping, remote-target alias rejection, lifetime-bound presentation planning |
 
-ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0113 belongs to the active WebDriver BiDi screen-area ownership successor. ADR 0114 belongs to the Browser Session lifecycle successor for issue #312. Indexing them makes the branch documentation graph complete while preserving Proposed lifecycle and active-PR, non-protected-main maturity.
+ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0113 belongs to the active WebDriver BiDi screen-area ownership successor. ADR 0114 belongs to the Browser Session lifecycle successor for issue #312. ADR 0115 belongs to the Browser Session→WebDriver BiDi ACL successor for issue #314. Indexing them makes the branch documentation graph complete while preserving Proposed lifecycle and active-PR, non-protected-main maturity.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016, ADR 0113, or ADR 0114 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016, ADR 0113, ADR 0114, or ADR 0115 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
