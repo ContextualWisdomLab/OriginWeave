@@ -12,7 +12,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Added `originweave_core::release_acceptance`, a deterministic fail-closed benchmark release-decision contract that requires one authoritative result for every mandatory suite, bounds explicit buyer-visible limitations, rejects duplicate limitation claim identities, and rejects non-canonical surrounding whitespace rather than normalizing it into an alternate claim spelling.
 - Added active PR #237's versioned controlled-deterministic benchmark registry and raw-evidence threshold evaluator: exactly 100 clean trials are required per case, missing or inconclusive required cases cannot pass the suite, conditional cases follow the declared support profile, registry versions are exact, and impossible aggregate counters fail closed.
-- Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
+- Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
 - Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
@@ -71,7 +71,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
-- Active PR #322 rejects Unicode `Bidi_Control` formatting scalars in controlled-benchmark run-context evidence identities while preserving ordinary visible RTL scripts, preventing byte-exact benchmark metadata from rendering with a misleading directional order.
+- Active PR #322 rejects C0/C1 controls, Unicode `U+2028` LINE SEPARATOR / `U+2029` PARAGRAPH SEPARATOR, and `Bidi_Control` formatting scalars in controlled-benchmark run-context evidence identities while preserving ordinary visible RTL scripts, preventing byte-exact benchmark metadata from rendering as a misleading direction or multiple log/report records.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
