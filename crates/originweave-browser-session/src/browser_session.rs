@@ -46,7 +46,7 @@ pub enum BrowserSessionError {
     SessionNotActive,
     /// No unused session-incarnation identity remains in this process.
     IncarnationExhausted,
-    /// No unused context epoch remains, so no new authority can be issued safely.
+    /// No unused monotonic authority or navigation generation remains, so issuance must fail closed.
     EpochExhausted,
     /// The disposable-context port proved that context creation failed without creating a boundary.
     ContextCreationFailed,
@@ -293,7 +293,7 @@ impl DisposableContextCreateCompletion {
         self.browser_session
     }
 
-    /// Return the Browser Session incarnation for adapter correlation.
+    /// Return the non-reused Browser Session incarnation for adapter correlation.
     #[must_use]
     pub const fn incarnation(&self) -> BrowserSessionIncarnation {
         self.incarnation
@@ -322,9 +322,9 @@ pub enum DisposableContextCreateCompletionError {
 /// Opaque Browser Session-issued request for destruction of one exact owned disposable context.
 ///
 /// There is deliberately no public constructor. The bound aggregate creates this request only after
-/// validating the supplied presentation authority against current ownership. A caller cannot rebuild
-/// cleanup authority from raw browser identifiers. The validated epoch is carried only as correlation
-/// evidence for the already-authorized request; it is not independently sufficient to destroy state.
+/// validating current lifecycle custody. A caller cannot rebuild cleanup authority from raw browser
+/// identifiers. The epoch is correlation evidence for the already-authorized request; it is not
+/// independently sufficient to destroy state.
 #[derive(Debug)]
 pub struct DisposableContextDestroyRequest {
     browser_session: BrowserSessionId,
@@ -534,10 +534,44 @@ impl PresentationMutationAuthority {
     }
 }
 
+/// Opaque Browser Session-issued witness for one admitted navigation generation.
+///
+/// Raw protocol navigation/context identifiers are evidence only. This value is minted only after the
+/// aggregate validates the current session incarnation, owned context, and presentation epoch. Its
+/// fields remain private so a caller cannot manufacture terminal or commit authority from raw BiDi
+/// event data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NavigationSettlementAuthority {
+    browser_session: BrowserSessionId,
+    incarnation: BrowserSessionIncarnation,
+    browsing_context: BrowsingContextId,
+    context_epoch: BrowserContextEpoch,
+    navigation_generation: u64,
+}
+
+/// Typed negative terminal outcome for one admitted navigation witness.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NavigationTerminationOutcome {
+    /// The browser reported navigation abortion.
+    Aborted,
+    /// The browser reported navigation failure.
+    Failed,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OwnedContextState {
     Active,
     Uncertain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PresentationNavigationState {
+    Established,
+    Pending {
+        navigation_generation: u64,
+        committed: bool,
+    },
+    Eligible,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -545,6 +579,7 @@ struct OwnedContextRecord {
     handle: DisposableContextHandle,
     epoch: BrowserContextEpoch,
     state: OwnedContextState,
+    presentation_navigation: PresentationNavigationState,
 }
 
 /// Aggregate root for disposable browser-context lifecycle and presentation mutation authority.
@@ -555,6 +590,7 @@ pub struct BrowserSession {
     state: BrowserSessionState,
     transport_lost: bool,
     next_epoch: u64,
+    next_navigation_generation: u64,
     contexts: BTreeMap<BrowsingContextId, OwnedContextRecord>,
     recovery_evidence: Vec<BrowserSessionRecoveryEvidence>,
     create_recovery_evidence: Vec<DisposableContextCreateRecoveryEvidence>,
@@ -625,6 +661,7 @@ impl BrowserSession {
             state: BrowserSessionState::Active,
             transport_lost: false,
             next_epoch: 1,
+            next_navigation_generation: 1,
             contexts: BTreeMap::new(),
             recovery_evidence: Vec::new(),
             create_recovery_evidence: Vec::new(),
@@ -688,6 +725,9 @@ impl BrowserSession {
             .get(&browsing_context)
             .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
+        if record.presentation_navigation != PresentationNavigationState::Established {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
         Ok(Self::authority_for(
             self.id,
             self.incarnation,
@@ -696,20 +736,29 @@ impl BrowserSession {
         ))
     }
 
-    /// Advance one active owned context to a new authority epoch.
+    /// Advance one active, presentation-authorized owned context to a new authority epoch.
     pub fn advance_context_epoch(
         &mut self,
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
+        {
+            let record = self
+                .contexts
+                .get(&browsing_context)
+                .filter(|record| record.state == OwnedContextState::Active)
+                .ok_or(BrowserSessionError::ContextNotOwned)?;
+            if record.presentation_navigation != PresentationNavigationState::Established {
+                return Err(BrowserSessionError::AuthorityMismatch);
+            }
+        }
+        let next = reserve_epoch(&mut self.next_epoch)?;
         let browser_session = self.id;
         let incarnation = self.incarnation;
         let record = self
             .contexts
             .get_mut(&browsing_context)
-            .filter(|record| record.state == OwnedContextState::Active)
-            .ok_or(BrowserSessionError::ContextNotOwned)?;
-        let next = reserve_epoch(&mut self.next_epoch)?;
+            .expect("validated owned context remains present under exclusive aggregate access");
         record.epoch = next;
         Ok(Self::authority_for(
             browser_session,
@@ -871,9 +920,136 @@ impl BrowserSession {
                 handle,
                 epoch,
                 state: OwnedContextState::Active,
+                presentation_navigation: PresentationNavigationState::Established,
             },
         );
         Ok(authority)
+    }
+
+    fn begin_observed_navigation(
+        &mut self,
+        incarnation: BrowserSessionIncarnation,
+        browsing_context: BrowsingContextId,
+        context_epoch: BrowserContextEpoch,
+    ) -> Result<NavigationSettlementAuthority, BrowserSessionError> {
+        self.require_active()?;
+        if incarnation != self.incarnation {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
+        {
+            let record = self
+                .contexts
+                .get(&browsing_context)
+                .filter(|record| record.state == OwnedContextState::Active)
+                .ok_or(BrowserSessionError::ContextNotOwned)?;
+            if record.epoch != context_epoch {
+                return Err(BrowserSessionError::AuthorityMismatch);
+            }
+        }
+        let navigation_generation =
+            reserve_navigation_generation(&mut self.next_navigation_generation)?;
+        let record = self
+            .contexts
+            .get_mut(&browsing_context)
+            .expect("validated owned context remains present under exclusive aggregate access");
+        record.presentation_navigation = PresentationNavigationState::Pending {
+            navigation_generation,
+            committed: false,
+        };
+        Ok(NavigationSettlementAuthority {
+            browser_session: self.id,
+            incarnation: self.incarnation,
+            browsing_context,
+            context_epoch,
+            navigation_generation,
+        })
+    }
+
+    fn current_pending_navigation_mut(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+    ) -> Result<&mut OwnedContextRecord, BrowserSessionError> {
+        self.require_active()?;
+        if authority.browser_session != self.id || authority.incarnation != self.incarnation {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
+        let record = self
+            .contexts
+            .get_mut(&authority.browsing_context)
+            .filter(|record| record.state == OwnedContextState::Active)
+            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        if record.epoch != authority.context_epoch {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
+        match record.presentation_navigation {
+            PresentationNavigationState::Pending {
+                navigation_generation,
+                ..
+            } if navigation_generation == authority.navigation_generation => Ok(record),
+            _ => Err(BrowserSessionError::AuthorityMismatch),
+        }
+    }
+
+    fn mark_observed_navigation_committed(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+    ) -> Result<(), BrowserSessionError> {
+        let record = self.current_pending_navigation_mut(authority)?;
+        match record.presentation_navigation {
+            PresentationNavigationState::Pending {
+                navigation_generation,
+                committed: false,
+            } => {
+                record.presentation_navigation = PresentationNavigationState::Pending {
+                    navigation_generation,
+                    committed: true,
+                };
+                Ok(())
+            }
+            PresentationNavigationState::Pending {
+                committed: true, ..
+            } => Err(BrowserSessionError::AuthorityMismatch),
+            _ => Err(BrowserSessionError::AuthorityMismatch),
+        }
+    }
+
+    fn close_observed_navigation(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+    ) -> Result<(), BrowserSessionError> {
+        let record = self.current_pending_navigation_mut(authority)?;
+        record.presentation_navigation = PresentationNavigationState::Eligible;
+        Ok(())
+    }
+
+    fn reestablish_presentation_authority_for_context(
+        &mut self,
+        browsing_context: BrowsingContextId,
+    ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
+        self.require_active()?;
+        {
+            let record = self
+                .contexts
+                .get(&browsing_context)
+                .filter(|record| record.state == OwnedContextState::Active)
+                .ok_or(BrowserSessionError::ContextNotOwned)?;
+            if record.presentation_navigation != PresentationNavigationState::Eligible {
+                return Err(BrowserSessionError::AuthorityMismatch);
+            }
+        }
+        let next = reserve_epoch(&mut self.next_epoch)?;
+        let record = self
+            .contexts
+            .get_mut(&browsing_context)
+            .expect("validated owned context remains present under exclusive aggregate access");
+        record.epoch = next;
+        record.presentation_navigation = PresentationNavigationState::Established;
+        Ok(Self::authority_for(
+            self.id,
+            self.incarnation,
+            &record.handle,
+            next,
+        ))
     }
 
     fn destroy_disposable_context_with_port<P: DisposableContextPort>(
@@ -883,6 +1059,7 @@ impl BrowserSession {
     ) -> Result<(), BrowserSessionError> {
         let browser_session = self.id;
         let incarnation = self.incarnation;
+        let browsing_context = authority.browsing_context;
         let request = {
             let record = self.context_for_authority_mut(authority)?;
             DisposableContextDestroyRequest {
@@ -892,17 +1069,46 @@ impl BrowserSession {
                 context_epoch: record.epoch,
             }
         };
+        self.destroy_request_with_port(browsing_context, request, port)
+    }
+
+    fn destroy_owned_disposable_context_with_port<P: DisposableContextPort>(
+        &mut self,
+        browsing_context: BrowsingContextId,
+        port: &mut P,
+    ) -> Result<(), BrowserSessionError> {
+        self.require_active()?;
+        let request = {
+            let record = self
+                .contexts
+                .get(&browsing_context)
+                .filter(|record| record.state == OwnedContextState::Active)
+                .ok_or(BrowserSessionError::ContextNotOwned)?;
+            DisposableContextDestroyRequest {
+                browser_session: self.id,
+                incarnation: self.incarnation,
+                context: record.handle.clone(),
+                context_epoch: record.epoch,
+            }
+        };
+        self.destroy_request_with_port(browsing_context, request, port)
+    }
+
+    fn destroy_request_with_port<P: DisposableContextPort>(
+        &mut self,
+        browsing_context: BrowsingContextId,
+        request: DisposableContextDestroyRequest,
+        port: &mut P,
+    ) -> Result<(), BrowserSessionError> {
         match port.destroy_disposable_context(&request) {
             Ok(()) => {
-                // Exclusive aggregate mutation plus the pre-I/O authority check guarantee this key is
-                // still the generation just proven destroyed. Removing it keeps command-authority hot
-                // state proportional to live/uncertain ownership; the monotonic epoch rejects any stale
-                // authority if the browser later reuses the same raw context and isolation identifiers.
-                let _ = self.contexts.remove(&authority.browsing_context);
+                let _ = self.contexts.remove(&browsing_context);
                 Ok(())
             }
             Err(DisposableContextDestroyError::DestroyFailed) => {
-                self.context_for_authority_mut(authority)?.state = OwnedContextState::Uncertain;
+                if let Some(record) = self.contexts.get_mut(&browsing_context) {
+                    record.state = OwnedContextState::Uncertain;
+                }
                 self.recovery_evidence
                     .push(BrowserSessionRecoveryEvidence::UnprovenDestruction {
                         context: request.context,
@@ -950,7 +1156,9 @@ impl BrowserSession {
             .get_mut(&authority.browsing_context)
             .filter(|record| record.state == OwnedContextState::Active)
             .ok_or(BrowserSessionError::ContextNotOwned)?;
-        if record.epoch != authority.context_epoch || record.handle.isolation != authority.isolation
+        if record.epoch != authority.context_epoch
+            || record.handle.isolation != authority.isolation
+            || record.presentation_navigation != PresentationNavigationState::Established
         {
             return Err(BrowserSessionError::AuthorityMismatch);
         }
@@ -1027,7 +1235,7 @@ impl<P: DisposableContextPort> BoundBrowserSession<P> {
         self.session.presentation_authority(browsing_context)
     }
 
-    /// Advance one active owned context to a new authority epoch.
+    /// Advance one presentation-authorized owned context to a new authority epoch.
     pub fn advance_context_epoch(
         &mut self,
         browsing_context: BrowsingContextId,
@@ -1035,13 +1243,94 @@ impl<P: DisposableContextPort> BoundBrowserSession<P> {
         self.session.advance_context_epoch(browsing_context)
     }
 
-    /// Destroy the exact owned disposable boundary through the bound lifecycle port.
+    /// Admit one browser-observed navigation start for the exact current ownership generation.
+    ///
+    /// Admission revokes presentation mutation immediately, performs no browser I/O, consumes no
+    /// presentation epoch, and returns the only witness accepted by later commit or terminal methods.
+    pub fn record_observed_navigation(
+        &mut self,
+        incarnation: BrowserSessionIncarnation,
+        browsing_context: BrowsingContextId,
+        context_epoch: BrowserContextEpoch,
+    ) -> Result<NavigationSettlementAuthority, BrowserSessionError> {
+        self.session
+            .begin_observed_navigation(incarnation, browsing_context, context_epoch)
+    }
+
+    /// Record the first qualified commit-progress event for one current navigation witness.
+    ///
+    /// Commit is non-terminal and does not create presentation re-establishment eligibility.
+    pub fn record_observed_navigation_committed(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+    ) -> Result<(), BrowserSessionError> {
+        self.session.mark_observed_navigation_committed(authority)
+    }
+
+    /// Close one current navigation through a complete positive browser observation.
+    pub fn record_observed_navigation_settled(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+    ) -> Result<(), BrowserSessionError> {
+        self.session.close_observed_navigation(authority)
+    }
+
+    /// Close one current navigation through an explicit typed negative browser outcome.
+    pub fn record_observed_navigation_terminated(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+        outcome: NavigationTerminationOutcome,
+    ) -> Result<(), BrowserSessionError> {
+        match outcome {
+            NavigationTerminationOutcome::Aborted | NavigationTerminationOutcome::Failed => {
+                self.session.close_observed_navigation(authority)
+            }
+        }
+    }
+
+    /// Close one current navigation's liveness boundary when download start is observed.
+    ///
+    /// This does not claim file completion, persistence, scanning, egress authorization, or any
+    /// download-security outcome; those remain outside Browser Session.
+    pub fn record_observed_navigation_download_started(
+        &mut self,
+        authority: &NavigationSettlementAuthority,
+    ) -> Result<(), BrowserSessionError> {
+        self.session.close_observed_navigation(authority)
+    }
+
+    /// Explicitly mint the next presentation authority after one qualified navigation closure.
+    ///
+    /// This is the only navigation path that consumes a new presentation epoch. The opportunity is
+    /// single-use; a newer navigation start supersedes any unused opportunity for the same context.
+    pub fn reestablish_presentation_authority(
+        &mut self,
+        browsing_context: BrowsingContextId,
+    ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
+        self.session
+            .reestablish_presentation_authority_for_context(browsing_context)
+    }
+
+    /// Destroy the exact owned disposable boundary through current presentation authority.
     pub fn destroy_disposable_context(
         &mut self,
         authority: &PresentationMutationAuthority,
     ) -> Result<(), BrowserSessionError> {
         self.session
             .destroy_disposable_context_with_port(authority, &mut self.port)
+    }
+
+    /// Destroy an owned disposable boundary through structural lifecycle custody.
+    ///
+    /// This cleanup path remains available while navigation has revoked presentation mutation, but it
+    /// can select only a context currently owned by this exact bound aggregate. It never re-establishes
+    /// presentation authority and consumes the retained browser-issued lifecycle handle on success.
+    pub fn destroy_owned_disposable_context(
+        &mut self,
+        browsing_context: BrowsingContextId,
+    ) -> Result<(), BrowserSessionError> {
+        self.session
+            .destroy_owned_disposable_context_with_port(browsing_context, &mut self.port)
     }
 
     /// Record browser transport loss without exposing mutable lifecycle-port access.
@@ -1067,8 +1356,9 @@ impl<P: AuthorizedContextOperationPort> BoundBrowserSession<P> {
     /// Execute one adapter-defined operation through the exact consumed adapter after authority validation.
     ///
     /// Browser Session validates session incarnation, isolation identity, browsing-context identity,
-    /// and epoch before the adapter receives the operation. Stale or foreign authority therefore fails
-    /// before adapter I/O, while the adapter-specific operation vocabulary remains outside this domain.
+    /// current presentation state, and epoch before the adapter receives the operation. Stale or foreign
+    /// authority therefore fails before adapter I/O, while the adapter-specific operation vocabulary
+    /// remains outside this domain.
     pub fn execute_authorized_context_operation(
         &mut self,
         authority: &PresentationMutationAuthority,
@@ -1101,6 +1391,14 @@ fn reserve_epoch(next_epoch: &mut u64) -> Result<BrowserContextEpoch, BrowserSes
         .checked_add(1)
         .ok_or(BrowserSessionError::EpochExhausted)?;
     Ok(epoch)
+}
+
+fn reserve_navigation_generation(next_generation: &mut u64) -> Result<u64, BrowserSessionError> {
+    let generation = *next_generation;
+    *next_generation = next_generation
+        .checked_add(1)
+        .ok_or(BrowserSessionError::EpochExhausted)?;
+    Ok(generation)
 }
 
 fn allocate_incarnation(
@@ -1728,6 +2026,179 @@ mod tests {
         assert_eq!(bound.browser_session().state(), BrowserSessionState::Ended);
         assert!(!bound.record_transport_loss());
         assert_eq!(bound.end(), Err(BrowserSessionError::SessionNotActive));
+    }
+
+    #[test]
+    fn navigation_state_machine_separates_presentation_from_lifecycle_cleanup() {
+        let mut bound = session(13).bind_lifecycle_port(TestPort::new(130, "isolation-130"));
+        let initial = bound.create_disposable_context().expect("owned context");
+        let calls_before_navigation = bound.port.destroy_calls;
+        let pending = bound
+            .record_observed_navigation(
+                initial.incarnation(),
+                initial.browsing_context(),
+                initial.context_epoch(),
+            )
+            .expect("navigation start");
+        assert_eq!(
+            bound.presentation_authority(initial.browsing_context()),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        assert_eq!(
+            bound.destroy_disposable_context(&initial),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        assert_eq!(bound.port.destroy_calls, calls_before_navigation);
+        bound
+            .record_observed_navigation_committed(&pending)
+            .expect("first commit progress");
+        assert_eq!(
+            bound.record_observed_navigation_committed(&pending),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        bound
+            .record_observed_navigation_settled(&pending)
+            .expect("positive terminal");
+        assert_eq!(
+            bound.record_observed_navigation_download_started(&pending),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        let fresh = bound
+            .reestablish_presentation_authority(initial.browsing_context())
+            .expect("explicit re-establishment");
+        assert_eq!(fresh.context_epoch().value(), initial.context_epoch().value() + 1);
+        assert_eq!(
+            bound.reestablish_presentation_authority(initial.browsing_context()),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        bound
+            .destroy_owned_disposable_context(initial.browsing_context())
+            .expect("bound lifecycle owner cleanup");
+        assert_eq!(bound.port.destroy_calls, calls_before_navigation + 1);
+        assert_eq!(
+            bound.destroy_owned_disposable_context(initial.browsing_context()),
+            Err(BrowserSessionError::ContextNotOwned)
+        );
+    }
+
+    #[test]
+    fn navigation_generation_rejects_foreign_stale_and_invalid_evidence_without_epoch_spend() {
+        let handles = vec![
+            DisposableContextHandle::new(isolation_id("isolation-140"), context_id(140)),
+            DisposableContextHandle::new(isolation_id("isolation-141"), context_id(141)),
+        ];
+        let mut bound = session(14).bind_lifecycle_port(TestPort::with_handles(handles));
+        let first = bound.create_disposable_context().expect("first context");
+        let second = bound.create_disposable_context().expect("second context");
+        assert_eq!(
+            bound.record_observed_navigation(
+                BrowserSessionIncarnation(first.incarnation().value() + 1),
+                first.browsing_context(),
+                first.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        assert_eq!(
+            bound.record_observed_navigation(
+                first.incarnation(),
+                context_id(999),
+                first.context_epoch(),
+            ),
+            Err(BrowserSessionError::ContextNotOwned)
+        );
+        assert_eq!(
+            bound.record_observed_navigation(
+                first.incarnation(),
+                first.browsing_context(),
+                second.context_epoch(),
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        let old_pending = bound
+            .record_observed_navigation(
+                first.incarnation(),
+                first.browsing_context(),
+                first.context_epoch(),
+            )
+            .expect("first pending");
+        let current_pending = bound
+            .record_observed_navigation(
+                first.incarnation(),
+                first.browsing_context(),
+                first.context_epoch(),
+            )
+            .expect("superseding pending");
+        assert_eq!(
+            bound.record_observed_navigation_settled(&old_pending),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        bound
+            .record_observed_navigation_terminated(
+                &current_pending,
+                NavigationTerminationOutcome::Aborted,
+            )
+            .expect("current negative terminal");
+        let fresh = bound
+            .reestablish_presentation_authority(first.browsing_context())
+            .expect("fresh authority");
+        assert_eq!(fresh.context_epoch().value(), second.context_epoch().value() + 1);
+        assert_eq!(
+            bound.record_observed_navigation_terminated(
+                &current_pending,
+                NavigationTerminationOutcome::Failed,
+            ),
+            Err(BrowserSessionError::AuthorityMismatch)
+        );
+        assert_eq!(bound.presentation_authority(first.browsing_context()), Ok(fresh));
+    }
+
+    #[test]
+    fn navigation_exhaustion_and_cleanup_failure_fail_closed_without_hidden_mutation() {
+        let mut bound = session(15).bind_lifecycle_port(TestPort::new(150, "isolation-150"));
+        let initial = bound.create_disposable_context().expect("owned context");
+        bound.session.next_navigation_generation = u64::MAX;
+        assert_eq!(
+            bound.record_observed_navigation(
+                initial.incarnation(),
+                initial.browsing_context(),
+                initial.context_epoch(),
+            ),
+            Err(BrowserSessionError::EpochExhausted)
+        );
+        assert_eq!(
+            bound.presentation_authority(initial.browsing_context()),
+            Ok(initial.clone())
+        );
+        bound.session.next_navigation_generation = 1;
+        let pending = bound
+            .record_observed_navigation(
+                initial.incarnation(),
+                initial.browsing_context(),
+                initial.context_epoch(),
+            )
+            .expect("pending navigation");
+        bound
+            .record_observed_navigation_download_started(&pending)
+            .expect("download liveness closure");
+        bound.session.next_epoch = u64::MAX;
+        assert_eq!(
+            bound.reestablish_presentation_authority(initial.browsing_context()),
+            Err(BrowserSessionError::EpochExhausted)
+        );
+        bound.port.fail_destroy = true;
+        assert_eq!(
+            bound.destroy_owned_disposable_context(initial.browsing_context()),
+            Err(BrowserSessionError::ContextDestructionFailed)
+        );
+        assert_eq!(bound.browser_session().state(), BrowserSessionState::RecoveryRequired);
+        assert_eq!(
+            bound.destroy_owned_disposable_context(initial.browsing_context()),
+            Err(BrowserSessionError::SessionNotActive)
+        );
+        assert_eq!(
+            bound.record_observed_navigation_settled(&pending),
+            Err(BrowserSessionError::SessionNotActive)
+        );
     }
 
     #[test]
