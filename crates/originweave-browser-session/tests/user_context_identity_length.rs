@@ -1,11 +1,19 @@
 use originweave_browser_session::DisposableIsolationId;
 
 #[test]
-fn webdriver_bidi_user_context_is_not_rejected_by_an_arbitrary_domain_length_cap() {
-    let remote_user_context = "u".repeat(4097);
+fn webdriver_bidi_user_context_preserves_protocol_text_without_domain_grammar() {
+    let cases = [
+        String::new(),
+        " context ".to_owned(),
+        "ctx\n".to_owned(),
+        "u".repeat(4097),
+    ];
 
-    let identity = DisposableIsolationId::parse(&remote_user_context)
-        .expect("WebDriver BiDi browser.UserContext has no 4096-byte protocol limit");
+    for remote_user_context in cases {
+        let identity = DisposableIsolationId::parse(&remote_user_context).expect(
+            "WebDriver BiDi browser.UserContext is CDDL text; Browser Session must preserve the exact remote identity",
+        );
 
-    assert_eq!(identity.as_str(), remote_user_context);
+        assert_eq!(identity.as_str(), remote_user_context);
+    }
 }
