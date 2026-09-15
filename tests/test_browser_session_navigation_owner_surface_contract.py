@@ -51,6 +51,20 @@ class BrowserSessionNavigationOwnerSurfaceContractTests(unittest.TestCase):
         self.assertRegex(witness_body, r"context_epoch\s*:\s*BrowserContextEpoch")
         self.assertNotRegex(
             self.source,
+            r"#\s*\[\s*derive\s*\([^\]]*\bDefault\b[^\]]*\)\s*\]"
+            r"(?:(?:\s*#\s*\[[^\]]*\])|\s)*"
+            r"pub\s+struct\s+NavigationSettlementAuthority\b",
+            "Default would let raw callers fabricate a settlement witness",
+        )
+        self.assertNotRegex(
+            self.source,
+            r"\bimpl(?:\s*<[^{};]*>)?\s+"
+            r"(?:Default|From\s*<[^{};]+>|TryFrom\s*<[^{};]+>)\s+for\s+"
+            r"NavigationSettlementAuthority\b",
+            "conversion/default traits must not expose a caller-mintable witness path",
+        )
+        self.assertNotRegex(
+            self.source,
             r"impl\s+NavigationSettlementAuthority\b",
             "The settlement witness is intentionally opaque and has no inherent mint/read surface.",
         )
