@@ -442,7 +442,7 @@ pub enum ControlledBenchmarkSuiteError {
         /// Name of the non-canonical reproducibility-context field.
         field: &'static str,
     },
-    /// A required or observed reproducibility-context field contains a control character.
+    /// A required or observed reproducibility-context field contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character.
     ControlCharacterRunContext {
         /// Name of the invalid reproducibility-context field.
         field: &'static str,
@@ -491,7 +491,7 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
             ),
             Self::ControlCharacterRunContext { field } => write!(
                 formatter,
-                "controlled benchmark run context field {field} contains a control character"
+                "controlled benchmark run context field {field} contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character"
             ),
             Self::RunContextMismatch { field } => write!(
                 formatter,
@@ -609,18 +609,20 @@ fn evaluate_valid_controlled_benchmark_case(
 /// Evaluate raw controlled-suite evidence only when execution context is reproducible.
 ///
 /// Every required identity in the expected and observed contexts must be nonblank,
-/// free of surrounding whitespace, and free of control characters before the
-/// observed context is compared byte-for-byte with the expected context. This does
-/// not authenticate either context; it is a fail-closed comparison boundary for a
-/// benchmark runner or durable evidence pipeline that performs that authentication.
+/// free of surrounding whitespace, and free of C0/C1 controls, Unicode line/paragraph
+/// separators, or bidirectional formatting characters before the observed context is
+/// compared byte-for-byte with the expected context. This does not authenticate either
+/// context; it is a fail-closed comparison boundary for a benchmark runner or durable
+/// evidence pipeline that performs that authentication.
 ///
 /// # Errors
 ///
 /// Returns [`ControlledBenchmarkSuiteError::InvalidRunContext`] for a blank
 /// required or observed identity, [`ControlledBenchmarkSuiteError::NonCanonicalRunContext`]
 /// for surrounding whitespace, [`ControlledBenchmarkSuiteError::ControlCharacterRunContext`]
-/// for control characters, and [`ControlledBenchmarkSuiteError::RunContextMismatch`]
-/// for the first mismatched identity. After context validation, all errors from
+/// for C0/C1 controls, Unicode line/paragraph separators, or bidirectional formatting
+/// characters, and [`ControlledBenchmarkSuiteError::RunContextMismatch`] for the first
+/// mismatched identity. After context validation, all errors from
 /// [`evaluate_controlled_benchmark_suite`] are preserved unchanged.
 pub fn evaluate_controlled_benchmark_suite_for_run(
     expected_context: ControlledBenchmarkRunContext<'_>,
@@ -728,9 +730,10 @@ pub fn evaluate_controlled_benchmark_suite(
 
 /// Rejects benchmark-owned run identities that would make evidence boundaries ambiguous.
 ///
-/// The controlled benchmark owns these labels, so surrounding whitespace and control
-/// characters are invalid here even though browser-issued protocol identifiers are
-/// preserved losslessly at their own bounded-context boundary.
+/// The controlled benchmark owns these labels, so surrounding whitespace, C0/C1
+/// controls, Unicode line/paragraph separators, and bidirectional formatting controls
+/// are invalid here even though browser-issued protocol identifiers are preserved
+/// losslessly at their own bounded-context boundary.
 fn validate_run_context_field(
     field: &'static str,
     value: &str,
@@ -742,10 +745,34 @@ fn validate_run_context_field(
     if trimmed != value {
         return Err(ControlledBenchmarkSuiteError::NonCanonicalRunContext { field });
     }
-    if value.chars().any(char::is_control) {
+    if value.chars().any(|character| {
+        character.is_control() || is_unicode_line_separator(character) || is_bidi_control(character)
+    }) {
         return Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext { field });
     }
     Ok(())
+}
+
+/// Identifies Unicode separators that create a new rendered line or paragraph.
+///
+/// `char::is_control` covers General Category `Cc`, not `Zl`/`Zp`. Allowing these
+/// separators inside benchmark-owned evidence identity would therefore let one
+/// byte-exact identity render as multiple log or report records.
+fn is_unicode_line_separator(character: char) -> bool {
+    matches!(character, '\u{2028}' | '\u{2029}')
+}
+
+/// Identifies the Unicode `Bidi_Control` set without rejecting ordinary RTL scripts.
+///
+/// These format characters can reorder the visual presentation of otherwise byte-exact
+/// benchmark identity strings. The benchmark owns this metadata grammar, so admitting
+/// them would make logs, reports, and signed-summary review ambiguous even when storage
+/// preserves the original scalar sequence.
+fn is_bidi_control(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+    )
 }
 
 /// Verifies that a per-trial outcome counter cannot claim more observations than trials.
