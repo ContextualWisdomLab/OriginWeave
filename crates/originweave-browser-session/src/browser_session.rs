@@ -742,27 +742,19 @@ impl BrowserSession {
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
-        {
-            let record = self
-                .contexts
-                .get(&browsing_context)
-                .filter(|record| record.state == OwnedContextState::Active)
-                .ok_or(BrowserSessionError::ContextNotOwned)?;
-            if record.presentation_navigation != PresentationNavigationState::Established {
-                return Err(BrowserSessionError::AuthorityMismatch);
-            }
-        }
-        let next = reserve_epoch(&mut self.next_epoch)?;
-        let browser_session = self.id;
-        let incarnation = self.incarnation;
         let record = self
             .contexts
             .get_mut(&browsing_context)
-            .expect("validated owned context remains present under exclusive aggregate access");
+            .filter(|record| record.state == OwnedContextState::Active)
+            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        if record.presentation_navigation != PresentationNavigationState::Established {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
+        let next = reserve_epoch(&mut self.next_epoch)?;
         record.epoch = next;
         Ok(Self::authority_for(
-            browser_session,
-            incarnation,
+            self.id,
+            self.incarnation,
             &record.handle,
             next,
         ))
@@ -936,22 +928,16 @@ impl BrowserSession {
         if incarnation != self.incarnation {
             return Err(BrowserSessionError::AuthorityMismatch);
         }
-        {
-            let record = self
-                .contexts
-                .get(&browsing_context)
-                .filter(|record| record.state == OwnedContextState::Active)
-                .ok_or(BrowserSessionError::ContextNotOwned)?;
-            if record.epoch != context_epoch {
-                return Err(BrowserSessionError::AuthorityMismatch);
-            }
-        }
-        let navigation_generation =
-            reserve_navigation_generation(&mut self.next_navigation_generation)?;
         let record = self
             .contexts
             .get_mut(&browsing_context)
-            .expect("validated owned context remains present under exclusive aggregate access");
+            .filter(|record| record.state == OwnedContextState::Active)
+            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        if record.epoch != context_epoch {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
+        let navigation_generation =
+            reserve_navigation_generation(&mut self.next_navigation_generation)?;
         record.presentation_navigation = PresentationNavigationState::Pending {
             navigation_generation,
             committed: false,
@@ -1027,21 +1013,15 @@ impl BrowserSession {
         browsing_context: BrowsingContextId,
     ) -> Result<PresentationMutationAuthority, BrowserSessionError> {
         self.require_active()?;
-        {
-            let record = self
-                .contexts
-                .get(&browsing_context)
-                .filter(|record| record.state == OwnedContextState::Active)
-                .ok_or(BrowserSessionError::ContextNotOwned)?;
-            if record.presentation_navigation != PresentationNavigationState::Eligible {
-                return Err(BrowserSessionError::AuthorityMismatch);
-            }
-        }
-        let next = reserve_epoch(&mut self.next_epoch)?;
         let record = self
             .contexts
             .get_mut(&browsing_context)
-            .expect("validated owned context remains present under exclusive aggregate access");
+            .filter(|record| record.state == OwnedContextState::Active)
+            .ok_or(BrowserSessionError::ContextNotOwned)?;
+        if record.presentation_navigation != PresentationNavigationState::Eligible {
+            return Err(BrowserSessionError::AuthorityMismatch);
+        }
+        let next = reserve_epoch(&mut self.next_epoch)?;
         record.epoch = next;
         record.presentation_navigation = PresentationNavigationState::Established;
         Ok(Self::authority_for(
