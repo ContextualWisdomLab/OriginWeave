@@ -98,7 +98,9 @@ fn invalidated_presentation_capability_cannot_be_reused_as_lifecycle_cleanup_aut
 
     bound
         .destroy_owned_disposable_context(context)
-        .expect("the exact bound lifecycle owner still owns cleanup without reopening presentation authority");
+        .expect(
+            "the exact bound lifecycle owner still owns cleanup without reopening presentation authority",
+        );
     assert_eq!(adapter_calls.get(), calls_after_create + 1);
     assert_eq!(
         destroyed_handles.borrow().as_slice(),
