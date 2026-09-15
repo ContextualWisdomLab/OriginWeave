@@ -8,8 +8,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "docs" / "evidence"
 LOADER = ROOT / "tests" / "_historical_baseline_contract_loader.py"
-LEGACY_COMPLETION = ROOT / "tests" / "legacy_product_completion_gap_contract.py"
 NAVIGATION = EVIDENCE / "product-technical-gap-baseline-through-2026-09-09-navigation.md"
+ARCHIVE_ROOT = EVIDENCE / "historical-contract-root-through-2026-09-09"
 
 ARCHIVED_INPUTS = {
     "ARCHIVE_FITNESS": EVIDENCE / "DOCUMENTATION_FITNESS-through-2026-09-09.md",
@@ -38,15 +38,12 @@ class HistoricalBaselineInputIsolationContractTests(unittest.TestCase):
             with self.subTest(assignment=assignment):
                 self.assertIn(assignment, loader)
 
-    def test_completion_contract_exposes_direct_inputs_for_loader_redirection(self) -> None:
-        source = LEGACY_COMPLETION.read_text(encoding="utf-8")
-        self.assertIn('CHANGELOG = ROOT / "CHANGELOG.md"', source)
-        self.assertIn(
-            'EVIDENCE_SCRIPT = ROOT / "scripts" / "ci" / "collect_live_merge_evidence.sh"',
-            source,
-        )
-        self.assertNotIn('(ROOT / "CHANGELOG.md").read_text', source)
-        self.assertNotIn('(ROOT / "scripts" / "ci" / "collect_live_merge_evidence.sh").read_text', source)
+    def test_direct_root_reads_are_redirected_without_rewriting_legacy_contracts(self) -> None:
+        loader = LOADER.read_text(encoding="utf-8")
+        self.assertIn("ARCHIVE_ROOT", loader)
+        self.assertIn("module.ROOT = ARCHIVE_ROOT", loader)
+        self.assertTrue((ARCHIVE_ROOT / "CHANGELOG.md").is_file())
+        self.assertTrue((ARCHIVE_ROOT / "scripts/ci/collect_live_merge_evidence.sh").is_file())
 
     def test_relocated_archive_has_an_original_location_navigation_receipt(self) -> None:
         self.assertTrue(NAVIGATION.is_file())
