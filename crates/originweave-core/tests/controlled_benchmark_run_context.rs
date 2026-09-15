@@ -159,6 +159,28 @@ fn control_character_in_reproducibility_context_fails_closed() {
 }
 
 #[test]
+fn unicode_line_separator_in_reproducibility_context_fails_closed() {
+    for hostile in ["runner\u{2028}spoofed=passed", "runner\u{2029}spoofed=passed"] {
+        let mut context = run_context();
+        context.reasoning_configuration = hostile;
+
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                field: "reasoning_configuration",
+            }),
+            "Unicode line/paragraph separators must not split benchmark evidence identity rendering: {hostile:?}"
+        );
+    }
+}
+
+#[test]
 fn bidi_control_in_reproducibility_context_fails_closed() {
     for hostile in [
         "runner\u{061c}suffix",
