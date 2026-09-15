@@ -28,9 +28,9 @@ These questions are Browser Session domain concerns. WebDriver BiDi pending/acce
 
 ## Assumptions and authority boundaries
 
-Browser Session owns lifecycle identity, ownership state, context epochs, admission of ordinary lifecycle/presentation authority, and the one-way transition into recovery custody. `BoundBrowserSessionRecovery<P>` owns custody of the same adapter instance but does not become a protocol-specific recovery engine.
+Browser Session owns lifecycle identity, ownership state, context epochs, admission of ordinary lifecycle/presentation authority, navigation-generation custody, and the one-way transition into recovery custody. `BoundBrowserSessionRecovery<P>` owns custody of the same adapter instance but does not become a protocol-specific recovery engine.
 
-WebDriver BiDi correlation, pending/accepted/quarantined tuples, remote-liveness interpretation, and any protocol recovery command remain #316 responsibilities. A future protocol recovery operation must be purpose-bounded against recovery custody rather than reconstructing an adapter from raw ids.
+WebDriver BiDi correlation, pending/accepted/quarantined tuples, remote-liveness interpretation, protocol event replay qualification, and any protocol recovery command remain #316 responsibilities. A future protocol recovery operation must be purpose-bounded against recovery custody rather than reconstructing an adapter from raw ids.
 
 Durable crash/process-restart persistence and buyer audit history are not stored in the hot `BrowserSession.contexts` map. `abandoned_bound_session_count()` is process-local operability evidence only. LLM output, page content, raw protocol identifiers, and recovery evidence do not grant Browser Session command authority.
 
@@ -76,7 +76,11 @@ Rejected. Raw identifier reuse is an ABA case. Reusing the predecessor epoch cou
 12. Immediately after proven destruction, retained authority for that record fails before adapter I/O as `ContextNotOwned`. If the same raw identity is later recreated, the retained predecessor fails before adapter I/O as `AuthorityMismatch` because its epoch is stale.
 13. Removal from hot command-authority state is not deletion of durable business/audit history. Durable process-restart recovery, evidence retention, and audit storage must be implemented by a separately authorized persistence owner and must not infer destruction from record eviction or from `abandoned_bound_session_count()`.
 14. `Drop` on recovery custody performs no browser I/O. The contained bound owner retains the same process-local abandonment accounting for unresolved remote ownership.
-15. This ADR remains `Proposed` until the change reaches protected `main` and real-browser recovery/destruction post-conditions are independently evidenced.
+15. Browser-observed navigation is admitted only for the exact active `(BrowserSessionIncarnation, BrowsingContextId, BrowserContextEpoch)` ownership generation. Admission revokes presentation authority with zero adapter I/O and mints an opaque `NavigationSettlementAuthority` using a separate monotonic navigation generation rather than spending a presentation epoch.
+16. Commit progress is non-terminal. Positive settlement, typed `Aborted`/`Failed`, and download start share one exactly-once terminal closure. A newer admitted navigation supersedes an older pending witness; stale or superseded witnesses fail closed without changing a newer generation.
+17. Terminal closure creates one context-local opportunity for explicit `reestablish_presentation_authority`; the first successful re-establishment consumes the next presentation epoch and returns the context to `Established`. Generic epoch advancement cannot bypass a navigation-invalidated state.
+18. Presentation authority and lifecycle cleanup are separate. A navigation-invalidated presentation capability cannot authorize mutation or authority-based cleanup, while the exact bound lifecycle owner may still destroy its retained disposable context through `destroy_owned_disposable_context` without reopening presentation authority.
+19. This ADR remains `Proposed` until the change reaches protected `main` and real-browser recovery/destruction/navigation post-conditions are independently evidenced.
 
 ## Consequences
 
@@ -84,7 +88,13 @@ The Browser Session aggregate now has two linear owner forms: ordinary `BoundBro
 
 Proven destruction makes hot ownership proportional to current live/uncertain state rather than the total number of historical context generations. This reduces long-lived session state without weakening stale-authority rejection. Durable history must be captured elsewhere when required; it is not implicitly provided by the command-authority map.
 
-A child navigation implementation must treat ownership generation and current navigation witness as separate authority dimensions. Reusing a raw browsing-context id after proven destruction does not carry predecessor lifecycle or navigation authority forward.
+The active #317 production lineage now treats ownership generation and current navigation witness as separate authority dimensions. Reusing a raw browsing-context id after proven destruction does not carry predecessor lifecycle or navigation authority forward. Navigation liveness uses its own monotonic generation; presentation epochs advance only when explicit re-establishment succeeds.
+
+## Navigation authority interaction
+
+`record_observed_navigation` is a protocol-agnostic Browser Session transition. It accepts already-qualified adapter evidence only after aggregate trust, exact incarnation, exact live ownership, and current context epoch match. It does not consume a WebDriver BiDi navigation id as policy authority. #316 remains responsible for mapping protocol events and replay qualification into this domain transition.
+
+The returned `NavigationSettlementAuthority` has private fields and no caller constructor. `record_observed_navigation_committed` records first commit progress but does not make presentation re-establishment eligible. `record_observed_navigation_settled`, `record_observed_navigation_terminated`, and `record_observed_navigation_download_started` share the same current-witness terminal closure. `reestablish_presentation_authority` is explicit and single-use. `RecoveryRequired`, `TransportLost`, `Ended`, proven context destruction, stale generations, and superseded witnesses all dominate terminal or re-establishment attempts before adapter I/O.
 
 ## Failure and degraded behavior
 
@@ -92,13 +102,15 @@ If `into_recovery(self)` is called while the aggregate is `Active` or `Ended`, n
 
 A failed destruction never retires the hot ownership record. The exact record becomes or remains `Uncertain`, exact `UnprovenDestruction { context, context_epoch }` evidence is retained, normal authority is closed, and the aggregate enters or remains in recovery. A transport loss preserves owned handles as non-authorizing evidence and does not prove destruction.
 
-Dropping unresolved ordinary or recovery custody performs no browser I/O. Process-local abandonment observability may increase, but this is neither cleanup nor durable recovery. If monotonic epoch/incarnation allocation is exhausted, allocation fails closed rather than reusing authority identity.
+Dropping unresolved ordinary or recovery custody performs no browser I/O. Process-local abandonment observability may increase, but this is neither cleanup nor durable recovery. If monotonic epoch/incarnation/navigation-generation allocation is exhausted, allocation fails closed rather than reusing authority identity.
 
 ## Security / privacy / governance impact
 
 The recovery wrapper is a capability-reduction boundary. Untrusted page data, model output, protocol identifiers, recovery evidence, and adapter-selected handles cannot reconstruct ordinary Browser Session authority. The exact adapter remains owned but not ambiently callable.
 
 Bounded hot-state retirement occurs only after exact pre-I/O authority validation and proven destruction. Therefore resource-bounding cannot convert uncertain remote ownership into an untracked boundary.
+
+Navigation events are evidence, not deterministic policy authority. Browser Session creates and consumes its own opaque navigation witness only after exact current ownership validation. This prevents raw protocol ids, delayed events, sibling contexts, prior incarnations, or superseded generations from rewriting current presentation authority.
 
 This ADR does not move EgressWeave, Wardnet, Keyverse, contextual-orchestrator, Chromium sandboxing, or WebDriver BiDi protocol truth into OriginWeave Browser Session. Recovery evidence may identify remote browser boundaries but does not itself contain page content or create a new purpose for PII processing.
 
@@ -116,20 +128,22 @@ This ADR does not move EgressWeave, Wardnet, Keyverse, contextual-orchestrator, 
   - epochs are strictly monotonic
   - retained predecessor authority fails before lifecycle adapter I/O
 - destroy-failure tests require `Uncertain` ownership plus exact `UnprovenDestruction` evidence when destruction is not proven.
-- `tests/test_browser_session_lifecycle_contract.py` pins the recovery wrapper surface, hostile fixtures, ADR 0116, traceability, and UML doctoring.
+- navigation owner tests cover revocation, current-witness commit/terminal ordering, supersession, cleanup separation, trust-state precedence, and presentation-epoch conservation.
+- `tests/test_browser_session_lifecycle_contract.py` pins recovery wrapper surface, hostile fixtures, ADR 0116, traceability, and UML doctoring.
+- `tests/test_browser_session_navigation_owner_surface_contract.py` pins the production-owner navigation API and its opaque witness/epoch-separation contract independently from stacked #318/#321 acceptance.
 
 These are active-PR contracts until the exact head passes repository contracts, canonical rustfmt, locked tests, strict Clippy, rustdoc/API docs, production function/line/region/branch coverage at 100%, required review, and protected-main integration.
 
 ## Migration and rollback
 
-This active-PR change is additive at the ownership-type boundary but changes the internal retention model after proven destruction. Dependents must adopt it by ordinary non-force restack after the parent exact head is verified; they must not copy Browser Session source or infer recovery authority from the new wrapper.
+This active-PR change is additive at the ownership-type boundary but changes the internal retention and navigation-admission model. Dependents must adopt it by ordinary non-force restack after the parent exact head is verified; they must not copy Browser Session source or infer recovery/navigation authority from adapter identifiers.
 
-Rollback before protected-main adoption is performed by reverting the whole recovery-custody/hot-retirement slice together with its hostile fixtures and ADR, not by selectively restoring raw adapter access or keeping record eviction without the stale-authority tests. After protected-main adoption, rollback requires a policy-compliant change that preserves all unresolved ownership evidence and demonstrates that predecessor capabilities cannot revive.
+Rollback before protected-main adoption is performed by reverting the whole recovery-custody/hot-retirement/navigation-authority slice together with its hostile fixtures and ADR, not by selectively restoring raw adapter access, keeping record eviction without stale-authority tests, or restoring raw-id navigation authority. After protected-main adoption, rollback requires a policy-compliant change that preserves all unresolved ownership evidence and demonstrates that predecessor capabilities cannot revive.
 
 ## Open follow-ups
 
-- #316: purpose-bounded WebDriver BiDi recovery operations through the exact recovery-held adapter, including pending/accepted/quarantined correlation and remote-liveness semantics.
-- #318/#321: production navigation ownership-generation/current-witness state plus same-raw-id ABA acceptance after this foundation receives exact-head verification.
+- #316: purpose-bounded WebDriver BiDi recovery operations through the exact recovery-held adapter, including pending/accepted/quarantined correlation, event replay qualification, and remote-liveness semantics.
+- #318/#321: executable acceptance/review successors for the implemented #317 navigation contract, including same-raw-id ABA and sibling-recreation matrices; they do not own a second production state machine.
 - Durable crash/process-restart persistence of exact recovery evidence and buyer-required audit history.
 - Real Chromium proof of remote destruction, cleanup, navigation, interaction, and browser-observed post-conditions.
 - `docs/product-technical-gap-baseline.md` and release evidence must stay synchronized with protected-main truth; active-PR implementation is not shipment.
@@ -137,7 +151,7 @@ Rollback before protected-main adoption is performed by reverting the whole reco
 
 ## Supersession / reversal conditions
 
-Supersede this ADR only when a later Accepted design provides at least equivalent guarantees for same-instance recovery custody, zero ambient adapter escape, exact uncertain-ownership retention, bounded command-authority hot state, monotonic stale-authority rejection across raw-id reuse, and separation of durable history from command admission. A protocol adapter that merely offers different identifiers, reconnects to the same endpoint, or reports command success does not satisfy those guarantees.
+Supersede this ADR only when a later Accepted design provides at least equivalent guarantees for same-instance recovery custody, zero ambient adapter escape, exact uncertain-ownership retention, bounded command-authority hot state, monotonic stale-authority rejection across raw-id reuse, generation-bound navigation witness custody, single-assignment terminal closure, presentation/lifecycle cleanup separation, and separation of durable history from command admission. A protocol adapter that merely offers different identifiers, reconnects to the same endpoint, or reports command success does not satisfy those guarantees.
 
 Changing the recovery owner or persistence architecture does not by itself require restoring destroyed tombstones to the hot map; the replacement must state how command authority remains bounded and how durable evidence is retained independently.
 
