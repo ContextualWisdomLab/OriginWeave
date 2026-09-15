@@ -7,7 +7,7 @@ import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "crates/originweave-browser-session/src/lib.rs"
+SOURCE = ROOT / "crates/originweave-browser-session/src/browser_session.rs"
 
 NAVIGATION_PRODUCTION_MARKERS = (
     "pub struct NavigationSettlementAuthority",
