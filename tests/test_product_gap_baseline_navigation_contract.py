@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 ARCHIVE = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09.md"
+ARCHIVE_NAVIGATION = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09-navigation.md"
 ARCHIVE_CHANGELOG = ROOT / "docs/evidence/CHANGELOG-through-2026-09-09.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 LOADER = ROOT / "tests/_historical_baseline_contract_loader.py"
@@ -28,6 +29,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertLess(lines.index("## Buyer gap matrix"), 90)
         self.assertNotIn("### Previous verified cut:", text)
         self.assertIn(ARCHIVE.name, text)
+        self.assertIn(ARCHIVE_NAVIGATION.name, text)
 
     def test_observation_receipt_is_self_inclusive_and_not_continuously_live(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
@@ -54,6 +56,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
     def test_historical_dossier_is_preserved_outside_the_decision_surface(self) -> None:
         self.assertTrue(ARCHIVE.is_file())
+        self.assertTrue(ARCHIVE_NAVIGATION.is_file())
         archive = ARCHIVE.read_text(encoding="utf-8")
 
         self.assertGreater(len(archive.encode("utf-8")), 180_000)
