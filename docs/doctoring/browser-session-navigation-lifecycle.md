@@ -58,7 +58,7 @@ The acceptance suite deliberately separates cases that could otherwise compensat
 
 ## Evidence still required
 
-#318 supplies hostile acceptance contracts, not the production navigation state machine. #317 remains the production owner and must implement the same validation-before-mutation invariants while preserving the existing lifecycle/recovery boundaries. #316 remains the protocol-correlation owner and must map exact BiDi navigation/context evidence without turning driver identifiers into Browser Session capability authority.
+#318 supplies hostile acceptance contracts and doctoring, not production Browser Session source. #317 is the production owner and now implements the navigation state machine and validation-before-mutation invariants on its current head; adoption still requires exact-head repository contracts, canonical rustfmt, locked workspace tests, strict Clippy, warning-denying rustdoc/API documentation, and production function/line/region/branch coverage at 100% to execute GREEN. #316 remains the protocol-correlation owner and must map exact BiDi navigation/context evidence without turning driver identifiers into Browser Session capability authority.
 
 Before this stack can be adoption-ready, one exact successor head must pass repository contracts, canonical rustfmt, locked workspace tests, strict Clippy, warning-denying rustdoc/API documentation, and production function/line/region/branch coverage at 100%. Real acceptance must then exercise the corresponding paths against an explicitly qualified Chromium/WebDriver BiDi runtime and verify browser-observed post-conditions rather than command acknowledgement alone.
 
