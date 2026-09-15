@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
+from types import ModuleType
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,29 +21,50 @@ ARCHIVED_INPUTS = {
 }
 
 
+def load_contract_loader() -> ModuleType:
+    """Import the historical loader so its returned bindings can be verified."""
+    spec = importlib.util.spec_from_file_location(
+        "_historical_baseline_contract_loader_contract",
+        LOADER,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load historical baseline contract loader")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class HistoricalBaselineInputIsolationContractTests(unittest.TestCase):
     """Historical receipts must not silently depend on mutable current controls."""
 
     def test_loader_redirects_every_historical_control_input(self) -> None:
-        loader = LOADER.read_text(encoding="utf-8")
+        loader = load_contract_loader()
         for constant, path in ARCHIVED_INPUTS.items():
             with self.subTest(constant=constant):
                 self.assertTrue(path.is_file(), f"missing immutable input: {path}")
-                self.assertIn(constant, loader)
+                self.assertEqual(path, getattr(loader, constant))
 
-        for assignment in (
-            "module.FITNESS = ARCHIVE_FITNESS",
-            "module.MATURITY = ARCHIVE_MATURITY",
-            "module.AGENTS = ARCHIVE_AGENTS",
-            "module.EVIDENCE_SCRIPT = ARCHIVE_EVIDENCE_SCRIPT",
-        ):
-            with self.subTest(assignment=assignment):
-                self.assertIn(assignment, loader)
+        documentation = loader.load_historical_contract(
+            "legacy_documentation_active_pr_evidence_contract.py",
+            "_probe_historical_documentation_contract",
+        )
+        self.assertEqual(loader.ARCHIVE, documentation.BASELINE)
+        self.assertEqual(loader.ARCHIVE_ROOT, documentation.ROOT)
+        self.assertEqual(loader.ARCHIVE_FITNESS, documentation.FITNESS)
+        self.assertEqual(loader.ARCHIVE_MATURITY, documentation.MATURITY)
+
+        evidence = loader.load_historical_contract(
+            "legacy_live_gap_evidence_integrity_contract.py",
+            "_probe_historical_evidence_contract",
+        )
+        self.assertEqual(loader.ARCHIVE, evidence.BASELINE)
+        self.assertEqual(loader.ARCHIVE_ROOT, evidence.ROOT)
+        self.assertEqual(loader.ARCHIVE_AGENTS, evidence.AGENTS)
+        self.assertEqual(loader.ARCHIVE_EVIDENCE_SCRIPT, evidence.EVIDENCE_SCRIPT)
 
     def test_direct_root_reads_are_redirected_without_rewriting_legacy_contracts(self) -> None:
-        loader = LOADER.read_text(encoding="utf-8")
-        self.assertIn("ARCHIVE_ROOT", loader)
-        self.assertIn("module.ROOT = ARCHIVE_ROOT", loader)
+        loader = load_contract_loader()
+        self.assertEqual(ARCHIVE_ROOT, loader.ARCHIVE_ROOT)
         self.assertTrue((ARCHIVE_ROOT / "CHANGELOG.md").is_file())
         self.assertTrue((ARCHIVE_ROOT / "scripts/ci/collect_live_merge_evidence.sh").is_file())
 
@@ -50,10 +73,12 @@ class HistoricalBaselineInputIsolationContractTests(unittest.TestCase):
         receipt = NAVIGATION.read_text(encoding="utf-8")
         for marker in (
             "Original relative-link base: `docs/`",
-            "`../scripts/ci/collect_live_merge_evidence.sh` → `scripts/ci/collect_live_merge_evidence.sh`",
-            "`doctoring.md` → `docs/doctoring.md`",
-            "`PRD.md` → `docs/PRD.md`",
-            "`TRD.md` → `docs/TRD.md`",
+            "| `../scripts/ci/collect_live_merge_evidence.sh` | `scripts/ci/collect_live_merge_evidence.sh` |",
+            "| `doctoring.md` | `docs/doctoring.md` |",
+            "| `doctoring/browser-agent-protocols.md` | `docs/doctoring/browser-agent-protocols.md` |",
+            "| `product-roadmap.md` | `docs/product-roadmap.md` |",
+            "| `PRD.md` | `docs/PRD.md` |",
+            "| `TRD.md` | `docs/TRD.md` |",
             "Do not rewrite the archived baseline blob",
         ):
             with self.subTest(marker=marker):
