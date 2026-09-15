@@ -62,6 +62,21 @@ class HistoricalBaselineInputIsolationContractTests(unittest.TestCase):
         self.assertEqual(loader.ARCHIVE_AGENTS, evidence.AGENTS)
         self.assertEqual(loader.ARCHIVE_EVIDENCE_SCRIPT, evidence.EVIDENCE_SCRIPT)
 
+        snapshot = loader.load_historical_contract(
+            "legacy_gap_snapshot_inventory_consistency.py",
+            "_probe_historical_snapshot_contract",
+        )
+        self.assertEqual(loader.ARCHIVE, snapshot.BASELINE)
+        self.assertEqual(loader.ARCHIVE_ROOT, snapshot.ROOT)
+        self.assertEqual(loader.ARCHIVE_CHANGELOG, snapshot.CHANGELOG)
+
+        completion = loader.load_historical_contract(
+            "legacy_product_completion_gap_contract.py",
+            "_probe_historical_completion_contract",
+        )
+        self.assertEqual(loader.ARCHIVE, completion.BASELINE)
+        self.assertEqual(loader.ARCHIVE_ROOT, completion.ROOT)
+
     def test_direct_root_reads_are_redirected_without_rewriting_legacy_contracts(self) -> None:
         loader = load_contract_loader()
         self.assertEqual(ARCHIVE_ROOT, loader.ARCHIVE_ROOT)
