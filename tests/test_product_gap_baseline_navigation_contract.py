@@ -7,6 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
+TRACEABILITY = ROOT / "docs/traceability/product-gap-baseline-navigation.md"
 ARCHIVE = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09.md"
 ARCHIVE_NAVIGATION = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09-navigation.md"
 ARCHIVE_CHANGELOG = ROOT / "docs/evidence/CHANGELOG-through-2026-09-09.md"
@@ -42,6 +43,19 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertIn("#309 is merged into this #238 documentation lineage", text)
         self.assertNotIn("includes this #309 Draft successor", text)
         self.assertIn("Live GitHub state supersedes this cut after 2026-09-15 08:57 UTC.", text)
+
+    def test_navigation_traceability_tracks_current_receipt_and_demotes_previous_cut(self) -> None:
+        text = TRACEABILITY.read_text(encoding="utf-8")
+
+        self.assertIn("2026-09-15 08:57 UTC", text)
+        self.assertIn("135 open PRs / 13 Ready/non-draft / 122 Draft / 19 open non-PR issues", text)
+        self.assertIn("#309 is merged into the #238 documentation lineage", text)
+        self.assertIn("Historical 2026-09-09 receipt", text)
+        self.assertIn("130 open PRs / 12 Ready / 118 Draft / 14 open non-PR issues", text)
+        self.assertNotIn(
+            "the contract pins the complete 130 / 12 / 118 split observed after that lifecycle repair",
+            text,
+        )
 
     def test_changelog_preserves_the_previous_dated_inventory_receipt(self) -> None:
         baseline = BASELINE.read_text(encoding="utf-8")
