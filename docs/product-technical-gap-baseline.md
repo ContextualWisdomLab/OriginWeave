@@ -41,6 +41,7 @@ No row above authorizes a local copy of Wardnet, EgressWeave, Keyverse, contextu
 ## Evidence and history index
 
 - [Historical product/technical gap dossier through the 2026-09-09 `16098a0...` generation](evidence/product-technical-gap-baseline-through-2026-09-09.md) — byte-for-byte preservation of the former baseline, including its previous verified cuts, historical PR heads, checks, measurements and runbooks.
+- [Historical dossier navigation receipt](evidence/product-technical-gap-baseline-through-2026-09-09-navigation.md) — preserves the archive blob while mapping its original `docs/`-relative link semantics after relocation under `docs/evidence/`.
 - [Current decision-surface navigation traceability](traceability/product-gap-baseline-navigation.md) — problem, constraints, alternatives, decision, risks and acceptance contract for separating buyer navigation from evidence history.
 - [Product roadmap](product-roadmap.md) — planned delivery sequence; plans do not establish shipped state.
 - [PRD](PRD.md) and [TRD](TRD.md) — product intent and technical design with maturity labels.
