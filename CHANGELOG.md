@@ -71,6 +71,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Active PR #322 rejects Unicode `Bidi_Control` formatting scalars in controlled-benchmark run-context evidence identities while preserving ordinary visible RTL scripts, preventing byte-exact benchmark metadata from rendering with a misleading directional order.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
