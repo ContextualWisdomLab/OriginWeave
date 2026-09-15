@@ -10,6 +10,7 @@ BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 ARCHIVE = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09.md"
 ARCHIVE_NAVIGATION = ROOT / "docs/evidence/product-technical-gap-baseline-through-2026-09-09-navigation.md"
 ARCHIVE_CHANGELOG = ROOT / "docs/evidence/CHANGELOG-through-2026-09-09.md"
+CHECKPOINT = ROOT / "docs/evidence/2026-09-06-delivery-checkpoint.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 LOADER = ROOT / "tests/_historical_baseline_contract_loader.py"
 
@@ -61,8 +62,34 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
         self.assertGreater(len(archive.encode("utf-8")), 180_000)
         self.assertIn("### Previous verified cut: 2026-09-08", archive)
+        self.assertIn("### Latest verified cut: 2026-09-06", archive)
         self.assertIn("## Observed snapshot: 2026-08-29", archive)
         self.assertIn("#### Published session-end reply binding: 05:35 UTC", archive)
+
+    def test_historical_checkpoint_links_to_the_preserved_dossier_anchor(self) -> None:
+        checkpoint = CHECKPOINT.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "product-technical-gap-baseline-through-2026-09-09.md#latest-verified-cut-2026-09-06",
+            checkpoint,
+        )
+        self.assertNotIn(
+            "../product-technical-gap-baseline.md#latest-verified-cut-2026-09-06",
+            checkpoint,
+        )
+
+    def test_archive_navigation_receipt_maps_original_relative_links_in_two_columns(self) -> None:
+        navigation = ARCHIVE_NAVIGATION.read_text(encoding="utf-8")
+        for row in (
+            "| `../scripts/ci/collect_live_merge_evidence.sh` | `scripts/ci/collect_live_merge_evidence.sh` |",
+            "| `doctoring.md` | `docs/doctoring.md` |",
+            "| `doctoring/browser-agent-protocols.md` | `docs/doctoring/browser-agent-protocols.md` |",
+            "| `product-roadmap.md` | `docs/product-roadmap.md` |",
+            "| `PRD.md` | `docs/PRD.md` |",
+            "| `TRD.md` | `docs/TRD.md` |",
+        ):
+            with self.subTest(row=row):
+                self.assertIn(row, navigation)
 
     def test_legacy_changelog_input_is_immutable_and_separate_from_live_changelog(self) -> None:
         self.assertTrue(ARCHIVE_CHANGELOG.is_file())
