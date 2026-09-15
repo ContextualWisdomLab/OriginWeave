@@ -219,7 +219,7 @@ fn bidi_control_in_reproducibility_context_fails_closed() {
     };
     assert_eq!(
         invalid.to_string(),
-        "controlled benchmark run context field reasoning_configuration contains a C0/C1 control or Unicode bidirectional formatting character"
+        "controlled benchmark run context field reasoning_configuration contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character"
     );
 }
 
