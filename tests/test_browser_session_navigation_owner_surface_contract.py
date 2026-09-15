@@ -51,8 +51,8 @@ class BrowserSessionNavigationOwnerSurfaceContractTests(unittest.TestCase):
         self.assertRegex(witness_body, r"context_epoch\s*:\s*BrowserContextEpoch")
         self.assertNotRegex(
             self.source,
-            r"impl\s+NavigationSettlementAuthority\s*\{",
-            "The settlement witness is intentionally opaque and has no public inherent mint/read surface.",
+            r"impl\s+NavigationSettlementAuthority\b",
+            "The settlement witness is intentionally opaque and has no inherent mint/read surface.",
         )
 
     def test_navigation_state_machine_keeps_liveness_separate_from_presentation_epoch(self) -> None:
