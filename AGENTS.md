@@ -114,6 +114,7 @@ A skipped security, GPU, browser, TLS, or statistical test is not passing eviden
 - Keep `README.md`, `ARCHITECTURE.md`, and the product roadmap consistent with shipped behavior.
 - Do not describe planned adapters as implemented.
 - When an RFC is obsoleted, cite the current RFC and record the supersession rather than silently retaining the older specification.
+- Pin WebDriver BiDi claims to the canonical dated W3C Technical Report; an Editor's Draft or an unsupported dated URL is not release or runtime-compatibility evidence.
 
 ## LLM and scheduled-agent rules
 
