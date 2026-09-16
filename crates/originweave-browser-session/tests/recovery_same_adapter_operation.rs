@@ -4,10 +4,10 @@ use std::rc::Rc;
 use originweave_browser_session::{
     BrowserSession, BrowserSessionError, BrowserSessionRecoveryEvidence, BrowserSessionState,
     DisposableContextCreateCompletion, DisposableContextCreateCompletionError,
-    DisposableContextCreateError, DisposableContextCreateRequest, DisposableContextDestroyError,
-    DisposableContextDestroyRequest, DisposableContextHandle, DisposableContextPort,
-    DisposableIsolationId, RecoveryContextOperationError, RecoveryContextOperationPort,
-    RecoveryContextOperationRequest,
+    DisposableContextCreateError, DisposableContextCreateRecoveryEvidence,
+    DisposableContextCreateRequest, DisposableContextDestroyError, DisposableContextDestroyRequest,
+    DisposableContextHandle, DisposableContextPort, DisposableIsolationId,
+    RecoveryContextOperationError, RecoveryContextOperationPort, RecoveryContextOperationRequest,
 };
 use originweave_core::{BrowserSessionId, BrowsingContextId};
 
@@ -27,12 +27,13 @@ struct RecoveryObservation {
     incarnation: u64,
     state: BrowserSessionState,
     recovery_evidence: Vec<BrowserSessionRecoveryEvidence>,
-    create_evidence_count: usize,
+    create_attempt_recovery_evidence: Vec<DisposableContextCreateRecoveryEvidence>,
     operation: RecoveryOperation,
 }
 
 struct RecoveryPort {
     handle: DisposableContextHandle,
+    fail_create_uncertain: bool,
     fail_destroy: bool,
     fail_recovery: Rc<Cell<bool>>,
     recovery_calls: Rc<Cell<usize>>,
@@ -44,7 +45,13 @@ impl DisposableContextPort for RecoveryPort {
         &mut self,
         _request: &DisposableContextCreateRequest,
     ) -> Result<DisposableContextHandle, DisposableContextCreateError> {
-        Ok(self.handle.clone())
+        if self.fail_create_uncertain {
+            Err(DisposableContextCreateError::CreateFailedUncertain(Some(
+                self.handle.isolation().clone(),
+            )))
+        } else {
+            Ok(self.handle.clone())
+        }
     }
 
     fn complete_disposable_context_creation(
@@ -81,7 +88,9 @@ impl RecoveryContextOperationPort for RecoveryPort {
             incarnation: request.incarnation().value(),
             state: request.state(),
             recovery_evidence: request.recovery_evidence().to_vec(),
-            create_evidence_count: request.create_attempt_recovery_evidence().len(),
+            create_attempt_recovery_evidence: request
+                .create_attempt_recovery_evidence()
+                .to_vec(),
             operation: *request.operation(),
         });
         if self.fail_recovery.get() {
@@ -117,6 +126,7 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
     );
     let port = RecoveryPort {
         handle: expected_handle.clone(),
+        fail_create_uncertain: false,
         fail_destroy: true,
         fail_recovery: Rc::clone(&fail_recovery),
         recovery_calls: Rc::clone(&recovery_calls),
@@ -141,6 +151,10 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
             context_epoch: authority.context_epoch(),
         }]
     );
+    let expected_create_attempt_recovery_evidence = bound
+        .browser_session()
+        .create_attempt_recovery_evidence()
+        .to_vec();
 
     let mut recovery = bound
         .into_recovery()
@@ -155,6 +169,11 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
     assert_eq!(recovery_calls.get(), 1);
     assert_eq!(recovery.state(), BrowserSessionState::RecoveryRequired);
     assert_eq!(recovery.recovery_evidence(), expected_recovery_evidence);
+    assert_eq!(
+        recovery.create_attempt_recovery_evidence(),
+        expected_create_attempt_recovery_evidence,
+        "recovery operation dispatch must not erase create-attempt provenance"
+    );
 
     let first = observations.borrow();
     assert_eq!(first.len(), 1);
@@ -162,7 +181,10 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
     assert_eq!(first[0].incarnation, expected_incarnation.value());
     assert_eq!(first[0].state, BrowserSessionState::RecoveryRequired);
     assert_eq!(first[0].recovery_evidence, expected_recovery_evidence);
-    assert_eq!(first[0].create_evidence_count, 0);
+    assert_eq!(
+        first[0].create_attempt_recovery_evidence,
+        expected_create_attempt_recovery_evidence
+    );
     assert_eq!(
         first[0].operation,
         RecoveryOperation::ReconcileExactEvidence
@@ -183,6 +205,94 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
         recovery.recovery_evidence(),
         expected_recovery_evidence,
         "recovery operation dispatch must not erase unresolved ownership evidence"
+    );
+    assert_eq!(
+        recovery.create_attempt_recovery_evidence(),
+        expected_create_attempt_recovery_evidence,
+        "recovery operation dispatch must not erase create-attempt provenance"
+    );
+    Ok(())
+}
+
+#[test]
+fn recovery_dispatch_preserves_non_empty_create_attempt_provenance_on_failure_and_success(
+) -> Result<(), &'static str> {
+    let fail_recovery = Rc::new(Cell::new(true));
+    let recovery_calls = Rc::new(Cell::new(0));
+    let observations = Rc::new(RefCell::new(Vec::new()));
+    let expected_session = session(7_902)?;
+    let expected_handle = DisposableContextHandle::new(
+        isolation("same-adapter-uncertain-create")?,
+        context(79_020)?,
+    );
+    let port = RecoveryPort {
+        handle: expected_handle,
+        fail_create_uncertain: true,
+        fail_destroy: false,
+        fail_recovery: Rc::clone(&fail_recovery),
+        recovery_calls: Rc::clone(&recovery_calls),
+        observations: Rc::clone(&observations),
+    };
+    let mut bound = BrowserSession::start(expected_session)
+        .map_err(|_| "browser session incarnation must be available")?
+        .bind_lifecycle_port(port);
+    let expected_incarnation = bound.browser_session().incarnation();
+
+    assert!(matches!(
+        bound.create_disposable_context(),
+        Err(BrowserSessionError::ContextCreationUncertain)
+    ));
+    let expected_recovery_evidence = bound.browser_session().recovery_evidence().to_vec();
+    let expected_create_attempt_recovery_evidence = bound
+        .browser_session()
+        .create_attempt_recovery_evidence()
+        .to_vec();
+    assert!(!expected_recovery_evidence.is_empty());
+    assert!(matches!(
+        expected_create_attempt_recovery_evidence.as_slice(),
+        [DisposableContextCreateRecoveryEvidence::FailedUncertain { .. }]
+    ));
+
+    let mut recovery = bound
+        .into_recovery()
+        .map_err(|_| "uncertain create must enter recovery custody")?;
+    assert_eq!(
+        recovery.execute_recovery_context_operation(RecoveryOperation::ReconcileExactEvidence),
+        Err(RecoveryContextOperationError::Adapter(
+            RecoveryOperationFailure::BackendUnavailable
+        ))
+    );
+    assert_eq!(recovery.state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(recovery.recovery_evidence(), expected_recovery_evidence);
+    assert_eq!(
+        recovery.create_attempt_recovery_evidence(),
+        expected_create_attempt_recovery_evidence,
+        "recovery operation dispatch must not erase create-attempt provenance"
+    );
+
+    let first = observations.borrow();
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].browser_session, expected_session);
+    assert_eq!(first[0].incarnation, expected_incarnation.value());
+    assert_eq!(first[0].state, BrowserSessionState::RecoveryRequired);
+    assert_eq!(first[0].recovery_evidence, expected_recovery_evidence);
+    assert_eq!(
+        first[0].create_attempt_recovery_evidence,
+        expected_create_attempt_recovery_evidence
+    );
+    drop(first);
+
+    fail_recovery.set(false);
+    recovery
+        .execute_recovery_context_operation(RecoveryOperation::ReconcileExactEvidence)
+        .map_err(|_| "recovery success must use the retained adapter")?;
+    assert_eq!(recovery_calls.get(), 2);
+    assert_eq!(recovery.state(), BrowserSessionState::RecoveryRequired);
+    assert_eq!(recovery.recovery_evidence(), expected_recovery_evidence);
+    assert_eq!(
+        recovery.create_attempt_recovery_evidence(),
+        expected_create_attempt_recovery_evidence,
+        "recovery operation dispatch must not erase create-attempt provenance"
     );
     Ok(())
 }
