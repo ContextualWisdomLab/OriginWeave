@@ -89,11 +89,12 @@ pub enum RecoveryContextOperationError<E> {
 /// Recovery-only custody of a Browser Session and its exact consumed lifecycle adapter.
 ///
 /// This wrapper is obtained only by consuming a bound session that has already entered
-/// [`BrowserSessionState::RecoveryRequired`] or [`BrowserSessionState::TransportLost`]. It exposes
-/// lifecycle state, exact non-authorizing recovery evidence, and a purpose-bounded recovery-operation
-/// path through the retained adapter. It deliberately provides none of the ordinary create,
-/// presentation-authority, epoch-advance, destroy, authorized-operation, or normal-finish methods, and
-/// it does not expose the inner [`BoundBrowserSession`] or concrete port.
+/// [`BrowserSessionState::RecoveryRequired`] or entered [`BrowserSessionState::TransportLost`] while
+/// retaining unresolved remote-ownership evidence. It exposes lifecycle state, exact non-authorizing
+/// recovery evidence, and a purpose-bounded recovery-operation path through the retained adapter. It
+/// deliberately provides none of the ordinary create, presentation-authority, epoch-advance, destroy,
+/// authorized-operation, or normal-finish methods, and it does not expose the inner
+/// [`BoundBrowserSession`] or concrete port.
 ///
 /// Ordinary context creation is not available from recovery custody:
 ///
@@ -174,15 +175,26 @@ pub struct BoundBrowserSessionRecovery<P> {
 impl<P: DisposableContextPort> BoundBrowserSession<P> {
     /// Consume an unresolved bound session into recovery-only custody without adapter I/O.
     ///
-    /// The handoff succeeds only after Browser Session has entered `RecoveryRequired` or
-    /// `TransportLost`. Active or normally ended sessions are returned unchanged so callers cannot
-    /// use the recovery type as an alternate path around ordinary lifecycle policy.
+    /// `RecoveryRequired` always represents unresolved lifecycle ownership. `TransportLost` permits
+    /// handoff only when the aggregate retained exact non-authorizing recovery evidence; transport loss
+    /// by itself, before any remote ownership or after proven destruction, must not create an alternate
+    /// adapter-operation capability. Active, ended, and ownership-clean transport-lost sessions are
+    /// returned unchanged.
     pub fn into_recovery(self) -> Result<BoundBrowserSessionRecovery<P>, Self> {
-        match self.browser_session().state() {
-            BrowserSessionState::RecoveryRequired | BrowserSessionState::TransportLost => {
+        let state = self.browser_session().state();
+        let has_recovery_evidence = !self.browser_session().recovery_evidence().is_empty()
+            || !self
+                .browser_session()
+                .create_attempt_recovery_evidence()
+                .is_empty();
+        match state {
+            BrowserSessionState::RecoveryRequired => Ok(BoundBrowserSessionRecovery { bound: self }),
+            BrowserSessionState::TransportLost if has_recovery_evidence => {
                 Ok(BoundBrowserSessionRecovery { bound: self })
             }
-            BrowserSessionState::Active | BrowserSessionState::Ended => Err(self),
+            BrowserSessionState::Active
+            | BrowserSessionState::Ended
+            | BrowserSessionState::TransportLost => Err(self),
         }
     }
 }
