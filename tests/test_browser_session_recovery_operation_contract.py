@@ -38,11 +38,23 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
         )[1].split("\n}", 1)[0]
         self.assertNotRegex(request_struct, r"(?m)^\s*pub(?:\([^)]*\))?\s+")
 
-        inherent_impls = re.findall(
-            r"impl(?:<[^\n{]+>)?\s+RecoveryContextOperationRequest(?:<[^\n{]+>)?\s*\{",
-            recovery_source,
+        impl_headers = re.findall(r"(?ms)^\s*impl\b([^{}]*)\{", recovery_source)
+        request_impl_headers = [
+            re.sub(r"\s+", " ", header).strip()
+            for header in impl_headers
+            if "RecoveryContextOperationRequest" in header
+        ]
+        inherent_impl_headers = [
+            header
+            for header in request_impl_headers
+            if " for RecoveryContextOperationRequest" not in header
+        ]
+        self.assertEqual(
+            inherent_impl_headers,
+            ["<O> RecoveryContextOperationRequest<O>"],
+            "request accessors must remain the sole inherent impl; where-clause or multiline successors require review",
         )
-        self.assertEqual(len(inherent_impls), 1)
+
         request_impl = recovery_source.split(
             "impl<O> RecoveryContextOperationRequest", 1
         )[1].split("pub trait RecoveryContextOperationPort", 1)[0]
@@ -59,9 +71,9 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
             )
 
         for constructor_pattern in (
-            r"impl(?:<[^\n{]+>)?\s+(?:(?:core|std)::default::)?Default\s+for\s+RecoveryContextOperationRequest",
-            r"impl(?:<[^\n{]+>)?\s+(?:(?:core|std)::convert::)?From<[^\n{]+>\s+for\s+RecoveryContextOperationRequest",
-            r"impl(?:<[^\n{]+>)?\s+(?:(?:core|std)::convert::)?TryFrom<[^\n{]+>\s+for\s+RecoveryContextOperationRequest",
+            r"impl(?:\s*<[^{}]*?>)?\s+(?:::)?(?:(?:core|std)::default::)?Default\s+for\s+RecoveryContextOperationRequest",
+            r"impl(?:\s*<[^{}]*?>)?\s+(?:::)?(?:(?:core|std)::convert::)?From<[^{}]+?>\s+for\s+RecoveryContextOperationRequest",
+            r"impl(?:\s*<[^{}]*?>)?\s+(?:::)?(?:(?:core|std)::convert::)?TryFrom<[^{}]+?>\s+for\s+RecoveryContextOperationRequest",
         ):
             self.assertNotRegex(recovery_source, constructor_pattern)
 
