@@ -26,8 +26,8 @@ struct RecoveryObservation {
     browser_session: BrowserSessionId,
     incarnation: u64,
     state: BrowserSessionState,
-    recovery_evidence: Vec<BrowserSessionRecoveryEvidence>,
-    create_attempt_recovery_evidence: Vec<DisposableContextCreateRecoveryEvidence>,
+    recovery_evidence: Option<BrowserSessionRecoveryEvidence>,
+    create_attempt_recovery_evidence: Option<DisposableContextCreateRecoveryEvidence>,
     operation: RecoveryOperation,
 }
 
@@ -87,10 +87,10 @@ impl RecoveryContextOperationPort for RecoveryPort {
             browser_session: request.browser_session(),
             incarnation: request.incarnation().value(),
             state: request.state(),
-            recovery_evidence: request.recovery_evidence().to_vec(),
+            recovery_evidence: request.recovery_evidence().cloned(),
             create_attempt_recovery_evidence: request
                 .create_attempt_recovery_evidence()
-                .to_vec(),
+                .cloned(),
             operation: *request.operation(),
         });
         if self.fail_recovery.get() {
@@ -159,9 +159,15 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
     let mut recovery = bound
         .into_recovery()
         .map_err(|_| "RecoveryRequired must enter recovery custody")?;
+    let fact = recovery
+        .recovery_fact(0)
+        .ok_or("exact recovery fact must be addressable")?;
 
     assert_eq!(
-        recovery.execute_recovery_context_operation(RecoveryOperation::ReconcileExactEvidence),
+        recovery.execute_recovery_context_operation(
+            fact,
+            RecoveryOperation::ReconcileExactEvidence,
+        ),
         Err(RecoveryContextOperationError::Adapter(
             RecoveryOperationFailure::BackendUnavailable
         ))
@@ -180,11 +186,12 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
     assert_eq!(first[0].browser_session, expected_session);
     assert_eq!(first[0].incarnation, expected_incarnation.value());
     assert_eq!(first[0].state, BrowserSessionState::RecoveryRequired);
-    assert_eq!(first[0].recovery_evidence, expected_recovery_evidence);
     assert_eq!(
-        first[0].create_attempt_recovery_evidence,
-        expected_create_attempt_recovery_evidence
+        first[0].recovery_evidence.as_ref(),
+        expected_recovery_evidence.first(),
+        "request must expose only the selected exact recovery fact"
     );
+    assert_eq!(first[0].create_attempt_recovery_evidence, None);
     assert_eq!(
         first[0].operation,
         RecoveryOperation::ReconcileExactEvidence
@@ -193,7 +200,7 @@ fn recovery_custody_routes_only_purpose_bounded_io_to_the_exact_consumed_adapter
 
     fail_recovery.set(false);
     recovery
-        .execute_recovery_context_operation(RecoveryOperation::ReconcileExactEvidence)
+        .execute_recovery_context_operation(fact, RecoveryOperation::ReconcileExactEvidence)
         .map_err(|_| "purpose-bounded recovery operation must reach the retained adapter")?;
     assert_eq!(recovery_calls.get(), 2);
     assert_eq!(
@@ -256,8 +263,14 @@ fn recovery_dispatch_preserves_non_empty_create_attempt_provenance_on_failure_an
     let mut recovery = bound
         .into_recovery()
         .map_err(|_| "uncertain create must enter recovery custody")?;
+    let fact = recovery
+        .create_attempt_recovery_fact(0)
+        .ok_or("exact create-attempt recovery fact must be addressable")?;
     assert_eq!(
-        recovery.execute_recovery_context_operation(RecoveryOperation::ReconcileExactEvidence),
+        recovery.execute_recovery_context_operation(
+            fact,
+            RecoveryOperation::ReconcileExactEvidence,
+        ),
         Err(RecoveryContextOperationError::Adapter(
             RecoveryOperationFailure::BackendUnavailable
         ))
@@ -275,16 +288,17 @@ fn recovery_dispatch_preserves_non_empty_create_attempt_provenance_on_failure_an
     assert_eq!(first[0].browser_session, expected_session);
     assert_eq!(first[0].incarnation, expected_incarnation.value());
     assert_eq!(first[0].state, BrowserSessionState::RecoveryRequired);
-    assert_eq!(first[0].recovery_evidence, expected_recovery_evidence);
+    assert_eq!(first[0].recovery_evidence, None);
     assert_eq!(
-        first[0].create_attempt_recovery_evidence,
-        expected_create_attempt_recovery_evidence
+        first[0].create_attempt_recovery_evidence.as_ref(),
+        expected_create_attempt_recovery_evidence.first(),
+        "request must expose only the selected exact create-attempt fact"
     );
     drop(first);
 
     fail_recovery.set(false);
     recovery
-        .execute_recovery_context_operation(RecoveryOperation::ReconcileExactEvidence)
+        .execute_recovery_context_operation(fact, RecoveryOperation::ReconcileExactEvidence)
         .map_err(|_| "recovery success must use the retained adapter")?;
     assert_eq!(recovery_calls.get(), 2);
     assert_eq!(recovery.state(), BrowserSessionState::RecoveryRequired);
