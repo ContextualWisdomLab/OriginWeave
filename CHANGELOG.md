@@ -9,6 +9,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Corrected the root Browser Session architecture contract so `PresentationMutationAuthority` is explicitly bound to `BrowserSessionIncarnation`; the incarnation participates in authorization validation and provides sequential-ABA separation when external session/context identifiers and local epochs are reused, while the disposable-isolation identity remains the exact remote lifecycle boundary rather than a substitute for aggregate incarnation.
 - Prevented ownership-clean `TransportLost` sessions from entering Browser Session recovery custody. Recovery handoff now requires exact unresolved recovery/create-attempt evidence for `TransportLost`, while `RecoveryRequired` remains recovery-eligible; transport loss before remote ownership or after proven destruction therefore cannot mint a purpose-bounded adapter-operation capability.
 - Preserved Browser Session create-attempt provenance through uncertain creation, duplicate-candidate rejection, and accepted/rejected completion-settlement failure. Recovery now keeps aggregate-issued attempt epoch, disposition, and complete candidate identity without collapsing a previously accepted same-valued owner into later candidate evidence; the abandonment/incarnation atomic updates use `AtomicU64::try_update` without changing their memory ordering or overflow behavior.
 - Added one-way same-adapter Browser Session recovery custody for `RecoveryRequired` and for `TransportLost` with retained unresolved ownership evidence through `BoundBrowserSessionRecovery<P>`, preventing recovery evidence from regaining raw adapter or ordinary command authority. Proven destruction now retires only the exact live hot ownership record after adapter-proven success; failed destruction keeps `Uncertain` ownership with exact `UnprovenDestruction { context, context_epoch }` evidence.
@@ -106,7 +107,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - DNS TLS identity requires an applicable subjectAltName and never falls back to Common Name; literal IPv4 and IPv6 origins require exact IP subjectAltName entries.
 - TLS uses an explicit immutable trust-root bundle and fixed verification time, and permits only TLS 1.2 and TLS 1.3.
 - TLS trust-bundle policy identifiers must contain at least one ASCII alphanumeric character; punctuation-only labels are rejected while `.`, `_`, `:`, and `-` remain permitted.
-- TLS resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verifier hooks are disabled in the first slice.
+- TLS resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verification are disabled in the first slice.
 - The operating-system peer is rechecked before, during, and after the deadline-bound TLS handshake.
 - ALPN selection is restricted to the caller's bounded allow-list, while absence is either explicitly recorded or rejected by policy.
 - Revocation is reported as not configured; the product makes no OCSP or CRL validation claim without supplied revocation evidence.
