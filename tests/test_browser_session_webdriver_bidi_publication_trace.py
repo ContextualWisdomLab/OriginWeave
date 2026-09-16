@@ -1,45 +1,46 @@
-"""Repository contract for Browser Session WebDriver BiDi publication provenance."""
+"""Repository contract for Browser Session's single-writer WebDriver BiDi provenance."""
 
 from __future__ import annotations
 
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ADR = ROOT / "docs/adr/0114-browser-session-disposable-context-authority.md"
 TRACE = ROOT / "docs/traceability/browser-session-lifecycle-authority.md"
+CANONICAL_RECEIPT = "docs/traceability/webdriver-bidi-publication-current.md"
+DATED_TR = re.compile(r"WD-webdriver-bidi-\d{8}")
+VOLATILE_CURRENTNESS = re.compile(
+    r"(?:current|latest|previous) published WebDriver BiDi Working Draft",
+    re.IGNORECASE,
+)
 
 
 class BrowserSessionWebDriverBidiPublicationTraceTests(unittest.TestCase):
-    """Keep dated W3C publication provenance separate from mutable editor/runtime state."""
+    """Keep standards freshness with the canonical originweave-bidi owner."""
 
-    def test_current_previous_and_editor_provenance_are_distinct(self) -> None:
+    def test_browser_session_references_canonical_publication_receipt(self) -> None:
         adr = ADR.read_text(encoding="utf-8")
         trace = TRACE.read_text(encoding="utf-8")
 
         for document in (adr, trace):
-            self.assertIn("WD-webdriver-bidi-20260914", document)
-            self.assertIn("WD-webdriver-bidi-20260909", document)
-            self.assertIn("https://w3c.github.io/webdriver-bidi/", document)
-            self.assertRegex(
-                document,
-                r"14 September 2026.*current published WebDriver BiDi Working Draft",
-            )
-            self.assertRegex(
-                document,
-                r"WD-webdriver-bidi-20260909.*previous published version",
-            )
-            self.assertRegex(
-                document,
-                r"Editor(?:'s|’s) Draft.*https://w3c.github.io/webdriver-bidi/",
-            )
+            self.assertIn(CANONICAL_RECEIPT, document)
+            self.assertIsNone(DATED_TR.search(document))
+            self.assertIsNone(VOLATILE_CURRENTNESS.search(document))
 
-    def test_publication_refresh_does_not_claim_runtime_repin(self) -> None:
+    def test_browser_session_keeps_only_lifecycle_relevant_standard_semantics(self) -> None:
         adr = ADR.read_text(encoding="utf-8")
         trace = TRACE.read_text(encoding="utf-8")
 
-        self.assertIn("does not repin runtime behavior", adr)
-        self.assertIn("runtime compatibility revision is a third", trace)
+        self.assertIn("browser.UserContext", adr)
+        self.assertIn("browser.createUserContext", adr)
+        self.assertIn("browsingContext.create", adr)
+        self.assertIn("browser.removeUserContext", adr)
+        self.assertIn("command ACK alone is not destruction proof", adr)
+        self.assertIn("command acknowledgement is insufficient proof", trace)
+        self.assertIn("runtime compatibility", adr)
+        self.assertIn("runtime compatibility", trace)
 
 
 if __name__ == "__main__":
