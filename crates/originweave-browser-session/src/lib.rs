@@ -27,5 +27,6 @@ mod recovery;
 pub use browser_session::*;
 pub use recovery::{
     BoundBrowserSessionRecovery, RecoveryContextOperationError, RecoveryContextOperationPort,
-    RecoveryContextOperationRequest,
+    RecoveryContextOperationRequest, RecoveryFact, RecoverySettlementError, RecoverySettlementPort,
+    RecoverySettlementRequest,
 };
