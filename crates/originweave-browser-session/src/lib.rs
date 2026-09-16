@@ -21,23 +21,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-mod browser_session {
-    include!("browser_session.rs");
-
-    impl<P> BoundBrowserSession<P> {
-        /// Route one crate-internal recovery operation through the exact retained adapter.
-        ///
-        /// The callback is deliberately crate-private: public callers never receive the raw adapter,
-        /// while recovery custody can still bind one purpose-bounded request to the same adapter
-        /// instance that performed lifecycle creation and destruction.
-        pub(crate) fn dispatch_recovery_operation<R>(
-            &mut self,
-            dispatch: impl FnOnce(&BrowserSession, &mut P) -> R,
-        ) -> R {
-            dispatch(&self.session, &mut self.port)
-        }
-    }
-}
+mod browser_session;
 mod recovery;
 
 pub use browser_session::*;
