@@ -79,10 +79,14 @@ def _rust_impl_headers(source: str) -> list[str]:
         bracket_depth = 0
         nested_brace_depth = 0
         body_start: int | None = None
+        comment_ranges: list[tuple[int, int]] = []
 
         while cursor < length:
+            is_comment = source.startswith("//", cursor) or source.startswith("/*", cursor)
             skipped = skip_non_code(cursor)
             if skipped != cursor:
+                if is_comment:
+                    comment_ranges.append((cursor, skipped))
                 cursor = skipped
                 continue
             char = source[cursor]
@@ -93,7 +97,7 @@ def _rust_impl_headers(source: str) -> list[str]:
                     nested_brace_depth -= 1
                 cursor += 1
                 continue
-            if char == "(" :
+            if char == "(":
                 paren_depth += 1
             elif char == ")" and paren_depth:
                 paren_depth -= 1
@@ -115,7 +119,14 @@ def _rust_impl_headers(source: str) -> list[str]:
             cursor += 1
 
         if body_start is not None:
-            headers.append(re.sub(r"\s+", " ", source[start:body_start]).strip())
+            header_parts: list[str] = []
+            fragment_start = start
+            for comment_start, comment_end in comment_ranges:
+                header_parts.append(source[fragment_start:comment_start])
+                header_parts.append(" ")
+                fragment_start = comment_end
+            header_parts.append(source[fragment_start:body_start])
+            headers.append(re.sub(r"\s+", " ", "".join(header_parts)).strip())
             index = body_start + 1
         else:
             index = cursor + 1
@@ -214,6 +225,42 @@ where
         ]
         self.assertEqual(len(request_headers), 2)
         self.assertIn("RecoveryMarker<{ 1 + 1 }>", request_headers[1])
+
+    def test_impl_header_parser_removes_comment_text_before_classification(self) -> None:
+        """Comment text must not disguise an inherent request implementation as a trait impl."""
+
+        sample = """
+impl<O> RecoveryContextOperationRequest<O> {
+    pub fn operation(&self) -> &O { todo!() }
+}
+impl<O> RecoveryContextOperationRequest<O>
+// for RecoveryContextOperationRequest
+{
+    pub fn from_raw(operation: O) -> Self { todo!() }
+}
+impl<O> RecoveryContextOperationRequest<O>
+/* for RecoveryContextOperationRequest */
+{
+    pub fn from_raw_again(operation: O) -> Self { todo!() }
+}
+"""
+        request_headers = [
+            header
+            for header in _rust_impl_headers(sample)
+            if "RecoveryContextOperationRequest" in header
+        ]
+        self.assertEqual(
+            request_headers,
+            ["impl<O> RecoveryContextOperationRequest<O>"] * 3,
+        )
+        self.assertEqual(
+            [
+                header
+                for header in request_headers
+                if " for RecoveryContextOperationRequest" not in header
+            ],
+            request_headers,
+        )
 
     def test_hostile_fixture_preserves_uncertainty_after_adapter_result(self) -> None:
         """Adapter success or failure must not silently become reconciliation proof."""
