@@ -53,6 +53,7 @@ def _rust_impl_headers(source: str) -> list[str]:
                 if source[cursor] == quote:
                     return cursor + 1
                 if quote == "'" and source[cursor] == "\n":
+                    # A Rust lifetime such as 'a is not a character literal.
                     return position + 1
                 cursor += 1
             return position + 1 if quote == "'" else length
@@ -92,7 +93,7 @@ def _rust_impl_headers(source: str) -> list[str]:
                     nested_brace_depth -= 1
                 cursor += 1
                 continue
-            if char == "(":
+            if char == "(" :
                 paren_depth += 1
             elif char == ")" and paren_depth:
                 paren_depth -= 1
