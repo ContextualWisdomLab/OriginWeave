@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -32,11 +33,38 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
         ):
             self.assertIn(symbol, recovery_source)
 
+        request_struct = recovery_source.split(
+            "pub struct RecoveryContextOperationRequest<O> {", 1
+        )[1].split("\n}", 1)[0]
+        self.assertNotRegex(request_struct, r"(?m)^\s*pub(?:\([^)]*\))?\s+")
+
+        inherent_impls = re.findall(
+            r"impl(?:<[^\n{]+>)?\s+RecoveryContextOperationRequest(?:<[^\n{]+>)?\s*\{",
+            recovery_source,
+        )
+        self.assertEqual(len(inherent_impls), 1)
         request_impl = recovery_source.split(
             "impl<O> RecoveryContextOperationRequest", 1
         )[1].split("pub trait RecoveryContextOperationPort", 1)[0]
-        self.assertNotIn("pub fn new", request_impl)
-        self.assertNotIn("pub const fn new", request_impl)
+        public_methods = re.findall(
+            r"(?m)^\s*pub(?:\s+const)?\s+fn\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)",
+            request_impl,
+        )
+        self.assertGreater(len(public_methods), 0)
+        for method_name, parameters in public_methods:
+            self.assertIn(
+                "&self",
+                parameters,
+                f"{method_name} must remain an accessor, not a public construction path",
+            )
+
+        for constructor_pattern in (
+            r"impl(?:<[^\n{]+>)?\s+(?:(?:core|std)::default::)?Default\s+for\s+RecoveryContextOperationRequest",
+            r"impl(?:<[^\n{]+>)?\s+(?:(?:core|std)::convert::)?From<[^\n{]+>\s+for\s+RecoveryContextOperationRequest",
+            r"impl(?:<[^\n{]+>)?\s+(?:(?:core|std)::convert::)?TryFrom<[^\n{]+>\s+for\s+RecoveryContextOperationRequest",
+        ):
+            self.assertNotRegex(recovery_source, constructor_pattern)
+
         self.assertNotIn("pub fn browser_session(&self)", recovery_source)
         self.assertNotIn("pub fn port", recovery_source)
         self.assertNotIn("pub const fn port", recovery_source)
@@ -57,8 +85,10 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
             "request.create_attempt_recovery_evidence()",
             "RecoveryContextOperationError::Adapter",
             "expected_recovery_evidence",
+            "expected_create_attempt_recovery_evidence",
             "generic recovery adapter success is not itself destruction or reconciliation proof",
             "recovery operation dispatch must not erase unresolved ownership evidence",
+            "recovery operation dispatch must not erase create-attempt provenance",
         ):
             self.assertIn(token, hostile)
 
