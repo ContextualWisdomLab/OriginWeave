@@ -8,15 +8,16 @@ use crate::browser_session::{
 /// Opaque recovery-custody request for one purpose-bounded adapter operation.
 ///
 /// Construction is private to [`BoundBrowserSessionRecovery`]. The request snapshots the exact
-/// Browser Session identity, incarnation, unresolved lifecycle state, and both non-authorizing
-/// recovery-evidence ledgers immediately before adapter I/O. None of these fields independently grant
-/// ordinary creation, presentation mutation, or destruction authority.
+/// Browser Session identity, incarnation, unresolved lifecycle state, and exactly one current
+/// non-authorizing recovery fact immediately before adapter I/O. Sibling recovery facts are not
+/// disclosed to the operation adapter. None of these fields independently grant ordinary creation,
+/// presentation mutation, or destruction authority.
 pub struct RecoveryContextOperationRequest<O> {
     browser_session: BrowserSessionId,
     incarnation: BrowserSessionIncarnation,
     state: BrowserSessionState,
-    recovery_evidence: Vec<BrowserSessionRecoveryEvidence>,
-    create_attempt_recovery_evidence: Vec<DisposableContextCreateRecoveryEvidence>,
+    recovery_evidence: Option<BrowserSessionRecoveryEvidence>,
+    create_attempt_recovery_evidence: Option<DisposableContextCreateRecoveryEvidence>,
     operation: O,
 }
 
@@ -39,16 +40,18 @@ impl<O> RecoveryContextOperationRequest<O> {
         self.state
     }
 
-    /// Return the exact non-authorizing remote-ownership evidence captured before adapter I/O.
+    /// Return the selected identity-oriented recovery fact, when this operation targets that ledger.
     #[must_use]
-    pub fn recovery_evidence(&self) -> &[BrowserSessionRecoveryEvidence] {
-        &self.recovery_evidence
+    pub const fn recovery_evidence(&self) -> Option<&BrowserSessionRecoveryEvidence> {
+        self.recovery_evidence.as_ref()
     }
 
-    /// Return exact create-attempt recovery provenance captured before adapter I/O.
+    /// Return the selected create-attempt recovery fact, when this operation targets that ledger.
     #[must_use]
-    pub fn create_attempt_recovery_evidence(&self) -> &[DisposableContextCreateRecoveryEvidence] {
-        &self.create_attempt_recovery_evidence
+    pub const fn create_attempt_recovery_evidence(
+        &self,
+    ) -> Option<&DisposableContextCreateRecoveryEvidence> {
+        self.create_attempt_recovery_evidence.as_ref()
     }
 
     /// Return the adapter-defined purpose-bounded recovery operation.
@@ -61,9 +64,10 @@ impl<O> RecoveryContextOperationRequest<O> {
 /// Adapter extension for purpose-bounded recovery operations on the exact consumed lifecycle port.
 ///
 /// Browser Session remains protocol-agnostic. Implementations own their operation, output, and error
-/// vocabularies, while recovery custody supplies only immutable lifecycle provenance and routes the
-/// request through the same concrete adapter instance consumed by [`BoundBrowserSession`]. A successful
-/// adapter return is not itself proof that remote ownership was reconciled or destroyed.
+/// vocabularies, while recovery custody supplies only the one current recovery fact selected by a
+/// Browser Session-issued [`RecoveryFact`] and routes the request through the same concrete adapter
+/// instance consumed by [`BoundBrowserSession`]. A successful adapter return is not itself proof that
+/// remote ownership was reconciled or destroyed.
 pub trait RecoveryContextOperationPort: DisposableContextPort {
     /// Adapter-defined recovery operation vocabulary.
     type Operation;
@@ -84,6 +88,10 @@ pub trait RecoveryContextOperationPort: DisposableContextPort {
 pub enum RecoveryContextOperationError<E> {
     /// Recovery custody has already reached a terminal state with no unresolved command purpose.
     RecoveryClosed,
+    /// The selected fact belongs to another Browser Session or process-local incarnation.
+    AuthorityMismatch,
+    /// The selected fact was issued for an older ledger revision or no longer addresses a current fact.
+    StaleFact,
     /// The retained adapter attempted the recovery operation and returned its bounded failure.
     Adapter(E),
 }
@@ -106,6 +114,12 @@ pub struct RecoveryFact {
     revision: u64,
     ledger: RecoveryFactLedger,
     index: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RecoveryFactValidationError {
+    AuthorityMismatch,
+    StaleFact,
 }
 
 /// Opaque request used by the retained adapter to verify one independently qualified recovery proof.
@@ -200,8 +214,8 @@ pub enum RecoverySettlementError<E> {
 /// This wrapper is obtained only by consuming a bound session that has already entered
 /// [`BrowserSessionState::RecoveryRequired`] or entered [`BrowserSessionState::TransportLost`] while
 /// retaining unresolved remote-ownership evidence. It exposes lifecycle state, exact non-authorizing
-/// recovery evidence, and purpose-bounded recovery-operation and recovery-settlement paths through the
-/// retained adapter. It deliberately provides none of the ordinary create, presentation-authority,
+/// recovery evidence, and exact-fact-bounded recovery-operation and recovery-settlement paths through
+/// the retained adapter. It deliberately provides none of the ordinary create, presentation-authority,
 /// epoch-advance, destroy, authorized-operation, or normal-finish methods, and it does not expose the
 /// inner [`BoundBrowserSession`] or concrete port.
 ///
@@ -361,18 +375,57 @@ impl<P: DisposableContextPort> BoundBrowserSessionRecovery<P> {
             index,
         })
     }
+
+    fn select_recovery_fact(
+        &self,
+        fact: RecoveryFact,
+    ) -> Result<
+        (
+            Option<BrowserSessionRecoveryEvidence>,
+            Option<DisposableContextCreateRecoveryEvidence>,
+        ),
+        RecoveryFactValidationError,
+    > {
+        let session = self.bound.browser_session();
+        if fact.browser_session != session.id() || fact.incarnation != session.incarnation() {
+            return Err(RecoveryFactValidationError::AuthorityMismatch);
+        }
+        if fact.revision != self.revision {
+            return Err(RecoveryFactValidationError::StaleFact);
+        }
+        match fact.ledger {
+            RecoveryFactLedger::Recovery => {
+                let evidence = self
+                    .recovery_evidence()
+                    .get(fact.index)
+                    .cloned()
+                    .ok_or(RecoveryFactValidationError::StaleFact)?;
+                Ok((Some(evidence), None))
+            }
+            RecoveryFactLedger::CreateAttempt => {
+                let evidence = self
+                    .create_attempt_recovery_evidence()
+                    .get(fact.index)
+                    .cloned()
+                    .ok_or(RecoveryFactValidationError::StaleFact)?;
+                Ok((None, Some(evidence)))
+            }
+        }
+    }
 }
 
 impl<P: RecoveryContextOperationPort> BoundBrowserSessionRecovery<P> {
     /// Execute one purpose-bounded recovery operation through the exact retained lifecycle adapter.
     ///
-    /// The request snapshots the unresolved aggregate state and both recovery-evidence ledgers before
-    /// adapter I/O. Adapter success or failure leaves Browser Session state and evidence unchanged;
-    /// protocol-specific code must provide separate, reviewed reconciliation proof before uncertainty
-    /// can be resolved. Once exact-fact settlement closes recovery to `Ended`, later operations fail
-    /// before retained-adapter I/O.
+    /// A current Browser Session-issued recovery fact must be supplied. Session/incarnation, current
+    /// ledger revision, and current fact address are validated before adapter I/O. The adapter receives
+    /// only that selected fact rather than the sibling recovery ledgers. Adapter success or failure
+    /// leaves Browser Session state and evidence unchanged; protocol-specific code must provide a
+    /// separate reviewed reconciliation proof before uncertainty can be retired. Once exact-fact
+    /// settlement closes recovery to `Ended`, later operations fail before retained-adapter I/O.
     pub fn execute_recovery_context_operation(
         &mut self,
+        fact: RecoveryFact,
         operation: P::Operation,
     ) -> Result<P::Output, RecoveryContextOperationError<P::Error>> {
         if !matches!(
@@ -381,15 +434,21 @@ impl<P: RecoveryContextOperationPort> BoundBrowserSessionRecovery<P> {
         ) {
             return Err(RecoveryContextOperationError::RecoveryClosed);
         }
+        let (recovery_evidence, create_attempt_recovery_evidence) = self
+            .select_recovery_fact(fact)
+            .map_err(|error| match error {
+                RecoveryFactValidationError::AuthorityMismatch => {
+                    RecoveryContextOperationError::AuthorityMismatch
+                }
+                RecoveryFactValidationError::StaleFact => RecoveryContextOperationError::StaleFact,
+            })?;
         self.bound.dispatch_recovery_operation(|session, port| {
             let request = RecoveryContextOperationRequest {
                 browser_session: session.id(),
                 incarnation: session.incarnation(),
                 state: session.state(),
-                recovery_evidence: session.recovery_evidence().to_vec(),
-                create_attempt_recovery_evidence: session
-                    .create_attempt_recovery_evidence()
-                    .to_vec(),
+                recovery_evidence,
+                create_attempt_recovery_evidence,
                 operation,
             };
             port.execute_recovery_context_operation(&request)
@@ -410,35 +469,19 @@ impl<P: RecoverySettlementPort> BoundBrowserSessionRecovery<P> {
         fact: RecoveryFact,
         proof: P::Proof,
     ) -> Result<(), RecoverySettlementError<P::Error>> {
-        let session = self.bound.browser_session();
-        if fact.browser_session != session.id() || fact.incarnation != session.incarnation() {
-            return Err(RecoverySettlementError::AuthorityMismatch);
-        }
-        if fact.revision != self.revision {
-            return Err(RecoverySettlementError::StaleFact);
-        }
+        let (recovery_evidence, create_attempt_recovery_evidence) = self
+            .select_recovery_fact(fact)
+            .map_err(|error| match error {
+                RecoveryFactValidationError::AuthorityMismatch => {
+                    RecoverySettlementError::AuthorityMismatch
+                }
+                RecoveryFactValidationError::StaleFact => RecoverySettlementError::StaleFact,
+            })?;
         let next_revision = self
             .revision
             .checked_add(1)
             .ok_or(RecoverySettlementError::RevisionExhausted)?;
-        let (recovery_evidence, create_attempt_recovery_evidence) = match fact.ledger {
-            RecoveryFactLedger::Recovery => {
-                let evidence = self
-                    .recovery_evidence()
-                    .get(fact.index)
-                    .cloned()
-                    .ok_or(RecoverySettlementError::StaleFact)?;
-                (Some(evidence), None)
-            }
-            RecoveryFactLedger::CreateAttempt => {
-                let evidence = self
-                    .create_attempt_recovery_evidence()
-                    .get(fact.index)
-                    .cloned()
-                    .ok_or(RecoverySettlementError::StaleFact)?;
-                (None, Some(evidence))
-            }
-        };
+        let session = self.bound.browser_session();
         let request = RecoverySettlementRequest {
             browser_session: session.id(),
             incarnation: session.incarnation(),
