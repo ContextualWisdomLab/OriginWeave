@@ -48,13 +48,14 @@ class WebDriverBiDiPresentationAdapterContractTests(unittest.TestCase):
             "RED: latest WebDriver BiDi publication is not traceable beside the qualified runtime pin",
         )
         receipt = publication_receipt.read_text(encoding="utf-8")
-        self.assertIn("2026-09-09", receipt)
+        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
         self.assertIn(
-            "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/",
+            "Canonical publication history: https://www.w3.org/standards/history/webdriver-bidi/",
             receipt,
         )
-        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
-        self.assertIn("Latest published Working Draft: `2026-09-09`", receipt)
+        self.assertIn("Latest published Working Draft:", receipt)
+        self.assertIn("Previous published Working Draft:", receipt)
+        self.assertNotIn("Latest published Working Draft: `2026-09-03`", receipt)
 
         self.assertIn("PresentationSurface::Screen", text)
         self.assertIn("PresentationSurface::Viewport", text)
