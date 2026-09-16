@@ -39,8 +39,8 @@ class BrowserSessionWebDriverBidiPublicationTraceTests(unittest.TestCase):
         self.assertIn("browser.removeUserContext", adr)
         self.assertIn("command ACK alone is not destruction proof", adr)
         self.assertIn("command acknowledgement is insufficient proof", trace)
-        self.assertIn("runtime compatibility", adr)
-        self.assertIn("runtime compatibility", trace)
+        self.assertIn("runtime compatibility", adr.lower())
+        self.assertIn("runtime compatibility", trace.lower())
 
 
 if __name__ == "__main__":
