@@ -3,13 +3,13 @@
 Status: active standards traceability
 Observed: 2026-09-16
 Runtime-compatible pin: `2026-09-03`
-Latest published Working Draft: `2026-09-14`
-Previous published Working Draft: `2026-09-09`
+Latest published Working Draft: `2026-09-16`
+Previous published Working Draft: `2026-09-14`
 Editor's Draft: `https://w3c.github.io/webdriver-bidi/`
 
 ## Problem
 
-The `originweave-bidi` presentation capability map is deliberately version-pinned, but publication provenance and runtime qualification are separate facts. On 2026-09-16 the canonical W3C Technical Report page identifies the 14 September 2026 Working Draft as the latest published version, the 9 September 2026 Working Draft as the previous published version, and the Editor's Draft as a separate mutable surface. The adapter remains qualified against the immutable 3 September 2026 Working Draft.
+The `originweave-bidi` presentation capability map is deliberately version-pinned, but publication provenance and runtime qualification are separate facts. On 2026-09-16 the canonical W3C publication-history page identifies the 16 September 2026 Working Draft as the latest published version, the 14 September 2026 Working Draft as the previous published version, and the Editor's Draft as a separate mutable surface. The adapter remains qualified against the immutable 3 September 2026 Working Draft.
 
 Treating publication freshness and runtime qualification as the same datum creates two bad failure modes: documentation can become false whenever W3C publishes a new draft, or an automation can silently repin the runtime compatibility claim without re-running the browser/protocol qualification that gives the pin meaning.
 
@@ -17,13 +17,15 @@ Treating publication freshness and runtime qualification as the same datum creat
 
 Canonical publication page: https://www.w3.org/TR/webdriver-bidi/
 
-Latest immutable published Working Draft: https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/
+Canonical publication history: https://www.w3.org/standards/history/webdriver-bidi/
 
-Previous immutable published Working Draft: https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+Latest immutable published Working Draft: https://www.w3.org/TR/2026/WD-webdriver-bidi-20260916/
+
+Previous immutable published Working Draft: https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/
 
 Mutable Editor's Draft: https://w3c.github.io/webdriver-bidi/
 
-The 14 September publication exposes the standard presentation/lifecycle surfaces used by OriginWeave's capability analysis, including `browsingContext.setViewport`, `browser.createUserContext` / `browser.removeUserContext`, `emulation.setLocaleOverride`, `emulation.setMediaFeaturesOverride`, `emulation.setScreenSettingsOverride`, `emulation.setTimezoneOverride`, and `emulation.setUserAgentOverride`. Their presence is standards research evidence, not proof that the existing runtime adapter has been requalified against the new publication.
+The 16 September publication continues to expose the standard presentation/lifecycle surfaces used by OriginWeave's capability analysis, including `browsingContext.setViewport`, `browser.createUserContext` / `browser.removeUserContext`, `emulation.setLocaleOverride`, `emulation.setMediaFeaturesOverride`, `emulation.setScreenSettingsOverride`, `emulation.setTimezoneOverride`, and `emulation.setUserAgentOverride`. Their presence is standards research evidence, not proof that the existing runtime adapter has been requalified against the new publication.
 
 ## Runtime compatibility decision
 
@@ -45,8 +47,8 @@ This receipt does not close OriginWeave #292. The buyer-visible acceptance still
 
 ## Traceability
 
-- W3C latest published version observed 2026-09-16: WebDriver BiDi Working Draft, 14 September 2026.
-- Previous published version: WebDriver BiDi Working Draft, 9 September 2026.
+- W3C latest published version observed 2026-09-16: WebDriver BiDi Working Draft, 16 September 2026.
+- Previous published version: WebDriver BiDi Working Draft, 14 September 2026.
 - Mutable Editor's Draft: https://w3c.github.io/webdriver-bidi/.
 - Runtime-qualified OriginWeave adapter pin: WebDriver BiDi Working Draft, 3 September 2026.
 - OriginWeave buyer acceptance owner: issue #292.
@@ -55,8 +57,8 @@ This receipt does not close OriginWeave #292. The buyer-visible acceptance still
 
 ## References
 
-World Wide Web Consortium. (2026, September 14). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/
+World Wide Web Consortium. (2026, September 16). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260916/
 
-World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft; previous published version). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+World Wide Web Consortium. (2026, September 14). *WebDriver BiDi* (W3C Working Draft; previous published version). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/
 
 World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft; runtime-qualified OriginWeave pin). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
