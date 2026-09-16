@@ -1330,6 +1330,18 @@ impl<P: DisposableContextPort> BoundBrowserSession<P> {
     pub fn finish(&mut self) -> Result<(), BrowserSessionError> {
         self.session.end()
     }
+
+    /// Route one crate-internal recovery operation through the exact retained adapter.
+    ///
+    /// The callback is deliberately crate-private: external consumers never receive the raw adapter,
+    /// while recovery custody can bind one purpose-bounded request to the same adapter instance that
+    /// performed lifecycle creation and destruction.
+    pub(crate) fn dispatch_recovery_operation<R>(
+        &mut self,
+        dispatch: impl FnOnce(&BrowserSession, &mut P) -> R,
+    ) -> R {
+        dispatch(&self.session, &mut self.port)
+    }
 }
 
 impl<P: AuthorizedContextOperationPort> BoundBrowserSession<P> {
