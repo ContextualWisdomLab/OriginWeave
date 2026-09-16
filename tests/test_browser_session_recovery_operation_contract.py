@@ -10,6 +10,118 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CRATE = ROOT / "crates/originweave-browser-session"
 
 
+def _rust_impl_headers(source: str) -> list[str]:
+    """Return Rust impl headers while ignoring nested delimiters and literal/comment text."""
+
+    headers: list[str] = []
+    length = len(source)
+    index = 0
+
+    def skip_non_code(position: int) -> int:
+        if source.startswith("//", position):
+            newline = source.find("\n", position + 2)
+            return length if newline < 0 else newline + 1
+        if source.startswith("/*", position):
+            depth = 1
+            cursor = position + 2
+            while cursor < length and depth:
+                if source.startswith("/*", cursor):
+                    depth += 1
+                    cursor += 2
+                elif source.startswith("*/", cursor):
+                    depth -= 1
+                    cursor += 2
+                else:
+                    cursor += 1
+            return cursor
+
+        raw = re.match(r"(?:br|r)(?P<hashes>#{0,255})\"", source[position:])
+        if raw:
+            hashes = raw.group("hashes")
+            cursor = position + raw.end()
+            terminator = '"' + hashes
+            end = source.find(terminator, cursor)
+            return length if end < 0 else end + len(terminator)
+
+        if source[position] in ('"', "'"):
+            quote = source[position]
+            cursor = position + 1
+            while cursor < length:
+                if source[cursor] == "\\":
+                    cursor += 2
+                    continue
+                if source[cursor] == quote:
+                    return cursor + 1
+                if quote == "'" and source[cursor] == "\n":
+                    return position + 1
+                cursor += 1
+            return position + 1 if quote == "'" else length
+        return position
+
+    while index < length:
+        skipped = skip_non_code(index)
+        if skipped != index:
+            index = skipped
+            continue
+        match = re.match(r"impl\b", source[index:])
+        if not match:
+            index += 1
+            continue
+        if index > 0 and (source[index - 1].isalnum() or source[index - 1] == "_"):
+            index += 1
+            continue
+
+        start = index
+        cursor = index + match.end()
+        angle_depth = 0
+        paren_depth = 0
+        bracket_depth = 0
+        nested_brace_depth = 0
+        body_start: int | None = None
+
+        while cursor < length:
+            skipped = skip_non_code(cursor)
+            if skipped != cursor:
+                cursor = skipped
+                continue
+            char = source[cursor]
+            if nested_brace_depth:
+                if char == "{":
+                    nested_brace_depth += 1
+                elif char == "}":
+                    nested_brace_depth -= 1
+                cursor += 1
+                continue
+            if char == "(":
+                paren_depth += 1
+            elif char == ")" and paren_depth:
+                paren_depth -= 1
+            elif char == "[":
+                bracket_depth += 1
+            elif char == "]" and bracket_depth:
+                bracket_depth -= 1
+            elif char == "<" and paren_depth == 0 and bracket_depth == 0:
+                angle_depth += 1
+            elif char == ">" and angle_depth and paren_depth == 0 and bracket_depth == 0:
+                angle_depth -= 1
+            elif char == "{":
+                if angle_depth == 0 and paren_depth == 0 and bracket_depth == 0:
+                    body_start = cursor
+                    break
+                nested_brace_depth = 1
+            elif char == ";" and angle_depth == 0 and paren_depth == 0 and bracket_depth == 0:
+                break
+            cursor += 1
+
+        if body_start is not None:
+            headers.append(re.sub(r"\s+", " ", source[start:body_start]).strip())
+            index = body_start + 1
+        else:
+            index = cursor + 1
+
+    return headers
+
+
 class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
     """Keep recovery I/O purpose-bounded to the exact consumed adapter."""
 
@@ -38,10 +150,9 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
         )[1].split("\n}", 1)[0]
         self.assertNotRegex(request_struct, r"(?m)^\s*pub(?:\([^)]*\))?\s+")
 
-        impl_headers = re.findall(r"(?ms)^\s*impl\b([^{}]*)\{", recovery_source)
         request_impl_headers = [
-            re.sub(r"\s+", " ", header).strip()
-            for header in impl_headers
+            header
+            for header in _rust_impl_headers(recovery_source)
             if "RecoveryContextOperationRequest" in header
         ]
         inherent_impl_headers = [
@@ -51,8 +162,8 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
         ]
         self.assertEqual(
             inherent_impl_headers,
-            ["<O> RecoveryContextOperationRequest<O>"],
-            "request accessors must remain the sole inherent impl; where-clause or multiline successors require review",
+            ["impl<O> RecoveryContextOperationRequest<O>"],
+            "request accessors must remain the sole inherent impl; every new inherent impl requires review",
         )
 
         request_impl = recovery_source.split(
@@ -80,6 +191,28 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
         self.assertNotIn("pub fn browser_session(&self)", recovery_source)
         self.assertNotIn("pub fn port", recovery_source)
         self.assertNotIn("pub const fn port", recovery_source)
+
+    def test_impl_header_parser_keeps_braced_const_where_predicates_visible(self) -> None:
+        """A braced const expression in a where clause must not hide a second inherent impl."""
+
+        sample = """
+impl<O> RecoveryContextOperationRequest<O> {
+    pub fn operation(&self) -> &O { todo!() }
+}
+impl<O> RecoveryContextOperationRequest<O>
+where
+    O: RecoveryMarker<{ 1 + 1 }>,
+{
+    pub fn from_raw(operation: O) -> Self { todo!() }
+}
+"""
+        request_headers = [
+            header
+            for header in _rust_impl_headers(sample)
+            if "RecoveryContextOperationRequest" in header
+        ]
+        self.assertEqual(len(request_headers), 2)
+        self.assertIn("RecoveryMarker<{ 1 + 1 }>", request_headers[1])
 
     def test_hostile_fixture_preserves_uncertainty_after_adapter_result(self) -> None:
         """Adapter success or failure must not silently become reconciliation proof."""
