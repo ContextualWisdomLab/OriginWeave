@@ -79,7 +79,7 @@ sequenceDiagram
 
 `BoundBrowserSession` is a linear lifecycle-port binding. It consumes one concrete port, exposes no public raw `&P`, and accepts no replacement port on lifecycle methods. `AuthorizedContextOperationRequest` is privately constructed after exact `PresentationMutationAuthority` validation. A raw browser id, adapter-selected value, diagnostic view, or second adapter cannot mint Browser Session authority.
 
-## RecoveryCustody and exact same-adapter recovery
+## Recovery custody and exact same-adapter recovery
 
 ```mermaid
 stateDiagram-v2
@@ -91,10 +91,11 @@ stateDiagram-v2
     Active --> RecoveryRequired: DisposableContextDestroyError / cleanup unproven
     Active --> TransportLost: transport_lost / TransportLossOwnedHandle
     RecoveryRequired --> RecoveryCustody: into_recovery(self)
-    TransportLost --> RecoveryCustody: into_recovery(self)
-    RecoveryCustody --> RecoveryCustody: execute_recovery_context_operation(operation)
+    TransportLost --> RecoveryCustody: into_recovery(self) only with unresolved evidence
+    RecoveryCustody --> RecoveryCustody: execute_recovery_context_operation(RecoveryFact, operation)
+    RecoveryCustody --> RecoveryCustody: settle one exact RecoveryFact / revision++
+    RecoveryCustody --> Ended: final exact fact + hot ownership retired
     Active --> Ended: finish() after proven cleanup
-    RecoveryCustody --> [*]: persist or reconcile externally
 
     note right of RecoveryRequired
       Exact BrowserSessionRecoveryEvidence and
@@ -105,8 +106,9 @@ stateDiagram-v2
 
     note right of RecoveryCustody
       BoundBrowserSessionRecovery<P> retains the
-      exact consumed adapter. It exposes state,
-      evidence, and only RecoveryContextOperationPort.
+      exact consumed adapter. Recovery commands require
+      one current Browser Session-issued RecoveryFact;
+      the adapter sees only that selected fact.
       Raw P and ordinary Browser Session authority
       remain inaccessible.
     end note
@@ -126,18 +128,44 @@ sequenceDiagram
     C->>BS: into_recovery(self)
     BS-->>R: move exact BoundBrowserSession + same adapter; no I/O
 
-    C->>R: execute_recovery_context_operation(operation)
-    R->>R: snapshot session/incarnation/state + both evidence ledgers
+    C->>R: recovery_fact(index) or create_attempt_recovery_fact(index)
+    R-->>C: opaque RecoveryFact(session, incarnation, ledger, index, revision)
+    C->>R: execute_recovery_context_operation(fact, operation)
+    R->>R: validate state + session/incarnation + revision + exact current fact
+    alt fact foreign, stale, or no longer current
+        R-->>C: AuthorityMismatch or StaleFact
+        Note over R,P: adapter I/O = 0
+    else current exact fact
+        R->>BS: crate-private dispatch_recovery_operation
+        BS->>P: RecoveryContextOperationRequest(selected fact + operation)
+        Note over P: sibling recovery facts are not disclosed
+        P->>B: adapter-owned purpose-bounded recovery command
+        B-->>P: result
+        P-->>R: Output or RecoveryContextOperationError::Adapter
+        Note over R,BS: success/failure does not clear Browser Session uncertainty
+    end
+
+    C->>R: settle_recovery_fact(fact, independently qualified proof)
+    R->>R: revalidate session/incarnation/revision/exact fact
     R->>BS: crate-private dispatch_recovery_operation
-    BS->>P: RecoveryContextOperationRequest(operation + provenance)
-    P->>B: adapter-owned purpose-bounded recovery command
-    B-->>P: result
-    P-->>R: Output or RecoveryContextOperationError::Adapter
-    Note over R,BS: success/failure does not clear Browser Session uncertainty
+    BS->>P: RecoverySettlementRequest(selected fact + proof)
+    P->>B: verify protocol-specific proof / post-condition evidence
+    alt proof rejected
+        P-->>R: RecoverySettlementError::Adapter
+        Note over R,BS: no domain fact is retired
+    else proof accepted
+        R->>BS: retire exactly selected fact
+        R->>R: recovery revision++
+        Note over R: every previously issued RecoveryFact becomes stale
+        alt no recovery facts or uncertain hot ownership remain
+            R->>BS: terminal Ended
+        end
+    end
+
     Note over R,P: no raw P, no generic caller callback, no ordinary create/destroy/presentation authority
 ```
 
-Recovery custody is narrower than protocol reconciliation. #316 remains responsible for WebDriver BiDi pending/accepted/quarantined tuple truth, remote liveness, event correlation, replay qualification, and concrete recovery-command semantics. `RecoveryContextOperationPort` only provides the same-consumed-adapter conduit. Adapter success is not destruction proof.
+Recovery custody is narrower than protocol reconciliation. #316 remains responsible for WebDriver BiDi pending/accepted/quarantined tuple truth, remote liveness, event correlation, replay qualification, and concrete recovery-command/proof semantics. `RecoveryContextOperationPort` provides the same-consumed-adapter conduit only for one current `RecoveryFact`; adapter success is not destruction proof. `RecoverySettlementPort` independently qualifies proof before Browser Session retires that exact fact.
 
 Dropping unresolved ordinary or recovery custody performs no browser I/O. `abandoned_bound_session_count()` is a process-local operability signal, not durable exact-handle storage or proof of cleanup.
 
@@ -160,10 +188,10 @@ stateDiagram-v2
 
 Navigation admission is bound to exact `BrowserSessionIncarnation`, `BrowsingContextId`, and current `BrowserContextEpoch`. The opaque navigation witness, not raw WebDriver BiDi navigation ids, controls terminal assignment. A navigation-invalidated `PresentationMutationAuthority` cannot authorize presentation mutation or authority-based cleanup. The exact bound lifecycle owner can still destroy its owned context without reopening presentation authority.
 
-## Same-raw-identity and Sequential ABA hostile cases
+## Same-raw-identity and sequential ABA hostile cases
 
 A single aggregate may create → prove destroy → recreate the same raw isolation/browsing-context values for **258 ownership generations**. Hot command-authority state remains bounded to live/uncertain ownership. The predecessor authority fails as `ContextNotOwned` immediately after destruction and as `AuthorityMismatch` after same-raw-id recreation because the epoch is monotonic.
 
 Across aggregate restart/recreation, `BrowserSessionIncarnation` prevents a retained authority from aggregate A from becoming valid in aggregate B even when raw `BrowserSessionId`, isolation, browsing-context id, and local epoch numerically alias.
 
-`RecoveryRequired` and `TransportLost` remain closed to ordinary lifecycle and presentation authority. `into_recovery(self)` is a one-way custody transfer, not command-authority resurrection; later protocol reconciliation stays purpose-bounded and must not infer cleanup authority from raw identifiers or treat command ACK as proof of destruction.
+`RecoveryRequired` and `TransportLost` remain closed to ordinary lifecycle and presentation authority. `into_recovery(self)` is a one-way custody transfer, not command-authority resurrection. A recovery command additionally requires a current opaque `RecoveryFact`; command ACK never settles that fact. Proof-bearing settlement can only retire the selected fact after independent adapter verification, and complete settlement reaches terminal `Ended` rather than reopening ordinary authority.
