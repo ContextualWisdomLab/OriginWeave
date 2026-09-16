@@ -583,7 +583,6 @@ struct OwnedContextRecord {
 }
 
 /// Aggregate root for disposable browser-context lifecycle and presentation mutation authority.
-#[derive(Debug)]
 pub struct BrowserSession {
     id: BrowserSessionId,
     incarnation: BrowserSessionIncarnation,
@@ -594,6 +593,24 @@ pub struct BrowserSession {
     contexts: BTreeMap<BrowsingContextId, OwnedContextRecord>,
     recovery_evidence: Vec<BrowserSessionRecoveryEvidence>,
     create_recovery_evidence: Vec<DisposableContextCreateRecoveryEvidence>,
+}
+
+impl fmt::Debug for BrowserSession {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BrowserSession")
+            .field("browser_session", &self.id)
+            .field("incarnation", &self.incarnation)
+            .field("state", &self.state)
+            .field("transport_lost", &self.transport_lost)
+            .field("owned_context_count", &self.contexts.len())
+            .field("recovery_evidence_count", &self.recovery_evidence.len())
+            .field(
+                "create_recovery_evidence_count",
+                &self.create_recovery_evidence.len(),
+            )
+            .finish()
+    }
 }
 
 /// Browser Session composed with the one lifecycle-port instance allowed to mutate its remote state.
