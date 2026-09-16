@@ -82,6 +82,8 @@ pub trait RecoveryContextOperationPort: DisposableContextPort {
 /// Failure from executing one recovery operation through the exact retained adapter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecoveryContextOperationError<E> {
+    /// Recovery custody has already reached a terminal state with no unresolved command purpose.
+    RecoveryClosed,
     /// The retained adapter attempted the recovery operation and returned its bounded failure.
     Adapter(E),
 }
@@ -367,11 +369,18 @@ impl<P: RecoveryContextOperationPort> BoundBrowserSessionRecovery<P> {
     /// The request snapshots the unresolved aggregate state and both recovery-evidence ledgers before
     /// adapter I/O. Adapter success or failure leaves Browser Session state and evidence unchanged;
     /// protocol-specific code must provide separate, reviewed reconciliation proof before uncertainty
-    /// can be resolved.
+    /// can be resolved. Once exact-fact settlement closes recovery to `Ended`, later operations fail
+    /// before retained-adapter I/O.
     pub fn execute_recovery_context_operation(
         &mut self,
         operation: P::Operation,
     ) -> Result<P::Output, RecoveryContextOperationError<P::Error>> {
+        if !matches!(
+            self.state(),
+            BrowserSessionState::RecoveryRequired | BrowserSessionState::TransportLost
+        ) {
+            return Err(RecoveryContextOperationError::RecoveryClosed);
+        }
         self.bound.dispatch_recovery_operation(|session, port| {
             let request = RecoveryContextOperationRequest {
                 browser_session: session.id(),
