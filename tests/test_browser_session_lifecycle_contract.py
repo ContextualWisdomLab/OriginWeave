@@ -278,7 +278,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         )
         for token in (
             "Status: Proposed",
-            "WD-webdriver-bidi-20260909",
+            "docs/traceability/webdriver-bidi-publication-current.md",
             "RecoveryRequired",
             "RecoveryRequiredOwnedHandle",
             "BrowserSessionIncarnation",
