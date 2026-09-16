@@ -99,21 +99,21 @@ fn terminal_recovery_settlement_revokes_generic_recovery_io() -> Result<(), &'st
     let mut recovery = bound
         .into_recovery()
         .map_err(|_| "unproven destruction must enter recovery custody")?;
-    recovery
-        .execute_recovery_context_operation(())
-        .map_err(|_| "recovery operation must be available while uncertainty remains")?;
-    assert_eq!(recovery_operation_calls.get(), 1);
-
     let fact = recovery
         .recovery_fact(0)
         .ok_or("unproven destruction recovery fact must exist")?;
+    recovery
+        .execute_recovery_context_operation(fact, ())
+        .map_err(|_| "recovery operation must be available while uncertainty remains")?;
+    assert_eq!(recovery_operation_calls.get(), 1);
+
     recovery
         .settle_recovery_fact(fact, ())
         .map_err(|_| "independently verified recovery fact must settle")?;
     assert_eq!(recovery.state(), BrowserSessionState::Ended);
 
     assert_eq!(
-        recovery.execute_recovery_context_operation(()),
+        recovery.execute_recovery_context_operation(fact, ()),
         Err(RecoveryContextOperationError::RecoveryClosed),
         "terminal recovery custody must not retain a generic adapter-I/O capability"
     );

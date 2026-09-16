@@ -1,74 +1,95 @@
 # Browser Session recovery settlement boundary
 
-Status: active-PR implementation evidence for #317. The source implementation now exists, but this document does not claim protected-main adoption, executable GREEN, browser acceptance, or release readiness until the exact head passes repository gates.
+Status: active-PR implementation evidence for #317. Source implementation exists, but this document does not claim protected-main adoption, executable GREEN, browser acceptance, or release readiness until the exact head passes repository gates.
 
 ## Problem
 
-`BoundBrowserSessionRecovery<P>` already preserved the exact consumed adapter and permitted purpose-bounded recovery I/O without exposing raw `P`. That solved custody and dispatch, but not recovery completion: adapter success or command acknowledgement deliberately left `RecoveryRequired` and both recovery ledgers unchanged because an I/O return value is not proof that remote browser ownership was destroyed or reconciled.
+`BoundBrowserSessionRecovery<P>` preserves the exact consumed adapter without exposing raw `P`. Recovery command execution and recovery completion are deliberately separate: an adapter return or browser command ACK is not proof that remote ownership is absent or reconciled.
 
-The settlement repair gives a protocol owner such as #316 a second-stage path: independently qualify browser evidence, submit it against one Browser Session-issued recovery fact, and retire only that exact uncertainty after the retained adapter verifies the proof.
+The settlement boundary therefore lets a protocol owner such as #316 independently qualify browser evidence, submit it against one Browser Session-issued `RecoveryFact`, and retire only that exact uncertainty after the retained adapter verifies the proof.
 
-A follow-on capability gap existed after complete settlement. The final exact fact could move the aggregate to terminal `Ended` while the caller still held `BoundBrowserSessionRecovery<P>`, and the generic recovery-operation method had no state gate. That left the exact retained adapter callable after the recovery purpose had ceased to exist. Terminal settlement now revokes that remaining command route: later generic recovery operations return `RecoveryContextOperationError::RecoveryClosed` before adapter I/O.
+Two follow-on capability gaps were found while hardening this boundary.
 
-## Constraints
+First, the final settlement could move the aggregate to terminal `Ended` while `BoundBrowserSessionRecovery<P>` still exposed generic recovery I/O. That route is now closed by a pre-I/O lifecycle-state gate returning `RecoveryContextOperationError::RecoveryClosed`.
 
-Browser Session owns deterministic lifecycle state and exact fact consumption. WebDriver BiDi remains an adapter and evidence source; its navigation ids, user-context ids, event ordering and liveness rules do not become Browser Session policy authority.
+Second, the still-open recovery command path originally needed only the aggregate recovery state and an adapter-defined operation. `RecoveryContextOperationRequest` then copied **both complete recovery ledgers** into the adapter request. That meant one recovery command could reach the retained adapter without naming the exact unresolved fact that justified it and could observe unrelated sibling facts. The current repair requires a Browser Session-issued current `RecoveryFact` for every operation and sends only that selected fact to the adapter.
 
-The implemented settlement boundary preserves these invariants:
+## Constraints and invariants
 
-- one opaque Browser Session-issued `RecoveryFact` addresses exactly one current recovery fact;
-- the handle is bound to the exact Browser Session id, process-local incarnation, ledger kind, index and current recovery-ledger revision;
-- foreign session/incarnation handles fail before adapter proof-verification I/O;
-- a successful settlement increments the revision, so every handle issued before that mutation becomes stale before adapter I/O;
-- proof verification runs through the exact retained adapter via `RecoverySettlementPort`, but successful verification retires only the fact named by the already validated handle;
-- failed proof verification leaves lifecycle state and both recovery ledgers unchanged;
-- identity-oriented `BrowserSessionRecoveryEvidence` and transaction-oriented `DisposableContextCreateRecoveryEvidence` remain separately addressable and separately retired;
-- settling an owned-context fact retires only the exact matching uncertain hot-ownership record; candidate/partial-create evidence never consumes an independently owned context merely because remote values alias;
-- partial settlement preserves every unrelated sibling fact;
-- when both recovery ledgers and uncertain ownership are empty, the aggregate reaches terminal `Ended`; it never recreates `Active`, `PresentationMutationAuthority`, navigation authority, normal create authority, an ordinary lifecycle owner, or a usable generic recovery-command capability;
-- a terminal recovery-operation attempt is rejected as `RecoveryClosed` before the retained adapter is called.
+Browser Session owns deterministic lifecycle state and exact fact validation/consumption. WebDriver BiDi remains an adapter and evidence source; protocol ids, tuple state, event ordering, command ACKs and liveness conclusions do not become Browser Session policy authority.
+
+The implementation preserves these invariants:
+
+- one opaque `RecoveryFact` addresses exactly one current identity-oriented or create-attempt recovery fact;
+- the handle binds Browser Session id, process-local incarnation, ledger kind, index and current recovery revision;
+- every generic recovery operation supplies a current `RecoveryFact` plus adapter-defined operation;
+- foreign operation facts fail as `RecoveryContextOperationError::AuthorityMismatch` before adapter I/O;
+- stale, replayed, shifted or out-of-range operation facts fail as `RecoveryContextOperationError::StaleFact` before adapter I/O;
+- `RecoveryContextOperationRequest` contains only the selected fact. It never snapshots sibling recovery vectors;
+- operation success/failure leaves lifecycle state and both recovery ledgers unchanged;
+- the same current fact may authorize retry attempts until settlement advances the revision;
+- settlement uses the same session/incarnation/revision/exact-address validation before proof-verifier I/O;
+- successful settlement increments the revision, invalidating every handle issued before that mutation;
+- failed proof verification leaves lifecycle state and both ledgers unchanged;
+- identity-oriented `BrowserSessionRecoveryEvidence` and transaction-oriented `DisposableContextCreateRecoveryEvidence` remain separately addressable and retired;
+- owned-context settlement retires only the exact matching uncertain hot record; candidate/partial-create evidence cannot consume an independently owned context merely because values alias;
+- partial settlement preserves unrelated sibling facts;
+- when both recovery ledgers and uncertain ownership are empty, the aggregate reaches terminal `Ended` and never recreates ordinary or generic recovery-command authority;
+- terminal operation attempts return `RecoveryClosed` before the retained adapter is called.
 
 ## Alternatives rejected
 
 Treating `RecoveryContextOperationPort` success as settlement is rejected because transport/protocol command completion is not independent proof of remote destruction or reconciliation.
 
-Keeping `execute_recovery_context_operation` callable after complete settlement is rejected because the retained adapter would remain an ambient browser-I/O capability after its recovery purpose ended. The wrapper may remain as terminal state/evidence custody, but the command route must be inert.
+Allowing `execute_recovery_context_operation(operation)` without a fact is rejected because aggregate recovery state alone is too broad to authorize retained-adapter I/O.
 
-Passing a raw vector index is rejected because removal of one fact can make an old index address a different sibling fact. A current-revision opaque handle makes stale replay fail closed.
+Copying both recovery ledgers into every `RecoveryContextOperationRequest` is rejected because it violates least authority and purpose limitation: the adapter learns sibling uncertainty that the selected operation does not need.
+
+Keeping generic recovery I/O callable after complete settlement is rejected because the retained adapter would remain an ambient browser-I/O capability after its recovery purpose ended.
+
+Passing a raw vector index is rejected because removal of one fact can make an old index address a different sibling. A current-revision opaque handle makes index-shift replay fail closed.
 
 Allowing the adapter to delete Browser Session evidence directly is rejected because it moves domain ownership truth into an adapter and makes protocol data authoritative over policy state.
 
-Returning from recovery custody to ordinary `BoundBrowserSession<P>` is rejected because reconciliation must not resurrect create, presentation, navigation or ordinary cleanup authority after uncertainty has crossed the recovery boundary.
+Returning from recovery custody to ordinary `BoundBrowserSession<P>` is rejected because reconciliation must not resurrect create, presentation, navigation or cleanup authority after uncertainty crossed the recovery boundary.
 
 ## Test-first contract and source repair
 
-Commit `738ec7d9a6635a8b4b0b9324026c2f0b433b9c77` introduced `crates/originweave-browser-session/tests/recovery_exact_fact_settlement.rs` as a structural RED. It requires:
+`recovery_exact_fact_settlement.rs` established proof-bearing exact-fact settlement: sibling preservation, stale replay rejection, foreign-fact pre-I/O rejection, verifier-failure non-mutation, independent identity/create-attempt ledgers, and terminal `Ended` without authority resurrection.
 
-1. two uncertain owned contexts: settling A preserves B; replay of A and a sibling handle issued before the revision change fail before proof I/O; rereading B permits proof verification; a wrong proof does not mutate B; exact B settlement closes only after no recovery facts remain;
-2. a fact issued by another Browser Session cannot reach the target session's proof verifier even when the caller possesses the opaque value;
-3. uncertain create evidence carried in the identity and create-attempt ledgers requires two independent settlements rather than one broad erase.
+`recovery_operation_terminal_closure.rs` established that generic recovery I/O works while a current recovery purpose exists, but final exact-fact settlement closes the command route before another adapter call.
 
-Commit `a99ea6bce6174fa98336f455d2ce2b1634f361b9` added `crates/originweave-browser-session/tests/recovery_operation_terminal_closure.rs` as a focused terminal-capability RED. It proves that a recovery operation is available while uncertainty remains, then settles the only recovery fact, requires terminal `Ended`, and requires the next generic recovery operation to fail as `RecoveryClosed` without a second adapter call.
+The current hardening adds `recovery_operation_exact_fact_scope.rs`. Its structural RED required the command API to accept `RecoveryFact`, disclose only the selected fact to `RecoveryContextOperationPort`, reject a fact issued before another settlement as `StaleFact` before operation I/O, and reject a foreign Browser Session fact as `AuthorityMismatch` before operation I/O.
 
-The source repair adds the opaque fact/request/error contract and verifier port in `recovery.rs`, plus crate-private aggregate mutation hooks that retire exact evidence and exact matching uncertain ownership only after proof verification. It also gates `execute_recovery_context_operation` to unresolved recovery states and returns `RecoveryClosed` after terminal settlement. It does not weaken the hostile fixtures and does not reinterpret generic recovery-operation success as proof.
+Production `recovery.rs` now shares exact-fact selection logic between command execution and settlement. `RecoveryContextOperationRequest` uses optional selected identity/create-attempt evidence fields rather than full vectors. `recovery_same_adapter_operation.rs` covers both ledger kinds while preserving the rule that command success or failure is non-settling. The terminal fixture now passes the same exact fact to the command before settling it and confirms `RecoveryClosed` takes precedence after terminal closure.
 
-Repository execution remains the next gate. Until the current exact head actually runs and passes repository contracts, rustfmt, locked tests, strict Clippy, rustdoc and production coverage, this is source-level GREEN intent rather than executable GREEN evidence.
+Repository execution remains the next gate. Until the current exact head actually runs and passes repository contracts, rustfmt, locked tests, strict Clippy, rustdoc and production coverage, this is source-level repair evidence rather than executable GREEN.
 
 ## Validation order
 
-`settle_recovery_fact` evaluates in this order:
+For `execute_recovery_context_operation(fact, operation)`:
+
+1. recovery custody must still be `RecoveryRequired` or `TransportLost`; otherwise `RecoveryClosed`;
+2. exact Browser Session id and incarnation must match;
+3. recovery revision must still match;
+4. the fact must still address a current entry in its ledger;
+5. only then is `RecoveryContextOperationRequest` built and the retained adapter invoked.
+
+Steps 2–4 map to `AuthorityMismatch` or `StaleFact` and occur before adapter I/O. The request carries only the selected fact. Adapter return does not mutate recovery state.
+
+For `settle_recovery_fact(fact, proof)`:
 
 1. exact Browser Session id and incarnation;
-2. current recovery-ledger revision;
-3. exact current ledger/index fact and next-revision capacity;
+2. current recovery revision and exact current ledger/index fact;
+3. next-revision capacity;
 4. retained-adapter proof verification;
 5. exact evidence retirement and, for owned-context evidence, exact uncertain ownership retirement;
 6. monotonic revision advance and terminal `Ended` only when no uncertainty remains.
 
-No adapter call occurs before the first three checks succeed. A failed verifier does not consume the fact. A successful mutation invalidates all previously issued fact handles before another settlement can be accepted. Separately, `execute_recovery_context_operation` first verifies that custody is still `RecoveryRequired` or `TransportLost`; `Ended` returns `RecoveryClosed` before `dispatch_recovery_operation` can touch the adapter.
+No proof-verifier call occurs before the exact-fact checks succeed. A failed verifier consumes nothing. A successful mutation invalidates all previously issued fact handles.
 
 ## Ownership handoff
 
-#317 owns this generic settlement and terminal-recovery-closure boundary. #316 remains responsible for deciding what WebDriver BiDi observation constitutes acceptable proof, for pending/accepted/quarantined tuple correlation, event replay handling and remote liveness. The dependency order is #317 exact-head executable GREEN → #318/#321 acceptance → ordinary non-force #316 adoption → pinned-Chromium recovery and post-condition evidence.
+#317 owns generic same-adapter recovery custody, exact-fact-scoped recovery commands, proof-bearing exact-fact settlement and terminal closure. #316 remains responsible for deciding what WebDriver BiDi observation constitutes acceptable proof, pending/accepted/quarantined tuple correlation, event replay handling, remote liveness and concrete recovery-command semantics.
 
-Any implementation that copies #316 protocol tuple state into Browser Session, consumes mutable sibling source, treats command ACK as proof, or preserves generic adapter I/O after terminal recovery violates this boundary.
+The dependency order remains #317 exact-head executable GREEN → #318/#321 acceptance → ordinary non-force #316 adoption → pinned-Chromium recovery and browser-observed post-condition evidence. Any implementation that copies #316 protocol tuple state into Browser Session, treats command ACK as proof, leaks sibling recovery facts into unrelated commands, or preserves generic adapter I/O after terminal recovery violates this boundary.

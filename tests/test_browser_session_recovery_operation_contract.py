@@ -146,7 +146,7 @@ def _rust_impl_headers(source: str) -> list[str]:
 
 
 class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
-    """Keep recovery I/O purpose-bounded to the exact consumed adapter."""
+    """Keep recovery I/O purpose-bounded to one exact fact on the consumed adapter."""
 
     def test_recovery_dispatch_stays_inside_native_owner_module(self) -> None:
         """Do not reopen raw adapter access to bridge recovery custody."""
@@ -172,6 +172,18 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
             "pub struct RecoveryContextOperationRequest<O> {", 1
         )[1].split("\n}", 1)[0]
         self.assertNotRegex(request_struct, r"(?m)^\s*pub(?:\([^)]*\))?\s+")
+        self.assertIn("Option<BrowserSessionRecoveryEvidence>", request_struct)
+        self.assertIn("Option<DisposableContextCreateRecoveryEvidence>", request_struct)
+        self.assertNotIn("Vec<BrowserSessionRecoveryEvidence>", request_struct)
+        self.assertNotIn("Vec<DisposableContextCreateRecoveryEvidence>", request_struct)
+
+        operation_impl = recovery_source.split(
+            "impl<P: RecoveryContextOperationPort> BoundBrowserSessionRecovery<P>", 1
+        )[1].split("impl<P: RecoverySettlementPort>", 1)[0]
+        self.assertIn("fact: RecoveryFact", operation_impl)
+        self.assertIn("select_recovery_fact(fact)", operation_impl)
+        self.assertIn("RecoveryContextOperationError::AuthorityMismatch", operation_impl)
+        self.assertIn("RecoveryContextOperationError::StaleFact", operation_impl)
 
         request_impl_headers = [
             header
@@ -307,6 +319,8 @@ where
         for token in (
             "RecoveryContextOperationPort",
             "execute_recovery_context_operation",
+            "recovery.recovery_fact(0)",
+            "recovery.create_attempt_recovery_fact(0)",
             "request.browser_session()",
             "request.incarnation()",
             "request.state()",
@@ -315,9 +329,27 @@ where
             "RecoveryContextOperationError::Adapter",
             "expected_recovery_evidence",
             "expected_create_attempt_recovery_evidence",
+            "request must expose only the selected exact recovery fact",
+            "request must expose only the selected exact create-attempt fact",
             "generic recovery adapter success is not itself destruction or reconciliation proof",
             "recovery operation dispatch must not erase unresolved ownership evidence",
             "recovery operation dispatch must not erase create-attempt provenance",
+        ):
+            self.assertIn(token, hostile)
+
+    def test_hostile_fixture_rejects_foreign_and_stale_operation_facts_before_io(self) -> None:
+        """One fact may authorize only its current exact recovery operation scope."""
+
+        hostile = (CRATE / "tests/recovery_operation_exact_fact_scope.rs").read_text(
+            encoding="utf-8"
+        )
+        for token in (
+            "execute_recovery_context_operation(first_fact",
+            "adapter request must expose only the selected recovery fact, not sibling uncertainty",
+            "RecoveryContextOperationError::StaleFact",
+            "RecoveryContextOperationError::AuthorityMismatch",
+            "a fact issued before ledger mutation must fail before adapter I/O",
+            "foreign_recovery_fact_is_rejected_before_operation_io",
         ):
             self.assertIn(token, hostile)
 
@@ -338,6 +370,7 @@ where
             self.assertIn("RecoveryContextOperationPort", document)
             self.assertIn("RecoveryContextOperationRequest", document)
             self.assertIn("same", document.lower())
+            self.assertIn("RecoveryFact", document)
         self.assertIn("pub(crate)", adr)
         self.assertIn("pub(crate)", trace)
         self.assertIn("success/failure does not clear Browser Session uncertainty", uml)
