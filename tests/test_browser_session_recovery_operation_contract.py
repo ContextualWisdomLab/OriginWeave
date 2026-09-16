@@ -17,6 +17,19 @@ def _rust_impl_headers(source: str) -> list[str]:
     length = len(source)
     index = 0
 
+    def starts_lifetime(position: int) -> bool:
+        """Distinguish Rust lifetimes/labels from quoted character literals."""
+
+        if source[position] != "'" or position + 1 >= length:
+            return False
+        cursor = position + 1
+        if not (source[cursor].isalpha() or source[cursor] == "_"):
+            return False
+        cursor += 1
+        while cursor < length and (source[cursor].isalnum() or source[cursor] == "_"):
+            cursor += 1
+        return cursor >= length or source[cursor] != "'"
+
     def skip_non_code(position: int) -> int:
         if source.startswith("//", position):
             newline = source.find("\n", position + 2)
@@ -43,6 +56,9 @@ def _rust_impl_headers(source: str) -> list[str]:
             end = source.find(terminator, cursor)
             return length if end < 0 else end + len(terminator)
 
+        if source[position] == "'" and starts_lifetime(position):
+            return position
+
         if source[position] in ('"', "'"):
             quote = source[position]
             cursor = position + 1
@@ -52,11 +68,8 @@ def _rust_impl_headers(source: str) -> list[str]:
                     continue
                 if source[cursor] == quote:
                     return cursor + 1
-                if quote == "'" and source[cursor] == "\n":
-                    # A Rust lifetime such as 'a is not a character literal.
-                    return position + 1
                 cursor += 1
-            return position + 1 if quote == "'" else length
+            return length
         return position
 
     while index < length:
@@ -79,14 +92,12 @@ def _rust_impl_headers(source: str) -> list[str]:
         bracket_depth = 0
         nested_brace_depth = 0
         body_start: int | None = None
-        comment_ranges: list[tuple[int, int]] = []
+        non_code_ranges: list[tuple[int, int]] = []
 
         while cursor < length:
-            is_comment = source.startswith("//", cursor) or source.startswith("/*", cursor)
             skipped = skip_non_code(cursor)
             if skipped != cursor:
-                if is_comment:
-                    comment_ranges.append((cursor, skipped))
+                non_code_ranges.append((cursor, skipped))
                 cursor = skipped
                 continue
             char = source[cursor]
@@ -121,10 +132,10 @@ def _rust_impl_headers(source: str) -> list[str]:
         if body_start is not None:
             header_parts: list[str] = []
             fragment_start = start
-            for comment_start, comment_end in comment_ranges:
-                header_parts.append(source[fragment_start:comment_start])
+            for non_code_start, non_code_end in non_code_ranges:
+                header_parts.append(source[fragment_start:non_code_start])
                 header_parts.append(" ")
-                fragment_start = comment_end
+                fragment_start = non_code_end
             header_parts.append(source[fragment_start:body_start])
             headers.append(re.sub(r"\s+", " ", "".join(header_parts)).strip())
             index = body_start + 1
@@ -226,10 +237,10 @@ where
         self.assertEqual(len(request_headers), 2)
         self.assertIn("RecoveryMarker<{ 1 + 1 }>", request_headers[1])
 
-    def test_impl_header_parser_removes_comment_text_before_classification(self) -> None:
-        """Comment text must not disguise an inherent request implementation as a trait impl."""
+    def test_impl_header_parser_removes_non_code_text_before_classification(self) -> None:
+        """Comments and literals must not disguise an inherent request impl as a trait impl."""
 
-        sample = """
+        sample = r'''
 impl<O> RecoveryContextOperationRequest<O> {
     pub fn operation(&self) -> &O { todo!() }
 }
@@ -243,16 +254,25 @@ impl<O> RecoveryContextOperationRequest<O>
 {
     pub fn from_raw_again(operation: O) -> Self { todo!() }
 }
-"""
+impl<O> RecoveryContextOperationRequest<O>
+where
+    O: RecoveryMarker<{ b" for RecoveryContextOperationRequest".len() }>,
+{
+    pub fn from_byte_literal(operation: O) -> Self { todo!() }
+}
+impl<O> RecoveryContextOperationRequest<O>
+where
+    O: RecoveryMarker<{ br#" for RecoveryContextOperationRequest"#.len() }>,
+{
+    pub fn from_raw_literal(operation: O) -> Self { todo!() }
+}
+'''
         request_headers = [
             header
             for header in _rust_impl_headers(sample)
             if "RecoveryContextOperationRequest" in header
         ]
-        self.assertEqual(
-            request_headers,
-            ["impl<O> RecoveryContextOperationRequest<O>"] * 3,
-        )
+        self.assertEqual(len(request_headers), 5)
         self.assertEqual(
             [
                 header
@@ -261,6 +281,22 @@ impl<O> RecoveryContextOperationRequest<O>
             ],
             request_headers,
         )
+
+    def test_impl_header_parser_preserves_lifetimes_while_skipping_char_literals(self) -> None:
+        """Apostrophe handling must not consume lifetimes while removing character literals."""
+
+        sample = """
+impl<'a, O> RecoveryContextOperationRequest<&'a O>
+where
+    O: RecoveryMarker<'a, {'x' as u32}>,
+{
+    pub fn borrow(&self) -> &'a O { todo!() }
+}
+"""
+        headers = _rust_impl_headers(sample)
+        self.assertEqual(len(headers), 1)
+        self.assertIn("impl<'a, O> RecoveryContextOperationRequest<&'a O>", headers[0])
+        self.assertNotIn("'x'", headers[0])
 
     def test_hostile_fixture_preserves_uncertainty_after_adapter_result(self) -> None:
         """Adapter success or failure must not silently become reconciliation proof."""
