@@ -14,7 +14,7 @@ Treating an arbitrary in-process implementation as if it were an untrusted web a
 
 OriginWeave's threat model places the Rust control plane and privileged Chromium/browser adapters inside the trusted computing base. `originweave-browser-session` is an internal `publish = false` crate, not an extension SDK that promises isolation from hostile linked Rust code. A malicious crate already executing inside this trusted process is a supply-chain compromise / trusted-code compromise; it is not made safe by making one handle constructor opaque.
 
-This does **not** make every implementation acceptable. Product composition may bind only a reviewed privileged lifecycle adapter. `DisposableContextPort` is an internal TCB SPI, not caller-selected product policy. Production implementations are repository review surfaces and must be explicitly allowlisted by contract. Test doubles remain allowed only under test code and grant no shipped product capability.
+This does **not** make every implementation acceptable. Product composition may bind only a reviewed privileged lifecycle adapter; a caller-selected production adapter is not admitted. `DisposableContextPort` is an internal TCB SPI, not caller-selected product policy. Production implementations are repository review surfaces and must be explicitly allowlisted by contract. Test doubles remain allowed only under test code and grant no shipped product capability.
 
 The intended canonical production implementation is the versioned WebDriver BiDi lifecycle adapter in `crates/originweave-bidi/src/lifecycle_acl.rs` once its stack is restacked onto the current Browser Session contract and passes review. No other production implementation is admitted by this dossier.
 
