@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-09-10
-- Last code-current review: 2026-09-16
+- Last code-current review: 2026-09-17
 
 ## Context
 
@@ -12,7 +12,7 @@ The active implementation has to satisfy four constraints at once. First, `Bound
 
 Lifecycle failures require lossless evidence while the aggregate remains available. A BiDi adapter can successfully create a user context before later browsing-context creation or verification becomes uncertain. Duplicate adapter output can expose an offending handle that must not be silently discarded or automatically destroyed. Two lifecycle facts can have identical remote handle values while belonging to different create attempts; raw-handle equality must not collapse an accepted owner and a later rejected/unsettled candidate. Destruction can fail without proving that the exact isolation boundary is gone. A failure on one owned context can force all other active siblings into uncertainty, so those sibling handles also have to remain enumerable. Transport liveness remains orthogonal to ownership certainty.
 
-The authoritative W3C TR directly verified on 2026-09-16 identifies **14 September 2026** as the current published WebDriver BiDi Working Draft (`WD-webdriver-bidi-20260914`), with **9 September 2026** (`WD-webdriver-bidi-20260909`) as the previous published version. The Editor's Draft remains separately mutable at https://w3c.github.io/webdriver-bidi/. Publication provenance therefore stays distinct from the separately runtime-qualified Chromium/protocol compatibility pin; this standards-trace update does not repin runtime behavior. The publication defines `browser.UserContext` as `text`, `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext`. It does not define a 4096-byte identifier limit. These identifiers and commands remain adapter capabilities/addressability rather than OriginWeave policy authority, and command ACK alone is not destruction proof.
+WebDriver BiDi publication freshness is owned by the canonical `originweave-bidi` receipt at `docs/traceability/webdriver-bidi-publication-current.md`; Browser Session does not restate dated Working Draft currentness. Runtime compatibility remains independently qualified and publication churn does not repin runtime behavior. The canonical WebDriver BiDi contract defines `browser.UserContext` as `text` and defines `browser.createUserContext`, `browsingContext.create`, and `browser.removeUserContext`; it does not define a 4096-byte identifier limit. These identifiers and commands remain adapter capabilities/addressability rather than OriginWeave policy authority, and command ACK alone is not destruction proof.
 
 ## Decision drivers
 
@@ -185,4 +185,6 @@ Supersede this ADR if the browser platform provides a complete, queryable, gener
 
 ## References
 
-Browser Testing and Tools Working Group. (2026, September 14). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/
+Browser Testing and Tools Working Group. (2026). *WebDriver BiDi*. World Wide Web Consortium. https://www.w3.org/TR/webdriver-bidi/
+
+OriginWeave. (2026). *WebDriver BiDi publication-current receipt*. `docs/traceability/webdriver-bidi-publication-current.md`
