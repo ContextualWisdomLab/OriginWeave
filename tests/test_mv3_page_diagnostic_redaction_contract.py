@@ -260,6 +260,76 @@ class Mv3PageDiagnosticRedactionContractTests(unittest.TestCase):
         self.assertNotIn("javascript error", str(captured.exception))
         self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
 
+    def test_session_creation_failure_has_a_bounded_type(self) -> None:
+        """A session-not-created response keeps its category without remote text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_session_start_contract")
+        json_request = namespace["_json_request"]
+
+        class FakeResponse:
+            status = 200
+
+            def read(self, _limit: int) -> bytes:
+                return (
+                    '{"value":{"error":"session not created","message":"'
+                    + HOSTILE_PAGE_VALUE
+                    + '"}}'
+                ).encode()
+
+        class FakeConnection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return FakeResponse()
+
+            def close(self) -> None:
+                return None
+
+        http_client = json_request.__globals__["http"].client
+        with patch.object(http_client, "HTTPConnection", return_value=FakeConnection()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            json_request(9515, "POST", "/session", {})
+
+        self.assertEqual(type(captured.exception).__name__, "WebDriverSessionNotCreatedError")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
+    def test_http_session_creation_failure_has_a_bounded_type(self) -> None:
+        """A W3C HTTP 500 session failure retains only its standard category."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_http_session_start_contract")
+        json_request = namespace["_json_request"]
+
+        class FakeResponse:
+            status = 500
+
+            def read(self, _limit: int) -> bytes:
+                return (
+                    '{"value":{"error":"session not created","message":"'
+                    + HOSTILE_PAGE_VALUE
+                    + '"}}'
+                ).encode()
+
+        class FakeConnection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return FakeResponse()
+
+            def close(self) -> None:
+                return None
+
+        http_client = json_request.__globals__["http"].client
+        with patch.object(http_client, "HTTPConnection", return_value=FakeConnection()), self.assertRaises(
+            RuntimeError
+        ) as captured:
+            json_request(9515, "POST", "/session", {})
+
+        self.assertEqual(type(captured.exception).__name__, "WebDriverSessionNotCreatedError")
+        self.assertNotIn(HOSTILE_PAGE_VALUE, str(captured.exception))
+
     def test_driver_readiness_timeout_does_not_echo_last_exception(self) -> None:
         """Startup timeout must not serialize the last remote diagnostic into CI text."""
 

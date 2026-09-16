@@ -4,6 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Keep Agent Task evidence to the standard bounded WebDriver session-creation category; ChromeDriver startup/process diagnostics remain with their canonical owner.
+- Preserve the bounded standard WebDriver session-creation failure category in Agent Task evidence while continuing to redact remote driver diagnostics.
+- Recognize the standard session-creation category from a ChromeDriver HTTP error response before applying the generic HTTP failure boundary.
+- Added a pinned-Chromium presentation probe to the controlled Agent Task evidence lane. It records a baseline, applies fixed viewport/DPR/timezone overrides before the observed navigation, then resets and proves the baseline returns through declared fixture DOM outputs. Hosted browser evidence remains required.
 - Keep WebDriver remote HTTP bodies, W3C error/message text, last-response startup detail, and mismatched remote `browserVersion` capability values out of CI exception strings while preserving fail-closed command/readiness/version decisions and the response-size bound.
 - Publish success-shaped MV3/Agent Task compatibility JSON only after both owned loopback fixture servers complete their shutdown post-conditions; browser/trial gate failures still emit bounded diagnostic evidence before raising.
 - Require loopback fixture-server cleanup to observe helper-thread termination after the bounded join, so a timed join cannot be treated as cleanup success while an owned server thread remains live.

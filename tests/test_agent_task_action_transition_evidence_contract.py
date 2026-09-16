@@ -160,6 +160,10 @@ class AgentTaskActionTransitionEvidenceContractTests(unittest.TestCase):
         trial["input_value_verified"] = True
         self.assertFalse(complete([trial]))
         trial["pre_click_baseline_verified"] = True
+        self.assertFalse(complete([trial]))
+        trial["presentation_applied"] = True
+        self.assertFalse(complete([trial]))
+        trial["presentation_cleanup_verified"] = True
         self.assertTrue(complete([trial]))
 
 

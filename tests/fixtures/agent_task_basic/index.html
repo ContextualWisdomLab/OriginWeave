@@ -17,6 +17,9 @@
     </form>
 
     <output id="task-result" data-state="idle" aria-live="polite">idle</output>
+    <output id="presentation-viewport" hidden></output>
+    <output id="presentation-device-pixel-ratio" hidden></output>
+    <output id="presentation-timezone" hidden></output>
 
     <p
       data-originweave-untrusted="prompt-injection"
@@ -31,6 +34,13 @@
     const form = document.getElementById("agent-task-form");
     const taskText = document.getElementById("task-text");
     const result = document.getElementById("task-result");
+
+    document.getElementById("presentation-viewport").textContent =
+      `${window.innerWidth}x${window.innerHeight}`;
+    document.getElementById("presentation-device-pixel-ratio").textContent =
+      String(window.devicePixelRatio);
+    document.getElementById("presentation-timezone").textContent =
+      Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
