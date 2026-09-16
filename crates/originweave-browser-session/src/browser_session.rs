@@ -2201,3 +2201,79 @@ mod tests {
         assert_eq!(error, BrowserSessionError::IncarnationExhausted);
     }
 }
+
+impl BrowserSession {
+    fn settle_recovery_evidence_at(
+        &mut self,
+        index: usize,
+        expected: &BrowserSessionRecoveryEvidence,
+    ) -> bool {
+        if self.recovery_evidence.get(index) != Some(expected) {
+            return false;
+        }
+        let evidence = self.recovery_evidence.remove(index);
+        match &evidence {
+            BrowserSessionRecoveryEvidence::UnprovenDestruction { context, .. }
+            | BrowserSessionRecoveryEvidence::RecoveryRequiredOwnedHandle(context)
+            | BrowserSessionRecoveryEvidence::TransportLossOwnedHandle(context) => {
+                self.retire_uncertain_owned_context(context);
+            }
+            BrowserSessionRecoveryEvidence::PartialCreationIsolation(_)
+            | BrowserSessionRecoveryEvidence::DuplicateAdapterHandle(_)
+            | BrowserSessionRecoveryEvidence::UnsettledAdapterHandle(_) => {}
+        }
+        self.finish_recovery_if_resolved();
+        true
+    }
+
+    fn settle_create_attempt_recovery_evidence_at(
+        &mut self,
+        index: usize,
+        expected: &DisposableContextCreateRecoveryEvidence,
+    ) -> bool {
+        if self.create_recovery_evidence.get(index) != Some(expected) {
+            return false;
+        }
+        self.create_recovery_evidence.remove(index);
+        self.finish_recovery_if_resolved();
+        true
+    }
+
+    fn retire_uncertain_owned_context(&mut self, handle: &DisposableContextHandle) {
+        let browsing_context = handle.browsing_context();
+        let should_remove = self.contexts.get(&browsing_context).is_some_and(|record| {
+            record.state == OwnedContextState::Uncertain && &record.handle == handle
+        });
+        if should_remove {
+            let _ = self.contexts.remove(&browsing_context);
+        }
+    }
+
+    fn finish_recovery_if_resolved(&mut self) {
+        if self.recovery_evidence.is_empty()
+            && self.create_recovery_evidence.is_empty()
+            && self.contexts.is_empty()
+        {
+            self.state = BrowserSessionState::Ended;
+        }
+    }
+}
+
+impl<P> BoundBrowserSession<P> {
+    pub(crate) fn settle_recovery_evidence_at(
+        &mut self,
+        index: usize,
+        expected: &BrowserSessionRecoveryEvidence,
+    ) -> bool {
+        self.session.settle_recovery_evidence_at(index, expected)
+    }
+
+    pub(crate) fn settle_create_attempt_recovery_evidence_at(
+        &mut self,
+        index: usize,
+        expected: &DisposableContextCreateRecoveryEvidence,
+    ) -> bool {
+        self.session
+            .settle_create_attempt_recovery_evidence_at(index, expected)
+    }
+}
