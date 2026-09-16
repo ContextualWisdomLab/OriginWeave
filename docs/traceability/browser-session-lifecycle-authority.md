@@ -123,7 +123,7 @@ Presentation mutation and lifecycle cleanup are separate. A navigation-invalidat
 
 `DisposableIsolationId` maps to WebDriver BiDi `browser.UserContext` and preserves protocol text losslessly. OriginWeave does not normalize that address or treat it as command authority.
 
-The immutable W3C WebDriver BiDi Working Draft verified for this lineage is the **9 September 2026** publication (`WD-webdriver-bidi-20260909`). The mutable `/TR/webdriver-bidi/` index and separately qualified Chromium runtime revision are distinct provenance axes. A command acknowledgement is insufficient proof that a disposable boundary is gone.
+The authoritative W3C TR verified for this lineage on 2026-09-16 identifies **14 September 2026** as the current published WebDriver BiDi Working Draft (`WD-webdriver-bidi-20260914`) and **9 September 2026** (`WD-webdriver-bidi-20260909`) as the previous published version. The mutable Editor's Draft remains separate at https://w3c.github.io/webdriver-bidi/, and the Chromium/runtime compatibility revision is a third, independently qualified provenance axis. A command acknowledgement is insufficient proof that a disposable boundary is gone.
 
 ## Source and executable evidence
 
@@ -146,6 +146,7 @@ The immutable W3C WebDriver BiDi Working Draft verified for this lineage is the 
 | proven destruction bounds hot ownership | `proven_destroy_releases_hot_ownership.rs` |
 | recovery custody cannot regain ordinary authority | recovery rustdoc `compile_fail`; repository contracts |
 | navigation witness is opaque and generation-bound | navigation owner tests; `tests/test_browser_session_navigation_owner_surface_contract.py` |
+| current vs previous W3C publication provenance | `tests/test_browser_session_webdriver_bidi_publication_trace.py`; ADR 0114; this trace |
 
 Historical predecessor CI/review receipts do not transfer to the current head. Active-PR source remains non-shipment until exact-head repository contracts, canonical rustfmt, locked tests, strict Clippy, rustdoc/API docs, production function/line/region/branch coverage at 100%, required review/security gates, and protected `main` integration are observed.
 
