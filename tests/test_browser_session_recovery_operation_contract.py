@@ -56,10 +56,11 @@ class BrowserSessionRecoveryOperationContractTests(unittest.TestCase):
             "request.recovery_evidence()",
             "request.create_attempt_recovery_evidence()",
             "RecoveryContextOperationError::Adapter",
+            "expected_recovery_evidence",
+            "generic recovery adapter success is not itself destruction or reconciliation proof",
+            "recovery operation dispatch must not erase unresolved ownership evidence",
         ):
             self.assertIn(token, hostile)
-        self.assertIn("state_before", hostile)
-        self.assertIn("evidence_before", hostile)
 
     def test_architecture_docs_describe_current_recovery_surface(self) -> None:
         """ADR, traceability, and UML must not describe the pre-operation wrapper."""
