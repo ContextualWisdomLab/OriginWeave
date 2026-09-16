@@ -6,7 +6,7 @@
 - Acceptance successors: #318, #321
 - Protocol adapter / WebDriver BiDi correlation owner: #316
 - Governing proposals: ADR 0114, ADR 0116
-- Standards provenance: `WD-webdriver-bidi-20260909`
+- Standards provenance: `docs/traceability/webdriver-bidi-publication-current.md`
 
 ## Domain boundary
 
@@ -78,7 +78,7 @@ Real-browser GREEN is separate. A protocol command acknowledgement is insufficie
 
 ## Standards trace
 
-The immutable W3C WebDriver BiDi Working Draft used for this active-PR contract is the 9 September 2026 publication: `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/`. Protocol event vocabulary and user-context/browsing-context addressability come from that standard; OriginWeave's opaque authority and lifecycle invariants are internal domain controls and are not claimed as W3C requirements.
+WebDriver BiDi publication freshness is consumed from the canonical `originweave-bidi` receipt at `docs/traceability/webdriver-bidi-publication-current.md`; this Browser Session navigation trace does not restate dated Working Draft currentness. Protocol event vocabulary and user-context/browsing-context addressability come from the versioned adapter contract; OriginWeave's opaque navigation authority and lifecycle invariants are internal domain controls and are not claimed as W3C requirements. Runtime compatibility remains independently qualified from publication metadata.
 
 ## Release status
 
