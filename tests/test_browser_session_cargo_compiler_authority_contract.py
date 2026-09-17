@@ -25,7 +25,7 @@ def _linker_driver_argument_selects_executable(argument: str) -> bool:
     """Return whether one compiler-driver argument can re-select driver execution authority."""
     if argument.startswith("@"):
         return True
-    if argument.startswith("-specs="):
+    if argument == "-specs" or argument.startswith("-specs="):
         return True
     if argument.startswith("-fuse-ld="):
         return True
