@@ -20,17 +20,18 @@ No external production consumer is approved on the current #317 tree. The intend
 
 ## Enforced repository contract
 
-`tests/test_browser_session_trusted_adapter_boundary.py` enforces the currently supportable boundary:
+`tests/test_browser_session_trusted_adapter_boundary.py` and `tests/test_browser_session_implicit_workspace_member_contract.py` enforce the currently supportable boundary:
 
 1. the Browser Session crate remains `publish = false`;
 2. the canonical threat model continues to classify privileged browser integration as trusted Zone C code;
 3. production references to `DisposableContextPort` outside the Browser Session owner are limited to the explicit reviewed source allowlist;
 4. production crate dependencies on `originweave-browser-session` are limited to the explicit reviewed manifest allowlist, including direct package aliases, table syntax, target-specific production dependencies, and workspace-inherited aliases resolved through root `[workspace.dependencies]`;
 5. both allowlists exactly describe production surfaces that exist on the current tree, so an absent future source path or dependency cannot be pre-approved;
-6. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling; and
-7. the source and manifest review surface is derived from the Cargo workspace's explicit `[workspace].members` plus the workspace-root package when `[package]` is present, rather than from a `crates/*` directory convention. Workspace-member globs fail closed until this contract is explicitly extended and reviewed.
+6. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling;
+7. the primary source and manifest review surface is derived from the Cargo workspace's explicit `[workspace].members` plus the workspace-root package when `[package]` is present, rather than from a `crates/*` directory convention. Workspace-member globs fail closed until this contract is explicitly extended and reviewed; and
+8. recursive in-repository production `path` dependencies are also reviewed, because Cargo automatically makes path dependencies residing in the workspace directory workspace members even when they are omitted from the explicit `members` list. An implicit local package therefore cannot hide a Browser Session dependency or lifecycle-SPI reference behind another member's `path = ...` edge.
 
-The sixth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site. The seventh rule prevents both an explicit workspace member outside `crates/*` and a future workspace-root package from gaining Browser Session linkage or SPI access without entering the same repository review surface.
+The sixth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site. The seventh and eighth rules prevent explicit members outside `crates/*`, a future workspace-root package, and automatically enrolled in-workspace path dependencies from widening the trusted composition surface without entering the same repository review boundary.
 
 ### Scanner false-negative repair
 
@@ -50,7 +51,9 @@ A fifth review found that the hardened scanner still discovered production manif
 
 A sixth review checked Cargo's workspace-root package rule rather than assuming every package must appear in `[workspace].members`. If the workspace root later gains a `[package]` table, that root package is part of the workspace even when `members = []`; the fifth-generation helper would have ignored the root manifest and `src/**/*.rs`, allowing a root package to link Browser Session or reference/bind its lifecycle SPI without entering the review surface. Structural RED `89f1ce04a7ba4dfbb8157a849e419f842cb1a18c` adds that hostile root-package fixture. Minimal repair `36f13665553323f70f44f25a6bdf52a0b4b178ac` includes the root manifest whenever `[package]` is present while preserving explicit-member validation and the member-glob fail-closed rule. The repository is currently a virtual workspace, so this is prospective fail-closed coverage rather than a production topology change.
 
-These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, workspace inheritance, module-layout choices, explicit workspace-member placement, workspace-root package placement, and future composition changes.
+A seventh review checked the remaining Cargo membership rule against the current Cargo Book: **all path dependencies residing inside the workspace directory automatically become workspace members**, even when their package paths are absent from `[workspace].members`. The sixth-generation helper still treated the explicit list plus root package as exhaustive, so `app -> path ../plugins/browser-adapter -> originweave-browser-session` could place a production adapter inside the Cargo workspace while its manifest and source escaped the review scan. Structural RED `b0931ae8b71994ad96689b7e109ff09cca21bd72` adds that hostile implicit-member fixture. Repair `a7798d229631b0f0ab2a8b1132fb08f250df8ecd` follows production dependency sections recursively, resolves direct and workspace-inherited local `path` dependencies relative to their Cargo-defined bases, rejects paths outside the repository review root, and applies the existing source/dependency allowlists to the resulting production-package closure. This changes no Rust runtime behavior; it aligns the security review surface with Cargo's automatic local path-membership semantics.
+
+These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, workspace inheritance, module-layout choices, explicit workspace-member placement, workspace-root package placement, automatic local path-dependency membership, and future composition changes.
 
 ## Authority invariant
 
@@ -64,6 +67,7 @@ A reviewed adapter must create a fresh disposable browser boundary, keep remote 
 - **Generic public `TrustedPort` marker trait:** rejected because arbitrary Rust code can implement an unsealed marker and the name creates no security property.
 - **Sealing `DisposableContextPort` inside `originweave-browser-session`:** not adopted because the canonical versioned browser adapter lives in a separate crate; Rust has no friend-crate visibility, so sealing here would either break the adapter boundary or force protocol code into the Browser Session owner.
 - **Hard-coding `crates/*` as the production composition boundary:** rejected because Cargo workspace/package membership, not directory placement, determines which production crates are built together.
+- **Treating explicit `[workspace].members` as exhaustive:** rejected because Cargo automatically enrolls in-workspace path dependencies; repository review must follow those production path edges as well.
 - **Moving deterministic browser policy into WebDriver BiDi/MCP:** rejected; adapters translate qualified browser state and never become policy authority.
 - **`--no-sandbox` or browser-process weakening:** unrelated and forbidden.
 
@@ -74,6 +78,6 @@ This dossier resolves the threat-model ambiguity; it does not by itself make #31
 - the active branch must inherit every still-valid #229 delta by ordinary non-force adoption;
 - `ARCHITECTURE.md` must explicitly include `BrowserSessionIncarnation` in `PresentationMutationAuthority` binding and sequential-ABA responsibility;
 - any reviewed production composition path and versioned BiDi adapter must introduce its source, crate dependency, and allowlist widening together on the exact reviewed tree rather than relying on a reserved future entry;
-- any future change from explicit Cargo workspace members to member globs, or introduction of a root package, must remain inside this security contract's reviewed manifest/source surface rather than silently widening trust;
+- any future change involving Cargo member globs, a workspace-root package, or an in-repository production path dependency must remain inside this security contract's reviewed manifest/source surface rather than silently widening trust;
 - exact-head repository/security checks and independent review must pass with no unresolved authority finding;
 - pinned Chromium must later prove create/use/post-condition/destroy behavior rather than treating a command ACK as success.
