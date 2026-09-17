@@ -14,9 +14,9 @@ Treating an arbitrary in-process implementation as if it were an untrusted web a
 
 OriginWeave's threat model places the Rust control plane and privileged Chromium/browser adapters inside the trusted computing base. `originweave-browser-session` is an internal `publish = false` crate, not an extension SDK that promises isolation from hostile linked Rust code. A malicious crate already executing inside this trusted process is a supply-chain compromise / trusted-code compromise; it is not made safe by making one handle constructor opaque.
 
-This does **not** make every implementation acceptable. Product composition may bind only a reviewed privileged lifecycle adapter; a caller-selected production adapter is not admitted. `DisposableContextPort` is an internal TCB SPI, not caller-selected product policy. Any production source that references this SPI outside the Browser Session owner is a repository review surface and must be explicitly allowlisted by contract. Test doubles remain allowed only under test code and grant no shipped product capability.
+This does **not** make every implementation acceptable. Product composition may bind only a reviewed privileged lifecycle adapter; a caller-selected production adapter is not admitted. `DisposableContextPort` is an internal TCB SPI, not caller-selected product policy. Any production source that references this SPI outside the Browser Session owner and any production crate that depends on `originweave-browser-session` is a repository review surface and must be explicitly allowlisted by contract. Test doubles remain allowed only under test code and grant no shipped product capability.
 
-The intended canonical production implementation is the versioned WebDriver BiDi lifecycle adapter in `crates/originweave-bidi/src/lifecycle_acl.rs` once its stack is restacked onto the current Browser Session contract and passes review. No other external production reference is admitted by this dossier.
+The intended canonical production consumer is the versioned WebDriver BiDi lifecycle adapter in `crates/originweave-bidi/src/lifecycle_acl.rs` once its stack is restacked onto the current Browser Session contract and passes review. Its crate manifest is the only reserved external Browser Session dependency. No other external production reference or crate dependency is admitted by this dossier.
 
 ## Enforced repository contract
 
@@ -24,16 +24,21 @@ The intended canonical production implementation is the versioned WebDriver BiDi
 
 1. the Browser Session crate remains `publish = false`;
 2. the canonical threat model continues to classify privileged browser integration as trusted Zone C code;
-3. production references to `DisposableContextPort` outside the Browser Session owner are limited to the explicit reviewed allowlist; and
-4. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling.
+3. production references to `DisposableContextPort` outside the Browser Session owner are limited to the explicit reviewed source allowlist;
+4. production crate dependencies on `originweave-browser-session` are limited to the explicit reviewed manifest allowlist; and
+5. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling.
 
-The fourth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site.
+The fifth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site.
 
 ### Scanner false-negative repair
 
 The first repository contract recognized only the literal unqualified Rust form `impl DisposableContextPort for ...` and the exact method spelling `.bind_lifecycle_port(`. Those are style conventions, not security boundaries: valid Rust can name the trait through a qualified path or alias and can invoke the binding function through UFCS or with different whitespace.
 
-Test-first commit `100c00487488bbc281106ddf6fe4ae1b60feb16b` adds hostile qualified-trait, aliased-trait, UFCS, and whitespace spellings and exposes those false negatives. Minimal contract repair `7b2334b1df92d03629b7931ce71cd58134b93f4c` makes the review surface syntax-independent at the repository level: any external production source containing the SPI token is reviewed, and any production source outside the owner containing the binding API token is rejected until an explicit composition owner is approved. The repair changes no Rust production behavior or trust classification; it makes the existing single-writer/TCB policy enforceable across ordinary Rust spelling choices.
+Test-first commit `100c00487488bbc281106ddf6fe4ae1b60feb16b` adds hostile qualified-trait, aliased-trait, UFCS, and whitespace spellings and exposes those false negatives. Minimal contract repair `7b2334b1df92d03629b7931ce71cd58134b93f4c` makes direct source review spelling-resilient: any external production source containing the SPI token is reviewed, and any production source outside the owner containing the binding API token is rejected until an explicit composition owner is approved.
+
+A second review found the remaining cross-file alias case: one reviewed module could import or re-export the trait under another name while a different module implements only that alias and therefore contains no `DisposableContextPort` token. Test-first commit `6ce9c1f3b13fe157cfae822a0958c2b8dc2dabd8` records that direct source scanning cannot prove this case. Commit `cb9fb54e4a799919a425f3636cb0a5f1daacfb24` adds the compensating crate-boundary invariant: every production `Cargo.toml` that can link Browser Session must itself be reviewed and allowlisted. A cross-file alias therefore cannot create a new production adapter from an unreviewed crate without first widening an explicit dependency review surface.
+
+These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling and module-layout choices.
 
 ## Authority invariant
 
@@ -55,6 +60,6 @@ This dossier resolves the threat-model ambiguity; it does not by itself make #31
 
 - the active branch must inherit every still-valid #229 delta by ordinary non-force adoption;
 - `ARCHITECTURE.md` must explicitly include `BrowserSessionIncarnation` in `PresentationMutationAuthority` binding and sequential-ABA responsibility;
-- the reviewed production composition path and the versioned BiDi adapter must satisfy the repository allowlist contract when introduced/restacked;
+- the reviewed production composition path and the versioned BiDi adapter must satisfy the source-reference and crate-dependency allowlist contracts when introduced/restacked;
 - exact-head repository/security checks and independent review must pass with no unresolved authority finding;
 - pinned Chromium must later prove create/use/post-condition/destroy behavior rather than treating a command ACK as success.
