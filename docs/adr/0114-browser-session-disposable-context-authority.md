@@ -173,7 +173,7 @@ Rollback may return to the predecessor active-PR API only if these authority fin
 
 ## Open follow-ups
 
-- Define a purpose-bounded same-adapter recovery handoff for `RecoveryRequired` / `TransportLost` that carries exact recovery evidence without recreating ordinary mutation authority.
+- Complete acceptance and protected-main integration of ADR 0116's purpose-bounded same-adapter recovery custody for `RecoveryRequired` / `TransportLost`; durable recovery persistence/reconciliation remains a separate follow-up.
 - Bound hot ownership state independently from durable/audit history so proven destruction does not create unbounded validation cost.
 - Restack #316 onto the verified Browser Session successor and implement WebDriver BiDi pending → accepted/quarantined transaction settlement plus typed presentation/reconciliation operations.
 - Define the separately authorized durable recovery persistence/reconciliation owner for Browser Session recovery evidence and unresolved abandonment.
