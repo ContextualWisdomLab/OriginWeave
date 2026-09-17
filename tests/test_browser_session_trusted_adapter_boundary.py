@@ -252,15 +252,18 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             "[workspace.dependencies]\n"
             'browser_session = { package = "originweave-browser-session", path = "crates/originweave-browser-session" }\n'
         )
-        member_manifest = (
+        member_manifests = (
             "[dependencies]\n"
-            "browser_session = { workspace = true }\n"
+            "browser_session = { workspace = true }\n",
+            "[target.'cfg(unix)'.dependencies]\n"
+            "browser_session = { workspace = true }\n",
         )
 
-        self.assertTrue(
-            _manifest_links_browser_session(member_manifest, workspace_manifest),
-            "workspace dependency aliases must remain an explicit Browser Session TCB review surface",
-        )
+        for member_manifest in member_manifests:
+            self.assertTrue(
+                _manifest_links_browser_session(member_manifest, workspace_manifest),
+                "workspace dependency aliases must remain an explicit Browser Session TCB review surface",
+            )
 
 
 if __name__ == "__main__":
