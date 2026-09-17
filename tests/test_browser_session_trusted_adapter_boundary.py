@@ -95,6 +95,33 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             f"unreviewed production Browser Session dependencies: {sorted(unexpected)}",
         )
 
+    def test_allowlists_do_not_preapprove_absent_production_surfaces(self) -> None:
+        discovered_port_references = set()
+        for path in ROOT.glob("crates/*/src/**/*.rs"):
+            relative = path.relative_to(ROOT).as_posix()
+            if relative.startswith(BROWSER_SESSION_SOURCE_ROOT):
+                continue
+            if _has_port_reference(path.read_text(encoding="utf-8")):
+                discovered_port_references.add(relative)
+
+        discovered_dependencies = set()
+        for path in ROOT.glob("crates/*/Cargo.toml"):
+            if path == BROWSER_SESSION_CARGO:
+                continue
+            if _has_browser_session_dependency(path.read_text(encoding="utf-8")):
+                discovered_dependencies.add(path.relative_to(ROOT).as_posix())
+
+        self.assertEqual(
+            APPROVED_PRODUCTION_PORT_REFERENCES,
+            discovered_port_references,
+            "adapter source allowlist must describe current production references, not reserve future paths",
+        )
+        self.assertEqual(
+            APPROVED_BROWSER_SESSION_DEPENDENCIES,
+            discovered_dependencies,
+            "dependency allowlist must describe current production links, not reserve future crates",
+        )
+
     def test_product_sources_do_not_bind_a_caller_selected_lifecycle_port(self) -> None:
         callers = set()
         for path in ROOT.glob("crates/*/src/**/*.rs"):
