@@ -30,9 +30,9 @@ def _flags_select_linker(value: object) -> bool:
         return False
 
     for index, argument in enumerate(arguments):
-        if argument.startswith("-Clinker="):
+        if argument.startswith(("-Clinker=", "--codegen=linker=")):
             return True
-        if argument == "-C" and index + 1 < len(arguments):
+        if argument in {"-C", "--codegen"} and index + 1 < len(arguments):
             if arguments[index + 1].startswith("linker="):
                 return True
     return False
@@ -69,9 +69,9 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         )
         if isinstance(build, dict):
             if _flags_select_linker(build.get("rustflags")):
-                build_configured.append("rustflags:-C linker")
+                build_configured.append("rustflags:codegen linker")
             if _flags_select_linker(build.get("rustdocflags")):
-                build_configured.append("rustdocflags:-C linker")
+                build_configured.append("rustdocflags:codegen linker")
 
         target_configured: dict[str, list[str]] = {}
         target = parsed.get("target")
@@ -81,9 +81,9 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     continue
                 configured = sorted(TARGET_EXECUTION_KEYS.intersection(settings))
                 if _flags_select_linker(settings.get("rustflags")):
-                    configured.append("rustflags:-C linker")
+                    configured.append("rustflags:codegen linker")
                 if _flags_select_linker(settings.get("rustdocflags")):
-                    configured.append("rustdocflags:-C linker")
+                    configured.append("rustdocflags:codegen linker")
                 if configured:
                     target_configured[str(target_name)] = configured
 
