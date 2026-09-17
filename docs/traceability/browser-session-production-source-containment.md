@@ -12,39 +12,37 @@ Cargo's current target reference documents `src/lib.rs`, `src/main.rs`, and `src
 
 ## Constraints
 
-- `tests/test_browser_session_trusted_adapter_boundary.py` remains the single writer for Cargo package/source discovery.
-- The containment guard must consume that canonical closure rather than reimplement workspace membership, dependency recursion, or target discovery.
+- `tests/test_browser_session_trusted_adapter_boundary.py` is the single writer for Cargo package/source discovery **and** repository-containment validation.
+- Supplemental hostile-fixture tests must delegate to that canonical function rather than wrap it with a second provenance implementation.
 - Repository-external production source is rejected; it is not made trusted by a symlink placed inside the repository.
 - Registry and released external dependencies remain dependency provenance concerns and are not reclassified as repository-local source.
 - No future BiDi lifecycle adapter path is pre-authorized.
 
 ## RED
 
-Commit `e05381c00b76a96f2b3932941597941eac90a4f5` added a hostile fixture in `tests/test_browser_session_production_source_containment_contract.py`:
+Commit `f157c215a49d203be2fbe146460ddf22c9081002` rewired `tests/test_browser_session_production_source_containment_contract.py` so its hostile default-source symlink fixture calls canonical `_workspace_production_sources(root)` directly and requires that function itself to fail closed.
 
-1. create an in-repository Cargo workspace member;
-2. make its default `src/lib.rs` a symlink to `../external-lifecycle-adapter.rs` outside the repository root;
-3. call the canonical `_workspace_production_sources(root)` scanner;
-4. require fail-closed repository containment.
-
-The current canonical scanner returns the lexical `adapter/src/lib.rs` path instead of rejecting the external resolved source. No PR-triggered workflow run was emitted for that Draft exact head, so this is structural RED evidence rather than runner-backed RED.
+At predecessor exact `3fd55acfaa58fde61f1ca9236db91df2b18320ad`, canonical `_workspace_production_sources(root)` only collected lexical `src/**/*.rs` paths plus explicit target paths. Repository containment lived in supplemental `_reviewed_production_sources(root)`, so the direct canonical call returned the external-target symlink instead of raising. The new test therefore exposes a real single-writer violation. No PR-triggered workflow run is emitted for the Draft head, so this remains structural RED evidence rather than runner-backed RED.
 
 ## Minimal repair
 
-Commit `e37adeeeb9ace7e42707f14286841fda5c2ab239` adds a provenance postcondition over the canonical source closure. `_reviewed_production_sources(root)` resolves every discovered source, requires the resolved object to remain below `root.resolve()`, requires it to be a file, and otherwise raises `AssertionError`. It does not duplicate Cargo topology discovery.
+Commit `7cc1cfaec705c6980a59af84bf4459b3e358873a` moves the provenance postcondition into canonical `_workspace_production_sources(root)`:
 
-Two contracts now apply:
+1. gather the existing Cargo production source closure without changing workspace, dependency, or target discovery;
+2. resolve every discovered source;
+3. require the resolved source to remain beneath `root.resolve()`;
+4. require the resolved object to be a file;
+5. return the reviewed lexical paths only after those checks succeed.
 
-- the current exact OriginWeave production-source closure must satisfy the provenance postcondition;
-- the hostile default-source symlink must still be discovered by the canonical scanner and then be rejected by the provenance guard.
+The supplemental production-source containment test now contains only current-tree and hostile fixtures. It no longer defines a second `_reviewed_production_sources` policy function. Lifecycle-SPI reference review, Browser Session dependency review, lifecycle binding review, and the hostile provenance fixture therefore consume one canonical source closure and one containment decision.
 
 This repair changes no Rust Browser Session semantics. It tightens the evidence boundary that determines which source bytes are eligible to participate in the privileged browser-integration TCB.
 
 ## Alternatives considered
 
-### Resolve every path inside the canonical topology scanner
+### Keep containment in a supplemental wrapper
 
-This would make containment inseparable from discovery but requires modifying the existing single-writer scanner and all downstream path-identity expectations. It remains a valid future consolidation if the contract is moved into reusable repository tooling.
+Rejected after the current review. It produced two policy writers: canonical trusted-adapter tests consumed `_workspace_production_sources` directly while only the supplemental containment test consumed `_reviewed_production_sources`. Future callers could therefore bypass the provenance guard without noticing.
 
 ### Ignore symlinks because CI reads the external target
 
@@ -56,7 +54,7 @@ Rejected as broader than necessary. A symlink whose resolved target remains insi
 
 ## Evidence and follow-up
 
-Current repair exact: `e37adeeeb9ace7e42707f14286841fda5c2ab239`.
+Current repair exact: `7cc1cfaec705c6980a59af84bf4459b3e358873a`.
 
 The branch remains Draft and diverged from canonical parent #229. This file is therefore structural/source-contract evidence only. Required follow-up is exact-head independent review, then the existing parent-first lineage sequence: terminal #229 evidence, ordinary/non-force #229→#317 ancestry reconciliation with zero valid-delta loss, fresh #317 executable evidence, then #318 → #321 → #316. Real pinned-Chromium acceptance remains downstream under #299 and the canonical `.github` MV3 workflow/sandbox owner.
 
