@@ -1,5 +1,6 @@
 import pathlib
 import re
+import tempfile
 import tomllib
 import unittest
 
@@ -100,6 +101,18 @@ def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bo
     return False
 
 
+def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
+    """Return production manifests covered by the current repository contract."""
+    return sorted(root.glob("crates/*/Cargo.toml"))
+
+
+def _workspace_production_sources(root: pathlib.Path) -> list[pathlib.Path]:
+    sources: list[pathlib.Path] = []
+    for manifest in _workspace_member_manifests(root):
+        sources.extend(sorted(manifest.parent.glob("src/**/*.rs")))
+    return sources
+
+
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
     """Keep the privileged lifecycle adapter inside the reviewed product TCB."""
 
@@ -129,7 +142,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
     def test_production_disposable_context_port_references_are_allowlisted(self) -> None:
         discovered = set()
-        for path in ROOT.glob("crates/*/src/**/*.rs"):
+        for path in _workspace_production_sources(ROOT):
             relative = path.relative_to(ROOT).as_posix()
             if relative.startswith(BROWSER_SESSION_SOURCE_ROOT):
                 continue
@@ -147,7 +160,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
     def test_browser_session_dependencies_are_allowlisted(self) -> None:
         discovered = set()
         workspace_text = ROOT_CARGO.read_text(encoding="utf-8")
-        for path in ROOT.glob("crates/*/Cargo.toml"):
+        for path in _workspace_member_manifests(ROOT):
             if path == BROWSER_SESSION_CARGO:
                 continue
             text = path.read_text(encoding="utf-8")
@@ -163,7 +176,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
     def test_allowlists_do_not_preapprove_absent_production_surfaces(self) -> None:
         discovered_port_references = set()
-        for path in ROOT.glob("crates/*/src/**/*.rs"):
+        for path in _workspace_production_sources(ROOT):
             relative = path.relative_to(ROOT).as_posix()
             if relative.startswith(BROWSER_SESSION_SOURCE_ROOT):
                 continue
@@ -172,7 +185,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
         discovered_dependencies = set()
         workspace_text = ROOT_CARGO.read_text(encoding="utf-8")
-        for path in ROOT.glob("crates/*/Cargo.toml"):
+        for path in _workspace_member_manifests(ROOT):
             if path == BROWSER_SESSION_CARGO:
                 continue
             if _manifest_links_browser_session(path.read_text(encoding="utf-8"), workspace_text):
@@ -191,7 +204,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
     def test_product_sources_do_not_bind_a_caller_selected_lifecycle_port(self) -> None:
         callers = set()
-        for path in ROOT.glob("crates/*/src/**/*.rs"):
+        for path in _workspace_production_sources(ROOT):
             if path == ROOT / "crates/originweave-browser-session/src/browser_session.rs":
                 continue
             text = path.read_text(encoding="utf-8")
@@ -264,6 +277,31 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
                 _manifest_links_browser_session(member_manifest, workspace_manifest),
                 "workspace dependency aliases must remain an explicit Browser Session TCB review surface",
             )
+
+    def test_workspace_member_outside_crates_glob_cannot_escape_review_surface(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["plugins/browser-adapter"]\n',
+                encoding="utf-8",
+            )
+            member = root / "plugins/browser-adapter"
+            member.mkdir(parents=True)
+            member_manifest = member / "Cargo.toml"
+            member_manifest.write_text(
+                '[package]\nname = "browser-adapter"\nversion = "0.1.0"\n'
+                '[dependencies]\noriginweave-browser-session = { path = "../../crates/originweave-browser-session" }\n',
+                encoding="utf-8",
+            )
+            source = member / "src/lib.rs"
+            source.parent.mkdir()
+            source.write_text(
+                "use originweave_browser_session::DisposableContextPort;\n",
+                encoding="utf-8",
+            )
+
+            self.assertIn(member_manifest, _workspace_member_manifests(root))
+            self.assertIn(source, _workspace_production_sources(root))
 
 
 if __name__ == "__main__":
