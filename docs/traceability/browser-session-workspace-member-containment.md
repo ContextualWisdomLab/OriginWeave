@@ -15,6 +15,8 @@ Cargo's workspace contract allows `members` to name package directories rather t
 
 - **Structural RED `44b6d2716ade55c3793698080bfda01ff51a23c1`** adds a hostile workspace fixture whose explicit member resolves to `../external-browser-adapter`. The previous `_workspace_member_manifests()` accepted the external manifest because it checked only existence.
 - **Minimal causal repair `a807accfddea31a5739f47dcfb992057f7292c03`** resolves each explicit member manifest and requires it to remain under the repository review root before it may enter the canonical production package closure. A member that escapes the root now raises instead of silently expanding the trusted composition surface.
+- **Independent-review finding on `afb8ab82adcb1da564930798f682f10b38cf818b`** accepted the containment implementation, including canonical path resolution, but identified one P2 coverage gap: the committed hostile fixture covered `..` escape but not a repository-local symlink whose target resolves outside the review root.
+- **Review-driven regression `ddf17ba21581473c20fdd5c7f7b3223240edd262`** adds `tests/test_browser_session_workspace_member_symlink_contract.py`. The fixture creates a member path inside the workspace that is a directory symlink to an external package and requires the canonical scanner to reject the resolved external manifest. It imports the single-writer scanner rather than creating another topology implementation.
 
 The repair changes repository security coverage only. No production Rust, Browser Session runtime semantics, WebDriver BiDi authority, Chromium behavior, or existing allowlist entry changed.
 
@@ -36,4 +38,4 @@ The Cargo Book, *Workspaces*, documents `[workspace].members` as package-directo
 
 ## Remaining acceptance
 
-This repair is structural security evidence on the Draft #317 branch. It does not transfer executable GREEN from another generation. #229 current exact-head repository/security evidence remains the lineage prerequisite; after authorized ordinary/non-force ancestry reconciliation, #317 must obtain fresh exact-head checks and review before #318 → #321 → #316 restacking. Real Chromium acceptance remains downstream under #299 and the canonical `.github` MV3 workflow/sandbox owner path.
+This repair is structural security evidence on the Draft #317 branch. It does not transfer executable GREEN from another generation. The current exact head still requires focused independent review of the review-driven symlink regression, and #229 current exact-head repository/security evidence remains the lineage prerequisite. After authorized ordinary/non-force ancestry reconciliation, #317 must obtain fresh exact-head checks and review before #318 → #321 → #316 restacking. Real Chromium acceptance remains downstream under #299 and the canonical `.github` MV3 workflow/sandbox owner path.
