@@ -6,7 +6,7 @@ Status: Draft contract evidence on PR #317. This document does not claim executa
 
 OriginWeave already fails closed on production `build.rs`, Cargo build dependencies, dependency-source overrides, repository-external source paths, and unmodeled Rust source indirection. The remaining Git-owned Cargo configuration surface was executable selection around Rust compilation, documentation, linking, and test/run execution.
 
-Cargo permits repository configuration to replace `rustc` with `build.rustc`, execute a program in front of `rustc` with `build.rustc-wrapper`, add a workspace-only wrapper with `build.rustc-workspace-wrapper`, and replace the documentation generator executable with `build.rustdoc`. Cargo target configuration also permits a matching target table to choose `linker`, the executable used for linking, and `runner`, the wrapper used for `cargo run`, `cargo test`, and `cargo bench`. In addition, `build.rustflags` and matching target `rustflags` are passed to `rustc`, while `build.rustdocflags` and matching target `rustdocflags` are passed to `rustdoc`. Both rustc and rustdoc accept `-C` codegen options; rustc documents `-C linker=<path>` as selecting which linker executable it invokes, and rustdoc documents that its `-C` arguments are the same codegen arguments passed through to rustc when documentation or documentation tests compile Rust code. If any of these settings enters a reviewed Browser Session production workspace without a separate provenance contract, the effective build/test/documentation execution path is no longer represented by the existing exact-tree source closure.
+Cargo permits repository configuration to replace `rustc` with `build.rustc`, execute a program in front of `rustc` with `build.rustc-wrapper`, add a workspace-only wrapper with `build.rustc-workspace-wrapper`, and replace the documentation generator executable with `build.rustdoc`. Cargo target configuration also permits a matching target table to choose `linker`, the executable used for linking, and `runner`, the wrapper used for `cargo run`, `cargo test`, and `cargo bench`. In addition, `build.rustflags` and matching target `rustflags` are passed to `rustc`, while `build.rustdocflags` and matching target `rustdocflags` are passed to `rustdoc`. Rust documents `-C` and `--codegen` as the short and long codegen-option interfaces; the `linker` codegen option selects which linker executable rustc invokes. Rustdoc passes its codegen options through when documentation or documentation tests compile Rust code. If any of these settings enters a reviewed Browser Session production workspace without a separate provenance contract, the effective build/test/documentation execution path is no longer represented by the existing exact-tree source closure.
 
 ## Constraints
 
@@ -26,17 +26,21 @@ Commit `883ad62125af37e9afb2551803267284e21b7ea3` added target-specific hostile 
 
 Commit `8b9ab4c34033b9e5990caad79169351e3d771039` added hostile Cargo-owned rustflags that selected `rustc -C linker=<path>`. The predecessor rejected direct target `linker`/`runner` keys but ignored flag-derived linker selection.
 
-Commit `b0489000709243b27a9c849d2cada8e5fadd254e` adds the corresponding rustdoc path:
+Commit `b0489000709243b27a9c849d2cada8e5fadd254e` added the corresponding Cargo-owned rustdocflags path using split and compact `-C linker=<path>` forms. The predecessor helper inspected only rustflags, so both fixtures preserved a distinct structural RED for repository-selected rustdoc linker authority.
+
+Focused review of exact `a3434ebf7d8169a6cf5276d983d4a0c978a9720a` then found that the shared flag parser recognized only `-C` spellings even though Rust also documents the long `--codegen` interface. Commit `053b6cacd0d7d36dc619165aada99c1ac485b043` preserves that review finding as structural RED across both rustc and rustdoc flag surfaces:
 
 ```toml
 [build]
-rustdocflags = ["-C", "linker=tools/review-bypass-linker"]
+rustflags = ["--codegen", "linker=tools/review-bypass-linker"]
+rustdocflags = ["--codegen", "linker=tools/review-bypass-linker"]
 
 [target.'cfg(unix)']
-rustdocflags = "-Clinker=tools/review-bypass-linker"
+rustflags = "--codegen=linker=tools/review-bypass-linker"
+rustdocflags = "--codegen=linker=tools/review-bypass-linker"
 ```
 
-The predecessor helper inspected only `rustflags`. Cargo documents both forms as flags passed to rustdoc, and rustdoc documents `-C` as rustc codegen options used when it compiles documentation or documentation tests. The fixtures therefore preserve a distinct structural RED for repository-owned rustdoc flag-derived linker authority; no hosted-run result is inferred from this Draft branch.
+The predecessor parser accepted all four long-form cases. These are source-level RED fixtures; no hosted-run result is inferred from the Draft branch.
 
 ## Decision and repair
 
@@ -44,9 +48,9 @@ Commit `80aaa562672211582d5b2de69edc79a984559fb3` introduced a separate executio
 
 Commit `345759105a0f0d2e88142df9961ea724b1055734` extended it to `build.rustdoc`; commit `e7390cdb12c483570940411c857554540f754763` added matching target `linker` and `runner` rejection.
 
-Commit `743a5321bb72d83541b34f12ce83628f95f581f6` closes Cargo-owned rustflags that select a linker without banning unrelated compiler flags. It recognizes both documented Cargo representations, a space-separated string or an array of argument strings, and both split `-C`, `linker=<path>` and compact `-Clinker=<path>` spellings.
+Commit `743a5321bb72d83541b34f12ce83628f95f581f6` closed Cargo-owned rustflags that select a linker without banning unrelated compiler flags. Commit `e157b9c5f33467425df794f42e704503de697232` reused the same narrow parser for Cargo-owned rustdocflags while retaining unrelated rustdoc flags such as `--document-private-items` and `--cfg docsrs`.
 
-Commit `e157b9c5f33467425df794f42e704503de697232` reuses the same narrow flag parser for Cargo-owned `rustdocflags`. It now applies the linker-selection rule to `build.rustdocflags` and matching target-table `rustdocflags` while retaining unrelated rustdoc flags such as `--document-private-items` and `--cfg docsrs`.
+Commit `7ee4b253ff4e213e949468274d126db214a63e4a` closes the review-discovered long-form bypass in that one shared parser. It treats both split `-C` / `--codegen` followed by `linker=<path>` and compact `-Clinker=<path>` / `--codegen=linker=<path>` as the same linker-selection authority. Because rustflags and rustdocflags already consume the same parser in both build and target scopes, the repair covers all four retained long-form hostile fixtures without duplicating owner logic.
 
 The modeled fail-closed execution-authority surfaces are now:
 
@@ -56,8 +60,8 @@ The modeled fail-closed execution-authority surfaces are now:
 - `build.rustdoc`
 - `target.<triple-or-cfg>.linker`
 - `target.<triple-or-cfg>.runner`
-- `build.rustflags` and matching target `rustflags` when they select `-C linker=<path>`
-- `build.rustdocflags` and matching target `rustdocflags` when they select `-C linker=<path>`
+- `build.rustflags` and matching target `rustflags` when `-C` or `--codegen` selects `linker=<path>`
+- `build.rustdocflags` and matching target `rustdocflags` when `-C` or `--codegen` selects `linker=<path>`
 
 A separate contract was chosen instead of expanding Cargo package/source discovery because executable selection is not package topology. A blanket rustflags/rustdocflags ban was rejected because non-executable-selection flags are common and do not by themselves justify widening this Browser Session provenance boundary. Allowlisting executable paths was also rejected because a path alone does not establish immutable executable identity, behavior, arguments, or provenance.
 
@@ -69,7 +73,7 @@ It does not prove that CI environment variables, toolchain installation, runner 
 
 ## Acceptance and follow-up
 
-1. Obtain independent current-head review of the rustdocflags RED→repair chain and the retained direct executable-selection contracts.
+1. Obtain independent current-head review of the long-codegen RED→repair chain and retained executable-selection contracts.
 2. After #229 exact-head required evidence becomes terminal, reconcile #317 by ordinary non-force ancestry while preserving the parent and child deltas.
 3. Regenerate executable repository/security evidence on the reconciled exact head.
 4. Review command-line Cargo flags and linker-argument surfaces separately; add a contract only when a realistic executable/provenance escape is demonstrated.
@@ -80,6 +84,8 @@ It does not prove that CI environment variables, toolchain installation, runner 
 The Cargo Project. (n.d.). *Configuration*. *The Cargo Book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/cargo/reference/config.html
 
 The Cargo Project. (n.d.). *cargo rustdoc*. *The Cargo Book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/cargo/commands/cargo-rustdoc.html
+
+The Rust Project Developers. (n.d.). *Command-line arguments*. *The rustc book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/rustc/command-line-arguments.html
 
 The Rust Project Developers. (n.d.). *Command-line arguments*. *The rustdoc book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/rustdoc/command-line-arguments.html
 
