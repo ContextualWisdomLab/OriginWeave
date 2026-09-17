@@ -20,12 +20,23 @@ COMPILER_EXECUTION_KEYS = frozenset(
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 
 
+def _linker_driver_argument_selects_executable(argument: str) -> bool:
+    """Return whether one compiler-driver argument can re-select a linker executable."""
+    if argument.startswith("-fuse-ld="):
+        return True
+    return argument == "-B" or argument.startswith("-B")
+
+
 def _codegen_option_selects_linker(option: str) -> bool:
     """Return whether one rustc codegen option selects the linker executable."""
     if option.startswith("linker="):
         return True
     if option.startswith(("link-arg=", "link-args=")):
-        return "-fuse-ld=" in option.partition("=")[2]
+        payload = option.partition("=")[2]
+        return any(
+            _linker_driver_argument_selects_executable(argument)
+            for argument in payload.split()
+        )
     return False
 
 
@@ -264,6 +275,12 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
     def test_non_linker_selecting_link_arg_remains_allowed(self) -> None:
         root = self._workspace_with_config(
             '[build]\nrustflags = ["-C", "link-arg=-Wl,--as-needed"]\n'
+        )
+        _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_linker_forwarded_bsymbolic_remains_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,-Bsymbolic"]\n'
         )
         _assert_no_repository_cargo_compiler_execution_overrides(root)
 
