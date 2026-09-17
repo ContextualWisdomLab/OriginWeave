@@ -51,6 +51,28 @@ class BrowserSessionProductionSourceContainmentContractTests(unittest.TestCase):
             ):
                 boundary._workspace_production_sources(root)
 
+    def test_dangling_default_rust_source_symlink_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["adapter"]\nresolver = "3"\n',
+                encoding="utf-8",
+            )
+            adapter = root / "adapter"
+            (adapter / "src").mkdir(parents=True)
+            (adapter / "Cargo.toml").write_text(
+                '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n',
+                encoding="utf-8",
+            )
+            source = adapter / "src/lib.rs"
+            source.symlink_to(adapter / "missing-generated.rs")
+
+            with self.assertRaisesRegex(
+                AssertionError,
+                "production Cargo source is missing",
+            ):
+                boundary._workspace_production_sources(root)
+
 
 if __name__ == "__main__":
     unittest.main()
