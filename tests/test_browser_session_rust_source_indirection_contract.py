@@ -16,6 +16,8 @@ spec.loader.exec_module(boundary)
 
 
 INCLUDE_TOKEN = re.compile(r"(?<![\w#])(?:r#)?include(?!\w)", re.UNICODE)
+USE_TOKEN = re.compile(r"(?<![\w#])use(?!\w)", re.UNICODE)
+AS_TOKEN = re.compile(r"(?<![\w#])as(?!\w)", re.UNICODE)
 PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
 CUSTOM_TARGET_MOD_TOKEN = re.compile(r"(?<![\w#])mod(?!\w)", re.UNICODE)
 APPROVED_RUST_PATH_ATTRIBUTES = {
@@ -65,6 +67,45 @@ def _has_include_macro(text: str) -> bool:
             continue
         delimiter = _skip_rust_trivia(text, bang + 1)
         if delimiter < len(text) and text[delimiter] in "([{":
+            return True
+    return False
+
+
+def _rust_use_statement_end(text: str, offset: int) -> int | None:
+    """Return the semicolon ending one Rust use declaration while ignoring comment trivia."""
+    cursor = offset
+    while cursor < len(text):
+        trivia_end = _skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+        if text[cursor] == ";":
+            return cursor
+        cursor += 1
+    return None
+
+
+def _has_aliased_include_import(text: str) -> bool:
+    """Detect use-tree aliases that rename include! before invocation."""
+    for use_match in USE_TOKEN.finditer(text):
+        statement_end = _rust_use_statement_end(text, use_match.end())
+        if statement_end is None:
+            continue
+        use_tree = text[use_match.end():statement_end]
+        for include_match in INCLUDE_TOKEN.finditer(use_tree):
+            cursor = _skip_rust_trivia(use_tree, include_match.end())
+            as_match = AS_TOKEN.match(use_tree, cursor)
+            if as_match is None:
+                continue
+            alias_start = _skip_rust_trivia(use_tree, as_match.end())
+            if alias_start >= len(use_tree):
+                continue
+            if use_tree[alias_start] == "_":
+                next_offset = alias_start + 1
+                if next_offset >= len(use_tree) or not (
+                    use_tree[next_offset].isalnum() or use_tree[next_offset] == "_"
+                ):
+                    continue
             return True
     return False
 
@@ -212,7 +253,7 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
         text = source.read_text(encoding="utf-8")
         relative = source.relative_to(root).as_posix()
 
-        if _has_include_macro(text):
+        if _has_include_macro(text) or _has_aliased_include_import(text):
             raise AssertionError(
                 f"Rust include! source indirection requires an explicit provenance contract: {relative}"
             )
