@@ -14,8 +14,30 @@ boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
 
+def _reviewed_production_sources(root: pathlib.Path) -> list[pathlib.Path]:
+    """Validate canonical Cargo production sources against exact-head repository provenance."""
+    root_resolved = root.resolve()
+    reviewed: list[pathlib.Path] = []
+    for source in boundary._workspace_production_sources(root):
+        resolved = source.resolve()
+        try:
+            resolved.relative_to(root_resolved)
+        except ValueError as exc:
+            raise AssertionError(
+                f"production Cargo source escapes repository review root: {source}"
+            ) from exc
+        if not resolved.is_file():
+            raise AssertionError(f"production Cargo source is missing: {source}")
+        reviewed.append(source)
+    return reviewed
+
+
 class BrowserSessionProductionSourceContainmentContractTests(unittest.TestCase):
     """Keep every Cargo production source inside exact-head repository provenance."""
+
+    def test_current_production_source_closure_stays_under_repository_root(self) -> None:
+        reviewed = _reviewed_production_sources(ROOT)
+        self.assertEqual(reviewed, boundary._workspace_production_sources(ROOT))
 
     def test_default_rust_source_symlink_outside_repository_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -37,13 +59,15 @@ class BrowserSessionProductionSourceContainmentContractTests(unittest.TestCase):
                 '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n',
                 encoding="utf-8",
             )
-            (adapter / "src/lib.rs").symlink_to(external)
+            source = adapter / "src/lib.rs"
+            source.symlink_to(external)
 
+            self.assertIn(source, boundary._workspace_production_sources(root))
             with self.assertRaisesRegex(
                 AssertionError,
                 "production Cargo source escapes repository review root",
             ):
-                boundary._workspace_production_sources(root)
+                _reviewed_production_sources(root)
 
 
 if __name__ == "__main__":
