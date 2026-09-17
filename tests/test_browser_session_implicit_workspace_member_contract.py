@@ -98,6 +98,41 @@ class BrowserSessionImplicitWorkspaceMemberContractTests(unittest.TestCase):
                 "canonical lifecycle-binding review must include recursive in-repository path dependencies",
             )
 
+    def test_external_production_path_dependency_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = pathlib.Path(directory)
+            root = parent / "repo"
+            root.mkdir()
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["app"]\nresolver = "3"\n',
+                encoding="utf-8",
+            )
+
+            app = root / "app"
+            app.mkdir()
+            (app / "Cargo.toml").write_text(
+                '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2024"\n'
+                '[dependencies]\nexternal-adapter = { path = "../../external-adapter" }\n',
+                encoding="utf-8",
+            )
+            (app / "src").mkdir()
+            (app / "src/lib.rs").write_text("pub fn app() {}\n", encoding="utf-8")
+
+            external = parent / "external-adapter"
+            external.mkdir()
+            (external / "Cargo.toml").write_text(
+                '[package]\nname = "external-adapter"\nversion = "0.1.0"\nedition = "2024"\n',
+                encoding="utf-8",
+            )
+            (external / "src").mkdir()
+            (external / "src/lib.rs").write_text("pub fn external() {}\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                AssertionError,
+                "production Cargo path dependency escapes repository review root",
+            ):
+                _production_package_manifests(root)
+
     def test_workspace_inherited_path_dependency_cannot_escape_review_surface(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
