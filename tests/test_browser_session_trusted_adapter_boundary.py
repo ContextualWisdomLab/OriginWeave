@@ -112,6 +112,7 @@ def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     if not isinstance(members, list):
         raise AssertionError("Cargo workspace members must be an explicit reviewed list")
 
+    root_resolved = root.resolve()
     manifests: set[pathlib.Path] = set()
     if isinstance(root_manifest.get("package"), dict):
         manifests.add(root_manifest_path)
@@ -123,7 +124,13 @@ def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
             raise AssertionError(
                 "Cargo workspace member globs require an explicit trusted-adapter contract update"
             )
-        manifest = root / member / "Cargo.toml"
+        manifest = (root / member / "Cargo.toml").resolve()
+        try:
+            manifest.relative_to(root_resolved)
+        except ValueError as exc:
+            raise AssertionError(
+                f"Cargo workspace member escapes repository review root: {member}"
+            ) from exc
         if not manifest.is_file():
             raise AssertionError(f"workspace member manifest is missing: {member}/Cargo.toml")
         manifests.add(manifest)
