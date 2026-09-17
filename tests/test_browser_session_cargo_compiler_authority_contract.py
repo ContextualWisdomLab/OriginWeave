@@ -17,12 +17,13 @@ spec.loader.exec_module(boundary)
 COMPILER_EXECUTION_KEYS = frozenset(
     {"rustc", "rustc-wrapper", "rustc-workspace-wrapper", "rustdoc"}
 )
+TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 
 
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
-    """Reject Git-owned Cargo settings that replace or wrap Rust tool executables."""
+    """Reject Git-owned Cargo settings that replace Rust-tool or target executables."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
-    # and dependency-source overrides. This contract owns Cargo's Rust tool-execution authority.
+    # and dependency-source overrides. This contract owns direct Cargo executable selection.
     boundary._production_package_manifests(root)
 
     root_resolved = root.resolve()
@@ -45,19 +46,30 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
 
         parsed = tomllib.loads(resolved.read_text(encoding="utf-8"))
         build = parsed.get("build")
-        if not isinstance(build, dict):
-            continue
-        configured = sorted(COMPILER_EXECUTION_KEYS.intersection(build))
-        if configured:
+        build_configured = (
+            sorted(COMPILER_EXECUTION_KEYS.intersection(build)) if isinstance(build, dict) else []
+        )
+
+        target_configured: dict[str, list[str]] = {}
+        target = parsed.get("target")
+        if isinstance(target, dict):
+            for target_name, settings in target.items():
+                if not isinstance(settings, dict):
+                    continue
+                configured = sorted(TARGET_EXECUTION_KEYS.intersection(settings))
+                if configured:
+                    target_configured[str(target_name)] = configured
+
+        if build_configured or target_configured:
             relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
-                "Cargo compiler execution override requires an explicit Browser Session provenance contract: "
-                f"{relative} keys={configured}"
+                "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
+                f"{relative} build_keys={build_configured} target_keys={target_configured}"
             )
 
 
 class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
-    """Keep Git-owned Cargo Rust tool execution inside the reviewed Browser Session TCB."""
+    """Keep Git-owned Cargo executable selection inside the reviewed Browser Session TCB."""
 
     def _workspace_with_config(
         self,
@@ -98,7 +110,7 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
             config_name=config_name,
             nested=nested,
         )
-        with self.assertRaisesRegex(AssertionError, "Cargo compiler execution override"):
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def test_current_repository_has_no_unmodeled_cargo_compiler_execution_override(self) -> None:
