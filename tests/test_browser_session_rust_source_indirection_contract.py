@@ -101,6 +101,33 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
     def test_bracketed_include_macro_fails_closed(self) -> None:
         self._assert_include_form_fails_closed('include!["../generated_adapter.rs"];\n')
 
+    def test_bare_module_from_custom_target_fails_closed(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = pathlib.Path(directory.name)
+        (root / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["adapter"]\nresolver = "3"\n',
+            encoding="utf-8",
+        )
+        adapter = root / "adapter"
+        (adapter / "runtime").mkdir(parents=True)
+        (adapter / "Cargo.toml").write_text(
+            '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n'
+            '[lib]\npath = "runtime/lifecycle_adapter.rs"\n',
+            encoding="utf-8",
+        )
+        (adapter / "runtime/lifecycle_adapter.rs").write_text(
+            "mod helper;\npub fn lifecycle_adapter_surface() {}\n",
+            encoding="utf-8",
+        )
+        (adapter / "runtime/helper.rs").write_text(
+            "pub fn helper_surface() {}\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
+            _assert_no_unmodeled_rust_source_indirection(root)
+
     def test_new_path_attribute_fails_closed_even_when_target_is_in_tree(self) -> None:
         root = self._workspace_with_source('#[path = "nested.rs"]\nmod nested;\n')
         (root / "adapter/src/nested.rs").write_text(
