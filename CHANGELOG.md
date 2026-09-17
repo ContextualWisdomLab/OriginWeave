@@ -9,6 +9,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Hardened Browser Session trusted-adapter dependency discovery so Cargo workspace-inherited aliases and target-specific production dependencies resolve to the canonical `originweave-browser-session` package before allowlist comparison; dev-only dependencies do not widen the shipped adapter-composition surface.
 - Removed latent Browser Session adapter pre-authorization from the trusted-adapter allowlists. Approved source and dependency entries must now correspond to production surfaces present on the same exact tree, so the future BiDi lifecycle adapter must widen the allowlists in the same reviewed change that introduces its implementation and crate dependency.
 - Hardened the Browser Session trusted-adapter repository contract so fully qualified or aliased `DisposableContextPort` references and UFCS/whitespace `bind_lifecycle_port` spellings cannot evade review-surface detection; this changes no Rust production behavior or trust classification.
 - Corrected the root Browser Session architecture contract so `PresentationMutationAuthority` is explicitly bound to `BrowserSessionIncarnation`; the incarnation participates in authorization validation and provides sequential-ABA separation when external session/context identifiers and local epochs are reused, while the disposable-isolation identity remains the exact remote lifecycle boundary rather than a substitute for aggregate incarnation.
