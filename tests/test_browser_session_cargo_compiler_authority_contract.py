@@ -131,6 +131,20 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
             nested=True,
         )
 
+    def test_repository_target_linker_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            '[target.x86_64-unknown-linux-gnu]\nlinker = "tools/review-bypass-linker"\n'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_target_runner_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            "[target.'cfg(unix)']\nrunner = \"tools/review-bypass-runner\"\n"
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_unrelated_build_configuration_remains_allowed(self) -> None:
         root = self._workspace_with_config('[build]\njobs = 2\nincremental = false\n')
         _assert_no_repository_cargo_compiler_execution_overrides(root)
