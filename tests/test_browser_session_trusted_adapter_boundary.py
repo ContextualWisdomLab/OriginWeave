@@ -132,6 +132,17 @@ def _assert_no_production_build_surfaces(root: pathlib.Path, manifest: pathlib.P
         )
 
 
+def _assert_no_workspace_source_overrides(root_manifest_path: pathlib.Path) -> None:
+    """Fail closed on Cargo patch/replace surfaces until override provenance is modeled."""
+    parsed = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
+    for section_name in ("patch", "replace"):
+        section = parsed.get(section_name)
+        if isinstance(section, dict) and section:
+            raise AssertionError(
+                f"production Cargo source override requires an explicit trusted-adapter contract: [{section_name}]"
+            )
+
+
 def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bool:
     member = tomllib.loads(member_text)
     workspace_manifest = tomllib.loads(workspace_text)
@@ -228,6 +239,7 @@ def _production_package_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     """Return workspace packages plus recursive in-repository production path dependencies."""
     root_manifest_path = root / "Cargo.toml"
     root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
+    _assert_no_workspace_source_overrides(root_manifest_path)
     workspace = root_manifest.get("workspace")
     workspace_dependencies: dict[str, object] = {}
     if isinstance(workspace, dict):
