@@ -31,7 +31,7 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
         self.assertIn("14 September 2026 as the previous published version", adr)
 
     def test_publication_freshness_is_single_sourced_from_runtime_qualification_docs(self) -> None:
-        """Architecture and doctoring stay qualification records; the receipt owns publication churn."""
+        """Architecture and doctoring stay qualification records; the receipt owns publication URIs."""
         architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
         doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
         receipt = (
@@ -50,6 +50,12 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn(runtime_uri, text)
                 self.assertNotIn(latest_uri, text)
+
+        self.assertIn("16 September 2026 WebDriver BiDi Working Draft", doctoring)
+        self.assertIn("14 September 2026 Working Draft", doctoring)
+        self.assertIn("runtime-qualified pin", doctoring)
+        self.assertIn("historical/reference publication", doctoring)
+        self.assertIn("docs/traceability/webdriver-bidi-publication-current.md", doctoring)
 
         self.assertIn("Observed: 2026-09-16", receipt)
         self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
