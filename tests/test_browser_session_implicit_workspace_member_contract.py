@@ -74,11 +74,51 @@ def _production_package_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted(manifests)
 
 
-def _production_sources(root: pathlib.Path) -> list[pathlib.Path]:
-    sources: list[pathlib.Path] = []
-    for manifest in _production_package_manifests(root):
-        sources.extend(sorted(manifest.parent.glob("src/**/*.rs")))
+def _declared_production_target_sources(
+    root: pathlib.Path,
+    manifest: pathlib.Path,
+) -> set[pathlib.Path]:
+    """Return explicitly configured library and binary target sources under the review root."""
+    parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    declared_paths: list[str] = []
+
+    library = parsed.get("lib")
+    if isinstance(library, dict):
+        library_path = library.get("path")
+        if isinstance(library_path, str) and library_path:
+            declared_paths.append(library_path)
+
+    binaries = parsed.get("bin")
+    if isinstance(binaries, list):
+        for binary in binaries:
+            if not isinstance(binary, dict):
+                continue
+            binary_path = binary.get("path")
+            if isinstance(binary_path, str) and binary_path:
+                declared_paths.append(binary_path)
+
+    root_resolved = root.resolve()
+    sources: set[pathlib.Path] = set()
+    for declared_path in declared_paths:
+        candidate = (manifest.parent / declared_path).resolve()
+        try:
+            candidate.relative_to(root_resolved)
+        except ValueError as exc:
+            raise AssertionError(
+                f"production Cargo target source escapes repository review root: {declared_path}"
+            ) from exc
+        if not candidate.is_file():
+            raise AssertionError(f"declared production Cargo target source is missing: {declared_path}")
+        sources.add(candidate)
     return sources
+
+
+def _production_sources(root: pathlib.Path) -> list[pathlib.Path]:
+    sources: set[pathlib.Path] = set()
+    for manifest in _production_package_manifests(root):
+        sources.update(manifest.parent.glob("src/**/*.rs"))
+        sources.update(_declared_production_target_sources(root, manifest))
+    return sorted(sources)
 
 
 class BrowserSessionImplicitWorkspaceMemberContractTests(unittest.TestCase):
