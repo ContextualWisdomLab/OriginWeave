@@ -10,13 +10,9 @@ DOSSIER = ROOT / "docs/traceability/browser-session-trusted-adapter-boundary.md"
 BROWSER_SESSION_SOURCE_ROOT = "crates/originweave-browser-session/src/"
 
 # Any production reference to the lifecycle SPI outside the Browser Session owner is an explicit
-# review surface. The reserved BiDi paths are the only currently approved external production owner.
-APPROVED_PRODUCTION_PORT_REFERENCES = {
-    "crates/originweave-bidi/src/lifecycle_acl.rs",
-}
-APPROVED_BROWSER_SESSION_DEPENDENCIES = {
-    "crates/originweave-bidi/Cargo.toml",
-}
+# review surface. Allow only production surfaces that exist and were reviewed on this exact branch.
+APPROVED_PRODUCTION_PORT_REFERENCES: set[str] = set()
+APPROVED_BROWSER_SESSION_DEPENDENCIES: set[str] = set()
 
 PORT_REFERENCE = re.compile(r"\bDisposableContextPort\b")
 LIFECYCLE_BINDING = re.compile(r"\bbind_lifecycle_port\b")
