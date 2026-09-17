@@ -19,6 +19,7 @@ COMPILER_EXECUTION_KEYS = frozenset(
 )
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
+LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
 
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
@@ -41,6 +42,13 @@ def _linker_option_loads_plugin(argument: str) -> bool:
     return argument.startswith(("-plugin=", "--plugin="))
 
 
+def _linker_option_selects_script(argument: str) -> bool:
+    """Return whether one linker option selects a script that can introduce link inputs."""
+    if argument in LINKER_SCRIPT_OPTIONS:
+        return True
+    return (argument.startswith("-T") and len(argument) > 2) or argument.startswith("--script=")
+
+
 def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
     """Return direct-linker arguments encoded by a single compiler-driver forwarding option."""
     if argument.startswith("-Wl,"):
@@ -51,26 +59,31 @@ def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
 
 
 def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
-    """Return whether driver arguments can replace the linker or load executable linker code."""
+    """Return whether driver arguments can replace tools, extend link inputs, or load linker code."""
     for index, argument in enumerate(arguments):
         if _linker_driver_argument_selects_executable(argument):
             return True
+        if _linker_option_selects_script(argument):
+            return True
         if any(
-            _linker_option_loads_plugin(forwarded)
+            _linker_option_loads_plugin(forwarded) or _linker_option_selects_script(forwarded)
             for forwarded in _forwarded_linker_arguments(argument)
         ):
             return True
         if (
             argument == "-Xlinker"
             and index + 1 < len(arguments)
-            and _linker_option_loads_plugin(arguments[index + 1])
+            and (
+                _linker_option_loads_plugin(arguments[index + 1])
+                or _linker_option_selects_script(arguments[index + 1])
+            )
         ):
             return True
     return False
 
 
 def _flags_select_linker(value: object) -> bool:
-    """Return whether Cargo-owned rustc/rustdoc flags select or extend linker execution code."""
+    """Return whether Cargo-owned rustc/rustdoc flags extend linker execution or input authority."""
     if isinstance(value, str):
         arguments = value.split()
     elif isinstance(value, list) and all(isinstance(argument, str) for argument in value):
