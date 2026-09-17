@@ -205,6 +205,20 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_repository_long_build_rustflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["--codegen", "linker=tools/review-bypass-linker"]\n'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_long_target_rustflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            "[target.'cfg(unix)']\nrustflags = \"--codegen=linker=tools/review-bypass-linker\"\n"
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_repository_build_rustdocflags_linker_override_fails_closed(self) -> None:
         root = self._workspace_with_config(
             '[build]\nrustdocflags = ["-C", "linker=tools/review-bypass-linker"]\n'
@@ -215,6 +229,20 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
     def test_repository_target_rustdocflags_linker_override_fails_closed(self) -> None:
         root = self._workspace_with_config(
             "[target.'cfg(unix)']\nrustdocflags = \"-Clinker=tools/review-bypass-linker\"\n"
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_long_build_rustdocflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustdocflags = ["--codegen", "linker=tools/review-bypass-linker"]\n'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_long_target_rustdocflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            "[target.'cfg(unix)']\nrustdocflags = \"--codegen=linker=tools/review-bypass-linker\"\n"
         )
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
