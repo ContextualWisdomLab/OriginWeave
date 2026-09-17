@@ -15,7 +15,7 @@ boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
 
-INCLUDE_TOKEN = re.compile(r"(?<![\w#])include(?!\w)", re.UNICODE)
+INCLUDE_TOKEN = re.compile(r"(?<![\w#])(?:r#)?include(?!\w)", re.UNICODE)
 PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
 CUSTOM_TARGET_MOD_TOKEN = re.compile(r"(?<![\w#])mod(?!\w)", re.UNICODE)
 APPROVED_RUST_PATH_ATTRIBUTES = {
