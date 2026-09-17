@@ -14,13 +14,15 @@ if spec is None or spec.loader is None:
 boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
-COMPILER_EXECUTION_KEYS = frozenset({"rustc", "rustc-wrapper", "rustc-workspace-wrapper"})
+COMPILER_EXECUTION_KEYS = frozenset(
+    {"rustc", "rustc-wrapper", "rustc-workspace-wrapper", "rustdoc"}
+)
 
 
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
-    """Reject Git-owned Cargo settings that replace or wrap rustc for production builds."""
+    """Reject Git-owned Cargo settings that replace or wrap Rust tool executables."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
-    # and dependency-source overrides. This contract owns only Cargo's compiler-execution authority.
+    # and dependency-source overrides. This contract owns Cargo's Rust tool-execution authority.
     boundary._production_package_manifests(root)
 
     root_resolved = root.resolve()
@@ -55,7 +57,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
 
 
 class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
-    """Keep Git-owned Cargo compiler execution inside the reviewed Browser Session TCB."""
+    """Keep Git-owned Cargo Rust tool execution inside the reviewed Browser Session TCB."""
 
     def _workspace_with_config(
         self,
