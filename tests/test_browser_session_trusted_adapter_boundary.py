@@ -137,13 +137,21 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
     def test_cross_file_alias_cannot_escape_dependency_review_surface(self) -> None:
         alias_only_source = "impl LifecyclePort for CandidatePort {}"
-        dependency_manifest = (
+        dependency_manifests = (
             "[dependencies]\n"
-            'originweave-browser-session = { path = "../originweave-browser-session" }\n'
+            'originweave-browser-session = { path = "../originweave-browser-session" }\n',
+            "[dependencies]\n"
+            'browser = { package = "originweave-browser-session", path = "../originweave-browser-session" }\n',
+            "[dependencies.originweave-browser-session]\n"
+            'path = "../originweave-browser-session"\n',
         )
 
         self.assertFalse(_has_port_reference(alias_only_source))
-        self.assertTrue(_has_browser_session_dependency(dependency_manifest))
+        for manifest in dependency_manifests:
+            self.assertTrue(
+                _has_browser_session_dependency(manifest),
+                f"Browser Session dependency spelling escaped review scanner: {manifest!r}",
+            )
 
 
 if __name__ == "__main__":
