@@ -79,11 +79,8 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         (adapter / "src/lib.rs").write_text(source_text, encoding="utf-8")
         return root
 
-    def test_current_production_sources_have_no_unmodeled_source_indirection(self) -> None:
-        _assert_no_unmodeled_rust_source_indirection(ROOT)
-
-    def test_include_macro_fails_closed_until_included_source_provenance_is_modeled(self) -> None:
-        root = self._workspace_with_source('include!("../generated_adapter.rs");\n')
+    def _assert_include_form_fails_closed(self, source_text: str) -> None:
+        root = self._workspace_with_source(source_text)
         (root / "adapter/generated_adapter.rs").write_text(
             "pub fn generated_adapter_surface() {}\n",
             encoding="utf-8",
@@ -91,6 +88,18 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, "Rust include! source indirection"):
             _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_current_production_sources_have_no_unmodeled_source_indirection(self) -> None:
+        _assert_no_unmodeled_rust_source_indirection(ROOT)
+
+    def test_parenthesized_include_macro_fails_closed(self) -> None:
+        self._assert_include_form_fails_closed('include!("../generated_adapter.rs");\n')
+
+    def test_braced_include_macro_fails_closed(self) -> None:
+        self._assert_include_form_fails_closed('include! { "../generated_adapter.rs" }\n')
+
+    def test_bracketed_include_macro_fails_closed(self) -> None:
+        self._assert_include_form_fails_closed('include!["../generated_adapter.rs"];\n')
 
     def test_new_path_attribute_fails_closed_even_when_target_is_in_tree(self) -> None:
         root = self._workspace_with_source('#[path = "nested.rs"]\nmod nested;\n')
