@@ -13,6 +13,8 @@ Four related forms matter here:
 - `#[cfg_attr(..., path = "...")]` can conditionally synthesize the same `path` attribute. A direct `#[path]`-only lexical check therefore does not cover the full Rust attribute surface.
 - A `mod` item can cause the compiler to load another Rust file. Cargo's ordinary `src/**/*.rs` review already contains default module trees conservatively, but a custom Cargo target whose crate root lives outside `src/` can load sibling module files that are not in that closure. Rust permits comments and other trivia between grammar tokens, Unicode XID identifiers, and raw identifiers, so a security contract must not encode a narrower hand-written identifier/module grammar and call it complete.
 
+Rust comments are also lexical trivia rather than `\s`-only whitespace. A valid attribute can therefore spell the source-loading meta item as `#[path /* reviewed trivia */ = "nested.rs"]`, including nested block comments or line-comment trivia. A regular expression that searches only for `path\s*=` silently narrows Rust's lexical grammar. Likewise, a naive `[^\]]*` attribute capture can be truncated by `]` inside a comment or string even though that byte is not the attribute's closing delimiter.
+
 Primary references:
 
 - Rust `include!` macro: https://doc.rust-lang.org/stable/std/macro.include.html
@@ -21,6 +23,7 @@ Primary references:
 - Rust Reference, conditional attributes with `cfg_attr`: https://doc.rust-lang.org/reference/conditional-compilation.html#the-cfg_attr-attribute
 - Rust Reference, identifiers and raw identifiers: https://doc.rust-lang.org/reference/identifiers.html
 - Rust Reference, comments: https://doc.rust-lang.org/reference/comments.html
+- Rust Reference, attributes: https://doc.rust-lang.org/reference/attributes.html
 - Rust 2018 Edition Guide, module file layout: https://doc.rust-lang.org/edition-guide/rust-2018/path-changes.html#no-more-modrs
 
 Without an explicit contract, a future lifecycle adapter could keep its crate, manifest, and declared custom target inside the exact Git review root while compiling additional Rust source not represented by the canonical production-source closure. That would weaken the same provenance boundary used for `DisposableContextPort`, `bind_lifecycle_port`, dependency, and source-containment review.
@@ -32,13 +35,14 @@ Without an explicit contract, a future lifecycle adapter could keep its crate, m
 - Existing `crates/originweave-core/src/root.rs` intentionally uses `#[path = "lib.rs"]`. That exact source/attribute pair is the only currently reviewed path-attribute exception.
 - Default `src/` module trees are already conservatively included by the canonical `src/**/*.rs` closure. The custom-target module guard is therefore limited to reviewed production sources outside every production package's default `src/` directory.
 - The temporary custom-target guard intentionally over-approximates rather than reproducing Rust's module grammar. Any lexical `mod` token in a custom target root outside default `src/` fails closed. That may reject a harmless inline module or textual occurrence, but it removes identifier/trivia/visibility grammar gaps until compiler-derived source-input provenance replaces the heuristic.
+- Rust attribute review must preserve lexical token boundaries. Non-doc line/block comments, including nested block comments, are treated as trivia; comment/string contents do not terminate the surrounding attribute token tree.
 - No future BiDi adapter path or Rust source indirection is pre-authorized.
 
 ## Decision
 
 Until compiler-derived source-input provenance is modeled, production Rust source fails closed on `include!` regardless of whether the macro invocation uses parentheses, brackets, or braces.
 
-Any Rust attribute containing `path =` is treated as source-indirection review surface, including `cfg_attr`-generated `path`. The contract uses an exact-tree allowlist of `(source_path, normalized_attribute_body)`. The allowlist must equal the path-attribute surfaces found on the current OriginWeave production-source closure, so it cannot reserve absent future adapter paths. The current exact allowlist contains only:
+Any Rust attribute containing a `path` meta item followed by valid Rust trivia and `=` is treated as source-indirection review surface, including `cfg_attr`-generated `path`. Attribute bodies are extracted as balanced bracket token trees while skipping Rust whitespace, line comments, nested block comments, normal/raw string literals, and simple character literals for delimiter purposes. This scanner is deliberately limited to locating reviewed path-bearing attribute surfaces; it does not claim to parse Rust modules, name resolution, or macro expansion. The contract uses an exact-tree allowlist of `(source_path, normalized_attribute_body)`. The allowlist must equal the path-attribute surfaces found on the current OriginWeave production-source closure, so it cannot reserve absent future adapter paths. The current exact allowlist contains only:
 
 `crates/originweave-core/src/root.rs` → `path = "lib.rs"`
 
@@ -64,9 +68,12 @@ Any additional path-bearing attribute or custom-target module source must arrive
 - Focused CodeRabbit review of exact `fc0275ca9099955819777b72e73b5c25891e826a` found one remaining P1 in the same grammar-emulation approach: valid Rust trivia can occur between `mod` and its module-name token, so a detector that requires direct horizontal whitespace before an identifier remains bypassable.
 - `130e9512d8a96db782de0a7b98e490b6db17a3c6` preserves that finding as a structural RED with `mod /* reviewed trivia */ helper;` while leaving the prior detector unchanged.
 - `bb83cf9571c2091bbb088176a9881de5fb46739b` removes the fragile hand-written module-name grammar. For custom target roots outside default `src/`, the temporary gate now fails closed on any lexical `mod` token. This is intentionally conservative and temporary; it closes trivia/raw/Unicode spelling classes without taking ownership of the Rust parser or Cargo topology.
+- `dce0c96fb8a05cce5605ecf42df858c16276099d` preserved a new structural RED showing that Rust block-comment trivia between `path` and `=` bypasses the prior `path\s*=` detector.
+- `781f3b1db14bf7591091cb7be5bb552e6e5497b1` broadened that RED to nested block comments, line-comment trivia, and a closing bracket inside a comment, demonstrating that both the path-meta regex and the `[^\]]*` attribute-body regex were narrower than Rust lexical rules.
+- `04e08a48fb7572860b0de564bdbf615ad2da5186` repaired the attribute review surface without changing Cargo topology: balanced attribute token trees now ignore comment/string delimiters correctly, and `path` followed by Rust trivia and `=` enters the exact-tree allowlist review surface.
 
 This evidence is structural/static on a Draft branch. It is not executable exact-head GREEN and does not replace the required parent-lineage, repository/security, or real-Chromium acceptance gates.
 
 ## Follow-up
 
-Replace the temporary custom-target lexical stop with compiler-derived or equivalently exact source-input provenance before OriginWeave needs legitimate custom-target module trees. The replacement must cover the actual bytes compiled by Rust across supported target configurations, preserve repository containment and immutable provenance, distinguish inline modules from source-loading outlined modules without ad-hoc grammar drift, and arrive with hostile fixtures before any allowlist widening.
+Replace the temporary custom-target lexical stop and hand-maintained attribute-source review with compiler-derived or equivalently exact source-input provenance before OriginWeave needs legitimate custom-target module trees or broader source-generating attributes/macros. The replacement must cover the actual bytes compiled by Rust across supported target configurations, preserve repository containment and immutable provenance, distinguish inline modules from source-loading outlined modules without ad-hoc grammar drift, and arrive with hostile fixtures before any allowlist widening.
