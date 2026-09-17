@@ -33,23 +33,16 @@ class BrowserSessionCustomTargetSourceContractTests(unittest.TestCase):
             (adapter / "Cargo.toml").write_text(
                 '[package]\nname = "browser-adapter"\nversion = "0.1.0"\nedition = "2024"\n'
                 '[lib]\npath = "runtime/lifecycle_adapter.rs"\n'
-                '[[bin]]\nname = "browser-adapter-cli"\npath = "command/adapter_cli.rs"\n'
-                '[dependencies]\noriginweave-browser-session = { path = "../../crates/originweave-browser-session" }\n',
+                '[[bin]]\nname = "browser-adapter-cli"\npath = "command/adapter_cli.rs"\n',
                 encoding="utf-8",
             )
 
             library_source = adapter / "runtime/lifecycle_adapter.rs"
             library_source.parent.mkdir()
-            library_source.write_text(
-                "use originweave_browser_session::DisposableContextPort;\n",
-                encoding="utf-8",
-            )
+            library_source.write_text("pub fn lifecycle_adapter() {}\n", encoding="utf-8")
             binary_source = adapter / "command/adapter_cli.rs"
             binary_source.parent.mkdir()
-            binary_source.write_text(
-                "use originweave_browser_session::DisposableContextPort;\n",
-                encoding="utf-8",
-            )
+            binary_source.write_text("fn main() {}\n", encoding="utf-8")
 
             production_sources = implicit_workspace._production_sources(root)
             self.assertIn(library_source, production_sources)
