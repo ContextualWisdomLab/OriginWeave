@@ -20,6 +20,15 @@ COMPILER_EXECUTION_KEYS = frozenset(
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 
 
+def _codegen_option_selects_linker(option: str) -> bool:
+    """Return whether one rustc codegen option selects the linker executable."""
+    if option.startswith("linker="):
+        return True
+    if option.startswith(("link-arg=", "link-args=")):
+        return "-fuse-ld=" in option.partition("=")[2]
+    return False
+
+
 def _flags_select_linker(value: object) -> bool:
     """Return whether Cargo-owned rustc/rustdoc flags select a linker executable."""
     if isinstance(value, str):
@@ -30,11 +39,16 @@ def _flags_select_linker(value: object) -> bool:
         return False
 
     for index, argument in enumerate(arguments):
-        if argument.startswith(("-Clinker=", "--codegen=linker=")):
-            return True
+        option: str | None = None
         if argument in {"-C", "--codegen"} and index + 1 < len(arguments):
-            if arguments[index + 1].startswith("linker="):
-                return True
+            option = arguments[index + 1]
+        elif argument.startswith("-C") and len(argument) > 2:
+            option = argument[2:]
+        elif argument.startswith("--codegen="):
+            option = argument.removeprefix("--codegen=")
+
+        if option is not None and _codegen_option_selects_linker(option):
+            return True
     return False
 
 
@@ -246,6 +260,12 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_non_linker_selecting_link_arg_remains_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,--as-needed"]\n'
+        )
+        _assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def test_unrelated_rustflags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
