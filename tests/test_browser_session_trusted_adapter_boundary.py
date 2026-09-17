@@ -102,7 +102,7 @@ def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bo
 
 
 def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
-    """Return every explicitly declared Cargo workspace member manifest."""
+    """Return every reviewed Cargo workspace package manifest."""
     root_manifest_path = root / "Cargo.toml"
     root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
     workspace = root_manifest.get("workspace")
@@ -112,7 +112,10 @@ def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     if not isinstance(members, list):
         raise AssertionError("Cargo workspace members must be an explicit reviewed list")
 
-    manifests: list[pathlib.Path] = []
+    manifests: set[pathlib.Path] = set()
+    if isinstance(root_manifest.get("package"), dict):
+        manifests.add(root_manifest_path)
+
     for member in members:
         if not isinstance(member, str) or not member:
             raise AssertionError("Cargo workspace member paths must be non-empty strings")
@@ -123,7 +126,7 @@ def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
         manifest = root / member / "Cargo.toml"
         if not manifest.is_file():
             raise AssertionError(f"workspace member manifest is missing: {member}/Cargo.toml")
-        manifests.append(manifest)
+        manifests.add(manifest)
     return sorted(manifests)
 
 
