@@ -20,7 +20,7 @@ APPROVED_BROWSER_SESSION_DEPENDENCIES = {
 
 PORT_REFERENCE = re.compile(r"\bDisposableContextPort\b")
 LIFECYCLE_BINDING = re.compile(r"\bbind_lifecycle_port\b")
-BROWSER_SESSION_DEPENDENCY = re.compile(r"(?m)^\s*originweave-browser-session\s*=")
+BROWSER_SESSION_DEPENDENCY = re.compile(r"\boriginweave-browser-session\b")
 
 
 def _has_port_reference(text: str) -> bool:
