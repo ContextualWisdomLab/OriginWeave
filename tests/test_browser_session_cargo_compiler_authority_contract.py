@@ -117,6 +117,10 @@ def _flags_select_linker(value: object) -> bool:
             return True
         if option == "linker-features" or option.startswith("linker-features="):
             return True
+        if option == "linker-flavor" or option.startswith("linker-flavor="):
+            return True
+        if option == "dlltool" or option.startswith("dlltool="):
+            return True
         if option.startswith("link-arg="):
             linker_driver_arguments.append(option.partition("=")[2])
         elif option.startswith("link-args="):
