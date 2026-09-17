@@ -40,19 +40,40 @@ class BrowserSessionNativeLibraryInputContractTests(unittest.TestCase):
         (cargo / "config.toml").write_text(config_text, encoding="utf-8")
         return root
 
-    def test_git_owned_native_library_search_path_fails_closed(self) -> None:
-        root = self._workspace_with_config(
-            '[build]\nrustflags = ["-L", "native=tools/review-bypass-native"]\n'
-        )
+    def _assert_input_override_fails_closed(self, config_text: str) -> None:
+        root = self._workspace_with_config(config_text)
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_git_owned_native_library_search_path_fails_closed(self) -> None:
+        self._assert_input_override_fails_closed(
+            '[build]\nrustflags = ["-L", "native=tools/review-bypass-native"]\n'
+        )
+
     def test_git_owned_native_library_link_request_fails_closed(self) -> None:
-        root = self._workspace_with_config(
+        self._assert_input_override_fails_closed(
             '[build]\nrustflags = ["-l", "static:+whole-archive=review_bypass_native"]\n'
         )
-        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
-            authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_codegen_link_arg_native_library_search_path_fails_closed(self) -> None:
+        self._assert_input_override_fails_closed(
+            '[build]\nrustflags = ["-C", "link-arg=-Ltools/review-bypass-native"]\n'
+        )
+
+    def test_codegen_link_args_native_library_search_path_fails_closed(self) -> None:
+        self._assert_input_override_fails_closed(
+            '[build]\nrustflags = ["--codegen", "link-args=-L tools/review-bypass-native"]\n'
+        )
+
+    def test_target_codegen_link_arg_native_library_request_fails_closed(self) -> None:
+        self._assert_input_override_fails_closed(
+            "[target.'cfg(unix)']\nrustflags = [\"-C\", \"link-arg=-lreview_bypass_native\"]\n"
+        )
+
+    def test_target_codegen_link_args_native_library_request_fails_closed(self) -> None:
+        self._assert_input_override_fails_closed(
+            "[target.'cfg(unix)']\nrustflags = [\"--codegen=link-args=-l review_bypass_native\"]\n"
+        )
 
     def test_unrelated_codegen_flag_remains_allowed(self) -> None:
         root = self._workspace_with_config(
