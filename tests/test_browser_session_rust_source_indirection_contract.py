@@ -18,6 +18,9 @@ spec.loader.exec_module(boundary)
 INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*[([{]")
 RUST_ATTRIBUTE = re.compile(r"#\s*\[([^\]]*)\]", re.DOTALL)
 PATH_META = re.compile(r"\bpath\s*=")
+BARE_MODULE_ITEM = re.compile(
+    r"(?m)^[ \t]*(?:pub(?:\s*\([^\n)]*\))?[ \t]+)?mod[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*;"
+)
 APPROVED_RUST_PATH_ATTRIBUTES = {
     ("crates/originweave-core/src/root.rs", 'path = "lib.rs"'),
 }
@@ -27,9 +30,25 @@ def _normalized_attribute_body(body: str) -> str:
     return " ".join(body.split())
 
 
+def _is_under_any_default_src(source: pathlib.Path, src_roots: list[pathlib.Path]) -> bool:
+    """Return whether Cargo source discovery already reviews every sibling module under this source root."""
+    resolved = source.resolve()
+    for src_root in src_roots:
+        try:
+            resolved.relative_to(src_root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
     """Fail closed when reviewed Rust source can pull unmodeled executable source bytes."""
     discovered_path_attributes: set[tuple[str, str]] = set()
+    default_src_roots = [
+        (manifest.parent / "src").resolve()
+        for manifest in boundary._production_package_manifests(root)
+    ]
 
     for source in boundary._workspace_production_sources(root):
         text = source.read_text(encoding="utf-8")
@@ -38,6 +57,12 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
         if INCLUDE_MACRO.search(text):
             raise AssertionError(
                 f"Rust include! source indirection requires an explicit provenance contract: {relative}"
+            )
+
+        if not _is_under_any_default_src(source, default_src_roots) and BARE_MODULE_ITEM.search(text):
+            raise AssertionError(
+                "Rust module source indirection from a custom Cargo target requires an explicit "
+                f"provenance contract: {relative}"
             )
 
         for match in RUST_ATTRIBUTE.finditer(text):
@@ -127,6 +152,15 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
             _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_bare_module_under_default_src_uses_existing_source_closure(self) -> None:
+        root = self._workspace_with_source("mod nested;\npub fn adapter_surface() {}\n")
+        (root / "adapter/src/nested.rs").write_text(
+            "pub fn nested_adapter_surface() {}\n",
+            encoding="utf-8",
+        )
+
+        _assert_no_unmodeled_rust_source_indirection(root)
 
     def test_new_path_attribute_fails_closed_even_when_target_is_in_tree(self) -> None:
         root = self._workspace_with_source('#[path = "nested.rs"]\nmod nested;\n')
