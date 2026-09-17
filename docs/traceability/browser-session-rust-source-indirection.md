@@ -6,26 +6,29 @@ Status: active PR evidence only. This contract does not claim protected-main or 
 
 The Browser Session trusted-adapter boundary already derives one canonical Cargo production package/source closure and rejects repository-external or dangling source objects. That is not sufficient by itself because reviewed Rust source can cause `rustc` to parse additional source bytes through language-level indirection.
 
-Three related forms matter here:
+Four related forms matter here:
 
 - `include!(...)`, `include![...]`, and `include! {...}` parse another file as an expression or item. Rust macro invocation syntax permits all three delimiter forms, and the included path is relative to the source file containing the invocation.
 - `#[path = "..."] mod ...;` changes the source file used for an outlined module. Rust documents the path attribute as a module-source filename override whose relative interpretation depends on the module location.
 - `#[cfg_attr(..., path = "...")]` can conditionally synthesize the same `path` attribute. A direct `#[path]`-only lexical check therefore does not cover the full Rust attribute surface.
+- A bare outlined module item such as `mod helper;` also causes the compiler to load another Rust file. Cargo's ordinary `src/**/*.rs` review already contains those sibling/default module files conservatively, but a custom Cargo target whose crate root lives outside `src/` can load sibling module files that are not in that closure.
 
 Primary references:
 
 - Rust `include!` macro: https://doc.rust-lang.org/stable/std/macro.include.html
 - Rust Reference, macro invocation syntax: https://doc.rust-lang.org/reference/macros.html#macro-invocation
-- Rust Reference, module source filenames and `path` attribute: https://doc.rust-lang.org/reference/items/modules.html#the-path-attribute
+- Rust Reference, module source filenames and `path` attribute: https://doc.rust-lang.org/reference/items/modules.html#module-source-filenames
 - Rust Reference, conditional attributes with `cfg_attr`: https://doc.rust-lang.org/reference/conditional-compilation.html#the-cfg_attr-attribute
+- Rust 2018 Edition Guide, module file layout: https://doc.rust-lang.org/edition-guide/rust-2018/path-changes.html#no-more-modrs
 
-Without an explicit contract, a future lifecycle adapter could keep its crate, manifest, and ordinary `src/**/*.rs` entry point inside the exact Git review root while compiling additional Rust source not represented by the canonical production-source closure. That would weaken the same provenance boundary used for `DisposableContextPort`, `bind_lifecycle_port`, dependency, and source-containment review.
+Without an explicit contract, a future lifecycle adapter could keep its crate, manifest, and declared custom target inside the exact Git review root while compiling additional Rust source not represented by the canonical production-source closure. That would weaken the same provenance boundary used for `DisposableContextPort`, `bind_lifecycle_port`, dependency, and source-containment review.
 
 ## Constraints
 
 - `tests/test_browser_session_trusted_adapter_boundary.py::_workspace_production_sources()` remains the single writer for Cargo production package/source topology.
 - This contract consumes that closure; it does not reimplement Cargo workspace, dependency, target, build-script, or source-override discovery.
 - Existing `crates/originweave-core/src/root.rs` intentionally uses `#[path = "lib.rs"]`. That exact source/attribute pair is the only currently reviewed path-attribute exception.
+- Default `src/` module trees are already conservatively included by the canonical `src/**/*.rs` closure. The new bare-module guard is therefore limited to reviewed custom target roots outside every production package's default `src/` directory.
 - No future BiDi adapter path or Rust source indirection is pre-authorized.
 
 ## Decision
@@ -36,7 +39,9 @@ Any Rust attribute containing `path =` is treated as source-indirection review s
 
 `crates/originweave-core/src/root.rs` → `path = "lib.rs"`
 
-Any additional path-bearing attribute must arrive in the same reviewed delta that explains and tests its source provenance. This is intentionally stricter than accepting apparently in-tree relative strings because Rust module-path resolution is context-sensitive and conditional attributes can change the selected source by target configuration. A future filesystem indirection must not silently widen the Browser Session TCB.
+A reviewed custom Cargo target outside a production package's default `src/` tree also fails closed if it contains a bare outlined module item (`mod name;`, including ordinary `pub` visibility spellings). This is deliberately narrower than banning bare modules globally: ordinary `src/` module files are already included by the canonical Cargo source closure, whereas a custom target root can otherwise cause `rustc` to read an unenumerated sibling module. Inline modules (`mod name { ... }`) do not add source bytes and are not part of this guard.
+
+Any additional path-bearing attribute or custom-target module source must arrive in the same reviewed delta that explains and tests its source provenance. A future filesystem indirection must not silently widen the Browser Session TCB.
 
 ## RED → repair evidence
 
@@ -47,9 +52,11 @@ Any additional path-bearing attribute must arrive in the same reviewed delta tha
 - Focused CodeRabbit review of exact `72fb8b410d05a252bda7da81a428fcdbcfa31f4e` found a valid P1: the first `include!` detector matched only the parenthesized form even though Rust macro invocations also admit bracket and brace token trees. The review confirmed the other requested source-indirection invariants were structurally correct.
 - `cf9a1902d9c4c184121850ea77cf3f1ca4ce29ee` added hostile `include! {...}` and `include![...]` regressions without changing the parenthesized-only detector, preserving a structural RED for both bypasses.
 - `52dae82b4d4a26ae56cb81913e6d8e1daf7a6e19` repaired the detector to recognize all three valid macro delimiter forms while keeping the same fail-closed error and canonical Cargo source closure.
+- `d823d04a105fa8234077039d96cc168cf942bc8d` added a hostile custom `[lib].path = "runtime/lifecycle_adapter.rs"` whose crate root declares `mod helper;` and whose sibling `runtime/helper.rs` is outside the canonical `src/**/*.rs` closure. The pre-repair contract did not reject that source expansion, preserving the structural RED.
+- `eb2ea168fd951bbc817f24cd08fb2b0b5805a775` repaired the gap without widening Cargo topology ownership: the indirection contract derives production package `src/` roots from the canonical manifest closure, permits bare outlined modules only where the canonical `src/**/*.rs` closure already covers their files, and fails closed on bare outlined modules from custom target roots outside `src/`. A positive fixture keeps ordinary `src/lib.rs -> mod nested;` valid.
 
 This evidence is structural/static on a Draft branch. It is not executable exact-head GREEN and does not replace the required parent-lineage, repository/security, or real-Chromium acceptance gates.
 
 ## Follow-up
 
-If OriginWeave later needs `include!` or additional path-bearing attributes in production code, replace the temporary fail-closed policy with compiler-derived or equivalently exact source-input provenance. The replacement must cover the actual bytes compiled by Rust across supported target configurations, preserve repository containment and immutable provenance, and arrive with hostile fixtures before any allowlist widening.
+If OriginWeave later needs `include!`, additional path-bearing attributes, or custom-target outlined module trees in production code, replace the temporary fail-closed policy with compiler-derived or equivalently exact source-input provenance. The replacement must cover the actual bytes compiled by Rust across supported target configurations, preserve repository containment and immutable provenance, and arrive with hostile fixtures before any allowlist widening.
