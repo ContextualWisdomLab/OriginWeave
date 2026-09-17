@@ -17,10 +17,15 @@ Rust comments are lexical trivia rather than `\s`-only whitespace. This matters 
 
 Raw identifiers are part of the same source-provenance surface. The Rust Reference defines a raw identifier as `r#` plus an identifier/keyword and states that the `r#` prefix is not part of the actual identifier. Macro invocations resolve a `SimplePath`, whose path segment admits an `IDENTIFIER`, so `r#include!(...)` names the same underlying `include` identifier through raw spelling. A detector that deliberately excludes `include` when immediately preceded by `#` therefore leaves a valid source-loading spelling outside the fail-closed contract.
 
+Macro renaming is also source provenance. Rust `use` declarations create local synonymous bindings, can import macro names, and permit `as` aliases. Because `include` is exported from `core`, `use core::include as embed; embed!("...")` can invoke the same source-loading macro without any later literal `include!` token. A direct-invocation-only scanner therefore has a second name-resolution bypass even after ordinary/raw spelling and comment trivia are covered.
+
 Primary references:
 
 - Rust `include!` macro: https://doc.rust-lang.org/stable/std/macro.include.html
+- Rust `core::include` macro export/source: https://doc.rust-lang.org/core/macro.include.html
 - Rust Reference, macro invocation syntax: https://doc.rust-lang.org/reference/macros.html#macro-invocation
+- Rust Reference, use declarations and aliases: https://doc.rust-lang.org/reference/items/use-declarations.html
+- Rust Reference, namespaces and macro imports: https://doc.rust-lang.org/reference/names/namespaces.html
 - Rust Reference, module source filenames and `path` attribute: https://doc.rust-lang.org/reference/items/modules.html#module-source-filenames
 - Rust Reference, conditional attributes with `cfg_attr`: https://doc.rust-lang.org/reference/conditional-compilation.html#the-cfg_attr-attribute
 - Rust Reference, identifiers and raw identifiers: https://doc.rust-lang.org/reference/identifiers.html
@@ -39,11 +44,14 @@ Without an explicit contract, a future lifecycle adapter could keep its crate, m
 - The temporary custom-target guard intentionally over-approximates rather than reproducing Rust's module grammar. Any lexical `mod` token in a custom target root outside default `src/` fails closed. That may reject a harmless inline module or textual occurrence, but it removes identifier/trivia/visibility grammar gaps until compiler-derived source-input provenance replaces the heuristic.
 - Rust attribute and `include!` review must preserve lexical token boundaries. Non-doc line/block comments, including nested block comments, are treated as trivia between Rust tokens; comment/string contents do not terminate the surrounding attribute token tree.
 - Raw-identifier spelling must not create a second identity for a source-loading macro. Ordinary `include` and raw `r#include` are the same fail-closed provenance surface.
+- Import aliases must not create a third identity for the same macro. A named `use ... include as alias` binding is fail-closed until compiler-derived macro/source provenance replaces the lexical contract; `as _` is not treated as callable alias authority because it creates no name that can be invoked later.
 - No future BiDi adapter path or Rust source indirection is pre-authorized.
 
 ## Decision
 
 Until compiler-derived source-input provenance is modeled, production Rust source fails closed on `include!` regardless of whether the macro path uses ordinary `include` or raw-identifier `r#include`, regardless of whether the invocation uses parentheses, brackets, or braces, and regardless of Rust whitespace/comment trivia between the identifier token, `!`, and the opening delimiter. The detector locates either spelling of the same underlying identifier and advances through the same nested non-doc-comment trivia skipper already used by the source-indirection contract before validating `!` and one of the three macro delimiters. It does not broaden the match to longer identifiers and does not authorize any source path.
+
+The same contract also fails closed when a Rust `use` tree gives `include` a callable alias. It scans `use` declarations through their semicolon while ignoring Rust comment trivia, then rejects a named `include as ...` binding. This covers direct and grouped use trees without trying to implement general macro name resolution. Ordinary direct imports remain covered by the later literal `include!` invocation; an underscore import is not a callable alias and is not rejected by this alias-specific rule. This remains a temporary lexical security boundary, not a claim of compiler-equivalent name resolution.
 
 Any Rust attribute containing a `path` meta item followed by valid Rust trivia and `=` is treated as source-indirection review surface, including `cfg_attr`-generated `path`. Attribute bodies are extracted as balanced bracket token trees while skipping Rust whitespace, line comments, nested block comments, normal/raw string literals, and simple character literals for delimiter purposes. This scanner is deliberately limited to locating reviewed path-bearing attribute surfaces; it does not claim to parse Rust modules, name resolution, or macro expansion. The contract uses an exact-tree allowlist of `(source_path, normalized_attribute_body)`. The allowlist must equal the path-attribute surfaces found on the current OriginWeave production-source closure, so it cannot reserve absent future adapter paths. The current exact allowlist contains only:
 
@@ -51,7 +59,7 @@ Any Rust attribute containing a `path` meta item followed by valid Rust trivia a
 
 For a reviewed custom Cargo target outside a production package's default `src/` tree, the temporary contract no longer tries to prove that a particular `mod` spelling is outlined rather than inline. Any lexical `mod` token is a provenance stop. This deliberately conservative rule closes changes in identifier spelling and Rust trivia such as `mod r#type;`, `mod 관찰;`, or `mod /* comment */ helper;` without taking ownership of Cargo topology or pretending a regex implements the Rust parser. Ordinary `src/` module trees remain outside this guard because their sibling files are already enumerated by the canonical source closure.
 
-Any additional path-bearing attribute, `include!` form outside the current fail-closed policy, or custom-target module source must arrive in the same reviewed delta that explains and tests its source provenance. A future filesystem indirection must not silently widen the Browser Session TCB.
+Any additional path-bearing attribute, `include!` form outside the current fail-closed policy, aliased source-loading macro, or custom-target module source must arrive in the same reviewed delta that explains and tests its source provenance. A future filesystem or macro-name indirection must not silently widen the Browser Session TCB.
 
 ## RED → repair evidence
 
@@ -78,9 +86,11 @@ Any additional path-bearing attribute, `include!` form outside the current fail-
 - `bf132fb7b2c2d1a2fdae312962e2f0e0380fc1a5` repaired that gap by replacing the whitespace-only macro regex with token-plus-trivia recognition that reuses the existing nested Rust comment skipper before `!` and before the opening delimiter. The Cargo source closure and fail-closed policy are unchanged.
 - `783bbc614d08c3a9299849524e3dbda8545ab29f` preserved a new structural RED for raw-identifier macro spelling. The predecessor detector intentionally rejected `include` when immediately preceded by `#`, so `r#include!("../generated_adapter.rs")` was outside the fail-closed include provenance stop even though Rust raw identifiers retain the same underlying identifier.
 - `5c3b86091199f436374111d6a4056d47c13c1448` repaired the detector minimally by admitting an optional `r#` prefix as part of the include identifier token. Existing comment-trivia and three-delimiter handling remains unchanged; longer identifiers remain excluded and no path is allowlisted.
+- `2c13993f24b07a7048d7879e594e72a744eeb95f` preserved a new structural RED for macro-name aliasing: a production source imports `core::include as embed` and invokes `embed!("../generated_adapter.rs")`. The predecessor direct-invocation detector sees the `include` token only inside the `use` tree, where no `!` follows it, and therefore does not stop the aliased source load.
+- `4b8dd0832c6965c7e887b7538caa2f4ddc1d917c` is the minimal causal repair. The source-indirection contract now recognizes named `include as alias` bindings inside Rust `use` declarations, including grouped use trees and comment trivia, while preserving the existing direct/raw invocation detector and treating `as _` as non-callable. Cargo topology and source containment remain owned by the existing canonical closure.
 
 This evidence is structural/static on a Draft branch. It is not executable exact-head GREEN and does not replace the required parent-lineage, repository/security, or real-Chromium acceptance gates.
 
 ## Follow-up
 
-Replace the temporary custom-target lexical stop and hand-maintained attribute/macro-source review with compiler-derived or equivalently exact source-input provenance before OriginWeave needs legitimate custom-target module trees or broader source-generating attributes/macros. The replacement must cover the actual bytes compiled by Rust across supported target configurations, preserve repository containment and immutable provenance, distinguish inline modules from source-loading outlined modules without ad-hoc grammar drift, and arrive with hostile fixtures before any allowlist widening.
+Replace the temporary custom-target lexical stop and hand-maintained attribute/macro-source review with compiler-derived or equivalently exact source-input provenance before OriginWeave needs legitimate custom-target module trees or broader source-generating attributes/macros. The replacement must cover the actual bytes compiled by Rust across supported target configurations, preserve repository containment and immutable provenance, distinguish inline modules from source-loading outlined modules without ad-hoc grammar drift, cover macro name resolution/re-exports without lexical approximation, and arrive with hostile fixtures before any allowlist widening.
