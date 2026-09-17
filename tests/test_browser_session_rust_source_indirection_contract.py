@@ -104,6 +104,29 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         (adapter / "src/lib.rs").write_text(source_text, encoding="utf-8")
         return root
 
+    def _custom_target_workspace(self, source_text: str, module_file: str) -> pathlib.Path:
+        """Create a custom-target crate whose outlined module is outside Cargo's default src tree."""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = pathlib.Path(directory.name)
+        (root / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["adapter"]\nresolver = "3"\n',
+            encoding="utf-8",
+        )
+        adapter = root / "adapter"
+        (adapter / "runtime").mkdir(parents=True)
+        (adapter / "Cargo.toml").write_text(
+            '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n'
+            '[lib]\npath = "runtime/lifecycle_adapter.rs"\n',
+            encoding="utf-8",
+        )
+        (adapter / "runtime/lifecycle_adapter.rs").write_text(source_text, encoding="utf-8")
+        (adapter / f"runtime/{module_file}").write_text(
+            "pub fn helper_surface() {}\n",
+            encoding="utf-8",
+        )
+        return root
+
     def _assert_include_form_fails_closed(self, source_text: str) -> None:
         root = self._workspace_with_source(source_text)
         (root / "adapter/generated_adapter.rs").write_text(
@@ -127,27 +150,18 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         self._assert_include_form_fails_closed('include!["../generated_adapter.rs"];\n')
 
     def test_bare_module_from_custom_target_fails_closed(self) -> None:
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        root = pathlib.Path(directory.name)
-        (root / "Cargo.toml").write_text(
-            '[workspace]\nmembers = ["adapter"]\nresolver = "3"\n',
-            encoding="utf-8",
-        )
-        adapter = root / "adapter"
-        (adapter / "runtime").mkdir(parents=True)
-        (adapter / "Cargo.toml").write_text(
-            '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n'
-            '[lib]\npath = "runtime/lifecycle_adapter.rs"\n',
-            encoding="utf-8",
-        )
-        (adapter / "runtime/lifecycle_adapter.rs").write_text(
+        root = self._custom_target_workspace(
             "mod helper;\npub fn lifecycle_adapter_surface() {}\n",
-            encoding="utf-8",
+            "helper.rs",
         )
-        (adapter / "runtime/helper.rs").write_text(
-            "pub fn helper_surface() {}\n",
-            encoding="utf-8",
+
+        with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
+            _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_raw_identifier_bare_module_from_custom_target_fails_closed(self) -> None:
+        root = self._custom_target_workspace(
+            "mod r#type;\npub fn lifecycle_adapter_surface() {}\n",
+            "type.rs",
         )
 
         with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
