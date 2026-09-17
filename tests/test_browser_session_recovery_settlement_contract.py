@@ -74,20 +74,23 @@ class BrowserSessionRecoverySettlementContractTests(unittest.TestCase):
         """Fact validation must precede proof I/O, which must precede aggregate mutation."""
 
         source = RECOVERY.read_text(encoding="utf-8")
+        selector = source.split("fn select_recovery_fact", 1)[1].split("\n    }\n}", 1)[0]
         method = source.split("pub fn settle_recovery_fact", 1)[1].split("\n    }\n}", 1)[0]
 
-        authority = method.index("RecoverySettlementError::AuthorityMismatch")
-        revision = method.index("fact.revision != self.revision")
-        exact_fact = method.index(".get(fact.index)")
+        selector_authority = selector.index("RecoveryFactValidationError::AuthorityMismatch")
+        selector_revision = selector.index("fact.revision != self.revision")
+        selector_exact_fact = selector.index(".get(fact.index)")
+        selection = method.index(".select_recovery_fact(fact)")
         verifier = method.index("verify_recovery_settlement")
         retirement = method.index("settle_recovery_evidence_at")
         revision_commit = method.index("self.revision = next_revision")
 
-        self.assertLess(authority, verifier)
-        self.assertLess(revision, verifier)
-        self.assertLess(exact_fact, verifier)
+        self.assertLess(selector_authority, selector_revision)
+        self.assertLess(selector_revision, selector_exact_fact)
+        self.assertLess(selection, verifier)
         self.assertLess(verifier, retirement)
         self.assertLess(retirement, revision_commit)
+        self.assertIn("RecoveryFactLedger::CreateAttempt", selector)
         self.assertIn("RecoveryFactLedger::CreateAttempt", method)
         self.assertIn("settle_create_attempt_recovery_evidence_at", method)
 
