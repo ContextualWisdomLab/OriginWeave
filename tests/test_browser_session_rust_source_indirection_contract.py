@@ -17,11 +17,15 @@ spec.loader.exec_module(boundary)
 
 INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*\(")
 PATH_ATTRIBUTE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"]+)"\s*\]')
-WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[/\\]")
+APPROVED_RUST_PATH_ATTRIBUTES = {
+    ("crates/originweave-core/src/root.rs", "lib.rs"),
+}
 
 
 def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
     """Fail closed when reviewed Rust source can pull unmodeled executable source bytes."""
+    discovered_path_attributes: set[tuple[str, str]] = set()
+
     for source in boundary._workspace_production_sources(root):
         text = source.read_text(encoding="utf-8")
         relative = source.relative_to(root).as_posix()
@@ -32,18 +36,20 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
             )
 
         for match in PATH_ATTRIBUTE.finditer(text):
-            declared_path = match.group(1)
-            normalized = declared_path.replace("\\", "/")
-            parts = pathlib.PurePosixPath(normalized).parts
-            if (
-                pathlib.PurePosixPath(normalized).is_absolute()
-                or WINDOWS_ABSOLUTE_PATH.match(declared_path)
-                or ".." in parts
-            ):
-                raise AssertionError(
-                    "Rust path attribute escapes canonical source closure and requires an explicit provenance contract: "
-                    f"{relative} -> {declared_path}"
-                )
+            discovered_path_attributes.add((relative, match.group(1)))
+
+    unexpected = discovered_path_attributes - APPROVED_RUST_PATH_ATTRIBUTES
+    if unexpected:
+        raise AssertionError(
+            "Rust path attribute requires an explicit exact-tree provenance review: "
+            f"{sorted(unexpected)}"
+        )
+
+    stale = APPROVED_RUST_PATH_ATTRIBUTES - discovered_path_attributes
+    if root.resolve() == ROOT.resolve() and stale:
+        raise AssertionError(
+            f"Rust path-attribute allowlist preapproves absent production surfaces: {sorted(stale)}"
+        )
 
 
 class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
@@ -79,24 +85,25 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Rust include! source indirection"):
             _assert_no_unmodeled_rust_source_indirection(root)
 
-    def test_parent_traversal_path_attribute_fails_closed_until_module_provenance_is_modeled(self) -> None:
-        root = self._workspace_with_source('#[path = "../shared_adapter.rs"]\nmod shared_adapter;\n')
-        (root / "adapter/shared_adapter.rs").write_text(
-            "pub fn shared_adapter_surface() {}\n",
-            encoding="utf-8",
-        )
-
-        with self.assertRaisesRegex(AssertionError, "Rust path attribute escapes canonical source closure"):
-            _assert_no_unmodeled_rust_source_indirection(root)
-
-    def test_in_tree_relative_path_attribute_remains_allowed(self) -> None:
+    def test_new_path_attribute_fails_closed_even_when_target_is_in_tree(self) -> None:
         root = self._workspace_with_source('#[path = "nested.rs"]\nmod nested;\n')
         (root / "adapter/src/nested.rs").write_text(
             "pub fn nested_adapter_surface() {}\n",
             encoding="utf-8",
         )
 
-        _assert_no_unmodeled_rust_source_indirection(root)
+        with self.assertRaisesRegex(AssertionError, "Rust path attribute requires"):
+            _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_parent_traversal_path_attribute_fails_closed(self) -> None:
+        root = self._workspace_with_source('#[path = "../shared_adapter.rs"]\nmod shared_adapter;\n')
+        (root / "adapter/shared_adapter.rs").write_text(
+            "pub fn shared_adapter_surface() {}\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust path attribute requires"):
+            _assert_no_unmodeled_rust_source_indirection(root)
 
 
 if __name__ == "__main__":
