@@ -14,19 +14,52 @@ CRATE = ROOT / "crates/originweave-browser-session"
 def _inherent_impl_surface(source: str, type_name: str) -> str:
     """Return every inherent impl segment for one Rust type without matching sibling request types."""
 
-    starts = [match.start() for match in re.finditer(r"(?m)^impl<", source)]
+    starts = [match.start() for match in re.finditer(r"(?m)^impl(?=\s|<)", source)]
     starts.append(len(source))
     segments: list[str] = []
     for index, start in enumerate(starts[:-1]):
         segment = source[start : starts[index + 1]]
-        header = segment.split("{", 1)[0]
-        if re.search(rf"\b{re.escape(type_name)}<[^>]+>\s*$", header.strip()):
-            segments.append(segment)
+        header = segment.split("{", 1)[0].strip()
+        target = re.search(
+            rf"\b{re.escape(type_name)}\s*<[^{{}};]+>\s*$",
+            header,
+        )
+        if target is None:
+            continue
+        if re.search(r"\bfor\s*$", header[: target.start()]):
+            continue
+        segments.append(segment)
     return "\n".join(segments)
 
 
 class BrowserSessionLifecycleContractTests(unittest.TestCase):
     """Keep presentation mutation authority in an explicit Browser Session domain."""
+
+    def test_recovery_surface_extractor_covers_concrete_and_spaced_generic_impls(self) -> None:
+        """Raw recovery accessors must not hide in concrete or spaced-generic inherent impls."""
+
+        hostile = """
+impl BoundBrowserSessionRecovery<ConcretePort> {
+    pub fn browser_session(&self) {}
+}
+impl <P> BoundBrowserSessionRecovery<P> {
+    pub const fn port(&self) {}
+}
+impl<P> RecoveryContextOperationRequest<P> {
+    pub fn browser_session(&self) {}
+}
+impl<P> RecoveryInspection for BoundBrowserSessionRecovery<P> {
+    fn port(&self) {}
+}
+"""
+        surface = _inherent_impl_surface(hostile, "BoundBrowserSessionRecovery")
+
+        self.assertIn("impl BoundBrowserSessionRecovery<ConcretePort>", surface)
+        self.assertIn("impl <P> BoundBrowserSessionRecovery<P>", surface)
+        self.assertIn("pub fn browser_session(&self)", surface)
+        self.assertIn("pub const fn port(&self)", surface)
+        self.assertNotIn("RecoveryContextOperationRequest", surface)
+        self.assertNotIn("RecoveryInspection for BoundBrowserSessionRecovery", surface)
 
     def test_browser_session_is_an_independent_workspace_boundary(self) -> None:
         """Browser Session authority must not be hidden in a driver adapter."""
