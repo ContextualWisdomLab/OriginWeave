@@ -9,6 +9,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Derived Browser Session trusted-adapter source and manifest review coverage from explicit Cargo `[workspace].members` instead of the `crates/*` directory convention, so production workspace members at other paths cannot evade lifecycle-SPI/dependency/binding review; workspace-member globs now fail closed until the security contract is explicitly extended.
 - Hardened Browser Session trusted-adapter dependency discovery so Cargo workspace-inherited aliases and target-specific production dependencies resolve to the canonical `originweave-browser-session` package before allowlist comparison; dev-only dependencies do not widen the shipped adapter-composition surface.
 - Removed latent Browser Session adapter pre-authorization from the trusted-adapter allowlists. Approved source and dependency entries must now correspond to production surfaces present on the same exact tree, so the future BiDi lifecycle adapter must widen the allowlists in the same reviewed change that introduces its implementation and crate dependency.
 - Hardened the Browser Session trusted-adapter repository contract so fully qualified or aliased `DisposableContextPort` references and UFCS/whitespace `bind_lifecycle_port` spellings cannot evade review-surface detection; this changes no Rust production behavior or trust classification.
