@@ -17,6 +17,14 @@ APPROVED_PRODUCTION_PORT_IMPLEMENTATIONS = {
 PORT_IMPL = re.compile(r"impl(?:<[^{}]*>)?\s+DisposableContextPort\s+for\s+")
 
 
+def _has_port_implementation(text: str) -> bool:
+    return PORT_IMPL.search(text) is not None
+
+
+def _has_lifecycle_binding(text: str) -> bool:
+    return ".bind_lifecycle_port(" in text
+
+
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
     """Keep the privileged lifecycle adapter inside the reviewed product TCB."""
 
@@ -48,7 +56,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
         discovered = set()
         for path in ROOT.glob("crates/*/src/**/*.rs"):
             text = path.read_text(encoding="utf-8")
-            if PORT_IMPL.search(text):
+            if _has_port_implementation(text):
                 discovered.add(path.relative_to(ROOT).as_posix())
 
         unexpected = discovered - APPROVED_PRODUCTION_PORT_IMPLEMENTATIONS
@@ -60,7 +68,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             if path == ROOT / "crates/originweave-browser-session/src/browser_session.rs":
                 continue
             text = path.read_text(encoding="utf-8")
-            if ".bind_lifecycle_port(" in text:
+            if _has_lifecycle_binding(text):
                 callers.add(path.relative_to(ROOT).as_posix())
 
         self.assertEqual(
@@ -68,6 +76,31 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             set(),
             "product composition must gain an explicit reviewed owner before binding a lifecycle port",
         )
+
+    def test_scanners_cover_qualified_alias_and_ufcs_spellings(self) -> None:
+        port_spellings = (
+            "impl originweave_browser_session::DisposableContextPort for CandidatePort {}",
+            (
+                "use originweave_browser_session::DisposableContextPort as LifecyclePort;\n"
+                "impl LifecyclePort for CandidatePort {}"
+            ),
+        )
+        for source in port_spellings:
+            self.assertTrue(
+                _has_port_implementation(source),
+                f"production port spelling escaped review scanner: {source!r}",
+            )
+
+        binding_spellings = (
+            "session.bind_lifecycle_port(port);",
+            "BrowserSession::bind_lifecycle_port(session, port);",
+            "session.bind_lifecycle_port (port);",
+        )
+        for source in binding_spellings:
+            self.assertTrue(
+                _has_lifecycle_binding(source),
+                f"production lifecycle binding escaped review scanner: {source!r}",
+            )
 
 
 if __name__ == "__main__":
