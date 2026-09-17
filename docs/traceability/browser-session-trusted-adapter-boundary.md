@@ -38,7 +38,9 @@ Test-first commit `100c00487488bbc281106ddf6fe4ae1b60feb16b` adds hostile qualif
 
 A second review found the remaining cross-file alias case: one reviewed module could import or re-export the trait under another name while a different module implements only that alias and therefore contains no `DisposableContextPort` token. Test-first commit `6ce9c1f3b13fe157cfae822a0958c2b8dc2dabd8` records that direct source scanning cannot prove this case. Commit `cb9fb54e4a799919a425f3636cb0a5f1daacfb24` adds the compensating crate-boundary invariant: every production `Cargo.toml` that can link Browser Session must itself be reviewed and allowlisted. A cross-file alias therefore cannot create a new production adapter from an unreviewed crate without first widening an explicit dependency review surface.
 
-These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling and module-layout choices.
+Cargo permits the dependency key itself to be renamed with `package = "originweave-browser-session"` and also permits table-style dependency declarations. Test-first commit `1e46b302254596397a6c4b0bb9ced1be02a33ea1` adds both forms and exposes the narrower manifest-key matcher. Commit `b24b9beb7a0804b90339a0e9e6abce3dd701fc4b` makes the manifest review fail closed on the canonical package token wherever it appears in a production crate manifest, covering direct keys, package aliases, and table syntax.
+
+These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, and module-layout choices.
 
 ## Authority invariant
 
