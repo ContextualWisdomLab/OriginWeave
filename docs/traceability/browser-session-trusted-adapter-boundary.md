@@ -25,7 +25,7 @@ No external production consumer is approved on the current #317 tree. The intend
 1. the Browser Session crate remains `publish = false`;
 2. the canonical threat model continues to classify privileged browser integration as trusted Zone C code;
 3. production references to `DisposableContextPort` outside the Browser Session owner are limited to the explicit reviewed source allowlist;
-4. production crate dependencies on `originweave-browser-session` are limited to the explicit reviewed manifest allowlist;
+4. production crate dependencies on `originweave-browser-session` are limited to the explicit reviewed manifest allowlist, including direct package aliases, table syntax, target-specific production dependencies, and workspace-inherited aliases resolved through root `[workspace.dependencies]`;
 5. both allowlists exactly describe production surfaces that exist on the current tree, so an absent future source path or dependency cannot be pre-approved; and
 6. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling.
 
@@ -43,7 +43,9 @@ Cargo permits the dependency key itself to be renamed with `package = "originwea
 
 A third review found a governance hole in the allowlist itself. The contract pre-listed the future BiDi source path and manifest even though neither current production surface existed. That meant a later change could introduce exactly those surfaces without modifying the security contract, turning a supposedly explicit review surface into latent permission. Test-first commit `6727474a15e85f66917821169cafcba89dbcfbdb` requires both allowlists to equal the surfaces actually discovered on the current tree and therefore fails on those future reservations. Commit `6f2265e8d99cccd7bef89b2aaa4581854f093087` removes the reservations. A future BiDi adapter must now widen the allowlist in the same reviewed change that introduces its source and dependency.
 
-These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, module-layout choices, and future composition changes.
+A fourth review found that Cargo workspace inheritance could bypass the manifest scanner without ever spelling the canonical package name in the consuming crate. A root declaration such as `browser_session = { package = "originweave-browser-session", ... }` under `[workspace.dependencies]` can be consumed by a member as `browser_session = { workspace = true }`; the previous per-member regex saw only the alias. Test-first commit `97b925c0d7c957f99e9b798f45decac70877cd40` records that escape. Commit `aeea79c5d57a1cb1c7c5d3f760a2d728214d8a09` parses Cargo TOML, resolves workspace-inherited dependency aliases to their canonical package, and applies the same review surface to target-specific production dependencies. Dev-only dependencies remain outside the shipped adapter-composition surface.
+
+These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, workspace inheritance, module-layout choices, and future composition changes.
 
 ## Authority invariant
 
