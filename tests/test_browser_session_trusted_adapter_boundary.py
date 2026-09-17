@@ -14,6 +14,9 @@ BROWSER_SESSION_SOURCE_ROOT = "crates/originweave-browser-session/src/"
 APPROVED_PRODUCTION_PORT_REFERENCES = {
     "crates/originweave-bidi/src/lifecycle_acl.rs",
 }
+APPROVED_BROWSER_SESSION_DEPENDENCIES = {
+    "crates/originweave-bidi/Cargo.toml",
+}
 
 PORT_REFERENCE = re.compile(r"\bDisposableContextPort\b")
 LIFECYCLE_BINDING = re.compile(r"\bbind_lifecycle_port\b")
@@ -110,6 +113,16 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
                 _has_lifecycle_binding(source),
                 f"production lifecycle binding escaped review scanner: {source!r}",
             )
+
+    def test_cross_file_alias_cannot_escape_dependency_review_surface(self) -> None:
+        alias_only_source = "impl LifecyclePort for CandidatePort {}"
+        dependency_manifest = (
+            "[dependencies]\n"
+            'originweave-browser-session = { path = "../originweave-browser-session" }\n'
+        )
+
+        self.assertFalse(_has_port_reference(alias_only_source))
+        self.assertTrue(_has_browser_session_dependency(dependency_manifest))
 
 
 if __name__ == "__main__":
