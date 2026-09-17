@@ -27,6 +27,8 @@ def _linker_driver_argument_selects_executable(argument: str) -> bool:
         return True
     if argument == "-specs" or argument.startswith("-specs="):
         return True
+    if argument == "-wrapper":
+        return True
     if argument.startswith("-fuse-ld="):
         return True
     return argument == "-B" or argument.startswith("-B")
