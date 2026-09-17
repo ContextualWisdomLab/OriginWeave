@@ -102,8 +102,29 @@ def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bo
 
 
 def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
-    """Return production manifests covered by the current repository contract."""
-    return sorted(root.glob("crates/*/Cargo.toml"))
+    """Return every explicitly declared Cargo workspace member manifest."""
+    root_manifest_path = root / "Cargo.toml"
+    root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
+    workspace = root_manifest.get("workspace")
+    if not isinstance(workspace, dict):
+        raise AssertionError("repository root must declare a Cargo workspace")
+    members = workspace.get("members")
+    if not isinstance(members, list):
+        raise AssertionError("Cargo workspace members must be an explicit reviewed list")
+
+    manifests: list[pathlib.Path] = []
+    for member in members:
+        if not isinstance(member, str) or not member:
+            raise AssertionError("Cargo workspace member paths must be non-empty strings")
+        if any(token in member for token in ("*", "?", "[")):
+            raise AssertionError(
+                "Cargo workspace member globs require an explicit trusted-adapter contract update"
+            )
+        manifest = root / member / "Cargo.toml"
+        if not manifest.is_file():
+            raise AssertionError(f"workspace member manifest is missing: {member}/Cargo.toml")
+        manifests.append(manifest)
+    return sorted(manifests)
 
 
 def _workspace_production_sources(root: pathlib.Path) -> list[pathlib.Path]:
@@ -302,6 +323,16 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
             self.assertIn(member_manifest, _workspace_member_manifests(root))
             self.assertIn(source, _workspace_production_sources(root))
+
+    def test_workspace_member_globs_fail_closed_until_reviewed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["plugins/*"]\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(AssertionError, "member globs require"):
+                _workspace_member_manifests(root)
 
 
 if __name__ == "__main__":
