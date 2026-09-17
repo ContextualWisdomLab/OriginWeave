@@ -77,6 +77,61 @@ def _manifest_dependency_sections(manifest: dict[str, object]) -> list[dict[str,
     return sections
 
 
+def _manifest_build_dependency_sections(manifest: dict[str, object]) -> list[dict[str, object]]:
+    """Return build dependency sections that can influence generated production code."""
+    sections: list[dict[str, object]] = []
+    build_dependencies = manifest.get("build-dependencies")
+    if isinstance(build_dependencies, dict):
+        sections.append(build_dependencies)
+
+    targets = manifest.get("target")
+    if isinstance(targets, dict):
+        for target in targets.values():
+            if not isinstance(target, dict):
+                continue
+            target_build_dependencies = target.get("build-dependencies")
+            if isinstance(target_build_dependencies, dict):
+                sections.append(target_build_dependencies)
+
+    return sections
+
+
+def _assert_no_production_build_surfaces(root: pathlib.Path, manifest: pathlib.Path) -> None:
+    """Fail closed on Cargo build surfaces until generated-source provenance is modeled."""
+    parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    build_dependency_sections = _manifest_build_dependency_sections(parsed)
+    if any(section for section in build_dependency_sections):
+        relative = manifest.relative_to(root).as_posix()
+        raise AssertionError(
+            f"production Cargo build dependencies require an explicit trusted-adapter contract: {relative}"
+        )
+
+    package = parsed.get("package")
+    build_setting: object = None
+    if isinstance(package, dict):
+        build_setting = package.get("build")
+
+    if build_setting is False:
+        return
+    if isinstance(build_setting, str) and build_setting:
+        relative = manifest.relative_to(root).as_posix()
+        raise AssertionError(
+            f"production Cargo build script requires an explicit trusted-adapter contract: {relative}"
+        )
+    if build_setting is not None:
+        relative = manifest.relative_to(root).as_posix()
+        raise AssertionError(
+            f"unsupported Cargo package.build setting in production package: {relative}"
+        )
+
+    default_build_script = manifest.parent / "build.rs"
+    if default_build_script.exists() or default_build_script.is_symlink():
+        relative = manifest.relative_to(root).as_posix()
+        raise AssertionError(
+            f"production Cargo build script requires an explicit trusted-adapter contract: {relative}"
+        )
+
+
 def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bool:
     member = tomllib.loads(member_text)
     workspace_manifest = tomllib.loads(workspace_text)
@@ -184,6 +239,7 @@ def _production_package_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     pending = list(manifests)
     while pending:
         manifest = pending.pop()
+        _assert_no_production_build_surfaces(root, manifest)
         parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
         for section in _manifest_dependency_sections(parsed):
             for dependency_name, dependency_spec in section.items():
