@@ -35,6 +35,15 @@ def _linker_driver_argument_selects_executable(argument: str) -> bool:
     return argument == "-B" or argument.startswith("-B")
 
 
+def _linker_argument_extends_external_inputs(argument: str) -> bool:
+    """Return whether one compiler/linker-driver argument widens external library inputs."""
+    if argument in {"-L", "-l"}:
+        return True
+    if argument.startswith("-L") and len(argument) > 2:
+        return True
+    return argument.startswith("-l") and len(argument) > 2 and not argument.startswith("--")
+
+
 def _linker_option_loads_plugin(argument: str) -> bool:
     """Return whether one direct linker option requests dynamically loaded plugin code."""
     if argument in LINKER_PLUGIN_OPTIONS:
@@ -68,12 +77,15 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
     for index, argument in enumerate(arguments):
         if _linker_driver_argument_selects_executable(argument):
             return True
+        if _linker_argument_extends_external_inputs(argument):
+            return True
         if _linker_option_selects_script(argument):
             return True
         if any(
             _linker_option_loads_plugin(forwarded)
             or _linker_option_selects_script(forwarded)
             or _linker_option_uses_response_file(forwarded)
+            or _linker_argument_extends_external_inputs(forwarded)
             for forwarded in _forwarded_linker_arguments(argument)
         ):
             return True
@@ -84,6 +96,7 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
                 _linker_option_loads_plugin(arguments[index + 1])
                 or _linker_option_selects_script(arguments[index + 1])
                 or _linker_option_uses_response_file(arguments[index + 1])
+                or _linker_argument_extends_external_inputs(arguments[index + 1])
             )
         ):
             return True
@@ -101,15 +114,7 @@ def _flag_arguments(value: object) -> list[str]:
 
 def _flags_extend_external_link_inputs(value: object) -> bool:
     """Return whether Git-owned rustc flags widen external crate or native-library inputs."""
-    arguments = _flag_arguments(value)
-    for argument in arguments:
-        if argument in {"-L", "-l"}:
-            return True
-        if argument.startswith("-L") and len(argument) > 2:
-            return True
-        if argument.startswith("-l") and len(argument) > 2 and not argument.startswith("--"):
-            return True
-    return False
+    return any(_linker_argument_extends_external_inputs(argument) for argument in _flag_arguments(value))
 
 
 def _flags_select_linker(value: object) -> bool:
