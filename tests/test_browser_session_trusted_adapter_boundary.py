@@ -153,9 +153,13 @@ def _in_repository_path_dependency(
     candidate = (base / declared_path / "Cargo.toml").resolve()
     try:
         candidate.relative_to(root_resolved)
-    except ValueError:
-        return None
-    return candidate if candidate.is_file() else None
+    except ValueError as exc:
+        raise AssertionError(
+            f"production Cargo path dependency escapes repository review root: {declared_path}"
+        ) from exc
+    if not candidate.is_file():
+        raise AssertionError(f"production Cargo path dependency manifest is missing: {declared_path}")
+    return candidate
 
 
 def _production_package_manifests(root: pathlib.Path) -> list[pathlib.Path]:
