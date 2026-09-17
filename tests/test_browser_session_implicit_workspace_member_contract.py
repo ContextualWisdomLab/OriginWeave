@@ -160,6 +160,45 @@ class BrowserSessionImplicitWorkspaceMemberContractTests(unittest.TestCase):
             self.assertIn(adapter_manifest, _production_package_manifests(root))
             self.assertIn(adapter_source, _production_sources(root))
 
+    def test_recursive_path_dependency_enters_canonical_binding_review_surface(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["app"]\nresolver = "3"\n',
+                encoding="utf-8",
+            )
+
+            app = root / "app"
+            app.mkdir()
+            (app / "Cargo.toml").write_text(
+                '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2024"\n'
+                '[dependencies]\nbrowser-adapter = { path = "../plugins/browser-adapter" }\n',
+                encoding="utf-8",
+            )
+            (app / "src").mkdir()
+            (app / "src/lib.rs").write_text("pub fn app() {}\n", encoding="utf-8")
+
+            adapter = root / "plugins/browser-adapter"
+            adapter.mkdir(parents=True)
+            (adapter / "Cargo.toml").write_text(
+                '[package]\nname = "browser-adapter"\nversion = "0.1.0"\nedition = "2024"\n',
+                encoding="utf-8",
+            )
+            adapter_source = adapter / "src/lib.rs"
+            adapter_source.parent.mkdir()
+            adapter_source.write_text(
+                "pub fn attach(session: &mut Session, port: Port) { session.bind_lifecycle_port(port); }\n",
+                encoding="utf-8",
+            )
+
+            self.assertIn(adapter_source, _production_sources(root))
+            self.assertTrue(boundary._has_lifecycle_binding(adapter_source.read_text(encoding="utf-8")))
+            self.assertIn(
+                adapter_source,
+                boundary._workspace_production_sources(root),
+                "canonical lifecycle-binding review must include recursive in-repository path dependencies",
+            )
+
     def test_workspace_inherited_path_dependency_cannot_escape_review_surface(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
