@@ -7,22 +7,24 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BROWSER_SESSION_CARGO = ROOT / "crates/originweave-browser-session/Cargo.toml"
 THREAT_MODEL = ROOT / "docs/THREAT_MODEL.md"
 DOSSIER = ROOT / "docs/traceability/browser-session-trusted-adapter-boundary.md"
+BROWSER_SESSION_SOURCE_ROOT = "crates/originweave-browser-session/src/"
 
-# Production adapter implementations are explicit review surfaces. Test doubles under
-# crate `tests/` are intentionally outside this scan.
-APPROVED_PRODUCTION_PORT_IMPLEMENTATIONS = {
+# Any production reference to the lifecycle SPI outside the Browser Session owner is an explicit
+# review surface. The reserved BiDi path is the only currently approved external production owner.
+APPROVED_PRODUCTION_PORT_REFERENCES = {
     "crates/originweave-bidi/src/lifecycle_acl.rs",
 }
 
-PORT_IMPL = re.compile(r"impl(?:<[^{}]*>)?\s+DisposableContextPort\s+for\s+")
+PORT_REFERENCE = re.compile(r"\bDisposableContextPort\b")
+LIFECYCLE_BINDING = re.compile(r"\bbind_lifecycle_port\b")
 
 
-def _has_port_implementation(text: str) -> bool:
-    return PORT_IMPL.search(text) is not None
+def _has_port_reference(text: str) -> bool:
+    return PORT_REFERENCE.search(text) is not None
 
 
 def _has_lifecycle_binding(text: str) -> bool:
-    return ".bind_lifecycle_port(" in text
+    return LIFECYCLE_BINDING.search(text) is not None
 
 
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
@@ -52,15 +54,22 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
         ):
             self.assertIn(required, dossier)
 
-    def test_production_disposable_context_port_implementations_are_allowlisted(self) -> None:
+    def test_production_disposable_context_port_references_are_allowlisted(self) -> None:
         discovered = set()
         for path in ROOT.glob("crates/*/src/**/*.rs"):
+            relative = path.relative_to(ROOT).as_posix()
+            if relative.startswith(BROWSER_SESSION_SOURCE_ROOT):
+                continue
             text = path.read_text(encoding="utf-8")
-            if _has_port_implementation(text):
-                discovered.add(path.relative_to(ROOT).as_posix())
+            if _has_port_reference(text):
+                discovered.add(relative)
 
-        unexpected = discovered - APPROVED_PRODUCTION_PORT_IMPLEMENTATIONS
-        self.assertEqual(unexpected, set(), f"unreviewed production port implementations: {sorted(unexpected)}")
+        unexpected = discovered - APPROVED_PRODUCTION_PORT_REFERENCES
+        self.assertEqual(
+            unexpected,
+            set(),
+            f"unreviewed production lifecycle-port references: {sorted(unexpected)}",
+        )
 
     def test_product_sources_do_not_bind_a_caller_selected_lifecycle_port(self) -> None:
         callers = set()
@@ -87,7 +96,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
         )
         for source in port_spellings:
             self.assertTrue(
-                _has_port_implementation(source),
+                _has_port_reference(source),
                 f"production port spelling escaped review scanner: {source!r}",
             )
 
