@@ -113,6 +113,10 @@ def _flags_select_linker(value: object) -> bool:
             continue
         if option.startswith("linker="):
             return True
+        if option == "link-self-contained" or option.startswith("link-self-contained="):
+            return True
+        if option == "linker-features" or option.startswith("linker-features="):
+            return True
         if option.startswith("link-arg="):
             linker_driver_arguments.append(option.partition("=")[2])
         elif option.startswith("link-args="):
