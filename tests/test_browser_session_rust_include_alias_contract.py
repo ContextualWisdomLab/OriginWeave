@@ -20,7 +20,7 @@ spec.loader.exec_module(source_indirection)
 class BrowserSessionRustIncludeAliasContractTests(unittest.TestCase):
     """Prove that renaming Rust's include macro cannot bypass source provenance review."""
 
-    def test_aliased_include_macro_fails_closed(self) -> None:
+    def _assert_alias_fails_closed(self, source_text: str) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             (root / "Cargo.toml").write_text(
@@ -33,10 +33,7 @@ class BrowserSessionRustIncludeAliasContractTests(unittest.TestCase):
                 '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n',
                 encoding="utf-8",
             )
-            (adapter / "src/lib.rs").write_text(
-                'use core::include as embed;\nembed!("../generated_adapter.rs");\n',
-                encoding="utf-8",
-            )
+            (adapter / "src/lib.rs").write_text(source_text, encoding="utf-8")
             (adapter / "generated_adapter.rs").write_text(
                 "pub fn generated_adapter_surface() {}\n",
                 encoding="utf-8",
@@ -47,6 +44,17 @@ class BrowserSessionRustIncludeAliasContractTests(unittest.TestCase):
                 "Rust include! source indirection",
             ):
                 source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_aliased_include_macro_fails_closed(self) -> None:
+        self._assert_alias_fails_closed(
+            'use core::include as embed;\nembed!("../generated_adapter.rs");\n'
+        )
+
+    def test_grouped_raw_include_alias_with_comment_trivia_fails_closed(self) -> None:
+        self._assert_alias_fails_closed(
+            'use core::{r#include /* provenance trivia */ as embed};\n'
+            'embed!["../generated_adapter.rs"];\n'
+        )
 
 
 if __name__ == "__main__":
