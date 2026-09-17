@@ -19,7 +19,7 @@ INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*[([{]")
 RUST_ATTRIBUTE = re.compile(r"#\s*\[([^\]]*)\]", re.DOTALL)
 PATH_META = re.compile(r"\bpath\s*=")
 BARE_MODULE_ITEM = re.compile(
-    r"(?m)^[ \t]*(?:pub(?:\s*\([^\n)]*\))?[ \t]+)?mod[ \t]+(?:r#)?[A-Za-z_][A-Za-z0-9_]*[ \t]*;"
+    r"(?m)^[ \t]*(?:pub(?:\s*\([^\n)]*\))?[ \t]+)?mod[ \t]+[^\s;{}]+[ \t]*;"
 )
 APPROVED_RUST_PATH_ATTRIBUTES = {
     ("crates/originweave-core/src/root.rs", 'path = "lib.rs"'),
