@@ -15,7 +15,7 @@ spec.loader.exec_module(authority)
 
 
 class BrowserSessionLinkerToolchainSelectionContractTests(unittest.TestCase):
-    """Keep rustc-managed linker binary selection inside the reviewed build boundary."""
+    """Keep rustc-managed linker and auxiliary binary selection inside the reviewed build boundary."""
 
     def _workspace_with_flags(self, rustflags: str, *, target_scoped: bool = False) -> pathlib.Path:
         directory = tempfile.TemporaryDirectory()
@@ -41,20 +41,25 @@ class BrowserSessionLinkerToolchainSelectionContractTests(unittest.TestCase):
         )
         return root
 
-    def test_repository_link_self_contained_linker_selection_fails_closed(self) -> None:
-        root = self._workspace_with_flags(
-            '["-C", "link-self-contained=+linker"]'
-        )
+    def _assert_fails_closed(self, rustflags: str, *, target_scoped: bool = False) -> None:
+        root = self._workspace_with_flags(rustflags, target_scoped=target_scoped)
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_repository_link_self_contained_linker_selection_fails_closed(self) -> None:
+        self._assert_fails_closed('["-C", "link-self-contained=+linker"]')
+
     def test_repository_target_linker_features_selection_fails_closed(self) -> None:
-        root = self._workspace_with_flags(
+        self._assert_fails_closed(
             '["--codegen=linker-features=+lld"]',
             target_scoped=True,
         )
-        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
-            authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_linker_flavor_selection_fails_closed(self) -> None:
+        self._assert_fails_closed('["-C", "linker-flavor=ld.lld"]')
+
+    def test_repository_dlltool_executable_selection_fails_closed(self) -> None:
+        self._assert_fails_closed('["--codegen=dlltool=tools/review-bypass-dlltool"]')
 
     def test_unrelated_codegen_option_remains_allowed(self) -> None:
         root = self._workspace_with_flags('["-C", "debuginfo=1"]')
