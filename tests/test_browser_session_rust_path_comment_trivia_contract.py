@@ -20,7 +20,7 @@ spec.loader.exec_module(source_indirection)
 class BrowserSessionRustPathCommentTriviaContractTests(unittest.TestCase):
     """Prove Rust comment trivia cannot hide a path-bearing source attribute."""
 
-    def test_block_comment_between_path_and_equals_fails_closed(self) -> None:
+    def _workspace_with_source(self, source_text: str) -> pathlib.Path:
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         root = pathlib.Path(directory.name)
@@ -34,17 +34,37 @@ class BrowserSessionRustPathCommentTriviaContractTests(unittest.TestCase):
             '[package]\nname = "adapter"\nversion = "0.1.0"\nedition = "2024"\n',
             encoding="utf-8",
         )
-        (adapter / "src/lib.rs").write_text(
-            '#[path /* reviewed trivia */ = "nested.rs"]\nmod nested;\n',
-            encoding="utf-8",
-        )
+        (adapter / "src/lib.rs").write_text(source_text, encoding="utf-8")
         (adapter / "src/nested.rs").write_text(
             "pub fn nested_adapter_surface() {}\n",
             encoding="utf-8",
         )
+        return root
 
+    def _assert_path_attribute_fails_closed(self, source_text: str) -> None:
+        root = self._workspace_with_source(source_text)
         with self.assertRaisesRegex(AssertionError, "Rust path attribute requires"):
             source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_block_comment_between_path_and_equals_fails_closed(self) -> None:
+        self._assert_path_attribute_fails_closed(
+            '#[path /* reviewed trivia */ = "nested.rs"]\nmod nested;\n'
+        )
+
+    def test_nested_block_comment_between_path_and_equals_fails_closed(self) -> None:
+        self._assert_path_attribute_fails_closed(
+            '#[path /* outer /* nested */ trivia */ = "nested.rs"]\nmod nested;\n'
+        )
+
+    def test_line_comment_between_path_and_equals_fails_closed(self) -> None:
+        self._assert_path_attribute_fails_closed(
+            '#[path // reviewed trivia\n = "nested.rs"]\nmod nested;\n'
+        )
+
+    def test_closing_bracket_inside_comment_cannot_truncate_attribute_scan(self) -> None:
+        self._assert_path_attribute_fails_closed(
+            '#[path /* ] reviewed trivia */ = "nested.rs"]\nmod nested;\n'
+        )
 
 
 if __name__ == "__main__":
