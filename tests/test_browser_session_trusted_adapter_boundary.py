@@ -102,7 +102,7 @@ def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bo
 
 
 def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
-    """Return every reviewed Cargo workspace package manifest."""
+    """Return every explicitly reviewed Cargo workspace package manifest."""
     root_manifest_path = root / "Cargo.toml"
     root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
     workspace = root_manifest.get("workspace")
@@ -130,11 +130,111 @@ def _workspace_member_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted(manifests)
 
 
-def _workspace_production_sources(root: pathlib.Path) -> list[pathlib.Path]:
-    sources: list[pathlib.Path] = []
-    for manifest in _workspace_member_manifests(root):
-        sources.extend(sorted(manifest.parent.glob("src/**/*.rs")))
+def _in_repository_path_dependency(
+    root: pathlib.Path,
+    manifest: pathlib.Path,
+    dependency_name: str,
+    dependency_spec: object,
+    workspace_dependencies: dict[str, object],
+) -> pathlib.Path | None:
+    spec = dependency_spec
+    base = manifest.parent
+    if isinstance(spec, dict) and spec.get("workspace") is True:
+        spec = workspace_dependencies.get(dependency_name)
+        base = root
+    if not isinstance(spec, dict):
+        return None
+
+    declared_path = spec.get("path")
+    if not isinstance(declared_path, str) or not declared_path:
+        return None
+
+    root_resolved = root.resolve()
+    candidate = (base / declared_path / "Cargo.toml").resolve()
+    try:
+        candidate.relative_to(root_resolved)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def _production_package_manifests(root: pathlib.Path) -> list[pathlib.Path]:
+    """Return workspace packages plus recursive in-repository production path dependencies."""
+    root_manifest_path = root / "Cargo.toml"
+    root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
+    workspace = root_manifest.get("workspace")
+    workspace_dependencies: dict[str, object] = {}
+    if isinstance(workspace, dict):
+        declared = workspace.get("dependencies")
+        if isinstance(declared, dict):
+            workspace_dependencies = declared
+
+    manifests = set(_workspace_member_manifests(root))
+    pending = list(manifests)
+    while pending:
+        manifest = pending.pop()
+        parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        for section in _manifest_dependency_sections(parsed):
+            for dependency_name, dependency_spec in section.items():
+                candidate = _in_repository_path_dependency(
+                    root,
+                    manifest,
+                    dependency_name,
+                    dependency_spec,
+                    workspace_dependencies,
+                )
+                if candidate is not None and candidate not in manifests:
+                    manifests.add(candidate)
+                    pending.append(candidate)
+    return sorted(manifests)
+
+
+def _declared_production_target_sources(
+    root: pathlib.Path,
+    manifest: pathlib.Path,
+) -> set[pathlib.Path]:
+    """Return explicitly configured library and binary sources under the repository review root."""
+    parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    declared_paths: list[str] = []
+
+    library = parsed.get("lib")
+    if isinstance(library, dict):
+        library_path = library.get("path")
+        if isinstance(library_path, str) and library_path:
+            declared_paths.append(library_path)
+
+    binaries = parsed.get("bin")
+    if isinstance(binaries, list):
+        for binary in binaries:
+            if not isinstance(binary, dict):
+                continue
+            binary_path = binary.get("path")
+            if isinstance(binary_path, str) and binary_path:
+                declared_paths.append(binary_path)
+
+    root_resolved = root.resolve()
+    sources: set[pathlib.Path] = set()
+    for declared_path in declared_paths:
+        candidate = (manifest.parent / declared_path).resolve()
+        try:
+            candidate.relative_to(root_resolved)
+        except ValueError as exc:
+            raise AssertionError(
+                f"production Cargo target source escapes repository review root: {declared_path}"
+            ) from exc
+        if not candidate.is_file():
+            raise AssertionError(f"declared production Cargo target source is missing: {declared_path}")
+        sources.add(candidate)
     return sources
+
+
+def _workspace_production_sources(root: pathlib.Path) -> list[pathlib.Path]:
+    """Return the canonical production Rust source closure reviewed by the TCB contract."""
+    sources: set[pathlib.Path] = set()
+    for manifest in _production_package_manifests(root):
+        sources.update(manifest.parent.glob("src/**/*.rs"))
+        sources.update(_declared_production_target_sources(root, manifest))
+    return sorted(sources)
 
 
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
@@ -184,7 +284,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
     def test_browser_session_dependencies_are_allowlisted(self) -> None:
         discovered = set()
         workspace_text = ROOT_CARGO.read_text(encoding="utf-8")
-        for path in _workspace_member_manifests(ROOT):
+        for path in _production_package_manifests(ROOT):
             if path == BROWSER_SESSION_CARGO:
                 continue
             text = path.read_text(encoding="utf-8")
@@ -209,7 +309,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
         discovered_dependencies = set()
         workspace_text = ROOT_CARGO.read_text(encoding="utf-8")
-        for path in _workspace_member_manifests(ROOT):
+        for path in _production_package_manifests(ROOT):
             if path == BROWSER_SESSION_CARGO:
                 continue
             if _manifest_links_browser_session(path.read_text(encoding="utf-8"), workspace_text):
@@ -324,7 +424,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            self.assertIn(member_manifest, _workspace_member_manifests(root))
+            self.assertIn(member_manifest, _production_package_manifests(root))
             self.assertIn(source, _workspace_production_sources(root))
 
     def test_workspace_root_package_cannot_escape_review_surface(self) -> None:
@@ -344,7 +444,7 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            self.assertIn(root_manifest, _workspace_member_manifests(root))
+            self.assertIn(root_manifest, _production_package_manifests(root))
             self.assertIn(source, _workspace_production_sources(root))
 
     def test_workspace_member_globs_fail_closed_until_reviewed(self) -> None:
