@@ -292,7 +292,7 @@ WARC stores source exchanges and resources; relational storage holds sessions, p
 - Proxy and PAC routing cannot be inherited ambiently by the direct-only or TLS kernels.
 - Redirects cannot inherit ambient origin or network authority.
 - TCP peer equality does not substitute for TLS server identity, and TLS identity does not substitute for HTTP safety.
-- Disposable Browser Session mutation and destruction authority is bound to the exact owned isolation identity as well as session, context, and epoch; raw driver identifiers alone cannot cross that boundary.
+- Disposable Browser Session mutation and destruction authority is bound to the exact owned isolation identity, `BrowserSessionIncarnation`, session, context, and epoch; the incarnation participates in authorization validation and prevents sequential ABA, while raw driver identifiers alone cannot cross that boundary.
 - Arbitrary script evaluation is absent from the standard action interface.
 - Crawler policy is not treated as access authorization.
 - High-risk actions fail closed when context, canonical intent, or approval evidence is incomplete.
