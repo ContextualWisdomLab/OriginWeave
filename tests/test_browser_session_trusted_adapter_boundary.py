@@ -324,6 +324,26 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             self.assertIn(member_manifest, _workspace_member_manifests(root))
             self.assertIn(source, _workspace_production_sources(root))
 
+    def test_workspace_root_package_cannot_escape_review_surface(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            root_manifest = root / "Cargo.toml"
+            root_manifest.write_text(
+                '[package]\nname = "root-browser-adapter"\nversion = "0.1.0"\nedition = "2024"\n'
+                '[workspace]\nmembers = []\n'
+                '[dependencies]\noriginweave-browser-session = { path = "crates/originweave-browser-session" }\n',
+                encoding="utf-8",
+            )
+            source = root / "src/lib.rs"
+            source.parent.mkdir()
+            source.write_text(
+                "use originweave_browser_session::DisposableContextPort;\n",
+                encoding="utf-8",
+            )
+
+            self.assertIn(root_manifest, _workspace_member_manifests(root))
+            self.assertIn(source, _workspace_production_sources(root))
+
     def test_workspace_member_globs_fail_closed_until_reviewed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
