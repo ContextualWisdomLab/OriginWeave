@@ -10,6 +10,8 @@ Cargo permits repository configuration to replace `rustc` with `build.rustc`, ex
 
 Rust documents `-C` and `--codegen` as equivalent short and long codegen-option interfaces. The `linker` codegen option directly selects which linker executable rustc invokes. Rust also documents `link-arg` and `link-args` as arguments appended to the linker invocation. On Unix-like targets where a C compiler is the linker driver, Rust explicitly documents that `-Clink-arg=-fuse-ld=$value` is passed to the driver after rustc's own linker-feature arguments and therefore generally takes priority when the driver chooses the actual linker. A repository-owned Cargo flag can therefore re-select the linker behind the nominal compiler driver without using `target.<triple>.linker` or `-C linker=<path>`.
 
+The same nominal-driver boundary has another executable-selection path. Rust documents that Unix-like targets commonly use `cc` or `clang` as the linker driver. GCC documents `-Bprefix` as the first search prefix for driver subprograms including `ld`; if the requested program is found there, that executable is run before the standard prefixes or `PATH` lookup. Because rustc `link-arg` and `link-args` append arguments to the linker invocation, repository-owned `-C link-arg=-B...` or `--codegen=link-args=-B ...` can therefore redirect the compiler driver to a different linker executable without changing the nominal driver or using `-fuse-ld=`.
+
 If any of these settings enters a reviewed Browser Session production workspace without a separate provenance contract, the effective build/test/documentation execution path is no longer represented by the existing exact-tree source closure.
 
 ## Constraints
@@ -18,7 +20,7 @@ If any of these settings enters a reviewed Browser Session production workspace 
 - This contract does not authorize a future wrapper, custom compiler, custom rustdoc executable, linker, runner, generated source path, or adapter implementation.
 - Environment-owned `RUSTC`/`RUSTC_WRAPPER`/`RUSTDOC`/`RUSTFLAGS`/`RUSTDOCFLAGS` authority belongs to the CI/runtime owner. This repository contract covers only Git-owned `.cargo/config.toml` and `.cargo/config` files.
 - Ordinary Cargo settings, rustflags, rustdocflags, and linker arguments that do not select one of the modeled executables are not rejected merely because they occur under `[build]` or `[target]`.
-- Target selection, command-line `cargo rustc`/`cargo rustdoc` flags, environment/toolchain configuration, linker plugins, linker search-path manipulation, and other arbitrary linker-argument effects remain separate review surfaces.
+- Target selection, command-line `cargo rustc`/`cargo rustdoc` flags, environment/toolchain configuration, linker plugins, non-`-B` driver/tool search-path mechanisms, and other arbitrary linker-argument effects remain separate review surfaces.
 
 ## RED
 
@@ -48,6 +50,8 @@ The predecessor parser accepted all four long-form cases.
 
 Commit `0b457b3936ef3fdd0546de06f279fc5cb2756e13` preserves a distinct linker-driver RED. It adds Cargo-owned rustflags using both split `-C link-arg=-fuse-ld=review-bypass-linker` and compact `--codegen=link-args=-fuse-ld=review-bypass-linker`. The predecessor parser only recognized the `linker=` codegen option and therefore allowed a repository flag to change the actual linker selected by a C compiler driver while the reviewed Rust source closure and nominal driver remained unchanged.
 
+Commit `ed5661090417e1b95943720f101f54a3a925ac96` preserves a second linker-driver RED using GNU-compatible driver search-path selection. It adds `-C link-arg=-Btools/review-bypass-binutils` and `--codegen=link-args=-B tools/review-bypass-binutils` hostile fixtures. The predecessor parser recognized direct `linker=` and `-fuse-ld=` selection but accepted both `-B` forms, even though GCC searches `-B` prefixes first when locating subprograms such as `ld`.
+
 These are source-level RED fixtures; no hosted-run result is inferred from the Draft branch.
 
 ## Decision and repair
@@ -62,6 +66,8 @@ Commit `7ee4b253ff4e213e949468274d126db214a63e4a` closed the review-discovered l
 
 Commit `d9e7d8ab4047bb25d3c6db0e195ec06240495aa9` extends that same parser rather than adding a second flag scanner. It classifies `linker=<path>` as direct linker selection and classifies `link-arg=` / `link-args=` only when their payload contains `-fuse-ld=`, the driver-level linker-selection mechanism documented by rustc. A control fixture retains ordinary `-C link-arg=-Wl,--as-needed`, avoiding a blanket ban on unrelated linker arguments.
 
+Commit `17a665ca0c895635cc52f3014a43cb9dea86e1b1` keeps that single parser and adds driver-argument executable selection for `-B`. Both attached and split-prefix forms inside `link-arg`/`link-args` now fail closed. The control `-C link-arg=-Wl,-Bsymbolic` remains allowed because it is explicitly forwarded to the actual linker rather than interpreted by the compiler driver as a program-search prefix.
+
 The modeled fail-closed execution-authority surfaces are now:
 
 - `build.rustc`
@@ -73,21 +79,22 @@ The modeled fail-closed execution-authority surfaces are now:
 - `build.rustflags` and matching target `rustflags` when `-C` or `--codegen` selects `linker=<path>`
 - `build.rustdocflags` and matching target `rustdocflags` when `-C` or `--codegen` selects `linker=<path>`
 - Cargo-owned rustc/rustdoc flag surfaces when `link-arg` or `link-args` uses `-fuse-ld=` to re-select the actual linker behind a compiler driver
+- Cargo-owned rustc/rustdoc flag surfaces when `link-arg` or `link-args` supplies a driver `-B` program-search prefix that can redirect the `ld` executable
 
 A separate contract was chosen instead of expanding Cargo package/source discovery because executable selection is not package topology. A blanket rustflags/rustdocflags or linker-argument ban was rejected because non-executable-selection flags are common and do not by themselves justify widening this Browser Session provenance boundary. Allowlisting executable paths was also rejected because a path alone does not establish immutable executable identity, behavior, arguments, or provenance.
 
 ## Security effect and residual risk
 
-The repair closes modeled Git-owned executable-selection gaps that could otherwise place an unmodeled executable between Cargo and `rustc`, replace rustdoc, choose the linker that emits repository artifacts, interpose a runner around repository test/run binaries, select a linker directly through Cargo-owned rustc/rustdoc flags, or re-select the actual linker behind a nominal C compiler driver with `-fuse-ld=` while the reviewed Rust source closure remained unchanged.
+The repair closes modeled Git-owned executable-selection gaps that could otherwise place an unmodeled executable between Cargo and `rustc`, replace rustdoc, choose the linker that emits repository artifacts, interpose a runner around repository test/run binaries, select a linker directly through Cargo-owned rustc/rustdoc flags, re-select the actual linker behind a nominal C compiler driver with `-fuse-ld=`, or redirect a GNU-compatible compiler driver's `ld` lookup with `-B` while the reviewed Rust source closure remained unchanged.
 
-It does not prove that CI environment variables, toolchain installation, runner images, external binaries, command-line `cargo rustc`/`cargo rustdoc` flags, linker plugins, search-path overrides such as driver-specific `-B`, or arbitrary linker arguments are trustworthy. Those controls remain with their canonical CI/supply-chain owners or future focused contracts. Any future claim of complete compiler/linker provenance must account for those surfaces with realistic hostile cases rather than a catch-all Cargo-config ban.
+It does not prove that CI environment variables, toolchain installation, runner images, external binaries, command-line `cargo rustc`/`cargo rustdoc` flags, linker plugins, non-`-B` driver/tool search-path mechanisms, or arbitrary linker arguments are trustworthy. Those controls remain with their canonical CI/supply-chain owners or future focused contracts. Any future claim of complete compiler/linker provenance must account for those surfaces with realistic hostile cases rather than a catch-all Cargo-config ban.
 
 ## Acceptance and follow-up
 
-1. Obtain independent current-head review of the `-fuse-ld=` RED→repair chain and retained executable-selection contracts.
+1. Obtain independent current-head review of the `-B` RED→repair chain together with the retained executable-selection contracts.
 2. After #229 exact-head required evidence becomes terminal, reconcile #317 by ordinary non-force ancestry while preserving the parent and child deltas.
 3. Regenerate executable repository/security evidence on the reconciled exact head.
-4. Review linker plugin and search-path manipulation separately; add a contract only when a realistic executable/provenance escape is demonstrated.
+4. Review linker plugins and non-`-B` driver/toolchain search-path manipulation separately; add a contract only when a realistic executable/provenance escape is demonstrated.
 5. If any blocked executable override is ever required, replace the fail-closed rule only with an explicit design covering immutable executable identity, arguments/source-input provenance, SBOM/attestation, rollback, and buyer-visible evidence.
 
 ## References
@@ -95,6 +102,8 @@ It does not prove that CI environment variables, toolchain installation, runner 
 The Cargo Project. (n.d.). *Configuration*. *The Cargo Book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/cargo/reference/config.html
 
 The Cargo Project. (n.d.). *cargo rustdoc*. *The Cargo Book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/cargo/commands/cargo-rustdoc.html
+
+Free Software Foundation. (n.d.). *Directory options*. *Using the GNU Compiler Collection (GCC)*. Retrieved September 18, 2026, from https://gcc.gnu.org/onlinedocs/gcc/Directory-Options.html
 
 The Rust Project Developers. (n.d.). *Command-line arguments*. *The rustc book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/rustc/command-line-arguments.html
 
