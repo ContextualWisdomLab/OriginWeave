@@ -143,6 +143,28 @@ def _assert_no_workspace_source_overrides(root_manifest_path: pathlib.Path) -> N
             )
 
 
+def _assert_no_repository_cargo_config_source_overrides(root: pathlib.Path) -> None:
+    """Fail closed on repository Cargo config surfaces that can alter dependency sources."""
+    cargo_directory = root / ".cargo"
+    for config_name in ("config.toml", "config"):
+        config_path = cargo_directory / config_name
+        if not config_path.is_file():
+            continue
+        parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        paths = parsed.get("paths")
+        patch = parsed.get("patch")
+        sources = parsed.get("source")
+        if (
+            (isinstance(paths, list) and bool(paths))
+            or (isinstance(patch, dict) and bool(patch))
+            or (isinstance(sources, dict) and bool(sources))
+        ):
+            raise AssertionError(
+                "production Cargo config source override requires an explicit trusted-adapter contract: "
+                f".cargo/{config_name}"
+            )
+
+
 def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bool:
     member = tomllib.loads(member_text)
     workspace_manifest = tomllib.loads(workspace_text)
@@ -240,6 +262,7 @@ def _production_package_manifests(root: pathlib.Path) -> list[pathlib.Path]:
     root_manifest_path = root / "Cargo.toml"
     root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
     _assert_no_workspace_source_overrides(root_manifest_path)
+    _assert_no_repository_cargo_config_source_overrides(root)
     workspace = root_manifest.get("workspace")
     workspace_dependencies: dict[str, object] = {}
     if isinstance(workspace, dict):
