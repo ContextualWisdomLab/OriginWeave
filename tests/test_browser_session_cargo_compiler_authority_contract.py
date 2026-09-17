@@ -44,6 +44,13 @@ def _linker_argument_extends_external_inputs(argument: str) -> bool:
     return argument.startswith("-l") and len(argument) > 2 and not argument.startswith("--")
 
 
+def _rustc_argument_extends_external_inputs(argument: str) -> bool:
+    """Return whether one rustc argument widens external crate or native-library inputs."""
+    if argument == "--extern" or argument.startswith("--extern="):
+        return True
+    return _linker_argument_extends_external_inputs(argument)
+
+
 def _linker_option_loads_plugin(argument: str) -> bool:
     """Return whether one direct linker option requests dynamically loaded plugin code."""
     if argument in LINKER_PLUGIN_OPTIONS:
@@ -114,7 +121,7 @@ def _flag_arguments(value: object) -> list[str]:
 
 def _flags_extend_external_link_inputs(value: object) -> bool:
     """Return whether Git-owned rustc flags widen external crate or native-library inputs."""
-    return any(_linker_argument_extends_external_inputs(argument) for argument in _flag_arguments(value))
+    return any(_rustc_argument_extends_external_inputs(argument) for argument in _flag_arguments(value))
 
 
 def _flags_select_linker(value: object) -> bool:
