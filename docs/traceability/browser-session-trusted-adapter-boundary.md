@@ -26,10 +26,11 @@ No external production consumer is approved on the current #317 tree. The intend
 2. the canonical threat model continues to classify privileged browser integration as trusted Zone C code;
 3. production references to `DisposableContextPort` outside the Browser Session owner are limited to the explicit reviewed source allowlist;
 4. production crate dependencies on `originweave-browser-session` are limited to the explicit reviewed manifest allowlist, including direct package aliases, table syntax, target-specific production dependencies, and workspace-inherited aliases resolved through root `[workspace.dependencies]`;
-5. both allowlists exactly describe production surfaces that exist on the current tree, so an absent future source path or dependency cannot be pre-approved; and
-6. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling.
+5. both allowlists exactly describe production surfaces that exist on the current tree, so an absent future source path or dependency cannot be pre-approved;
+6. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling; and
+7. the source and manifest review surface is derived from the repository's explicit Cargo `[workspace].members`, not from a `crates/*` directory convention. Workspace-member globs fail closed until this contract is explicitly extended and reviewed.
 
-The sixth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site.
+The sixth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site. The seventh rule prevents a new workspace member outside `crates/*` from gaining Browser Session linkage or SPI access without entering the same repository review surface.
 
 ### Scanner false-negative repair
 
@@ -45,7 +46,9 @@ A third review found a governance hole in the allowlist itself. The contract pre
 
 A fourth review found that Cargo workspace inheritance could bypass the manifest scanner without ever spelling the canonical package name in the consuming crate. A root declaration such as `browser_session = { package = "originweave-browser-session", ... }` under `[workspace.dependencies]` can be consumed by a member as `browser_session = { workspace = true }`; the previous per-member regex saw only the alias. Test-first commit `97b925c0d7c957f99e9b798f45decac70877cd40` records that escape. Commit `aeea79c5d57a1cb1c7c5d3f760a2d728214d8a09` parses Cargo TOML, resolves workspace-inherited dependency aliases to their canonical package, and applies the same review surface to target-specific production dependencies. Dev-only dependencies remain outside the shipped adapter-composition surface.
 
-These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, workspace inheritance, module-layout choices, and future composition changes.
+A fifth review found that the hardened scanner still discovered production manifests and Rust sources with `crates/*` filesystem globs instead of Cargo's authoritative workspace membership. Cargo permits explicit workspace members at arbitrary relative paths, so a later `plugins/browser-adapter` member could link Browser Session and reference the lifecycle SPI while remaining invisible to the fixed directory glob. Structural RED `93635d092cfcaf613e88770da003b45b6018fa23` adds a hostile workspace member outside `crates/*` and demonstrates that escape. Minimal repair `9aca127b8ae18a6af38353c4023a6c5361c75e85` parses root `[workspace].members`, verifies each explicit member manifest exists, derives production Rust scanning from those members, and fails closed on workspace-member glob syntax until the contract is deliberately extended. The current repository already uses an explicit workspace-member list, so this widens review coverage without changing production Rust or the trust classification.
+
+These repairs change no Rust production behavior or trust classification; they make the existing single-writer/TCB policy enforceable across ordinary Rust spelling, Cargo aliasing, workspace inheritance, module-layout choices, workspace-member placement, and future composition changes.
 
 ## Authority invariant
 
@@ -58,6 +61,7 @@ A reviewed adapter must create a fresh disposable browser boundary, keep remote 
 - **Caller-visible nonce or opaque request as adapter authentication:** rejected because the implementation receives the value and can echo it without performing browser I/O.
 - **Generic public `TrustedPort` marker trait:** rejected because arbitrary Rust code can implement an unsealed marker and the name creates no security property.
 - **Sealing `DisposableContextPort` inside `originweave-browser-session`:** not adopted because the canonical versioned browser adapter lives in a separate crate; Rust has no friend-crate visibility, so sealing here would either break the adapter boundary or force protocol code into the Browser Session owner.
+- **Hard-coding `crates/*` as the production composition boundary:** rejected because Cargo workspace membership, not directory placement, determines which production crates are built together.
 - **Moving deterministic browser policy into WebDriver BiDi/MCP:** rejected; adapters translate qualified browser state and never become policy authority.
 - **`--no-sandbox` or browser-process weakening:** unrelated and forbidden.
 
@@ -68,5 +72,6 @@ This dossier resolves the threat-model ambiguity; it does not by itself make #31
 - the active branch must inherit every still-valid #229 delta by ordinary non-force adoption;
 - `ARCHITECTURE.md` must explicitly include `BrowserSessionIncarnation` in `PresentationMutationAuthority` binding and sequential-ABA responsibility;
 - any reviewed production composition path and versioned BiDi adapter must introduce its source, crate dependency, and allowlist widening together on the exact reviewed tree rather than relying on a reserved future entry;
+- any future change from explicit Cargo workspace members to member globs must first extend this security contract rather than silently widening the scanner's trust surface;
 - exact-head repository/security checks and independent review must pass with no unresolved authority finding;
 - pinned Chromium must later prove create/use/post-condition/destroy behavior rather than treating a command ACK as success.
