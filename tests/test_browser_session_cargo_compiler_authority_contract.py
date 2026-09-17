@@ -117,6 +117,11 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
             '[build]\nrustc = "tools/custom-rustc"\n'
         )
 
+    def test_repository_custom_rustdoc_fails_closed(self) -> None:
+        self._assert_compiler_override_fails_closed(
+            '[build]\nrustdoc = "tools/review-bypass-rustdoc"\n'
+        )
+
     def test_nested_extensionless_cargo_config_compiler_override_fails_closed(self) -> None:
         self._assert_compiler_override_fails_closed(
             '[build]\nrustc-wrapper = "tools/nested-wrapper"\n',
