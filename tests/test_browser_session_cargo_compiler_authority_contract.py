@@ -18,6 +18,7 @@ COMPILER_EXECUTION_KEYS = frozenset(
     {"rustc", "rustc-wrapper", "rustc-workspace-wrapper", "rustdoc"}
 )
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
+LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
@@ -29,21 +30,43 @@ def _linker_driver_argument_selects_executable(argument: str) -> bool:
     return argument == "-B" or argument.startswith("-B")
 
 
-def _codegen_option_selects_linker(option: str) -> bool:
-    """Return whether one rustc codegen option selects the linker executable."""
-    if option.startswith("linker="):
+def _linker_option_loads_plugin(argument: str) -> bool:
+    """Return whether one direct linker option requests dynamically loaded plugin code."""
+    if argument in LINKER_PLUGIN_OPTIONS:
         return True
-    if option.startswith(("link-arg=", "link-args=")):
-        payload = option.partition("=")[2]
-        return any(
-            _linker_driver_argument_selects_executable(argument)
-            for argument in payload.split()
-        )
+    return argument.startswith(("-plugin=", "--plugin="))
+
+
+def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
+    """Return direct-linker arguments encoded by a single compiler-driver forwarding option."""
+    if argument.startswith("-Wl,"):
+        return tuple(argument.removeprefix("-Wl,").split(","))
+    if argument.startswith("--for-linker="):
+        return tuple(argument.removeprefix("--for-linker=").split(","))
+    return ()
+
+
+def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
+    """Return whether driver arguments can replace the linker or load executable linker code."""
+    for index, argument in enumerate(arguments):
+        if _linker_driver_argument_selects_executable(argument):
+            return True
+        if any(
+            _linker_option_loads_plugin(forwarded)
+            for forwarded in _forwarded_linker_arguments(argument)
+        ):
+            return True
+        if (
+            argument == "-Xlinker"
+            and index + 1 < len(arguments)
+            and _linker_option_loads_plugin(arguments[index + 1])
+        ):
+            return True
     return False
 
 
 def _flags_select_linker(value: object) -> bool:
-    """Return whether Cargo-owned rustc/rustdoc flags select a linker executable."""
+    """Return whether Cargo-owned rustc/rustdoc flags select or extend linker execution code."""
     if isinstance(value, str):
         arguments = value.split()
     elif isinstance(value, list) and all(isinstance(argument, str) for argument in value):
@@ -51,6 +74,7 @@ def _flags_select_linker(value: object) -> bool:
     else:
         return False
 
+    linker_driver_arguments: list[str] = []
     for index, argument in enumerate(arguments):
         option: str | None = None
         if argument in {"-C", "--codegen"} and index + 1 < len(arguments):
@@ -60,9 +84,16 @@ def _flags_select_linker(value: object) -> bool:
         elif argument.startswith("--codegen="):
             option = argument.removeprefix("--codegen=")
 
-        if option is not None and _codegen_option_selects_linker(option):
+        if option is None:
+            continue
+        if option.startswith("linker="):
             return True
-    return False
+        if option.startswith("link-arg="):
+            linker_driver_arguments.append(option.partition("=")[2])
+        elif option.startswith("link-args="):
+            linker_driver_arguments.extend(option.partition("=")[2].split())
+
+    return _linker_driver_arguments_select_executable(linker_driver_arguments)
 
 
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
