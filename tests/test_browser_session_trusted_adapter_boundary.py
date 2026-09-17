@@ -451,6 +451,25 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             self.assertIn(root_manifest, _production_package_manifests(root))
             self.assertIn(source, _workspace_production_sources(root))
 
+    def test_workspace_member_outside_repository_root_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sandbox = pathlib.Path(directory)
+            root = sandbox / "workspace"
+            external = sandbox / "external-browser-adapter"
+            root.mkdir()
+            external.mkdir()
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["../external-browser-adapter"]\n',
+                encoding="utf-8",
+            )
+            (external / "Cargo.toml").write_text(
+                '[package]\nname = "external-browser-adapter"\nversion = "0.1.0"\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AssertionError, "member escapes repository review root"):
+                _workspace_member_manifests(root)
+
     def test_workspace_member_globs_fail_closed_until_reviewed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
