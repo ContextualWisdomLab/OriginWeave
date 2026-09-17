@@ -494,14 +494,13 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             member.mkdir(parents=True)
             member_manifest = member / "Cargo.toml"
             member_manifest.write_text(
-                '[package]\nname = "browser-adapter"\nversion = "0.1.0"\n'
-                '[dependencies]\noriginweave-browser-session = { path = "../../crates/originweave-browser-session" }\n',
+                '[package]\nname = "browser-adapter"\nversion = "0.1.0"\n',
                 encoding="utf-8",
             )
             source = member / "src/lib.rs"
             source.parent.mkdir()
             source.write_text(
-                "use originweave_browser_session::DisposableContextPort;\n",
+                "pub fn browser_adapter_surface() {}\n",
                 encoding="utf-8",
             )
 
@@ -514,14 +513,13 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             root_manifest = root / "Cargo.toml"
             root_manifest.write_text(
                 '[package]\nname = "root-browser-adapter"\nversion = "0.1.0"\nedition = "2024"\n'
-                '[workspace]\nmembers = []\n'
-                '[dependencies]\noriginweave-browser-session = { path = "crates/originweave-browser-session" }\n',
+                '[workspace]\nmembers = []\n',
                 encoding="utf-8",
             )
             source = root / "src/lib.rs"
             source.parent.mkdir()
             source.write_text(
-                "use originweave_browser_session::DisposableContextPort;\n",
+                "pub fn root_browser_adapter_surface() {}\n",
                 encoding="utf-8",
             )
 
