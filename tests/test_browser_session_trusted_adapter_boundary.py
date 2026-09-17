@@ -10,7 +10,7 @@ DOSSIER = ROOT / "docs/traceability/browser-session-trusted-adapter-boundary.md"
 BROWSER_SESSION_SOURCE_ROOT = "crates/originweave-browser-session/src/"
 
 # Any production reference to the lifecycle SPI outside the Browser Session owner is an explicit
-# review surface. The reserved BiDi path is the only currently approved external production owner.
+# review surface. The reserved BiDi paths are the only currently approved external production owner.
 APPROVED_PRODUCTION_PORT_REFERENCES = {
     "crates/originweave-bidi/src/lifecycle_acl.rs",
 }
@@ -20,6 +20,7 @@ APPROVED_BROWSER_SESSION_DEPENDENCIES = {
 
 PORT_REFERENCE = re.compile(r"\bDisposableContextPort\b")
 LIFECYCLE_BINDING = re.compile(r"\bbind_lifecycle_port\b")
+BROWSER_SESSION_DEPENDENCY = re.compile(r"(?m)^\s*originweave-browser-session\s*=")
 
 
 def _has_port_reference(text: str) -> bool:
@@ -28,6 +29,10 @@ def _has_port_reference(text: str) -> bool:
 
 def _has_lifecycle_binding(text: str) -> bool:
     return LIFECYCLE_BINDING.search(text) is not None
+
+
+def _has_browser_session_dependency(text: str) -> bool:
+    return BROWSER_SESSION_DEPENDENCY.search(text) is not None
 
 
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
@@ -72,6 +77,22 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
             unexpected,
             set(),
             f"unreviewed production lifecycle-port references: {sorted(unexpected)}",
+        )
+
+    def test_browser_session_dependencies_are_allowlisted(self) -> None:
+        discovered = set()
+        for path in ROOT.glob("crates/*/Cargo.toml"):
+            if path == BROWSER_SESSION_CARGO:
+                continue
+            text = path.read_text(encoding="utf-8")
+            if _has_browser_session_dependency(text):
+                discovered.add(path.relative_to(ROOT).as_posix())
+
+        unexpected = discovered - APPROVED_BROWSER_SESSION_DEPENDENCIES
+        self.assertEqual(
+            unexpected,
+            set(),
+            f"unreviewed production Browser Session dependencies: {sorted(unexpected)}",
         )
 
     def test_product_sources_do_not_bind_a_caller_selected_lifecycle_port(self) -> None:
