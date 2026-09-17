@@ -16,8 +16,7 @@ spec.loader.exec_module(boundary)
 
 
 INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*[([{]")
-RUST_ATTRIBUTE = re.compile(r"#\s*\[([^\]]*)\]", re.DOTALL)
-PATH_META = re.compile(r"\bpath\s*=")
+PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
 CUSTOM_TARGET_MOD_TOKEN = re.compile(r"(?<![\w#])mod(?!\w)", re.UNICODE)
 APPROVED_RUST_PATH_ATTRIBUTES = {
     ("crates/originweave-core/src/root.rs", 'path = "lib.rs"'),
@@ -26,6 +25,155 @@ APPROVED_RUST_PATH_ATTRIBUTES = {
 
 def _normalized_attribute_body(body: str) -> str:
     return " ".join(body.split())
+
+
+def _skip_rust_trivia(text: str, offset: int) -> int:
+    """Skip Rust whitespace and nested non-doc comments without changing token meaning."""
+    index = offset
+    while index < len(text):
+        if text[index].isspace():
+            index += 1
+            continue
+        if text.startswith("//", index):
+            newline = text.find("\n", index + 2)
+            index = len(text) if newline < 0 else newline + 1
+            continue
+        if text.startswith("/*", index):
+            depth = 1
+            index += 2
+            while index < len(text) and depth:
+                if text.startswith("/*", index):
+                    depth += 1
+                    index += 2
+                elif text.startswith("*/", index):
+                    depth -= 1
+                    index += 2
+                else:
+                    index += 1
+            if depth:
+                raise AssertionError("unterminated Rust block comment in source attribute")
+            continue
+        break
+    return index
+
+
+def _raw_string_end(text: str, offset: int) -> int | None:
+    """Return the end of a Rust raw string token beginning at offset, if present."""
+    cursor = offset
+    if text.startswith(("br", "cr"), cursor):
+        cursor += 2
+    elif cursor < len(text) and text[cursor] == "r":
+        cursor += 1
+    else:
+        return None
+
+    hashes_start = cursor
+    while cursor < len(text) and text[cursor] == "#":
+        cursor += 1
+    if cursor >= len(text) or text[cursor] != '"':
+        return None
+
+    hashes = text[hashes_start:cursor]
+    closing = '"' + hashes
+    end = text.find(closing, cursor + 1)
+    if end < 0:
+        raise AssertionError("unterminated Rust raw string in source attribute")
+    return end + len(closing)
+
+
+def _quoted_string_end(text: str, offset: int) -> int:
+    """Return the end of a conventional Rust string token beginning with a quote."""
+    index = offset + 1
+    escaped = False
+    while index < len(text):
+        char = text[index]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == '"':
+            return index + 1
+        index += 1
+    raise AssertionError("unterminated Rust string in source attribute")
+
+
+def _simple_char_literal_end(text: str, offset: int) -> int | None:
+    """Skip a simple Rust character literal while leaving lifetimes untouched."""
+    if offset + 2 < len(text) and text[offset + 2] == "'":
+        return offset + 3
+    if offset + 1 >= len(text) or text[offset + 1] != "\\":
+        return None
+
+    index = offset + 2
+    while index < len(text):
+        if text[index] == "'":
+            return index + 1
+        if text[index] == "\n":
+            return None
+        index += 1
+    return None
+
+
+def _rust_attribute_bodies(text: str) -> list[str]:
+    """Extract balanced Rust attribute token trees while respecting lexical trivia and literals."""
+    bodies: list[str] = []
+    search_from = 0
+    while True:
+        marker = text.find("#", search_from)
+        if marker < 0:
+            break
+
+        cursor = _skip_rust_trivia(text, marker + 1)
+        if cursor < len(text) and text[cursor] == "!":
+            cursor = _skip_rust_trivia(text, cursor + 1)
+        if cursor >= len(text) or text[cursor] != "[":
+            search_from = marker + 1
+            continue
+
+        body_start = cursor + 1
+        depth = 1
+        cursor = body_start
+        while cursor < len(text):
+            trivia_end = _skip_rust_trivia(text, cursor)
+            if trivia_end != cursor:
+                cursor = trivia_end
+                continue
+
+            raw_end = _raw_string_end(text, cursor)
+            if raw_end is not None:
+                cursor = raw_end
+                continue
+            if text[cursor] == '"':
+                cursor = _quoted_string_end(text, cursor)
+                continue
+            if text[cursor] == "'":
+                char_end = _simple_char_literal_end(text, cursor)
+                if char_end is not None:
+                    cursor = char_end
+                    continue
+
+            if text[cursor] == "[":
+                depth += 1
+            elif text[cursor] == "]":
+                depth -= 1
+                if depth == 0:
+                    bodies.append(text[body_start:cursor])
+                    search_from = cursor + 1
+                    break
+            cursor += 1
+        else:
+            raise AssertionError("unterminated Rust attribute in production source")
+
+    return bodies
+
+
+def _has_path_meta(attribute_body: str) -> bool:
+    """Return whether an attribute contains a path meta item followed by Rust trivia and '='."""
+    for match in PATH_TOKEN.finditer(attribute_body):
+        cursor = _skip_rust_trivia(attribute_body, match.end())
+        if cursor < len(attribute_body) and attribute_body[cursor] == "=":
+            return True
+    return False
 
 
 def _is_under_any_default_src(source: pathlib.Path, src_roots: list[pathlib.Path]) -> bool:
@@ -67,10 +215,11 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
                 f"provenance contract: {relative}"
             )
 
-        for match in RUST_ATTRIBUTE.finditer(text):
-            attribute_body = _normalized_attribute_body(match.group(1))
-            if PATH_META.search(attribute_body):
-                discovered_path_attributes.add((relative, attribute_body))
+        for attribute_body in _rust_attribute_bodies(text):
+            if _has_path_meta(attribute_body):
+                discovered_path_attributes.add(
+                    (relative, _normalized_attribute_body(attribute_body))
+                )
 
     unexpected = discovered_path_attributes - APPROVED_RUST_PATH_ATTRIBUTES
     if unexpected:
