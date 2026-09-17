@@ -15,7 +15,7 @@ boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
 
-INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*[([{]")
+INCLUDE_TOKEN = re.compile(r"(?<![\w#])include(?!\w)", re.UNICODE)
 PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
 CUSTOM_TARGET_MOD_TOKEN = re.compile(r"(?<![\w#])mod(?!\w)", re.UNICODE)
 APPROVED_RUST_PATH_ATTRIBUTES = {
@@ -55,6 +55,18 @@ def _skip_rust_trivia(text: str, offset: int) -> int:
             continue
         break
     return index
+
+
+def _has_include_macro(text: str) -> bool:
+    """Detect include! macro syntax while honoring Rust whitespace/comment trivia around punctuation."""
+    for match in INCLUDE_TOKEN.finditer(text):
+        bang = _skip_rust_trivia(text, match.end())
+        if bang >= len(text) or text[bang] != "!":
+            continue
+        delimiter = _skip_rust_trivia(text, bang + 1)
+        if delimiter < len(text) and text[delimiter] in "([{":
+            return True
+    return False
 
 
 def _raw_string_end(text: str, offset: int) -> int | None:
@@ -200,7 +212,7 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
         text = source.read_text(encoding="utf-8")
         relative = source.relative_to(root).as_posix()
 
-        if INCLUDE_MACRO.search(text):
+        if _has_include_macro(text):
             raise AssertionError(
                 f"Rust include! source indirection requires an explicit provenance contract: {relative}"
             )
