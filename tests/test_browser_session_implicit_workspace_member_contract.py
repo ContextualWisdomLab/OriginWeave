@@ -120,6 +120,43 @@ class BrowserSessionImplicitWorkspaceMemberContractTests(unittest.TestCase):
             self.assertIn(adapter_manifest, _production_package_manifests(root))
             self.assertIn(adapter_source, _production_sources(root))
 
+    def test_workspace_inherited_path_dependency_cannot_escape_review_surface(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["app"]\nresolver = "3"\n'
+                '[workspace.dependencies]\nbrowser_adapter = { path = "plugins/browser-adapter" }\n',
+                encoding="utf-8",
+            )
+
+            app = root / "app"
+            app.mkdir()
+            (app / "Cargo.toml").write_text(
+                '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2024"\n'
+                '[target.\'cfg(unix)\'.dependencies]\nbrowser_adapter = { workspace = true }\n',
+                encoding="utf-8",
+            )
+            (app / "src").mkdir()
+            (app / "src/lib.rs").write_text("pub fn app() {}\n", encoding="utf-8")
+
+            adapter = root / "plugins/browser-adapter"
+            adapter.mkdir(parents=True)
+            adapter_manifest = adapter / "Cargo.toml"
+            adapter_manifest.write_text(
+                '[package]\nname = "browser-adapter"\nversion = "0.1.0"\nedition = "2024"\n'
+                '[dependencies]\noriginweave-browser-session = { path = "../../crates/originweave-browser-session" }\n',
+                encoding="utf-8",
+            )
+            adapter_source = adapter / "src/lib.rs"
+            adapter_source.parent.mkdir()
+            adapter_source.write_text(
+                "use originweave_browser_session::DisposableContextPort;\n",
+                encoding="utf-8",
+            )
+
+            self.assertIn(adapter_manifest, _production_package_manifests(root))
+            self.assertIn(adapter_source, _production_sources(root))
+
     def test_recursive_local_path_dependencies_obey_existing_tcb_allowlists(self) -> None:
         workspace_text = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
 
