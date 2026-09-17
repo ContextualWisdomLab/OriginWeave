@@ -16,10 +16,15 @@ spec.loader.exec_module(boundary)
 
 
 INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*\(")
-PATH_ATTRIBUTE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"]+)"\s*\]')
+RUST_ATTRIBUTE = re.compile(r"#\s*\[([^\]]*)\]", re.DOTALL)
+PATH_META = re.compile(r"\bpath\s*=")
 APPROVED_RUST_PATH_ATTRIBUTES = {
-    ("crates/originweave-core/src/root.rs", "lib.rs"),
+    ("crates/originweave-core/src/root.rs", 'path = "lib.rs"'),
 }
+
+
+def _normalized_attribute_body(body: str) -> str:
+    return " ".join(body.split())
 
 
 def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
@@ -35,8 +40,10 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
                 f"Rust include! source indirection requires an explicit provenance contract: {relative}"
             )
 
-        for match in PATH_ATTRIBUTE.finditer(text):
-            discovered_path_attributes.add((relative, match.group(1)))
+        for match in RUST_ATTRIBUTE.finditer(text):
+            attribute_body = _normalized_attribute_body(match.group(1))
+            if PATH_META.search(attribute_body):
+                discovered_path_attributes.add((relative, attribute_body))
 
     unexpected = discovered_path_attributes - APPROVED_RUST_PATH_ATTRIBUTES
     if unexpected:
@@ -89,6 +96,18 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         root = self._workspace_with_source('#[path = "nested.rs"]\nmod nested;\n')
         (root / "adapter/src/nested.rs").write_text(
             "pub fn nested_adapter_surface() {}\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust path attribute requires"):
+            _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_cfg_attr_generated_path_attribute_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            '#[cfg_attr(unix, path = "unix_adapter.rs")]\nmod platform_adapter;\n'
+        )
+        (root / "adapter/src/unix_adapter.rs").write_text(
+            "pub fn unix_adapter_surface() {}\n",
             encoding="utf-8",
         )
 
