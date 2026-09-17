@@ -20,10 +20,28 @@ COMPILER_EXECUTION_KEYS = frozenset(
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 
 
+def _rustflags_select_linker(value: object) -> bool:
+    """Return whether Cargo-owned rustflags select rustc's linker executable."""
+    if isinstance(value, str):
+        arguments = value.split()
+    elif isinstance(value, list) and all(isinstance(argument, str) for argument in value):
+        arguments = value
+    else:
+        return False
+
+    for index, argument in enumerate(arguments):
+        if argument.startswith("-Clinker="):
+            return True
+        if argument == "-C" and index + 1 < len(arguments):
+            if arguments[index + 1].startswith("linker="):
+                return True
+    return False
+
+
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
     """Reject Git-owned Cargo settings that replace Rust-tool or target executables."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
-    # and dependency-source overrides. This contract owns direct Cargo executable selection.
+    # and dependency-source overrides. This contract owns Cargo-selected execution authority.
     boundary._production_package_manifests(root)
 
     root_resolved = root.resolve()
@@ -49,6 +67,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         build_configured = (
             sorted(COMPILER_EXECUTION_KEYS.intersection(build)) if isinstance(build, dict) else []
         )
+        if isinstance(build, dict) and _rustflags_select_linker(build.get("rustflags")):
+            build_configured.append("rustflags:-C linker")
 
         target_configured: dict[str, list[str]] = {}
         target = parsed.get("target")
@@ -57,6 +77,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 if not isinstance(settings, dict):
                     continue
                 configured = sorted(TARGET_EXECUTION_KEYS.intersection(settings))
+                if _rustflags_select_linker(settings.get("rustflags")):
+                    configured.append("rustflags:-C linker")
                 if configured:
                     target_configured[str(target_name)] = configured
 
@@ -170,6 +192,19 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_compact_rustflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["-Clinker=tools/review-bypass-linker"]\n'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_unrelated_rustflags_remain_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["-C", "opt-level=2", "--cfg", "originweave_reviewed"]\n'
+        )
+        _assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def test_unrelated_build_configuration_remains_allowed(self) -> None:
         root = self._workspace_with_config('[build]\njobs = 2\nincremental = false\n')
