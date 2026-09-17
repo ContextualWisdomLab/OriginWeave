@@ -90,13 +90,32 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
     return False
 
 
+def _flag_arguments(value: object) -> list[str]:
+    """Normalize one Cargo rustflags value without inventing shell semantics."""
+    if isinstance(value, str):
+        return value.split()
+    if isinstance(value, list) and all(isinstance(argument, str) for argument in value):
+        return value
+    return []
+
+
+def _flags_extend_external_link_inputs(value: object) -> bool:
+    """Return whether Git-owned rustc flags widen external crate or native-library inputs."""
+    arguments = _flag_arguments(value)
+    for argument in arguments:
+        if argument in {"-L", "-l"}:
+            return True
+        if argument.startswith("-L") and len(argument) > 2:
+            return True
+        if argument.startswith("-l") and len(argument) > 2 and not argument.startswith("--"):
+            return True
+    return False
+
+
 def _flags_select_linker(value: object) -> bool:
     """Return whether Cargo-owned rustc/rustdoc flags extend linker execution or input authority."""
-    if isinstance(value, str):
-        arguments = value.split()
-    elif isinstance(value, list) and all(isinstance(argument, str) for argument in value):
-        arguments = value
-    else:
+    arguments = _flag_arguments(value)
+    if not arguments:
         return False
 
     linker_driver_arguments: list[str] = []
@@ -130,9 +149,9 @@ def _flags_select_linker(value: object) -> bool:
 
 
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
-    """Reject Git-owned Cargo settings that replace Rust-tool or target executables."""
+    """Reject Git-owned Cargo settings that replace Rust tools or widen external link inputs."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
-    # and dependency-source overrides. This contract owns Cargo-selected execution authority.
+    # and dependency-source overrides. This contract owns Cargo-selected execution/input authority.
     boundary._production_package_manifests(root)
 
     root_resolved = root.resolve()
@@ -161,6 +180,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         if isinstance(build, dict):
             if _flags_select_linker(build.get("rustflags")):
                 build_configured.append("rustflags:codegen linker")
+            if _flags_extend_external_link_inputs(build.get("rustflags")):
+                build_configured.append("rustflags:external link input")
             if _flags_select_linker(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:codegen linker")
 
@@ -173,6 +194,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 configured = sorted(TARGET_EXECUTION_KEYS.intersection(settings))
                 if _flags_select_linker(settings.get("rustflags")):
                     configured.append("rustflags:codegen linker")
+                if _flags_extend_external_link_inputs(settings.get("rustflags")):
+                    configured.append("rustflags:external link input")
                 if _flags_select_linker(settings.get("rustdocflags")):
                     configured.append("rustdocflags:codegen linker")
                 if configured:
