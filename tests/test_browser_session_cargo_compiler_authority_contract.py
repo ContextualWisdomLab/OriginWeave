@@ -157,6 +157,20 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_repository_build_rustflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["-C", "linker=tools/review-bypass-linker"]\n'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_target_rustflags_linker_override_fails_closed(self) -> None:
+        root = self._workspace_with_config(
+            "[target.'cfg(unix)']\nrustflags = \"-C linker=tools/review-bypass-linker\"\n"
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            _assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_unrelated_build_configuration_remains_allowed(self) -> None:
         root = self._workspace_with_config('[build]\njobs = 2\nincremental = false\n')
         _assert_no_repository_cargo_compiler_execution_overrides(root)
