@@ -14,9 +14,9 @@ Treating an arbitrary in-process implementation as if it were an untrusted web a
 
 OriginWeave's threat model places the Rust control plane and privileged Chromium/browser adapters inside the trusted computing base. `originweave-browser-session` is an internal `publish = false` crate, not an extension SDK that promises isolation from hostile linked Rust code. A malicious crate already executing inside this trusted process is a supply-chain compromise / trusted-code compromise; it is not made safe by making one handle constructor opaque.
 
-This does **not** make every implementation acceptable. Product composition may bind only a reviewed privileged lifecycle adapter; a caller-selected production adapter is not admitted. `DisposableContextPort` is an internal TCB SPI, not caller-selected product policy. Production implementations are repository review surfaces and must be explicitly allowlisted by contract. Test doubles remain allowed only under test code and grant no shipped product capability.
+This does **not** make every implementation acceptable. Product composition may bind only a reviewed privileged lifecycle adapter; a caller-selected production adapter is not admitted. `DisposableContextPort` is an internal TCB SPI, not caller-selected product policy. Any production source that references this SPI outside the Browser Session owner is a repository review surface and must be explicitly allowlisted by contract. Test doubles remain allowed only under test code and grant no shipped product capability.
 
-The intended canonical production implementation is the versioned WebDriver BiDi lifecycle adapter in `crates/originweave-bidi/src/lifecycle_acl.rs` once its stack is restacked onto the current Browser Session contract and passes review. No other production implementation is admitted by this dossier.
+The intended canonical production implementation is the versioned WebDriver BiDi lifecycle adapter in `crates/originweave-bidi/src/lifecycle_acl.rs` once its stack is restacked onto the current Browser Session contract and passes review. No other external production reference is admitted by this dossier.
 
 ## Enforced repository contract
 
@@ -24,10 +24,16 @@ The intended canonical production implementation is the versioned WebDriver BiDi
 
 1. the Browser Session crate remains `publish = false`;
 2. the canonical threat model continues to classify privileged browser integration as trusted Zone C code;
-3. production `DisposableContextPort` implementations are limited to the explicit reviewed allowlist;
-4. no current production source outside the Browser Session owner directly calls `.bind_lifecycle_port(...)` as a caller-selected composition escape hatch.
+3. production references to `DisposableContextPort` outside the Browser Session owner are limited to the explicit reviewed allowlist; and
+4. no current production source outside the Browser Session owner references `bind_lifecycle_port` as a caller-selected composition escape hatch, regardless of method-call, UFCS, or whitespace spelling.
 
 The fourth rule intentionally leaves the product composition owner unclaimed until a reviewed runtime/composition lane exists. When that owner is introduced, its exact path must be added deliberately with architecture and security review rather than discovered implicitly through a new call site.
+
+### Scanner false-negative repair
+
+The first repository contract recognized only the literal unqualified Rust form `impl DisposableContextPort for ...` and the exact method spelling `.bind_lifecycle_port(`. Those are style conventions, not security boundaries: valid Rust can name the trait through a qualified path or alias and can invoke the binding function through UFCS or with different whitespace.
+
+Test-first commit `100c00487488bbc281106ddf6fe4ae1b60feb16b` adds hostile qualified-trait, aliased-trait, UFCS, and whitespace spellings and exposes those false negatives. Minimal contract repair `7b2334b1df92d03629b7931ce71cd58134b93f4c` makes the review surface syntax-independent at the repository level: any external production source containing the SPI token is reviewed, and any production source outside the owner containing the binding API token is rejected until an explicit composition owner is approved. The repair changes no Rust production behavior or trust classification; it makes the existing single-writer/TCB policy enforceable across ordinary Rust spelling choices.
 
 ## Authority invariant
 
