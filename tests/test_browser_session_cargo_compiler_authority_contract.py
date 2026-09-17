@@ -22,6 +22,8 @@ TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
     """Return whether one compiler-driver argument can re-select a linker executable."""
+    if argument.startswith("@"):
+        return True
     if argument.startswith("-fuse-ld="):
         return True
     return argument == "-B" or argument.startswith("-B")
