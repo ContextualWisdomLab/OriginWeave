@@ -4,6 +4,7 @@ import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT_CARGO = ROOT / "Cargo.toml"
 BROWSER_SESSION_CARGO = ROOT / "crates/originweave-browser-session/Cargo.toml"
 THREAT_MODEL = ROOT / "docs/THREAT_MODEL.md"
 DOSSIER = ROOT / "docs/traceability/browser-session-trusted-adapter-boundary.md"
@@ -175,6 +176,21 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
                 _has_browser_session_dependency(manifest),
                 f"Browser Session dependency spelling escaped review scanner: {manifest!r}",
             )
+
+    def test_workspace_dependency_alias_cannot_escape_dependency_review_surface(self) -> None:
+        workspace_manifest = (
+            "[workspace.dependencies]\n"
+            'browser_session = { package = "originweave-browser-session", path = "crates/originweave-browser-session" }\n'
+        )
+        member_manifest = (
+            "[dependencies]\n"
+            "browser_session = { workspace = true }\n"
+        )
+
+        self.assertTrue(
+            _manifest_links_browser_session(member_manifest, workspace_manifest),
+            "workspace dependency aliases must remain an explicit Browser Session TCB review surface",
+        )
 
 
 if __name__ == "__main__":
