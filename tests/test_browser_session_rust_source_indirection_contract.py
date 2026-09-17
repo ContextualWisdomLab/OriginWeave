@@ -15,12 +15,35 @@ boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
 
+INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*\(")
 PATH_ATTRIBUTE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"]+)"\s*\]')
+WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[/\\]")
 
 
 def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
-    """RED placeholder: Rust source indirection must become an explicit reviewed surface."""
-    return None
+    """Fail closed when reviewed Rust source can pull unmodeled executable source bytes."""
+    for source in boundary._workspace_production_sources(root):
+        text = source.read_text(encoding="utf-8")
+        relative = source.relative_to(root).as_posix()
+
+        if INCLUDE_MACRO.search(text):
+            raise AssertionError(
+                f"Rust include! source indirection requires an explicit provenance contract: {relative}"
+            )
+
+        for match in PATH_ATTRIBUTE.finditer(text):
+            declared_path = match.group(1)
+            normalized = declared_path.replace("\\", "/")
+            parts = pathlib.PurePosixPath(normalized).parts
+            if (
+                pathlib.PurePosixPath(normalized).is_absolute()
+                or WINDOWS_ABSOLUTE_PATH.match(declared_path)
+                or ".." in parts
+            ):
+                raise AssertionError(
+                    "Rust path attribute escapes canonical source closure and requires an explicit provenance contract: "
+                    f"{relative} -> {declared_path}"
+                )
 
 
 class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
@@ -43,6 +66,9 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         (adapter / "src/lib.rs").write_text(source_text, encoding="utf-8")
         return root
 
+    def test_current_production_sources_have_no_unmodeled_source_indirection(self) -> None:
+        _assert_no_unmodeled_rust_source_indirection(ROOT)
+
     def test_include_macro_fails_closed_until_included_source_provenance_is_modeled(self) -> None:
         root = self._workspace_with_source('include!("../generated_adapter.rs");\n')
         (root / "adapter/generated_adapter.rs").write_text(
@@ -62,6 +88,15 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, "Rust path attribute escapes canonical source closure"):
             _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_in_tree_relative_path_attribute_remains_allowed(self) -> None:
+        root = self._workspace_with_source('#[path = "nested.rs"]\nmod nested;\n')
+        (root / "adapter/src/nested.rs").write_text(
+            "pub fn nested_adapter_surface() {}\n",
+            encoding="utf-8",
+        )
+
+        _assert_no_unmodeled_rust_source_indirection(root)
 
 
 if __name__ == "__main__":
