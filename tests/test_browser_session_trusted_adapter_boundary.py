@@ -1,5 +1,6 @@
 import pathlib
 import re
+import tomllib
 import unittest
 
 
@@ -18,6 +19,7 @@ APPROVED_BROWSER_SESSION_DEPENDENCIES: set[str] = set()
 PORT_REFERENCE = re.compile(r"\bDisposableContextPort\b")
 LIFECYCLE_BINDING = re.compile(r"\bbind_lifecycle_port\b")
 BROWSER_SESSION_DEPENDENCY = re.compile(r"\boriginweave-browser-session\b")
+BROWSER_SESSION_PACKAGE = "originweave-browser-session"
 
 
 def _has_port_reference(text: str) -> bool:
@@ -30,6 +32,72 @@ def _has_lifecycle_binding(text: str) -> bool:
 
 def _has_browser_session_dependency(text: str) -> bool:
     return BROWSER_SESSION_DEPENDENCY.search(text) is not None
+
+
+def _dependency_package_name(
+    dependency_name: str,
+    dependency_spec: object,
+    workspace_dependencies: dict[str, object],
+) -> str:
+    if not isinstance(dependency_spec, dict):
+        return dependency_name
+
+    package = dependency_spec.get("package")
+    if isinstance(package, str):
+        return package
+
+    if dependency_spec.get("workspace") is True:
+        workspace_spec = workspace_dependencies.get(dependency_name)
+        if isinstance(workspace_spec, dict):
+            workspace_package = workspace_spec.get("package")
+            if isinstance(workspace_package, str):
+                return workspace_package
+        if workspace_spec is not None:
+            return dependency_name
+
+    return dependency_name
+
+
+def _manifest_dependency_sections(manifest: dict[str, object]) -> list[dict[str, object]]:
+    sections: list[dict[str, object]] = []
+    dependencies = manifest.get("dependencies")
+    if isinstance(dependencies, dict):
+        sections.append(dependencies)
+
+    targets = manifest.get("target")
+    if isinstance(targets, dict):
+        for target in targets.values():
+            if not isinstance(target, dict):
+                continue
+            target_dependencies = target.get("dependencies")
+            if isinstance(target_dependencies, dict):
+                sections.append(target_dependencies)
+
+    return sections
+
+
+def _manifest_links_browser_session(member_text: str, workspace_text: str) -> bool:
+    member = tomllib.loads(member_text)
+    workspace_manifest = tomllib.loads(workspace_text)
+    workspace = workspace_manifest.get("workspace")
+    workspace_dependencies: dict[str, object] = {}
+    if isinstance(workspace, dict):
+        declared = workspace.get("dependencies")
+        if isinstance(declared, dict):
+            workspace_dependencies = declared
+
+    for section in _manifest_dependency_sections(member):
+        for dependency_name, dependency_spec in section.items():
+            if (
+                _dependency_package_name(
+                    dependency_name,
+                    dependency_spec,
+                    workspace_dependencies,
+                )
+                == BROWSER_SESSION_PACKAGE
+            ):
+                return True
+    return False
 
 
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
@@ -78,11 +146,12 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
 
     def test_browser_session_dependencies_are_allowlisted(self) -> None:
         discovered = set()
+        workspace_text = ROOT_CARGO.read_text(encoding="utf-8")
         for path in ROOT.glob("crates/*/Cargo.toml"):
             if path == BROWSER_SESSION_CARGO:
                 continue
             text = path.read_text(encoding="utf-8")
-            if _has_browser_session_dependency(text):
+            if _manifest_links_browser_session(text, workspace_text):
                 discovered.add(path.relative_to(ROOT).as_posix())
 
         unexpected = discovered - APPROVED_BROWSER_SESSION_DEPENDENCIES
@@ -102,10 +171,11 @@ class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
                 discovered_port_references.add(relative)
 
         discovered_dependencies = set()
+        workspace_text = ROOT_CARGO.read_text(encoding="utf-8")
         for path in ROOT.glob("crates/*/Cargo.toml"):
             if path == BROWSER_SESSION_CARGO:
                 continue
-            if _has_browser_session_dependency(path.read_text(encoding="utf-8")):
+            if _manifest_links_browser_session(path.read_text(encoding="utf-8"), workspace_text):
                 discovered_dependencies.add(path.relative_to(ROOT).as_posix())
 
         self.assertEqual(
