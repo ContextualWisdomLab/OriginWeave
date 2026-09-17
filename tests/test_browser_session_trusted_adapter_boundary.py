@@ -241,11 +241,25 @@ def _declared_production_target_sources(
 
 def _workspace_production_sources(root: pathlib.Path) -> list[pathlib.Path]:
     """Return the canonical production Rust source closure reviewed by the TCB contract."""
+    root_resolved = root.resolve()
     sources: set[pathlib.Path] = set()
     for manifest in _production_package_manifests(root):
         sources.update(manifest.parent.glob("src/**/*.rs"))
         sources.update(_declared_production_target_sources(root, manifest))
-    return sorted(sources)
+
+    reviewed: list[pathlib.Path] = []
+    for source in sources:
+        resolved = source.resolve()
+        try:
+            resolved.relative_to(root_resolved)
+        except ValueError as exc:
+            raise AssertionError(
+                f"production Cargo source escapes repository review root: {source}"
+            ) from exc
+        if not resolved.is_file():
+            raise AssertionError(f"production Cargo source is missing: {source}")
+        reviewed.append(source)
+    return sorted(reviewed)
 
 
 class BrowserSessionTrustedAdapterBoundaryTests(unittest.TestCase):
