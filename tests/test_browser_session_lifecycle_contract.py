@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import tomllib
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CRATE = ROOT / "crates/originweave-browser-session"
+
+
+def _inherent_impl_surface(source: str, type_name: str) -> str:
+    """Return every inherent impl segment for one Rust type without matching sibling request types."""
+
+    starts = [match.start() for match in re.finditer(r"(?m)^impl<", source)]
+    starts.append(len(source))
+    segments: list[str] = []
+    for index, start in enumerate(starts[:-1]):
+        segment = source[start : starts[index + 1]]
+        header = segment.split("{", 1)[0]
+        if re.search(rf"\b{re.escape(type_name)}<[^>]+>\s*$", header.strip()):
+            segments.append(segment)
+    return "\n".join(segments)
 
 
 class BrowserSessionLifecycleContractTests(unittest.TestCase):
@@ -31,6 +46,10 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         """Raw driver identifiers must never become caller-mintable authority tokens."""
 
         recovery_source = (CRATE / "src/recovery.rs").read_text(encoding="utf-8")
+        recovery_custody_surface = _inherent_impl_surface(
+            recovery_source,
+            "BoundBrowserSessionRecovery",
+        )
         source = "\n".join(
             (CRATE / relative_path).read_text(encoding="utf-8")
             for relative_path in (
@@ -106,11 +125,13 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
         self.assertNotIn("pub const fn port", source)
         self.assertNotIn("pub fn port", source)
 
-        self.assertIn("pub const fn state(&self) -> BrowserSessionState", recovery_source)
-        self.assertIn("pub fn recovery_evidence(&self)", recovery_source)
-        self.assertIn("pub fn create_attempt_recovery_evidence(&self)", recovery_source)
-        self.assertNotIn("pub const fn browser_session(&self)", recovery_source)
-        self.assertNotIn("pub fn browser_session(&self)", recovery_source)
+        self.assertIn("pub const fn state(&self) -> BrowserSessionState", recovery_custody_surface)
+        self.assertIn("pub fn recovery_evidence(&self)", recovery_custody_surface)
+        self.assertIn("pub fn create_attempt_recovery_evidence(&self)", recovery_custody_surface)
+        self.assertNotIn("pub const fn browser_session(&self)", recovery_custody_surface)
+        self.assertNotIn("pub fn browser_session(&self)", recovery_custody_surface)
+        self.assertNotIn("pub const fn port", recovery_custody_surface)
+        self.assertNotIn("pub fn port", recovery_custody_surface)
         self.assertIn(
             "recovery.browser_session().presentation_authority(context)",
             recovery_source,
