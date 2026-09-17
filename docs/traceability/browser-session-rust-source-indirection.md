@@ -11,7 +11,7 @@ Four related forms matter here:
 - `include!(...)`, `include![...]`, and `include! {...}` parse another file as an expression or item. Rust macro invocation syntax permits all three delimiter forms, and the included path is relative to the source file containing the invocation.
 - `#[path = "..."] mod ...;` changes the source file used for an outlined module. Rust documents the path attribute as a module-source filename override whose relative interpretation depends on the module location.
 - `#[cfg_attr(..., path = "...")]` can conditionally synthesize the same `path` attribute. A direct `#[path]`-only lexical check therefore does not cover the full Rust attribute surface.
-- A bare outlined module item such as `mod helper;` also causes the compiler to load another Rust file. Cargo's ordinary `src/**/*.rs` review already contains those sibling/default module files conservatively, but a custom Cargo target whose crate root lives outside `src/` can load sibling module files that are not in that closure. Rust raw identifiers are valid item identifiers, so the same guard must cover spellings such as `mod r#type;` rather than only ordinary identifier tokens.
+- A bare outlined module item such as `mod helper;` also causes the compiler to load another Rust file. Cargo's ordinary `src/**/*.rs` review already contains those sibling/default module files conservatively, but a custom Cargo target whose crate root lives outside `src/` can load sibling module files that are not in that closure. Rust identifiers are Unicode XID-based and raw identifiers are also valid item identifiers, so the same guard must not assume ASCII-only module names.
 
 Primary references:
 
@@ -30,6 +30,7 @@ Without an explicit contract, a future lifecycle adapter could keep its crate, m
 - This contract consumes that closure; it does not reimplement Cargo workspace, dependency, target, build-script, or source-override discovery.
 - Existing `crates/originweave-core/src/root.rs` intentionally uses `#[path = "lib.rs"]`. That exact source/attribute pair is the only currently reviewed path-attribute exception.
 - Default `src/` module trees are already conservatively included by the canonical `src/**/*.rs` closure. The bare-module guard is therefore limited to reviewed custom target roots outside every production package's default `src/` directory.
+- The temporary custom-target guard intentionally does not attempt to reproduce the Rust identifier grammar. Once it sees an outlined module-shaped token before `;`, it fails closed; exact compiler-derived source-input provenance is the long-term replacement.
 - No future BiDi adapter path or Rust source indirection is pre-authorized.
 
 ## Decision
@@ -40,7 +41,7 @@ Any Rust attribute containing `path =` is treated as source-indirection review s
 
 `crates/originweave-core/src/root.rs` → `path = "lib.rs"`
 
-A reviewed custom Cargo target outside a production package's default `src/` tree also fails closed if it contains a bare outlined module item (`mod name;` or `mod r#name;`, including ordinary `pub` visibility spellings). This is deliberately narrower than banning bare modules globally: ordinary `src/` module files are already included by the canonical Cargo source closure, whereas a custom target root can otherwise cause `rustc` to read an unenumerated sibling module. Inline modules (`mod name { ... }`) do not add source bytes and are not part of this guard.
+A reviewed custom Cargo target outside a production package's default `src/` tree also fails closed if it contains a bare outlined module item. The detector deliberately treats the module-name token as opaque instead of restricting it to ASCII, so ordinary, raw, and Unicode Rust identifiers cannot select an unenumerated sibling by changing identifier spelling. This is narrower than banning modules globally: ordinary `src/` module files are already included by the canonical Cargo source closure, whereas a custom target root can otherwise cause `rustc` to read an unenumerated sibling module. Inline modules (`mod name { ... }`) do not add source bytes and are not part of this guard.
 
 Any additional path-bearing attribute or custom-target module source must arrive in the same reviewed delta that explains and tests its source provenance. A future filesystem indirection must not silently widen the Browser Session TCB.
 
@@ -57,7 +58,10 @@ Any additional path-bearing attribute or custom-target module source must arrive
 - `eb2ea168fd951bbc817f24cd08fb2b0b5805a775` repaired the gap without widening Cargo topology ownership: the indirection contract derives production package `src/` roots from the canonical manifest closure, permits bare outlined modules only where the canonical `src/**/*.rs` closure already covers their files, and fails closed on bare outlined modules from custom target roots outside `src/`. A positive fixture keeps ordinary `src/lib.rs -> mod nested;` valid.
 - Focused CodeRabbit review of exact `f28e96f5dca746adab2df3fb909bd205d13947ed` found a valid P1 in that new guard: the regex accepted only ordinary identifiers and missed valid Rust raw identifiers such as `mod r#type;`, allowing the same custom-target sibling-source bypass under a different legal spelling.
 - `8d396db28df3e9757a1f3ee96eb65bca15a16e4f` added a hostile raw-identifier module fixture while preserving the ordinary-identifier-only detector, keeping that reviewer finding as a structural RED.
-- `aabd724d0d41a526ca41ade4e47349b94c0151f5` repaired the detector with the minimal Rust raw-identifier prefix form `(?:r#)?` and retained the same custom-target-only scope and positive default-`src/` fixture.
+- `aabd724d0d41a526ca41ade4e47349b94c0151f5` repaired the reported raw-identifier case while retaining the same custom-target-only scope and positive default-`src/` fixture.
+- Focused CodeRabbit review of exact `8ba03a5cf3022dbe21c9f4e1b0443e7481941661` then found the same grammar-assumption class was still incomplete: the detector remained ASCII-only even though Rust permits Unicode identifiers.
+- `aa90b3ef465785ab0250097dedbc917dc2ce9cc6` added a hostile Unicode module fixture (`mod 관찰;`) while leaving the ASCII-only detector unchanged, preserving that reviewer finding as a structural RED.
+- `e9dfcbefcc7d2ed022564a76edd3715f1f30d071` removed the ASCII identifier assumption. The custom-target guard now treats the module-name token opaquely and fails closed before `;`, covering ordinary, raw, and Unicode identifier spellings without reimplementing Rust XID tables or widening Cargo topology ownership.
 
 This evidence is structural/static on a Draft branch. It is not executable exact-head GREEN and does not replace the required parent-lineage, repository/security, or real-Chromium acceptance gates.
 
