@@ -18,9 +18,7 @@ spec.loader.exec_module(boundary)
 INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*[([{]")
 RUST_ATTRIBUTE = re.compile(r"#\s*\[([^\]]*)\]", re.DOTALL)
 PATH_META = re.compile(r"\bpath\s*=")
-BARE_MODULE_ITEM = re.compile(
-    r"(?m)^[ \t]*(?:pub(?:\s*\([^\n)]*\))?[ \t]+)?mod[ \t]+[^\s;{}]+[ \t]*;"
-)
+CUSTOM_TARGET_MOD_TOKEN = re.compile(r"(?<![\w#])mod(?!\w)", re.UNICODE)
 APPROVED_RUST_PATH_ATTRIBUTES = {
     ("crates/originweave-core/src/root.rs", 'path = "lib.rs"'),
 }
@@ -59,7 +57,11 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
                 f"Rust include! source indirection requires an explicit provenance contract: {relative}"
             )
 
-        if not _is_under_any_default_src(source, default_src_roots) and BARE_MODULE_ITEM.search(text):
+        # A custom target root is outside the canonical src/**/*.rs sibling closure. Until
+        # compiler-derived source inputs replace this guard, any lexical `mod` token is an
+        # intentionally conservative provenance stop: comments/trivia, raw/Unicode names,
+        # visibility spellings, and inline-vs-outlined grammar must not create bypasses.
+        if not _is_under_any_default_src(source, default_src_roots) and CUSTOM_TARGET_MOD_TOKEN.search(text):
             raise AssertionError(
                 "Rust module source indirection from a custom Cargo target requires an explicit "
                 f"provenance contract: {relative}"
