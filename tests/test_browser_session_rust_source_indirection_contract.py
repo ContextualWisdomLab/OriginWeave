@@ -167,6 +167,15 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
             _assert_no_unmodeled_rust_source_indirection(root)
 
+    def test_unicode_identifier_bare_module_from_custom_target_fails_closed(self) -> None:
+        root = self._custom_target_workspace(
+            "mod 관찰;\npub fn lifecycle_adapter_surface() {}\n",
+            "관찰.rs",
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
+            _assert_no_unmodeled_rust_source_indirection(root)
+
     def test_bare_module_under_default_src_uses_existing_source_closure(self) -> None:
         root = self._workspace_with_source("mod nested;\npub fn adapter_surface() {}\n")
         (root / "adapter/src/nested.rs").write_text(
