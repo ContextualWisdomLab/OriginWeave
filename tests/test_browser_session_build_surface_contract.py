@@ -34,8 +34,8 @@ class BrowserSessionBuildSurfaceContractTests(unittest.TestCase):
         )
         return directory, root
 
-    def _write_cargo_config(self, root: pathlib.Path, name: str, content: str) -> None:
-        cargo = root / ".cargo"
+    def _write_cargo_config(self, directory: pathlib.Path, name: str, content: str) -> None:
+        cargo = directory / ".cargo"
         cargo.mkdir(exist_ok=True)
         (cargo / name).write_text(content, encoding="utf-8")
 
@@ -55,9 +55,7 @@ class BrowserSessionBuildSurfaceContractTests(unittest.TestCase):
                 boundary._production_package_manifests(root)
 
     def test_build_dependencies_fail_closed(self) -> None:
-        directory, root = self._workspace(
-            '[build-dependencies]\nserde = "1"\n'
-        )
+        directory, root = self._workspace('[build-dependencies]\nserde = "1"\n')
         with directory:
             with self.assertRaisesRegex(AssertionError, "production Cargo build dependencies"):
                 boundary._production_package_manifests(root)
@@ -132,6 +130,17 @@ class BrowserSessionBuildSurfaceContractTests(unittest.TestCase):
                 "config.toml",
                 '[source.crates-io]\nreplace-with = "vendored"\n\n'
                 '[source.vendored]\ndirectory = "vendor"\n',
+            )
+            with self.assertRaisesRegex(AssertionError, "Cargo config source override"):
+                boundary._production_package_manifests(root)
+
+    def test_nested_git_owned_cargo_config_override_fails_closed(self) -> None:
+        directory, root = self._workspace()
+        with directory:
+            self._write_cargo_config(
+                root / "adapter",
+                "config.toml",
+                'paths = ["../../external-adapter"]\n',
             )
             with self.assertRaisesRegex(AssertionError, "Cargo config source override"):
                 boundary._production_package_manifests(root)
