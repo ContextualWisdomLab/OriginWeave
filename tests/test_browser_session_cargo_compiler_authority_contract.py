@@ -49,6 +49,11 @@ def _linker_option_selects_script(argument: str) -> bool:
     return (argument.startswith("-T") and len(argument) > 2) or argument.startswith("--script=")
 
 
+def _linker_option_uses_response_file(argument: str) -> bool:
+    """Return whether a direct-linker argument delegates parsing to an opaque response file."""
+    return argument.startswith("@")
+
+
 def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
     """Return direct-linker arguments encoded by a single compiler-driver forwarding option."""
     if argument.startswith("-Wl,"):
@@ -66,7 +71,9 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
         if _linker_option_selects_script(argument):
             return True
         if any(
-            _linker_option_loads_plugin(forwarded) or _linker_option_selects_script(forwarded)
+            _linker_option_loads_plugin(forwarded)
+            or _linker_option_selects_script(forwarded)
+            or _linker_option_uses_response_file(forwarded)
             for forwarded in _forwarded_linker_arguments(argument)
         ):
             return True
@@ -76,6 +83,7 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
             and (
                 _linker_option_loads_plugin(arguments[index + 1])
                 or _linker_option_selects_script(arguments[index + 1])
+                or _linker_option_uses_response_file(arguments[index + 1])
             )
         ):
             return True
@@ -321,6 +329,19 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_forwarded_linker_response_file_fails_closed(self) -> None:
+        for forwarded in (
+            "-Wl,@tools/review-bypass-linker.rsp",
+            "--for-linker=@tools/review-bypass-linker.rsp",
+            "-Xlinker @tools/review-bypass-linker.rsp",
+        ):
+            with self.subTest(forwarded=forwarded):
+                root = self._workspace_with_config(
+                    f'[build]\nrustflags = ["-C", "link-args={forwarded}"]\n'
+                )
+                with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+                    _assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def test_non_linker_selecting_link_arg_remains_allowed(self) -> None:
         root = self._workspace_with_config(
