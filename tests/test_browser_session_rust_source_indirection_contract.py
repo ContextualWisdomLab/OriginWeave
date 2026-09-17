@@ -15,7 +15,7 @@ boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
 
-INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*\(")
+INCLUDE_MACRO = re.compile(r"(?<![A-Za-z0-9_])include\s*!\s*[([{]")
 RUST_ATTRIBUTE = re.compile(r"#\s*\[([^\]]*)\]", re.DOTALL)
 PATH_META = re.compile(r"\bpath\s*=")
 APPROVED_RUST_PATH_ATTRIBUTES = {
