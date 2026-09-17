@@ -6,7 +6,7 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ### Browser automation and interoperability
 
-The 9 September 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. OriginWeave pins this publication to the immutable dated TR `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/`; that document identifies the 3 September 2026 draft as its previous published version. The mutable `w3c.github.io/webdriver-bidi/` Editor's Draft is tracked separately and cannot silently redefine the adapter contract. Because the standard remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+As of 17 September 2026, the canonical publication-current receipt at `docs/traceability/webdriver-bidi-publication-current.md` records the 16 September 2026 WebDriver BiDi Working Draft as the latest published version and the 14 September 2026 Working Draft as the previous published version. Execution compatibility is a separate claim and remains qualified against the immutable 3 September 2026 dated TR `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/` until schema, semantics, conformance, and pinned-Chromium evidence admit another revision. The 9 September 2026 dated Working Draft remains historical/reference publication evidence, not the current publication or the runtime-qualified pin. The mutable `w3c.github.io/webdriver-bidi/` Editor's Draft is tracked separately and cannot silently redefine the adapter contract. Because the standard remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
@@ -48,19 +48,21 @@ object with enumerated architecture/bitness/platform tokens, an at-most-32
 ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
 that a non-mobile user agent reports an empty model (see ADR 0112).
 
-The pinned 9 September 2026 WebDriver BiDi Working Draft exposes locale, media,
+The historical/reference 9 September 2026 WebDriver BiDi Working Draft exposes locale, media,
 screen, user-agent, viewport, and time-zone emulation commands under the immutable
-publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/`. The screen
-shape contains width and height but not color depth, and locale accepts one value
-rather than an ordered language list, so neither proves the corresponding complete
-OriginWeave surface. The draft also does not define a hardware-concurrency
-override. Chromium's tip-of-tree DevTools Protocol exposes
-`Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
-tip-of-tree commands can change without notice. OriginWeave therefore records
-required presentation surfaces in a protocol-neutral Rust admission contract;
-the adapter records those four complete standard surfaces as protocol
-capabilities, while the reusable-context plan emits only two typed command
-intents—viewport/DPR and timezone—bound to one bounded opaque browsing context.
+publication `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/`. Publication
+currentness has since advanced to the 16 September Working Draft with 14 September
+as the previous publication, while OriginWeave's execution compatibility remains
+separately pinned to the 3 September Working Draft. The screen shape contains width
+and height but not color depth, and locale accepts one value rather than an ordered
+language list, so neither proves the corresponding complete OriginWeave surface. The
+draft also does not define a hardware-concurrency override. Chromium's tip-of-tree
+DevTools Protocol exposes `Emulation.setHardwareConcurrencyOverride` as Experimental
+and warns that tip-of-tree commands can change without notice. OriginWeave therefore
+records required presentation surfaces in a protocol-neutral Rust admission contract;
+the adapter records those four complete standard surfaces as protocol capabilities,
+while the reusable-context plan emits only two typed command intents—viewport/DPR and
+timezone—bound to one bounded opaque browsing context.
 
 Cleanup authority is asymmetric. Nullable viewport and timezone operations can
 restore those adapter-owned overrides on a reusable context, so generic cleanup
@@ -266,9 +268,11 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 
 World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
 
-World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft; historical/reference publication). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
-World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft; runtime-qualified compatibility pin). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+
+OriginWeave. (2026, September 17). *WebDriver BiDi publication-current receipt*. `docs/traceability/webdriver-bidi-publication-current.md`
 
 World Wide Web Consortium. (2026). *WebDriver BiDi* (Editor's Draft). https://w3c.github.io/webdriver-bidi/
 
