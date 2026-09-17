@@ -54,6 +54,20 @@ class BrowserSessionLinkerDriverSpecsContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_repository_split_driver_specs_file_fails_closed(self) -> None:
+        root = self._workspace_with_flags(
+            '["-C", "link-arg=-specs", "-C", "link-arg=tools/review-bypass.specs"]'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_split_driver_specs_inside_link_args_fails_closed(self) -> None:
+        root = self._workspace_with_flags(
+            '["--codegen=link-args=-specs tools/review-bypass.specs"]'
+        )
+        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+            authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_unrelated_driver_link_argument_remains_allowed(self) -> None:
         root = self._workspace_with_flags('["-C", "link-arg=-pthread"]')
         authority._assert_no_repository_cargo_compiler_execution_overrides(root)
