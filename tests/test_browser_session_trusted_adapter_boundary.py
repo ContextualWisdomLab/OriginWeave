@@ -144,13 +144,26 @@ def _assert_no_workspace_source_overrides(root_manifest_path: pathlib.Path) -> N
 
 
 def _assert_no_repository_cargo_config_source_overrides(root: pathlib.Path) -> None:
-    """Fail closed on repository Cargo config surfaces that can alter dependency sources."""
-    cargo_directory = root / ".cargo"
-    for config_name in ("config.toml", "config"):
-        config_path = cargo_directory / config_name
-        if not config_path.is_file():
-            continue
-        parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    """Fail closed on Git-owned Cargo config surfaces that can alter dependency sources."""
+    root_resolved = root.resolve()
+    config_paths: set[pathlib.Path] = set()
+    for pattern in (".cargo/config.toml", ".cargo/config"):
+        config_paths.update(root.rglob(pattern))
+
+    for config_path in sorted(config_paths):
+        resolved = config_path.resolve()
+        try:
+            resolved.relative_to(root_resolved)
+        except ValueError as exc:
+            raise AssertionError(
+                f"Cargo config escapes repository review root: {config_path.relative_to(root).as_posix()}"
+            ) from exc
+        if not resolved.is_file():
+            raise AssertionError(
+                f"Cargo config is missing: {config_path.relative_to(root).as_posix()}"
+            )
+
+        parsed = tomllib.loads(resolved.read_text(encoding="utf-8"))
         paths = parsed.get("paths")
         patch = parsed.get("patch")
         sources = parsed.get("source")
@@ -159,9 +172,10 @@ def _assert_no_repository_cargo_config_source_overrides(root: pathlib.Path) -> N
             or (isinstance(patch, dict) and bool(patch))
             or (isinstance(sources, dict) and bool(sources))
         ):
+            relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
                 "production Cargo config source override requires an explicit trusted-adapter contract: "
-                f".cargo/{config_name}"
+                f"{relative}"
             )
 
 
