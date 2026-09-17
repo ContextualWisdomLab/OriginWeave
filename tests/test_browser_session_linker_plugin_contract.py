@@ -40,19 +40,41 @@ class BrowserSessionLinkerPluginContractTests(unittest.TestCase):
         )
         return root
 
-    def test_repository_wl_linker_plugin_fails_closed(self) -> None:
-        root = self._workspace_with_flags(
-            '["-C", "link-arg=-Wl,-plugin,tools/review-bypass-linker.so"]'
-        )
+    def _assert_plugin_override_fails_closed(self, rustflags: str) -> None:
+        root = self._workspace_with_flags(rustflags)
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_repository_wl_linker_plugin_fails_closed(self) -> None:
+        self._assert_plugin_override_fails_closed(
+            '["-C", "link-arg=-Wl,-plugin,tools/review-bypass-linker.so"]'
+        )
+
     def test_repository_xlinker_plugin_fails_closed(self) -> None:
-        root = self._workspace_with_flags(
+        self._assert_plugin_override_fails_closed(
             '["-C", "link-arg=-Xlinker", "-C", "link-arg=-plugin", "-C", "link-arg=-Xlinker", "-C", "link-arg=tools/review-bypass-linker.so"]'
         )
-        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
-            authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_repository_for_linker_plugin_fails_closed(self) -> None:
+        self._assert_plugin_override_fails_closed(
+            '["-C", "link-arg=--for-linker=-plugin=tools/review-bypass-linker.so"]'
+        )
+
+    def test_non_plugin_wl_forwarding_remains_allowed(self) -> None:
+        root = self._workspace_with_flags('["-C", "link-arg=-Wl,--as-needed"]')
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_non_plugin_xlinker_forwarding_remains_allowed(self) -> None:
+        root = self._workspace_with_flags(
+            '["-C", "link-arg=-Xlinker", "-C", "link-arg=--as-needed"]'
+        )
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_non_plugin_for_linker_forwarding_remains_allowed(self) -> None:
+        root = self._workspace_with_flags(
+            '["-C", "link-arg=--for-linker=--as-needed"]'
+        )
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
 
 if __name__ == "__main__":
