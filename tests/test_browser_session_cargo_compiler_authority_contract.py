@@ -20,8 +20,8 @@ COMPILER_EXECUTION_KEYS = frozenset(
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 
 
-def _rustflags_select_linker(value: object) -> bool:
-    """Return whether Cargo-owned rustflags select rustc's linker executable."""
+def _flags_select_linker(value: object) -> bool:
+    """Return whether Cargo-owned rustc/rustdoc flags select a linker executable."""
     if isinstance(value, str):
         arguments = value.split()
     elif isinstance(value, list) and all(isinstance(argument, str) for argument in value):
@@ -67,8 +67,11 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         build_configured = (
             sorted(COMPILER_EXECUTION_KEYS.intersection(build)) if isinstance(build, dict) else []
         )
-        if isinstance(build, dict) and _rustflags_select_linker(build.get("rustflags")):
-            build_configured.append("rustflags:-C linker")
+        if isinstance(build, dict):
+            if _flags_select_linker(build.get("rustflags")):
+                build_configured.append("rustflags:-C linker")
+            if _flags_select_linker(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:-C linker")
 
         target_configured: dict[str, list[str]] = {}
         target = parsed.get("target")
@@ -77,8 +80,10 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 if not isinstance(settings, dict):
                     continue
                 configured = sorted(TARGET_EXECUTION_KEYS.intersection(settings))
-                if _rustflags_select_linker(settings.get("rustflags")):
+                if _flags_select_linker(settings.get("rustflags")):
                     configured.append("rustflags:-C linker")
+                if _flags_select_linker(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:-C linker")
                 if configured:
                     target_configured[str(target_name)] = configured
 
@@ -217,6 +222,12 @@ class BrowserSessionCargoCompilerAuthorityContractTests(unittest.TestCase):
     def test_unrelated_rustflags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
             '[build]\nrustflags = ["-C", "opt-level=2", "--cfg", "originweave_reviewed"]\n'
+        )
+        _assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_unrelated_rustdocflags_remain_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustdocflags = ["--document-private-items", "--cfg", "docsrs"]\n'
         )
         _assert_no_repository_cargo_compiler_execution_overrides(root)
 
