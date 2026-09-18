@@ -224,6 +224,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 build_configured.append("rustflags:external link input")
             if _flags_select_linker(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:codegen linker")
+            if _flags_extend_external_link_inputs(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:external link input")
 
         target_configured: dict[str, list[str]] = {}
         target = parsed.get("target")
@@ -238,6 +240,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     configured.append("rustflags:external link input")
                 if _flags_select_linker(settings.get("rustdocflags")):
                     configured.append("rustdocflags:codegen linker")
+                if _flags_extend_external_link_inputs(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:external link input")
                 if configured:
                     target_configured[str(target_name)] = configured
 
