@@ -252,6 +252,26 @@ def _configured_profile_codegen_backends(value: object, prefix: str = "profile")
     return sorted(configured)
 
 
+def _configured_profile_rustflag_authority(value: object, prefix: str = "profile") -> list[str]:
+    """Return profile rustflags that widen compiler execution or external input authority."""
+    if not isinstance(value, dict):
+        return []
+    configured: list[str] = []
+    for key, setting in value.items():
+        path = f"{prefix}.{key}"
+        if key == "rustflags":
+            if _flags_select_codegen_backend(setting):
+                configured.append(f"{path}:codegen backend")
+            if _flags_select_linker(setting):
+                configured.append(f"{path}:codegen linker")
+            if _flags_extend_external_link_inputs(setting):
+                configured.append(f"{path}:external compiler input")
+            continue
+        if isinstance(setting, dict):
+            configured.extend(_configured_profile_rustflag_authority(setting, path))
+    return sorted(configured)
+
+
 def _configured_custom_target_specs(value: object) -> list[str]:
     """Return repository-selected custom rustc target specification paths."""
     if isinstance(value, str):
@@ -274,10 +294,14 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
     manifest_profile_codegen_backends = _configured_profile_codegen_backends(
         root_manifest.get("profile")
     )
-    if manifest_profile_codegen_backends:
+    manifest_profile_rustflag_authority = _configured_profile_rustflag_authority(
+        root_manifest.get("profile")
+    )
+    if manifest_profile_codegen_backends or manifest_profile_rustflag_authority:
         raise AssertionError(
             "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
-            f"Cargo.toml profile_codegen_backends={manifest_profile_codegen_backends}"
+            f"Cargo.toml profile_codegen_backends={manifest_profile_codegen_backends} "
+            f"profile_rustflag_authority={manifest_profile_rustflag_authority}"
         )
 
     root_resolved = root.resolve()
@@ -307,6 +331,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         )
         unstable_configured = _configured_unstable_toolchain_inputs(parsed.get("unstable"))
         profile_codegen_backends = _configured_profile_codegen_backends(parsed.get("profile"))
+        profile_rustflag_authority = _configured_profile_rustflag_authority(parsed.get("profile"))
 
         build = parsed.get("build")
         build_configured = (
@@ -361,13 +386,15 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             or include_configured
             or unstable_configured
             or profile_codegen_backends
+            or profile_rustflag_authority
         ):
             relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
                 "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
                 f"{relative} build_keys={build_configured} target_keys={target_configured} "
                 f"env_keys={environment_configured} include={include_configured} "
-                f"unstable_keys={unstable_configured} profile_codegen_backends={profile_codegen_backends}"
+                f"unstable_keys={unstable_configured} profile_codegen_backends={profile_codegen_backends} "
+                f"profile_rustflag_authority={profile_rustflag_authority}"
             )
 
 
