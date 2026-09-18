@@ -168,6 +168,13 @@ def _linker_option_selects_runtime_filter_library(argument: str) -> bool:
     )
 
 
+def _linker_option_selects_runtime_search_path(argument: str) -> bool:
+    """Return whether GNU-compatible linker syntax selects runtime/link-time shared-library paths."""
+    if argument in {"-rpath", "--rpath", "-rpath-link", "--rpath-link"}:
+        return True
+    return argument.startswith(("-rpath=", "--rpath=", "-rpath-link=", "--rpath-link="))
+
+
 def _linker_option_uses_response_file(argument: str) -> bool:
     """Return whether a direct-linker argument delegates parsing to an opaque response file."""
     return argument.startswith("@")
@@ -211,6 +218,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_controls_runtime_loader(argument)
             or _linker_option_selects_runtime_audit_library(argument)
             or _linker_option_selects_runtime_filter_library(argument)
+            or _linker_option_selects_runtime_search_path(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
             or _linker_argument_is_positional_native_input(argument)
