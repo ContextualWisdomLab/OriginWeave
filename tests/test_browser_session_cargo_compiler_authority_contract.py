@@ -109,6 +109,13 @@ def _linker_option_selects_dtlto_executable(argument: str) -> bool:
     return argument.startswith(("--thinlto-distributor=", "--thinlto-remote-compiler="))
 
 
+def _linker_option_forwards_llvm_options(argument: str) -> bool:
+    """Return whether one LLD option forwards opaque arguments to LLVM option processing."""
+    if argument in {"--mllvm", "-mllvm"}:
+        return True
+    return argument.startswith(("--mllvm=", "-mllvm="))
+
+
 def _linker_option_selects_script(argument: str) -> bool:
     """Return whether one linker option selects a script that can introduce link inputs."""
     if argument in LINKER_SCRIPT_OPTIONS:
@@ -214,6 +221,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             _linker_option_loads_plugin(argument)
             or _linker_option_selects_error_handler(argument)
             or _linker_option_selects_dtlto_executable(argument)
+            or _linker_option_forwards_llvm_options(argument)
             or _linker_option_selects_script(argument)
             or _linker_option_selects_symbol_policy_file(argument)
             or _linker_option_selects_just_symbols_or_rpath(argument)
@@ -237,7 +245,6 @@ def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
     if argument.startswith("--for-linker="):
         return tuple(argument.removeprefix("--for-linker=").split(","))
     return ()
-
 
 def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
     """Return whether driver arguments can replace tools, extend link inputs, or load linker code."""
