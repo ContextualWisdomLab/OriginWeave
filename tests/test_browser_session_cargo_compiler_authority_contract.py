@@ -49,7 +49,9 @@ def _linker_argument_extends_external_inputs(argument: str) -> bool:
 
 
 def _rustc_argument_extends_external_inputs(argument: str) -> bool:
-    """Return whether one rustc argument widens external crate, native-library, or sysroot inputs."""
+    """Return whether one rustc/rustdoc argument widens opaque or external compiler inputs."""
+    if argument.startswith("@"):
+        return True
     if argument == "--sysroot" or argument.startswith("--sysroot="):
         return True
     if argument == "--extern" or argument.startswith("--extern="):
