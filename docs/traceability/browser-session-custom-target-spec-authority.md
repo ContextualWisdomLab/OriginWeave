@@ -6,19 +6,23 @@ Status: Draft source-semantic contract evidence on PR #317. This document does n
 
 Cargo `build.target` accepts a built-in rustc target, `host-tuple`, or a path to a custom target specification. A repository-owned `.cargo/config.toml` or legacy `.cargo/config` can therefore select a JSON target specification without changing Cargo package/source topology or the visible `rustflags`/`rustdocflags` already covered by the Browser Session compiler-authority contract.
 
+Current nightly Cargo gates custom target JSON use behind `-Z json-target-spec`; Cargo also documents that `-Z` features can be enabled through the config `[unstable]` table. The realistic repository-owned path is therefore `[unstable] json-target-spec = true` together with `[build].target = "path/to/spec.json"`. The gate alone does not select an artifact, so the contract fails closed on the actual custom target selection rather than banning the feature flag globally.
+
 That selection is provenance-bearing. Rust custom target specifications describe compiler target behavior rather than merely naming an output directory. Current rustc target metadata exposes linker selection, linker flavor, pre/post link objects, pre/late/post link arguments, link scripts, linker environment changes, and assembler arguments among the target options. A Git-owned custom target can therefore alter native tool execution or native/link inputs while the reviewed Rust source closure is unchanged.
 
 ## Constraints
 
 - `tests/test_browser_session_trusted_adapter_boundary.py` remains the single writer for production Cargo package/source topology and dependency-source discovery.
 - `tests/test_browser_session_cargo_compiler_authority_contract.py` remains the owner for repository-selected compiler, rustdoc, linker, toolchain, and external-input authority.
-- Built-in target triples and Cargo's `host-tuple` remain allowed. The repair is not a blanket `build.target` ban.
+- Built-in target triples and Cargo's `host-tuple` remain allowed. The repair is not a blanket `build.target` or `json-target-spec` ban.
 - This contract does not authorize a custom target JSON artifact. An approved future target specification needs immutable artifact identity, compiler-version/schema pinning, transitive linker/native-input provenance, SBOM/attestation, rollback, and the same-tree executable evidence.
 - `CARGO_BUILD_TARGET`, direct Cargo `--target`, `RUST_TARGET_PATH`, and target specifications resolved from a rustc sysroot are execution-environment or toolchain inputs and remain with the CI/release supply-chain owner.
 
 ## RED
 
 Commit `9a7477e6e19d739cead5c90fa63070aa85a01cf6` adds `tests/test_browser_session_custom_target_spec_authority_contract.py`. The hostile fixture selects `targets/review-bypass.json` through build-level `target`; the target JSON names a different linker. A second fixture places the JSON path beside a built-in target in Cargo's array form. The predecessor compiler-authority contract did not classify `build.target`, so both repository-owned custom-target selectors were outside its fail-closed surface. Built-in target and `host-tuple` controls are retained.
+
+Commit `6f2ee50a6a461ebd55d7a23c5435a111faf6a792` aligns that focused fixture with current Cargo behavior by enabling `[unstable] json-target-spec = true` in the repository config. The same gate is present in the built-in-target controls, proving that the repair keys on artifact selection rather than the feature switch itself.
 
 ## Decision and repair
 
@@ -39,6 +43,8 @@ The source contract must remain Draft until the reconciled exact #317 head recei
 ## References
 
 The Cargo Project. (n.d.). *Configuration*. *The Cargo Book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/cargo/reference/config.html
+
+The Cargo Project. (n.d.). *Unstable features*. *The Cargo Book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/nightly/cargo/reference/unstable.html
 
 The Rust Project Developers. (n.d.). *Custom targets*. *The rustc book*. Retrieved September 18, 2026, from https://doc.rust-lang.org/rustc/targets/custom.html
 
