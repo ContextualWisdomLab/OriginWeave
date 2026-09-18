@@ -19,6 +19,7 @@ class BrowserSessionLldLayoutProfileInputAuthorityContractTests(unittest.TestCas
     def test_lld_layout_and_profile_file_inputs_fail_closed(self) -> None:
         hostile = (
             "--call-graph-ordering-file=tools/callgraph.order",
+            "-call-graph-ordering-file=tools/callgraph.order",
             "--irpgo-profile=tools/startup.profdata",
             "--symbol-ordering-file=tools/symbols.order",
             "--lto-sample-profile=tools/sample.prof",
