@@ -23,18 +23,20 @@ Primary references:
 
 ## RED
 
-Commit `f25634aaee2486ae043c410f1589d3d60f511485` adds `tests/test_browser_session_linker_plugin_lto_contract.py`. The hostile fixture uses:
+Commit `f25634aaee2486ae043c410f1589d3d60f511485` adds `tests/test_browser_session_linker_plugin_lto_contract.py`. The initial hostile fixture uses:
 
 ```toml
 [build]
 rustflags = ["-C", "linker-plugin-lto=tools/review-bypass-llvmgold.so"]
 ```
 
-The predecessor exact `569bfc807df8e4f3f452f04e5dfb865d09086fac` parsed the `-C` option but did not classify `linker-plugin-lto=<path>`, so the canonical Cargo compiler-authority helper did not fail closed. The same fixture keeps `linker-plugin-lto=no` as a control so the repair is not a blanket LTO ban.
+The predecessor exact `569bfc807df8e4f3f452f04e5dfb865d09086fac` parsed the `-C` option but did not classify `linker-plugin-lto=<path>`, so the canonical Cargo compiler-authority helper did not fail closed.
 
 ## Decision and repair
 
 Commit `c368afacacf261a84126150d9a06e1271a479246` extends the existing codegen-option classifier instead of adding another Cargo scanner. `_codegen_option_selects_linker_plugin()` distinguishes the documented boolean values (`y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`) from an explicit value that names a plugin artifact. Path-valued or otherwise unrecognized `linker-plugin-lto=<value>` settings fail closed through the existing `rustflags:codegen linker` / `rustdocflags:codegen linker` authority path.
+
+Commit `812c80878f8fd68f482d9cf97f5ea4f33ce5d8c7` broadens the focused contract without duplicating production topology: it covers split `-C`, compact `-C...`, long `--codegen=...`, target-level rustflags, and build-level rustdocflags. Bare `linker-plugin-lto` plus documented boolean `yes`/`no` remain control cases and do not name a repository plugin path.
 
 The repair is deliberately conservative. Bare `linker-plugin-lto` remains allowed because it enables linker-plugin LTO without naming a repository-selected plugin path. Unknown explicit values fail closed rather than being guessed safe.
 
