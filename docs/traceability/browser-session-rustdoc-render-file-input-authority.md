@@ -27,11 +27,13 @@ For a repository that publishes generated documentation, that is a provenance an
 
 Initial RED commit `2f8233cb7957ffd959d88ed8b3aca44bf3f6f001` added a realistic repository Cargo fixture in `tests/test_browser_session_rustdoc_render_input_authority_contract.py`. Before the repair, `build.rustdocflags = ["--html-in-header", "tools/review-bypass-header.html"]` and equivalent target/render-file selectors were not rejected by the canonical authority helper.
 
-Initial repair commit `ab259680e9bc8c6fde2221cd4c12d2a36721e93a` added `_flags_select_rustdoc_render_file_input()` to the existing compiler-authority owner and applies it to both build-level and target-level `rustdocflags`. Coverage commit `a1d8a7fe27ed67f2189dd19f276cbc960632441c` exercised the modeled stable/unstable HTML, Markdown, CSS and theme selectors plus safe controls.
+Initial repair commit `ab259680e9bc8c6fde2221cd4c12d2a36721e93a` added a rustdoc file-input classifier to the existing compiler-authority owner and applied it to both build-level and target-level `rustdocflags`. Coverage commit `a1d8a7fe27ed67f2189dd19f276cbc960632441c` exercised the modeled stable/unstable HTML, Markdown, CSS and theme selectors plus safe controls.
 
 A fresh primary-source sweep then found the unstable `--index-page PATH` file input that the first classifier generation had not modeled. Follow-up RED `a17cb3d60e5a09b7e10131dcef9eec39bded3d97` added a Cargo fixture using `-Z unstable-options --index-page tools/review-bypass-index.md`; the prior classifier accepted it. Repair `54041d692aafc9d2c9d55134db9df4810c5b76d0` added `--index-page` to the same canonical selector set. Coverage `5dda25c3d4892d1bb813f86dd9d0d6873a19a10a` added the equals-form target configuration so split and equals spellings are both constrained.
 
-The classifier now fail-closes on:
+A later documentation-metadata finding broadened the owner name, not the render-file semantics. Repair `47ff4370afdda5487224c437f6883d8947500c3f` renamed the shared classifier to `_flags_select_rustdoc_documentation_input()` and its option set to `RUSTDOC_DOCUMENTATION_INPUT_OPTIONS`, with rejection marker `rustdocflags:documentation input`, so rendered-file and cross-crate metadata inputs share one accurate authority boundary. The separate metadata rationale and RED are documented in `browser-session-rustdoc-doc-meta-input-authority.md`.
+
+The classifier now includes these render-file selectors:
 
 - `--html-in-header`
 - `--html-before-content`
@@ -43,7 +45,7 @@ The classifier now fail-closes on:
 - `--theme`
 - `--check-theme`
 
-The rejection marker is `rustdocflags:render file input`. The trusted-adapter boundary remains the single writer for Cargo package/source discovery; this change only extends the existing rustdoc input-authority classifier.
+The trusted-adapter boundary remains the single writer for Cargo package/source discovery; this change only extends the existing rustdoc input-authority classifier.
 
 ## Primary references
 
@@ -66,6 +68,6 @@ This does **not** prove generated documentation publication, GitHub Pages deploy
 
 - Environment/direct-CLI rustdoc flags and ambient Cargo configuration remain CI/release supply-chain inputs.
 - `--markdown-css` writes a stylesheet reference into Markdown-rendered HTML rather than loading the referenced file contents during rustdoc execution. It is intentionally not classified as this file-input surface; external-resource policy for published documentation should be owned by the docs/site publication boundary.
-- Rustdoc's unstable documentation-metadata exchange options are a separate provenance surface from render-file inclusion and require their own explicit classification rather than being mislabeled as render files.
+- Rustdoc's unstable `--read-doc-meta-dir` is now classified by the same canonical documentation-input owner, but its directory/merge semantics and output-only `--write-doc-meta-dir` control are documented separately.
 - Future rustdoc releases may add file-backed rendering options. Exact toolchain qualification must update this contract when those options become relevant.
 - An eventual approved custom render asset contract must identify the artifact immutably, prove repository/release provenance and containment, and connect the generated documentation to SBOM/provenance and rollback evidence rather than relying on a pathname allowlist.
