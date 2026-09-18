@@ -55,6 +55,12 @@ class BrowserSessionLinkerRuntimeAuditAuthorityContractTests(unittest.TestCase):
             "rustflags:codegen linker",
         )
 
+    def test_single_dash_long_audit_alias_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,-audit=tools/review-bypass-audit.so"]\n',
+            "rustflags:codegen linker",
+        )
+
     def test_build_rustdocflags_solaris_depaudit_short_form_fails_closed(self) -> None:
         self._assert_fails_closed(
             '[build]\nrustdocflags = ["-C", "link-arg=-Wl,-Ptools/review-bypass-audit.so"]\n',
