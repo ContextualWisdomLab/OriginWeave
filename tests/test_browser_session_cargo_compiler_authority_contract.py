@@ -20,18 +20,7 @@ COMPILER_EXECUTION_KEYS = frozenset(
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
-POSITIONAL_LINK_INPUT_SUFFIXES = (
-    ".o",
-    ".obj",
-    ".lo",
-    ".a",
-    ".lib",
-    ".rlib",
-    ".so",
-    ".dylib",
-    ".bc",
-    ".res",
-)
+LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
 
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
@@ -83,16 +72,30 @@ def _linker_option_uses_response_file(argument: str) -> bool:
 
 
 def _linker_argument_is_positional_native_input(argument: str) -> bool:
-    """Return whether a positional linker argument can name an external native input."""
-    if not argument or argument.startswith("-"):
-        return False
-    if "/" in argument or "\\" in argument:
-        return True
-    lowered = argument.lower()
-    filename = lowered.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-    if filename.endswith(POSITIONAL_LINK_INPUT_SUFFIXES):
-        return True
-    return ".so." in filename
+    """Return whether one unconsumed linker token is a positional external input."""
+    return bool(argument) and not argument.startswith("-")
+
+
+def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[str]) -> bool:
+    """Parse direct-linker tokens without misclassifying modeled option operands as inputs."""
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument in LINKER_OPTIONS_WITH_SEPARATE_OPERAND:
+            if index + 1 >= len(arguments):
+                return True
+            index += 2
+            continue
+        if (
+            _linker_option_loads_plugin(argument)
+            or _linker_option_selects_script(argument)
+            or _linker_option_uses_response_file(argument)
+            or _linker_argument_extends_external_inputs(argument)
+            or _linker_argument_is_positional_native_input(argument)
+        ):
+            return True
+        index += 1
+    return False
 
 
 def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
@@ -106,37 +109,33 @@ def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
 
 def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
     """Return whether driver arguments can replace tools, extend link inputs, or load linker code."""
-    for index, argument in enumerate(arguments):
+    direct_arguments: list[str] = []
+    xlinker_arguments: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
         if _linker_driver_argument_selects_executable(argument):
             return True
         if _linker_argument_extends_external_inputs(argument):
             return True
-        if _linker_argument_is_positional_native_input(argument):
+
+        forwarded = _forwarded_linker_arguments(argument)
+        if forwarded and _direct_linker_arguments_extend_authority(forwarded):
             return True
-        if _linker_option_selects_script(argument):
-            return True
-        if any(
-            _linker_option_loads_plugin(forwarded)
-            or _linker_option_selects_script(forwarded)
-            or _linker_option_uses_response_file(forwarded)
-            or _linker_argument_extends_external_inputs(forwarded)
-            or _linker_argument_is_positional_native_input(forwarded)
-            for forwarded in _forwarded_linker_arguments(argument)
-        ):
-            return True
-        if (
-            argument == "-Xlinker"
-            and index + 1 < len(arguments)
-            and (
-                _linker_option_loads_plugin(arguments[index + 1])
-                or _linker_option_selects_script(arguments[index + 1])
-                or _linker_option_uses_response_file(arguments[index + 1])
-                or _linker_argument_extends_external_inputs(arguments[index + 1])
-                or _linker_argument_is_positional_native_input(arguments[index + 1])
-            )
-        ):
-            return True
-    return False
+
+        if argument == "-Xlinker":
+            if index + 1 >= len(arguments):
+                return True
+            xlinker_arguments.append(arguments[index + 1])
+            index += 2
+            continue
+
+        direct_arguments.append(argument)
+        index += 1
+
+    return _direct_linker_arguments_extend_authority(
+        direct_arguments
+    ) or _direct_linker_arguments_extend_authority(xlinker_arguments)
 
 
 def _flag_arguments(value: object) -> list[str]:
