@@ -170,9 +170,11 @@ def _linker_option_selects_runtime_filter_library(argument: str) -> bool:
 
 def _linker_option_selects_runtime_search_path(argument: str) -> bool:
     """Return whether GNU-compatible linker syntax selects runtime/link-time shared-library paths."""
-    if argument in {"-rpath", "--rpath", "-rpath-link", "--rpath-link"}:
+    if argument in {"-rpath", "--rpath", "-rpath-link", "--rpath-link", "-Y"}:
         return True
-    return argument.startswith(("-rpath=", "--rpath=", "-rpath-link=", "--rpath-link="))
+    if argument.startswith(("-rpath=", "--rpath=", "-rpath-link=", "--rpath-link=")):
+        return True
+    return argument.startswith("-Y") and len(argument) > 2
 
 
 def _linker_option_uses_response_file(argument: str) -> bool:
@@ -517,7 +519,6 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
     config_paths: set[pathlib.Path] = set()
     for pattern in (".cargo/config.toml", ".cargo/config"):
         config_paths.update(root.rglob(pattern))
-
     for config_path in sorted(config_paths):
         resolved = config_path.resolve()
         try:
