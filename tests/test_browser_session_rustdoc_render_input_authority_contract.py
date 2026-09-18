@@ -60,6 +60,11 @@ class BrowserSessionRustdocRenderInputAuthorityContractTests(unittest.TestCase):
                     f'[build]\nrustdocflags = ["{selector}", "{path}"]\n'
                 )
 
+    def test_build_rustdocflags_unstable_index_page_input_fails_closed(self) -> None:
+        self._assert_render_input_fails_closed(
+            '[build]\nrustdocflags = ["-Z", "unstable-options", "--index-page", "tools/review-bypass-index.md"]\n'
+        )
+
     def test_target_rustdocflags_equals_render_file_input_fails_closed(self) -> None:
         self._assert_render_input_fails_closed(
             "[target.'cfg(unix)']\nrustdocflags = [\"--html-before-content=tools/review-bypass-before.html\"]\n"
