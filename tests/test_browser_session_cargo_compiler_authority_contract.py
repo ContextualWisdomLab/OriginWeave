@@ -34,6 +34,7 @@ RUSTDOC_RENDER_FILE_INPUT_OPTIONS = frozenset(
         "--html-after-content",
         "--markdown-before-content",
         "--markdown-after-content",
+        "--index-page",
         "--extend-css",
         "--theme",
         "--check-theme",
