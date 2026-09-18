@@ -22,14 +22,14 @@ Ordinary positional linker inputs are now part of the same authority boundary. G
 
 GCC itself is a driver that invokes preprocessing, compilation, assembly, and linking subprocesses according to spec strings. GCC documents that command-line `-specs=file` overrides built-in specs, while the driver also accepts the option and its file argument as separate argv tokens. The spec-file format can override named spec strings or include other spec files. Repository-owned Cargo `link-arg`/`link-args` can therefore alter which subprocesses or switches the nominal linker driver uses with either `-specs=file` or `-specs file`, without changing the visible `linker=` setting.
 
-Rustc and rustdoc external-input flags are also provenance-bearing. Git-owned Cargo `rustflags` and `rustdocflags` can use `-L` to widen library search paths or `--extern` to select an external crate; rustc `-l` can request native libraries. These repository-owned forms are fail-closed until exact artifact provenance is modeled. This is distinct from Cargo's own dependency wiring: the canonical production topology remains owned by `tests/test_browser_session_trusted_adapter_boundary.py`.
+Rustc and rustdoc external-input flags are also provenance-bearing. Git-owned Cargo `rustflags` and `rustdocflags` can use `-L` to widen library search paths, `--extern` to select an external crate, or `--sysroot` to replace the Rust system root used to resolve distribution-provided compiler/documentation inputs; rustc `-l` can request native libraries. These repository-owned forms are fail-closed until exact artifact provenance is modeled. This is distinct from Cargo's own dependency wiring: the canonical production topology remains owned by `tests/test_browser_session_trusted_adapter_boundary.py`.
 
 If any of these settings enters a reviewed Browser Session production workspace without a separate provenance contract, the effective build/test/documentation execution or external-input path is no longer represented by the existing exact-tree source closure.
 
 ## Constraints
 
 - `tests/test_browser_session_trusted_adapter_boundary.py` remains the single writer for production Cargo package/source topology and dependency-source override discovery.
-- This contract does not authorize a future wrapper, custom compiler, custom rustdoc executable, linker, runner, generated source path, response file, linker plugin, GCC specs file, linker script, external crate/native input, or adapter implementation.
+- This contract does not authorize a future wrapper, custom compiler, custom rustdoc executable, linker, runner, generated source path, response file, linker plugin, GCC specs file, linker script, external crate/native input, repository-selected sysroot, or adapter implementation.
 - Environment-owned `RUSTC`/`RUSTC_WRAPPER`/`RUSTDOC`/`RUSTFLAGS`/`CARGO_ENCODED_RUSTFLAGS`/`RUSTDOCFLAGS`/`CARGO_ENCODED_RUSTDOCFLAGS` authority belongs to the CI/runtime owner. This repository contract covers Git-owned `.cargo/config.toml` and `.cargo/config` files.
 - Ordinary Cargo settings, rustflags, rustdocflags, and linker arguments that do not select a modeled executable, alter modeled driver subprocess authority, dynamically load modeled linker code, or widen a modeled external-input surface are not rejected merely because they occur under `[build]` or `[target]`.
 - Command-line `cargo rustc`/`cargo rustdoc` flags, environment/toolchain configuration, non-GNU linker/plugin/control-file mechanisms, non-`-B` driver/tool search-path mechanisms, and linker option grammars/operands not yet explicitly modeled remain separate review surfaces.
@@ -56,6 +56,8 @@ Commit `e547203368da2aec62e2c94ab491eb0749d7d7b5` preserves suffix-bearing posit
 
 Commit `5928b1a614c8620203675b609b75f5489338e06d` preserves the rustdoc external-input gap: build-level `rustdocflags --extern` and target-level `rustdocflags -Lnative=...` passed the predecessor because external-input classification was applied only to `rustflags`.
 
+Commit `3943f268395180d199992709393190510ae48b2d` preserves the repository-selected sysroot gap. Split and equals-form `--sysroot` values in build/target `rustflags` and `rustdocflags` passed the predecessor because the external-input classifier covered `--extern`, `-L`, and `-l` but not Rust sysroot selection.
+
 These are source-level RED fixtures; no hosted-run result is inferred from the Draft branch.
 
 ## Decision and repair
@@ -76,6 +78,8 @@ Commit `e73d221cf28aa25ae6fbd941db95d5d923c7e883` first closes common suffix-bea
 
 Commit `e8edb487b779a1c4ff22bf2ca4c62ae7e52abd8b` applies the existing external-input classifier to build- and target-level `rustdocflags`, closing repository-owned rustdoc `--extern`/`-L` forms without adding another Cargo topology/config scanner. The dedicated rustdoc trace is `docs/traceability/browser-session-rustdoc-external-input-authority.md`.
 
+Commit `f20401f0368ac9ab5f9756fc285972791526887c` extends that same external-input classifier to split and equals-form `--sysroot` for both rustflags and rustdocflags. The focused evidence is `tests/test_browser_session_sysroot_input_contract.py`; `docs/traceability/browser-session-sysroot-input-authority.md` records the toolchain/sysroot provenance boundary without creating another Cargo topology owner.
+
 The modeled fail-closed execution/input-authority surfaces now include:
 
 - `build.rustc`, `build.rustc-wrapper`, `build.rustc-workspace-wrapper`, and `build.rustdoc`;
@@ -84,24 +88,24 @@ The modeled fail-closed execution/input-authority surfaces now include:
 - driver linker reselection through `-fuse-ld=` or `-B`;
 - driver/linker response files (`@file`) in the modeled direct/GNU forwarding forms;
 - linker plugin loading, explicit `-T`/`--script`, GCC `-specs=<file>` / `-specs <file>`, and modeled rustc-managed native-tool selectors;
-- Git-owned Cargo rustc/rustdoc external-input widening through modeled `-L`, `-l`, and `--extern` forms;
+- Git-owned Cargo rustc/rustdoc external-input widening through modeled `-L`, `-l`, `--extern`, and `--sysroot` forms;
 - direct/GNU-forwarded positional inputs, including suffix-bearing objects/archives, path-shaped extensionless inputs, and bare extensionless filenames/implicit-script candidates.
 
 A separate contract is retained instead of expanding Cargo package/source discovery because executable selection, driver subprocess authority, dynamically loaded linker code, and external-input argument authority are not package topology. A blanket rustflags/rustdocflags or linker-argument ban remains rejected because non-authority flags are common and do not justify widening this boundary. Path-only allowlists remain insufficient because they do not establish immutable executable/artifact identity, recursively expanded arguments/includes, transitive native inputs, behavior, or provenance.
 
 ## Security effect and residual risk
 
-The repair closes the modeled Git-owned execution/input-provenance paths that could place an unmodeled executable between Cargo and `rustc`, replace rustdoc, choose/interpose the linker or runner, alter GCC driver subprocess rules, load linker code, inject explicit/implicit scripts or positional native inputs, widen external-library search paths, or add external crates through repository-owned Cargo flags while the reviewed Rust source closure remained unchanged.
+The repair closes the modeled Git-owned execution/input-provenance paths that could place an unmodeled executable between Cargo and `rustc`, replace rustdoc, choose/interpose the linker or runner, alter GCC driver subprocess rules, load linker code, inject explicit/implicit scripts or positional native inputs, widen external-library search paths, add external crates, or replace the Rust sysroot through repository-owned Cargo flags while the reviewed Rust source closure remained unchanged.
 
-It does **not** prove CI environment variables, direct `cargo rustc` / `cargo rustdoc` trailing arguments, runner images, sysroot/rustup/toolchain composition, external binaries, non-GNU linker/plugin/control-file grammars, non-`-B` driver/tool search-path mechanisms, or unmodeled arguments with equivalent semantics trustworthy. Those controls remain with their canonical CI/supply-chain owners or future focused contracts. Path-shaped and bare extensionless positional inputs, Git-owned Cargo `--extern`, and Git-owned Cargo rustdoc `--extern`/`-L` are no longer residual gaps in this repository-owned Cargo boundary.
+It does **not** prove CI environment variables, direct `cargo rustc` / `cargo rustdoc` trailing arguments, runner images, ambient/default sysroot contents, rustup/toolchain installation state, external binaries, non-GNU linker/plugin/control-file grammars, non-`-B` driver/tool search-path mechanisms, or unmodeled arguments with equivalent semantics trustworthy. Those controls remain with their canonical CI/supply-chain owners or future focused contracts. Git-owned Cargo `--sysroot`, path-shaped and bare extensionless positional inputs, Git-owned Cargo `--extern`, and Git-owned Cargo rustdoc `--extern`/`-L` are no longer residual gaps in this repository-owned Cargo boundary.
 
 ## Acceptance and follow-up
 
-1. Obtain independent current-head review of the newest positional-input, rustdoc external-input, and lifecycle-contract repairs together with retained execution/input authority contracts.
+1. Obtain independent current-head review of the newest sysroot-input, positional-input, rustdoc external-input, and lifecycle-contract repairs together with retained execution/input authority contracts.
 2. After #229 exact-head required evidence becomes terminal, reconcile #317 by ordinary non-force ancestry while preserving all valid parent and child deltas.
 3. Regenerate executable repository/security evidence on the reconciled exact head.
-4. Review environment/direct-CLI injection, non-GNU control/input grammars, unmodeled option arities, and toolchain/sysroot composition separately; add a contract only when a realistic execution/provenance escape is demonstrated.
-5. If any blocked executable, response file, linker plugin, specs file, linker script, or external artifact is required, replace fail-closed only with an explicit design covering immutable identity, recursive argument/source provenance, SBOM/attestation, rollback, and buyer-visible evidence.
+4. Review environment/direct-CLI injection, non-GNU control/input grammars, unmodeled option arities, and ambient toolchain/default-sysroot composition separately; add a contract only when a realistic execution/provenance escape is demonstrated.
+5. If any blocked executable, response file, linker plugin, specs file, linker script, external artifact, or custom sysroot is required, replace fail-closed only with an explicit design covering immutable identity, recursive argument/source provenance, SBOM/attestation, rollback, and buyer-visible evidence.
 
 ## References
 
