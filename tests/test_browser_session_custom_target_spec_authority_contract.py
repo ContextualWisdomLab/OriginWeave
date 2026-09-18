@@ -39,7 +39,7 @@ class BrowserSessionCustomTargetSpecAuthorityContractTests(unittest.TestCase):
         cargo = root / ".cargo"
         cargo.mkdir()
         (cargo / "config.toml").write_text(
-            f"[build]\ntarget = {target_value}\n",
+            f"[unstable]\njson-target-spec = true\n\n[build]\ntarget = {target_value}\n",
             encoding="utf-8",
         )
         targets = root / "targets"
