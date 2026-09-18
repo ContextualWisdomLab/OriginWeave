@@ -39,7 +39,7 @@ class BrowserSessionRustdocDocMetaInputAuthorityContractTests(unittest.TestCase)
 
     def _assert_documentation_input_fails_closed(self, config_text: str) -> None:
         root = self._workspace_with_config(config_text)
-        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+        with self.assertRaisesRegex(AssertionError, "rustdocflags:documentation input"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def test_build_rustdocflags_read_doc_meta_dir_fails_closed(self) -> None:
