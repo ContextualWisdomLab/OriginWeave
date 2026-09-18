@@ -191,7 +191,7 @@ def _flags_extend_external_link_inputs(value: object) -> bool:
 
 
 def _flags_select_codegen_backend(value: object) -> bool:
-    """Return whether Git-owned rustc flags replace or dynamically extend code generation."""
+    """Return whether Git-owned flags replace or bypass the reviewed code-generation surface."""
     arguments = _flag_arguments(value)
     for index, argument in enumerate(arguments):
         if argument.startswith(("-Zcodegen-backend=", "-Zllvm-plugins=")):
@@ -201,6 +201,16 @@ def _flags_select_codegen_backend(value: object) -> bool:
             and index + 1 < len(arguments)
             and arguments[index + 1].startswith(("codegen-backend=", "llvm-plugins="))
         ):
+            return True
+
+        option: str | None = None
+        if argument in {"-C", "--codegen"} and index + 1 < len(arguments):
+            option = arguments[index + 1]
+        elif argument.startswith("-C") and len(argument) > 2:
+            option = argument[2:]
+        elif argument.startswith("--codegen="):
+            option = argument.removeprefix("--codegen=")
+        if option == "llvm-args" or (option is not None and option.startswith("llvm-args=")):
             return True
     return False
 
@@ -403,6 +413,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 build_configured.append("rustflags:codegen linker")
             if _flags_extend_external_link_inputs(build.get("rustflags")):
                 build_configured.append("rustflags:external link input")
+            if _flags_select_codegen_backend(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:codegen backend")
             if _flags_select_linker(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:codegen linker")
             if _flags_extend_external_link_inputs(build.get("rustdocflags")):
@@ -431,6 +443,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     configured.append("rustflags:codegen linker")
                 if _flags_extend_external_link_inputs(settings.get("rustflags")):
                     configured.append("rustflags:external link input")
+                if _flags_select_codegen_backend(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:codegen backend")
                 if _flags_select_linker(settings.get("rustdocflags")):
                     configured.append("rustdocflags:codegen linker")
                 if _flags_extend_external_link_inputs(settings.get("rustdocflags")):
