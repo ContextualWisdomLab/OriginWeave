@@ -27,6 +27,18 @@ LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
 LINKER_PLUGIN_LTO_BOOLEAN_VALUES = frozenset(
     {"y", "yes", "on", "true", "n", "no", "off", "false"}
 )
+RUSTDOC_RENDER_FILE_INPUT_OPTIONS = frozenset(
+    {
+        "--html-in-header",
+        "--html-before-content",
+        "--html-after-content",
+        "--markdown-before-content",
+        "--markdown-after-content",
+        "--extend-css",
+        "--theme",
+        "--check-theme",
+    }
+)
 
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
@@ -262,6 +274,19 @@ def _flags_select_rustdoc_test_execution(value: object) -> bool:
     )
 
 
+def _flags_select_rustdoc_render_file_input(value: object) -> bool:
+    """Return whether Git-owned rustdoc flags load external files into rendered documentation."""
+    long_equals_prefixes = tuple(f"{option}=" for option in RUSTDOC_RENDER_FILE_INPUT_OPTIONS)
+    for argument in _flag_arguments(value):
+        if argument in RUSTDOC_RENDER_FILE_INPUT_OPTIONS:
+            return True
+        if argument.startswith(long_equals_prefixes):
+            return True
+        if argument == "-e" or (argument.startswith("-e") and not argument.startswith("--")):
+            return True
+    return False
+
+
 def _flags_select_rustdoc_doctest_compiler_authority(value: object) -> bool:
     """Return whether rustdoc forwards authority-extending arguments to a doctest compiler."""
     arguments = _flag_arguments(value)
@@ -421,6 +446,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 build_configured.append("rustdocflags:external link input")
             if _flags_select_rustdoc_test_execution(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:doctest execution")
+            if _flags_select_rustdoc_render_file_input(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:render file input")
             if _flags_select_rustdoc_doctest_compiler_authority(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:doctest compiler authority")
 
@@ -451,6 +478,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     configured.append("rustdocflags:external link input")
                 if _flags_select_rustdoc_test_execution(settings.get("rustdocflags")):
                     configured.append("rustdocflags:doctest execution")
+                if _flags_select_rustdoc_render_file_input(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:render file input")
                 if _flags_select_rustdoc_doctest_compiler_authority(settings.get("rustdocflags")):
                     configured.append("rustdocflags:doctest compiler authority")
                 if configured:
