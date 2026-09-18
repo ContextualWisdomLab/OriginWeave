@@ -186,6 +186,27 @@ def _flag_arguments(value: object) -> list[str]:
     return []
 
 
+def _flags_select_ambient_host_cpu(value: object) -> bool:
+    """Return whether Git-owned flags make code generation depend on the runner CPU."""
+    arguments = _flag_arguments(value)
+    for index, argument in enumerate(arguments):
+        option: str | None = None
+        if argument in {"-C", "--codegen"} and index + 1 < len(arguments):
+            option = arguments[index + 1]
+        elif argument.startswith("-C") and len(argument) > 2:
+            option = argument[2:]
+        elif argument.startswith("--codegen="):
+            option = argument.removeprefix("--codegen=")
+        if option == "target-cpu=native":
+            return True
+        if argument == "-Z" and index + 1 < len(arguments):
+            if arguments[index + 1] == "tune-cpu=native":
+                return True
+        if argument == "-Ztune-cpu=native":
+            return True
+    return False
+
+
 def _flags_extend_external_link_inputs(value: object) -> bool:
     """Return whether Git-owned Rust flags widen external compiler/documentation inputs."""
     arguments = _flag_arguments(value)
@@ -314,6 +335,7 @@ def _flags_select_rustdoc_doctest_compiler_authority(value: object) -> bool:
         _flags_select_codegen_backend(forwarded)
         or _flags_select_linker(forwarded)
         or _flags_extend_external_link_inputs(forwarded)
+        or _flags_select_ambient_host_cpu(forwarded)
     )
 
 
@@ -360,6 +382,8 @@ def _configured_profile_rustflag_authority(value: object, prefix: str = "profile
                 configured.append(f"{path}:codegen linker")
             if _flags_extend_external_link_inputs(setting):
                 configured.append(f"{path}:external compiler input")
+            if _flags_select_ambient_host_cpu(setting):
+                configured.append(f"{path}:ambient host cpu")
             continue
         if isinstance(setting, dict):
             configured.extend(_configured_profile_rustflag_authority(setting, path))
@@ -442,12 +466,16 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 build_configured.append("rustflags:codegen linker")
             if _flags_extend_external_link_inputs(build.get("rustflags")):
                 build_configured.append("rustflags:external link input")
+            if _flags_select_ambient_host_cpu(build.get("rustflags")):
+                build_configured.append("rustflags:ambient host cpu")
             if _flags_select_codegen_backend(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:codegen backend")
             if _flags_select_linker(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:codegen linker")
             if _flags_extend_external_link_inputs(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:external link input")
+            if _flags_select_ambient_host_cpu(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:ambient host cpu")
             if _flags_select_rustdoc_test_execution(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:doctest execution")
             if _flags_select_rustdoc_documentation_input(build.get("rustdocflags")):
@@ -474,12 +502,16 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     configured.append("rustflags:codegen linker")
                 if _flags_extend_external_link_inputs(settings.get("rustflags")):
                     configured.append("rustflags:external link input")
+                if _flags_select_ambient_host_cpu(settings.get("rustflags")):
+                    configured.append("rustflags:ambient host cpu")
                 if _flags_select_codegen_backend(settings.get("rustdocflags")):
                     configured.append("rustdocflags:codegen backend")
                 if _flags_select_linker(settings.get("rustdocflags")):
                     configured.append("rustdocflags:codegen linker")
                 if _flags_extend_external_link_inputs(settings.get("rustdocflags")):
                     configured.append("rustdocflags:external link input")
+                if _flags_select_ambient_host_cpu(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:ambient host cpu")
                 if _flags_select_rustdoc_test_execution(settings.get("rustdocflags")):
                     configured.append("rustdocflags:doctest execution")
                 if _flags_select_rustdoc_documentation_input(settings.get("rustdocflags")):
