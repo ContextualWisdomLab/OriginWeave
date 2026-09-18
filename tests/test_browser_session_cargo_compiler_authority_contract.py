@@ -58,7 +58,9 @@ def _linker_driver_argument_selects_executable(argument: str) -> bool:
 
 def _linker_argument_extends_external_inputs(argument: str) -> bool:
     """Return whether one compiler/linker-driver argument widens external library inputs."""
-    if argument in {"-L", "-l"}:
+    if argument in {"-L", "-l", "--library-path"}:
+        return True
+    if argument.startswith("--library-path="):
         return True
     if argument.startswith("-L") and len(argument) > 2:
         return True
