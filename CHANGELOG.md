@@ -9,6 +9,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU/LLD `--sysroot`, preventing an unreviewed linker search root from changing external system-library inputs while the reviewed Cargo package/source closure remains unchanged.
 - Failed closed on Git-owned Cargo linker/driver execution extensions that re-select executables or subprocess authority through rustc/rustdoc linker flags (`linker=`, `-fuse-ld=`, driver `-B`, opaque `@file`, GCC `-specs=` / `-specs <file>`, or GCC `-wrapper`) or dynamically load GNU linker plugin code through `-Wl,`, `--for-linker=`, and `-Xlinker`; unrelated linker forwarding remains permitted.
 - Centralized Browser Session production-source provenance in the canonical trusted-adapter scanner so lifecycle-SPI, dependency, lifecycle-binding, and source-containment contracts consume one Cargo source closure; resolved source objects must remain inside the exact-head repository review root and dangling/default-source symlinks fail closed.
 - Failed closed on production Cargo build surfaces (`build.rs`, enabled `[package] build`, top-level `[build-dependencies]`, and target-specific build dependencies) until generated-source provenance is explicitly modeled; `package.build = false` remains the explicit no-build-script form.
