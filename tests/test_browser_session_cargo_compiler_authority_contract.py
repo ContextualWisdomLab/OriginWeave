@@ -18,7 +18,9 @@ COMPILER_EXECUTION_KEYS = frozenset(
     {"rustc", "rustc-wrapper", "rustc-workspace-wrapper", "rustdoc"}
 )
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
-UNSTABLE_TOOLCHAIN_INPUT_KEYS = frozenset({"build-std", "build-std-features"})
+UNSTABLE_TOOLCHAIN_INPUT_KEYS = frozenset(
+    {"build-std", "build-std-features", "codegen-backend"}
+)
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
@@ -168,6 +170,21 @@ def _flags_extend_external_link_inputs(value: object) -> bool:
     return any(_rustc_argument_extends_external_inputs(argument) for argument in _flag_arguments(value))
 
 
+def _flags_select_codegen_backend(value: object) -> bool:
+    """Return whether Git-owned rustc flags select a runtime code generation backend."""
+    arguments = _flag_arguments(value)
+    for index, argument in enumerate(arguments):
+        if argument.startswith("-Zcodegen-backend="):
+            return True
+        if (
+            argument == "-Z"
+            and index + 1 < len(arguments)
+            and arguments[index + 1].startswith("codegen-backend=")
+        ):
+            return True
+    return False
+
+
 def _flags_select_linker(value: object) -> bool:
     """Return whether Cargo-owned rustc/rustdoc flags extend linker execution or input authority."""
     arguments = _flag_arguments(value)
@@ -207,7 +224,7 @@ def _flags_select_linker(value: object) -> bool:
 
 
 def _configured_unstable_toolchain_inputs(value: object) -> list[str]:
-    """Return Git-owned unstable Cargo settings that alter standard-library build inputs."""
+    """Return Git-owned unstable Cargo settings that alter compiler or standard-library inputs."""
     if not isinstance(value, dict):
         return []
     configured: list[str] = []
@@ -219,11 +236,38 @@ def _configured_unstable_toolchain_inputs(value: object) -> list[str]:
     return configured
 
 
+def _configured_profile_codegen_backends(value: object, prefix: str = "profile") -> list[str]:
+    """Return Cargo profile paths that select a non-default rustc code generation backend."""
+    if not isinstance(value, dict):
+        return []
+    configured: list[str] = []
+    for key, setting in value.items():
+        path = f"{prefix}.{key}"
+        if key == "codegen-backend":
+            if setting not in (None, ""):
+                configured.append(path)
+            continue
+        if isinstance(setting, dict):
+            configured.extend(_configured_profile_codegen_backends(setting, path))
+    return sorted(configured)
+
+
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
     """Reject Git-owned Cargo settings that replace Rust tools or widen compiler inputs."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
     # and dependency-source overrides. This contract owns Cargo-selected execution/input authority.
     boundary._production_package_manifests(root)
+
+    root_manifest_path = root / "Cargo.toml"
+    root_manifest = tomllib.loads(root_manifest_path.read_text(encoding="utf-8"))
+    manifest_profile_codegen_backends = _configured_profile_codegen_backends(
+        root_manifest.get("profile")
+    )
+    if manifest_profile_codegen_backends:
+        raise AssertionError(
+            "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
+            f"Cargo.toml profile_codegen_backends={manifest_profile_codegen_backends}"
+        )
 
     root_resolved = root.resolve()
     config_paths: set[pathlib.Path] = set()
@@ -251,12 +295,15 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             sorted(str(name) for name in environment) if isinstance(environment, dict) else []
         )
         unstable_configured = _configured_unstable_toolchain_inputs(parsed.get("unstable"))
+        profile_codegen_backends = _configured_profile_codegen_backends(parsed.get("profile"))
 
         build = parsed.get("build")
         build_configured = (
             sorted(COMPILER_EXECUTION_KEYS.intersection(build)) if isinstance(build, dict) else []
         )
         if isinstance(build, dict):
+            if _flags_select_codegen_backend(build.get("rustflags")):
+                build_configured.append("rustflags:codegen backend")
             if _flags_select_linker(build.get("rustflags")):
                 build_configured.append("rustflags:codegen linker")
             if _flags_extend_external_link_inputs(build.get("rustflags")):
@@ -279,6 +326,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 configured.extend(
                     f"links build-script override:{name}" for name in linked_build_overrides
                 )
+                if _flags_select_codegen_backend(settings.get("rustflags")):
+                    configured.append("rustflags:codegen backend")
                 if _flags_select_linker(settings.get("rustflags")):
                     configured.append("rustflags:codegen linker")
                 if _flags_extend_external_link_inputs(settings.get("rustflags")):
@@ -296,13 +345,14 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             or environment_configured
             or include_configured
             or unstable_configured
+            or profile_codegen_backends
         ):
             relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
                 "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
                 f"{relative} build_keys={build_configured} target_keys={target_configured} "
                 f"env_keys={environment_configured} include={include_configured} "
-                f"unstable_keys={unstable_configured}"
+                f"unstable_keys={unstable_configured} profile_codegen_backends={profile_codegen_backends}"
             )
 
 
