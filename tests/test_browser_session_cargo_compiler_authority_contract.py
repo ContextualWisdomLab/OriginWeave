@@ -171,15 +171,15 @@ def _flags_extend_external_link_inputs(value: object) -> bool:
 
 
 def _flags_select_codegen_backend(value: object) -> bool:
-    """Return whether Git-owned rustc flags select a runtime code generation backend."""
+    """Return whether Git-owned rustc flags replace or dynamically extend code generation."""
     arguments = _flag_arguments(value)
     for index, argument in enumerate(arguments):
-        if argument.startswith("-Zcodegen-backend="):
+        if argument.startswith(("-Zcodegen-backend=", "-Zllvm-plugins=")):
             return True
         if (
             argument == "-Z"
             and index + 1 < len(arguments)
-            and arguments[index + 1].startswith("codegen-backend=")
+            and arguments[index + 1].startswith(("codegen-backend=", "llvm-plugins="))
         ):
             return True
     return False
