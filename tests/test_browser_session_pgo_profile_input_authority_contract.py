@@ -58,6 +58,16 @@ class BrowserSessionPgoProfileInputAuthorityContractTests(unittest.TestCase):
             '[unstable]\nprofile-rustflags = true\n\n[profile.release]\nrustflags = ["--codegen=profile-use=tools/review-bypass.profdata"]\n'
         )
 
+    def test_build_rustdocflags_profile_use_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustdocflags = ["--codegen=profile-use=tools/review-bypass.profdata"]\n'
+        )
+
+    def test_doctest_build_arg_profile_use_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustdocflags = ["--doctest-build-arg=-C", "--doctest-build-arg=profile-use=tools/review-bypass.profdata"]\n'
+        )
+
     def test_profile_generate_output_remains_allowed(self) -> None:
         directory, root = _workspace_with_config(
             '[build]\nrustflags = ["-Cprofile-generate=target/pgo-data"]\n'
