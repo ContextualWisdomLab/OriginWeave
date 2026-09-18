@@ -40,6 +40,8 @@ LINKER_LAYOUT_PROFILE_FILE_OPTIONS = frozenset(
         "--irpgo-profile",
         "--symbol-ordering-file",
         "--lto-sample-profile",
+        "--plugin-opt=sample-profile",
+        "-plugin-opt=sample-profile",
     }
 )
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
