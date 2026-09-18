@@ -230,6 +230,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             )
 
         parsed = tomllib.loads(resolved.read_text(encoding="utf-8"))
+        included_configs = parsed.get("include")
+        include_configured = included_configs is not None
         environment = parsed.get("env")
         environment_configured = (
             sorted(str(name) for name in environment) if isinstance(environment, dict) else []
@@ -273,12 +275,12 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 if configured:
                     target_configured[str(target_name)] = configured
 
-        if build_configured or target_configured or environment_configured:
+        if build_configured or target_configured or environment_configured or include_configured:
             relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
                 "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
                 f"{relative} build_keys={build_configured} target_keys={target_configured} "
-                f"env_keys={environment_configured}"
+                f"env_keys={environment_configured} include={include_configured}"
             )
 
 
