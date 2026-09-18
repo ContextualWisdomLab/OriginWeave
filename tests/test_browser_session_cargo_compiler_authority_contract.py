@@ -89,6 +89,11 @@ def _codegen_option_selects_linker_plugin(option: str) -> bool:
     return value not in LINKER_PLUGIN_LTO_BOOLEAN_VALUES
 
 
+def _codegen_option_extends_external_inputs(option: str) -> bool:
+    """Return whether one rustc codegen option consumes external optimization input."""
+    return option.startswith(("profile-use=", "profile-sample-use="))
+
+
 def _linker_argument_is_positional_native_input(argument: str) -> bool:
     """Return whether one unconsumed linker token is a positional external input."""
     return bool(argument) and not argument.startswith("-")
@@ -167,7 +172,22 @@ def _flag_arguments(value: object) -> list[str]:
 
 def _flags_extend_external_link_inputs(value: object) -> bool:
     """Return whether Git-owned Rust flags widen external compiler/documentation inputs."""
-    return any(_rustc_argument_extends_external_inputs(argument) for argument in _flag_arguments(value))
+    arguments = _flag_arguments(value)
+    for index, argument in enumerate(arguments):
+        if _rustc_argument_extends_external_inputs(argument):
+            return True
+
+        option: str | None = None
+        if argument in {"-C", "--codegen"} and index + 1 < len(arguments):
+            option = arguments[index + 1]
+        elif argument.startswith("-C") and len(argument) > 2:
+            option = argument[2:]
+        elif argument.startswith("--codegen="):
+            option = argument.removeprefix("--codegen=")
+
+        if option is not None and _codegen_option_extends_external_inputs(option):
+            return True
+    return False
 
 
 def _flags_select_codegen_backend(value: object) -> bool:
@@ -254,7 +274,7 @@ def _flags_select_rustdoc_doctest_compiler_authority(value: object) -> bool:
     return (
         _flags_select_codegen_backend(forwarded)
         or _flags_select_linker(forwarded)
-        or any(_rustc_argument_extends_external_inputs(argument) for argument in forwarded)
+        or _flags_extend_external_link_inputs(forwarded)
     )
 
 
