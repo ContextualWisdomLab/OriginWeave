@@ -29,7 +29,9 @@ The selected rule is narrow: fail closed when forwarded direct-linker arguments 
 
 Structural RED `e86b8f52099a0e04ebf53595f7f2110cfd033fb6` adds realistic Cargo fixtures for build `rustflags`, target `rustflags`, build `rustdocflags`, and rustdoc doctest forwarding. It covers both documented executable selectors while preserving `--thinlto-jobs=2` as an allowed non-executable control.
 
-Minimal repair `de49c23712ee1defdb73ca440304ede2c5ddf413` adds `_linker_option_selects_dtlt_executable()` to the existing direct-linker classifier. The existing `-Wl,`, `--for-linker=`, `-Xlinker`, build, target, profile, rustdoc, and doctest-forwarding paths consume the same classifier; no second Cargo topology/config scanner was introduced.
+Minimal repair `de49c23712ee1defdb73ca440304ede2c5ddf413` adds the DTLTO executable selector to the existing direct-linker classifier. The existing `-Wl,`, `--for-linker=`, `-Xlinker`, build, target, profile, rustdoc, and doctest-forwarding paths consume the same classifier; no second Cargo topology/config scanner was introduced.
+
+The initial fixture path/helper spelling used `dtlt`. Naming-only successors `d4df3c86079297018387a2be17685a0fe5f67923`, `1ce0ebaca2c22d9a2eb9abccd48a8e23909ba5cb`, and `69ccddcc77195fc9e66edf93a82eaaf90735e05f` normalize the test path, test method names, and shared helper to the canonical `DTLTO` acronym without changing policy semantics.
 
 ## Security and release consequence
 
