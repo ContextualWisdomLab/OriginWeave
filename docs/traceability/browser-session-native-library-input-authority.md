@@ -12,7 +12,7 @@ A first repair closed those top-level rustc forms but left an equivalent driver 
 
 `tests/test_browser_session_trusted_adapter_boundary.py` remains the single writer for production Cargo package/source topology. The compiler-authority contract may consume that topology and constrain Git-owned compiler/input authority, but it must not reimplement workspace/package discovery.
 
-This slice applies only to repository-owned Cargo `rustflags`. It does not claim authority over environment-injected `RUSTFLAGS`, direct `cargo rustc -- ...` arguments, build-system flags outside the repository, or external toolchain configuration. Those require their canonical CI/supply-chain owner or a separate reviewed contract.
+This slice applies to repository-owned Cargo configuration. It does not claim authority over environment-injected `RUSTFLAGS` / `RUSTDOCFLAGS`, direct `cargo rustc -- ...` / `cargo rustdoc -- ...` arguments, build-system flags outside the repository, or external toolchain configuration. Those require their canonical CI/supply-chain owner or a separate reviewed contract.
 
 ## RED → repair
 
@@ -29,21 +29,24 @@ Focused review of exact `e934b3c17261ab26bb13b4f02417416c4202d344` then found th
 
 Repair `a0f8525b57837ac119ef7b2af9c1daa759ef12f4` reuses one external-input classifier across top-level rustc flags and the existing linker-driver parser. Direct driver arguments, `-Wl,` / `--for-linker=` forwarded arguments, and the argument following `-Xlinker` now fail closed when they select `-L` or `-l`. Existing response-file, linker-script, plugin, tool-selection, GCC specs/wrapper, and driver-search-path checks remain in the same shared parser. Ordinary non-input linker options such as `-Wl,--as-needed` and `-Wl,-Bsymbolic` remain allowed.
 
+External-crate injection through Git-owned Cargo `rustflags --extern` is separately closed by `tests/test_browser_session_extern_input_contract.py`. The same external-input classifier now also applies to build- and target-level `rustdocflags` after RED `5928b1a614c8620203675b609b75f5489338e06d` and repair `e8edb487b779a1c4ff22bf2ca4c62ae7e52abd8b`; that rustdoc-specific decision is traced in `browser-session-rustdoc-external-input-authority.md`.
+
 ## Decision
 
-Until external/native input provenance is modeled as a versioned reviewed contract, repository-owned Cargo configuration must not widen rustc or compiler-driver external-library search paths or request additional native libraries for Browser Session production packages.
+Until external/native input provenance is modeled as a versioned reviewed contract, repository-owned Cargo configuration must not widen rustc/rustdoc external-library search paths or request additional native/external crate inputs for Browser Session production packages.
 
-This is an input-provenance rule, not a claim that `-L` or `-l` are unsafe Rust/GCC features. They are rejected here because their resolved artifacts are outside the current exact-head source and artifact review closure.
+This is an input-provenance rule, not a claim that `-L`, `-l`, or `--extern` are unsafe Rust features. They are rejected here because their resolved artifacts are outside the current exact-head source and artifact review closure.
 
 ## Residual surfaces
 
 The following remain separate review surfaces and are not pre-authorized by this decision:
 
-- `--extern` and other direct precompiled-Rust dependency injection;
-- positional object/archive inputs forwarded through `-C link-arg` / `link-args` that do not use `-L`/`-l`;
-- environment `RUSTFLAGS` / `CARGO_ENCODED_RUSTFLAGS` and direct `cargo rustc` trailing arguments;
+- environment `RUSTFLAGS` / `CARGO_ENCODED_RUSTFLAGS` / `RUSTDOCFLAGS` / `CARGO_ENCODED_RUSTDOCFLAGS` and direct `cargo rustc` / `cargo rustdoc` trailing arguments;
+- external-input spellings with equivalent semantics that are not yet modeled by the shared classifier;
 - sysroot/rustup/toolchain composition and custom target specifications;
 - non-GNU platform-specific native input/control-file mechanisms.
+
+Positional native inputs, Git-owned Cargo `--extern`, and Git-owned Cargo rustdoc `--extern` / `-L` forms are governed by their supplemental current contracts and are not residual gaps in this repository-owned Cargo boundary.
 
 A future allowlist must identify the exact artifact path, digest/provenance, producer, target triple, linkage kind, and reproducible build evidence on the same reviewed exact tree. A path-only allowlist is insufficient.
 
@@ -67,4 +70,4 @@ Cargo documents the corresponding native-library and search-path concepts throug
 
 ## Verification state
 
-Both RED→repair generations are structurally present on the active #317 lineage. This dossier does not promote the branch to executable GREEN: current-head hosted repository/security workflows and independent current-head review must still complete on the reconciled lineage before merge or release readiness can be claimed.
+The RED→repair generations are structurally present on the active #317 lineage. This dossier does not promote the branch to executable GREEN: current-head hosted repository/security workflows and independent current-head review must still complete on the reconciled lineage before merge or release readiness can be claimed.
