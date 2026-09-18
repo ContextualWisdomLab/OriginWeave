@@ -14,7 +14,7 @@ CRATE = ROOT / "crates/originweave-browser-session"
 def _inherent_impl_surface(source: str, type_name: str) -> str:
     """Return every inherent impl segment for one Rust type without matching sibling request types."""
 
-    starts = [match.start() for match in re.finditer(r"(?m)^impl(?=\s|<)", source)]
+    starts = [match.start() for match in re.finditer(r"(?m)^[ \t]*impl(?=\s|<)", source)]
     starts.append(len(source))
     segments: list[str] = []
     for index, start in enumerate(starts[:-1]):
@@ -36,7 +36,7 @@ class BrowserSessionLifecycleContractTests(unittest.TestCase):
     """Keep presentation mutation authority in an explicit Browser Session domain."""
 
     def test_recovery_surface_extractor_covers_concrete_and_spaced_generic_impls(self) -> None:
-        """Raw recovery accessors must not hide in concrete or spaced-generic inherent impls."""
+        """Raw recovery accessors must not hide in concrete, generic, or indented inherent impls."""
 
         hostile = """
 impl BoundBrowserSessionRecovery<ConcretePort> {
@@ -44,6 +44,11 @@ impl BoundBrowserSessionRecovery<ConcretePort> {
 }
 impl <P> BoundBrowserSessionRecovery<P> {
     pub const fn port(&self) {}
+}
+mod nested {
+    impl BoundBrowserSessionRecovery<IndentedPort> {
+        pub fn browser_session(&self) {}
+    }
 }
 impl<P> RecoveryContextOperationRequest<P> {
     pub fn browser_session(&self) {}
@@ -56,6 +61,7 @@ impl<P> RecoveryInspection for BoundBrowserSessionRecovery<P> {
 
         self.assertIn("impl BoundBrowserSessionRecovery<ConcretePort>", surface)
         self.assertIn("impl <P> BoundBrowserSessionRecovery<P>", surface)
+        self.assertIn("impl BoundBrowserSessionRecovery<IndentedPort>", surface)
         self.assertIn("pub fn browser_session(&self)", surface)
         self.assertIn("pub const fn port(&self)", surface)
         self.assertNotIn("RecoveryContextOperationRequest", surface)
