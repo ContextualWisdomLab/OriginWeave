@@ -206,7 +206,7 @@ def _flags_select_linker(value: object) -> bool:
 
 
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
-    """Reject Git-owned Cargo settings that replace Rust tools or widen external link inputs."""
+    """Reject Git-owned Cargo settings that replace Rust tools or widen compiler inputs."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
     # and dependency-source overrides. This contract owns Cargo-selected execution/input authority.
     boundary._production_package_manifests(root)
@@ -230,6 +230,11 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             )
 
         parsed = tomllib.loads(resolved.read_text(encoding="utf-8"))
+        environment = parsed.get("env")
+        environment_configured = (
+            sorted(str(name) for name in environment) if isinstance(environment, dict) else []
+        )
+
         build = parsed.get("build")
         build_configured = (
             sorted(COMPILER_EXECUTION_KEYS.intersection(build)) if isinstance(build, dict) else []
@@ -262,11 +267,12 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 if configured:
                     target_configured[str(target_name)] = configured
 
-        if build_configured or target_configured:
+        if build_configured or target_configured or environment_configured:
             relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
                 "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
-                f"{relative} build_keys={build_configured} target_keys={target_configured}"
+                f"{relative} build_keys={build_configured} target_keys={target_configured} "
+                f"env_keys={environment_configured}"
             )
 
 
