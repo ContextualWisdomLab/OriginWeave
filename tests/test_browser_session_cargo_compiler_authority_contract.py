@@ -252,6 +252,17 @@ def _configured_profile_codegen_backends(value: object, prefix: str = "profile")
     return sorted(configured)
 
 
+def _configured_custom_target_specs(value: object) -> list[str]:
+    """Return repository-selected custom rustc target specification paths."""
+    if isinstance(value, str):
+        targets = [value]
+    elif isinstance(value, list) and all(isinstance(target, str) for target in value):
+        targets = value
+    else:
+        return []
+    return sorted(target for target in targets if target.endswith(".json"))
+
+
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
     """Reject Git-owned Cargo settings that replace Rust tools or widen compiler inputs."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
@@ -302,6 +313,10 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             sorted(COMPILER_EXECUTION_KEYS.intersection(build)) if isinstance(build, dict) else []
         )
         if isinstance(build, dict):
+            build_configured.extend(
+                f"target:custom target specification:{target_spec}"
+                for target_spec in _configured_custom_target_specs(build.get("target"))
+            )
             if _flags_select_codegen_backend(build.get("rustflags")):
                 build_configured.append("rustflags:codegen backend")
             if _flags_select_linker(build.get("rustflags")):
