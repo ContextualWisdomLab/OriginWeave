@@ -18,6 +18,7 @@ COMPILER_EXECUTION_KEYS = frozenset(
     {"rustc", "rustc-wrapper", "rustc-workspace-wrapper", "rustdoc"}
 )
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
+UNSTABLE_TOOLCHAIN_INPUT_KEYS = frozenset({"build-std", "build-std-features"})
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
@@ -205,6 +206,19 @@ def _flags_select_linker(value: object) -> bool:
     return _linker_driver_arguments_select_executable(linker_driver_arguments)
 
 
+def _configured_unstable_toolchain_inputs(value: object) -> list[str]:
+    """Return Git-owned unstable Cargo settings that alter standard-library build inputs."""
+    if not isinstance(value, dict):
+        return []
+    configured: list[str] = []
+    for key in sorted(UNSTABLE_TOOLCHAIN_INPUT_KEYS.intersection(value)):
+        setting = value[key]
+        if setting is False or setting == []:
+            continue
+        configured.append(key)
+    return configured
+
+
 def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path) -> None:
     """Reject Git-owned Cargo settings that replace Rust tools or widen compiler inputs."""
     # The trusted-adapter boundary remains the single writer for production package/source topology
@@ -236,6 +250,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         environment_configured = (
             sorted(str(name) for name in environment) if isinstance(environment, dict) else []
         )
+        unstable_configured = _configured_unstable_toolchain_inputs(parsed.get("unstable"))
 
         build = parsed.get("build")
         build_configured = (
@@ -275,12 +290,19 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 if configured:
                     target_configured[str(target_name)] = configured
 
-        if build_configured or target_configured or environment_configured or include_configured:
+        if (
+            build_configured
+            or target_configured
+            or environment_configured
+            or include_configured
+            or unstable_configured
+        ):
             relative = config_path.relative_to(root).as_posix()
             raise AssertionError(
                 "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
                 f"{relative} build_keys={build_configured} target_keys={target_configured} "
-                f"env_keys={environment_configured} include={include_configured}"
+                f"env_keys={environment_configured} include={include_configured} "
+                f"unstable_keys={unstable_configured}"
             )
 
 
