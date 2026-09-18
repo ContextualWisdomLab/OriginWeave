@@ -73,6 +73,13 @@ class BrowserSessionLinkerRuntimeFilterAuthorityContractTests(unittest.TestCase)
             "rustdocflags:doctest compiler authority",
         )
 
+    def test_fini_symbol_selector_remains_allowed(self) -> None:
+        directory, root = _workspace_with_config(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,-fini=originweave_fini"]\n'
+        )
+        self.addCleanup(directory.cleanup)
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_unrelated_linker_option_remains_allowed(self) -> None:
         directory, root = _workspace_with_config(
             '[build]\nrustflags = ["-C", "link-arg=-Wl,--as-needed"]\n'
