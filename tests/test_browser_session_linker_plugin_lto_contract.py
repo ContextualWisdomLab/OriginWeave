@@ -1,5 +1,6 @@
 import importlib.util
 import pathlib
+import tempfile
 import unittest
 
 
@@ -16,21 +17,29 @@ spec.loader.exec_module(authority)
 class BrowserSessionLinkerPluginLtoContractTests(unittest.TestCase):
     """Keep repository-selected rustc linker plugins inside reviewed execution provenance."""
 
-    def test_repository_linker_plugin_lto_path_fails_closed(self) -> None:
-        root = self._workspace_with_config(
-            '[build]\nrustflags = ["-C", "linker-plugin-lto=tools/review-bypass-llvmgold.so"]\n'
+    def test_repository_linker_plugin_lto_paths_fail_closed(self) -> None:
+        hostile_configs = (
+            '[build]\nrustflags = ["-C", "linker-plugin-lto=tools/review-bypass-llvmgold.so"]\n',
+            '[build]\nrustflags = ["-Clinker-plugin-lto=tools/review-bypass-llvmgold.so"]\n',
+            "[target.'cfg(unix)']\nrustflags = [\"--codegen=linker-plugin-lto=tools/review-bypass-llvmgold.so\"]\n",
+            '[build]\nrustdocflags = ["-C", "linker-plugin-lto=tools/review-bypass-llvmgold.so"]\n',
         )
-        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
-            authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+        for config_text in hostile_configs:
+            with self.subTest(config_text=config_text):
+                root = self._workspace_with_config(config_text)
+                with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+                    authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
-    def test_boolean_linker_plugin_lto_setting_is_not_a_repository_plugin_path(self) -> None:
-        root = self._workspace_with_config(
-            '[build]\nrustflags = ["-C", "linker-plugin-lto=no"]\n'
-        )
-        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+    def test_boolean_linker_plugin_lto_settings_do_not_name_repository_plugin_paths(self) -> None:
+        for option in ("linker-plugin-lto", "linker-plugin-lto=yes", "linker-plugin-lto=no"):
+            with self.subTest(option=option):
+                root = self._workspace_with_config(
+                    f'[build]\nrustflags = ["-C", "{option}"]\n'
+                )
+                authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def _workspace_with_config(self, config_text: str) -> pathlib.Path:
-        directory = self.enterContext(__import__("tempfile").TemporaryDirectory())
+        directory = self.enterContext(tempfile.TemporaryDirectory())
         root = pathlib.Path(directory)
         (root / "Cargo.toml").write_text(
             '[workspace]\nmembers = ["adapter"]\nresolver = "3"\n',
