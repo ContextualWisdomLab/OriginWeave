@@ -40,7 +40,7 @@ class BrowserSessionRustdocDoctestExecutionAuthorityContractTests(unittest.TestC
     def _assert_fails_closed(self, config_text: str) -> None:
         directory, root = _workspace_with_config(config_text)
         self.addCleanup(directory.cleanup)
-        with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
+        with self.assertRaisesRegex(AssertionError, "rustdocflags:doctest execution"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
     def test_build_rustdocflags_doctest_runtool_fails_closed(self) -> None:
