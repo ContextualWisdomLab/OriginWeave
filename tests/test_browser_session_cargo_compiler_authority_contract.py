@@ -20,6 +20,18 @@ COMPILER_EXECUTION_KEYS = frozenset(
 TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
+POSITIONAL_LINK_INPUT_SUFFIXES = (
+    ".o",
+    ".obj",
+    ".lo",
+    ".a",
+    ".lib",
+    ".rlib",
+    ".so",
+    ".dylib",
+    ".bc",
+    ".res",
+)
 
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
@@ -70,6 +82,17 @@ def _linker_option_uses_response_file(argument: str) -> bool:
     return argument.startswith("@")
 
 
+def _linker_argument_is_positional_native_input(argument: str) -> bool:
+    """Return whether a positional linker argument names a modeled native object/archive input."""
+    if not argument or argument.startswith("-"):
+        return False
+    lowered = argument.lower()
+    filename = lowered.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    if filename.endswith(POSITIONAL_LINK_INPUT_SUFFIXES):
+        return True
+    return ".so." in filename
+
+
 def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
     """Return direct-linker arguments encoded by a single compiler-driver forwarding option."""
     if argument.startswith("-Wl,"):
@@ -86,6 +109,8 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
             return True
         if _linker_argument_extends_external_inputs(argument):
             return True
+        if _linker_argument_is_positional_native_input(argument):
+            return True
         if _linker_option_selects_script(argument):
             return True
         if any(
@@ -93,6 +118,7 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
             or _linker_option_selects_script(forwarded)
             or _linker_option_uses_response_file(forwarded)
             or _linker_argument_extends_external_inputs(forwarded)
+            or _linker_argument_is_positional_native_input(forwarded)
             for forwarded in _forwarded_linker_arguments(argument)
         ):
             return True
@@ -104,6 +130,7 @@ def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
                 or _linker_option_selects_script(arguments[index + 1])
                 or _linker_option_uses_response_file(arguments[index + 1])
                 or _linker_argument_extends_external_inputs(arguments[index + 1])
+                or _linker_argument_is_positional_native_input(arguments[index + 1])
             )
         ):
             return True
