@@ -23,6 +23,8 @@ class BrowserSessionLldLayoutProfileInputAuthorityContractTests(unittest.TestCas
             "--irpgo-profile=tools/startup.profdata",
             "--symbol-ordering-file=tools/symbols.order",
             "--lto-sample-profile=tools/sample.prof",
+            "--plugin-opt=sample-profile=tools/sample.prof",
+            "-plugin-opt=sample-profile=tools/sample.prof",
         )
         for linker_option in hostile:
             with self.subTest(linker_option=linker_option):
