@@ -154,6 +154,18 @@ def _linker_option_selects_runtime_audit_library(argument: str) -> bool:
     return argument.startswith("-P") and len(argument) > 2
 
 
+def _linker_option_selects_runtime_filter_library(argument: str) -> bool:
+    """Return whether GNU-compatible linker syntax selects ELF auxiliary/filter runtime code."""
+    if argument in {"-f", "-F", "--auxiliary", "-auxiliary", "--filter", "-filter"}:
+        return True
+    if argument.startswith(("--auxiliary=", "-auxiliary=", "--filter=", "-filter=")):
+        return True
+    return (
+        (argument.startswith("-f") and len(argument) > 2 and not argument.startswith("--"))
+        or (argument.startswith("-F") and len(argument) > 2)
+    )
+
+
 def _linker_option_uses_response_file(argument: str) -> bool:
     """Return whether a direct-linker argument delegates parsing to an opaque response file."""
     return argument.startswith("@")
@@ -196,6 +208,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_selects_just_symbols_or_rpath(argument)
             or _linker_option_controls_runtime_loader(argument)
             or _linker_option_selects_runtime_audit_library(argument)
+            or _linker_option_selects_runtime_filter_library(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
             or _linker_argument_is_positional_native_input(argument)
