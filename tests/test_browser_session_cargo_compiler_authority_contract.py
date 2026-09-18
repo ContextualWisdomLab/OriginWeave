@@ -145,6 +145,15 @@ def _linker_option_controls_runtime_loader(argument: str) -> bool:
     return argument.startswith("-I") and len(argument) > 2
 
 
+def _linker_option_selects_runtime_audit_library(argument: str) -> bool:
+    """Return whether GNU-compatible linker syntax selects an ELF rtld-audit library."""
+    if argument in {"--audit", "-audit", "--depaudit", "-depaudit", "-P"}:
+        return True
+    if argument.startswith(("--audit=", "-audit=", "--depaudit=", "-depaudit=")):
+        return True
+    return argument.startswith("-P") and len(argument) > 2
+
+
 def _linker_option_uses_response_file(argument: str) -> bool:
     """Return whether a direct-linker argument delegates parsing to an opaque response file."""
     return argument.startswith("@")
@@ -186,6 +195,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_selects_symbol_policy_file(argument)
             or _linker_option_selects_just_symbols_or_rpath(argument)
             or _linker_option_controls_runtime_loader(argument)
+            or _linker_option_selects_runtime_audit_library(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
             or _linker_argument_is_positional_native_input(argument)
