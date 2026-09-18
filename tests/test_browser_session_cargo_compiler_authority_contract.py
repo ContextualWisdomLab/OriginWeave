@@ -25,6 +25,14 @@ LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset(
     {"-T", "--script", "-dT", "--default-script", "-c", "--mri-script"}
 )
+LINKER_SYMBOL_POLICY_FILE_OPTIONS = frozenset(
+    {
+        "--version-script",
+        "--dynamic-list",
+        "--retain-symbols-file",
+        "--export-dynamic-symbol-list",
+    }
+)
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
 LINKER_PLUGIN_LTO_BOOLEAN_VALUES = frozenset(
     {"y", "yes", "on", "true", "n", "no", "off", "false"}
@@ -112,6 +120,13 @@ def _linker_option_selects_script(argument: str) -> bool:
     )
 
 
+def _linker_option_selects_symbol_policy_file(argument: str) -> bool:
+    """Return whether a linker option consumes an external symbol-policy file."""
+    if argument in LINKER_SYMBOL_POLICY_FILE_OPTIONS:
+        return True
+    return argument.startswith(tuple(f"{option}=" for option in LINKER_SYMBOL_POLICY_FILE_OPTIONS))
+
+
 def _linker_option_selects_just_symbols_or_rpath(argument: str) -> bool:
     """Return whether GNU-compatible linker syntax selects an external -R/just-symbols path."""
     if argument in {"-R", "--just-symbols"}:
@@ -159,6 +174,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_selects_error_handler(argument)
             or _linker_option_selects_dtlto_executable(argument)
             or _linker_option_selects_script(argument)
+            or _linker_option_selects_symbol_policy_file(argument)
             or _linker_option_selects_just_symbols_or_rpath(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
