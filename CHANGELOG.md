@@ -9,6 +9,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU symbol-policy files through `--version-script`, `--dynamic-list`, `--retain-symbols-file`, or `--export-dynamic-symbol-list`, preventing unreviewed external symbol visibility/retention policy from changing the linked artifact outside the reviewed Cargo package/source closure.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU-compatible `-R` / `--just-symbols`, preventing an unreviewed symbol-address file or ambiguous rpath operand from changing link behavior outside the reviewed Cargo package/source closure.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU `-c` / `--mri-script`, preventing an unreviewed MRI command file from changing link behavior outside the reviewed Cargo package/source closure.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU/LLD `-dT` / `--default-script`, preventing an unreviewed default linker script from changing link behavior while the reviewed Cargo package/source closure remains unchanged.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU/LLD `--sysroot`, preventing an unreviewed linker search root from changing external system-library inputs while the reviewed Cargo package/source closure remains unchanged.
