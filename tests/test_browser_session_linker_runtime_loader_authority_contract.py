@@ -67,7 +67,13 @@ class BrowserSessionLinkerRuntimeLoaderAuthorityContractTests(unittest.TestCase)
             "rustdocflags:doctest compiler authority",
         )
 
-    def test_no_dynamic_linker_request_remains_allowed(self) -> None:
+    def test_runtime_loader_suppression_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,--no-dynamic-linker"]\n',
+            "rustflags:codegen linker",
+        )
+
+    def test_unrelated_linker_option_remains_allowed(self) -> None:
         directory, root = _workspace_with_config(
             '[build]\nrustflags = ["-C", "link-arg=-Wl,--as-needed"]\n'
         )
