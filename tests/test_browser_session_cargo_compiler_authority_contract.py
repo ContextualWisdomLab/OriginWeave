@@ -519,6 +519,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
     config_paths: set[pathlib.Path] = set()
     for pattern in (".cargo/config.toml", ".cargo/config"):
         config_paths.update(root.rglob(pattern))
+
     for config_path in sorted(config_paths):
         resolved = config_path.resolve()
         try:
