@@ -33,6 +33,14 @@ LINKER_SYMBOL_POLICY_FILE_OPTIONS = frozenset(
         "--export-dynamic-symbol-list",
     }
 )
+LINKER_LAYOUT_PROFILE_FILE_OPTIONS = frozenset(
+    {
+        "--call-graph-ordering-file",
+        "--irpgo-profile",
+        "--symbol-ordering-file",
+        "--lto-sample-profile",
+    }
+)
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
 LINKER_PLUGIN_LTO_BOOLEAN_VALUES = frozenset(
     {"y", "yes", "on", "true", "n", "no", "off", "false"}
@@ -145,6 +153,15 @@ def _linker_option_selects_symbol_policy_file(argument: str) -> bool:
     return argument.startswith(tuple(f"{option}=" for option in LINKER_SYMBOL_POLICY_FILE_OPTIONS))
 
 
+def _linker_option_selects_layout_profile_file(argument: str) -> bool:
+    """Return whether an LLD option consumes an external layout or profile file."""
+    if argument in LINKER_LAYOUT_PROFILE_FILE_OPTIONS:
+        return True
+    return argument.startswith(
+        tuple(f"{option}=" for option in LINKER_LAYOUT_PROFILE_FILE_OPTIONS)
+    )
+
+
 def _linker_option_selects_just_symbols_or_rpath(argument: str) -> bool:
     """Return whether GNU-compatible linker syntax selects an external -R/just-symbols path."""
     if argument in {"-R", "--just-symbols"}:
@@ -244,6 +261,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_forwards_llvm_options(argument)
             or _linker_option_selects_script(argument)
             or _linker_option_selects_symbol_policy_file(argument)
+            or _linker_option_selects_layout_profile_file(argument)
             or _linker_option_selects_just_symbols_or_rpath(argument)
             or _linker_option_controls_runtime_loader(argument)
             or _linker_option_selects_runtime_audit_library(argument)
