@@ -83,9 +83,11 @@ def _linker_option_uses_response_file(argument: str) -> bool:
 
 
 def _linker_argument_is_positional_native_input(argument: str) -> bool:
-    """Return whether a positional linker argument names a modeled native object/archive input."""
+    """Return whether a positional linker argument can name an external native input."""
     if not argument or argument.startswith("-"):
         return False
+    if "/" in argument or "\\" in argument:
+        return True
     lowered = argument.lower()
     filename = lowered.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
     if filename.endswith(POSITIONAL_LINK_INPUT_SUFFIXES):
