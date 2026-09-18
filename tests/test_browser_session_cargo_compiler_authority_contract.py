@@ -92,7 +92,7 @@ def _linker_option_selects_error_handler(argument: str) -> bool:
     )
 
 
-def _linker_option_selects_dtlt_executable(argument: str) -> bool:
+def _linker_option_selects_dtlto_executable(argument: str) -> bool:
     """Return whether one LLD DTLTO option selects a distributor or remote compiler executable."""
     return argument.startswith(("--thinlto-distributor=", "--thinlto-remote-compiler="))
 
@@ -140,7 +140,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
         if (
             _linker_option_loads_plugin(argument)
             or _linker_option_selects_error_handler(argument)
-            or _linker_option_selects_dtlt_executable(argument)
+            or _linker_option_selects_dtlto_executable(argument)
             or _linker_option_selects_script(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
