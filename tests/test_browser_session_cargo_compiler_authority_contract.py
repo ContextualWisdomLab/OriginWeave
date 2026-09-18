@@ -22,7 +22,9 @@ UNSTABLE_TOOLCHAIN_INPUT_KEYS = frozenset(
     {"build-std", "build-std-features", "codegen-backend"}
 )
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
-LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script", "-dT", "--default-script"})
+LINKER_SCRIPT_OPTIONS = frozenset(
+    {"-T", "--script", "-dT", "--default-script", "-c", "--mri-script"}
+)
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
 LINKER_PLUGIN_LTO_BOOLEAN_VALUES = frozenset(
     {"y", "yes", "on", "true", "n", "no", "off", "false"}
@@ -106,7 +108,7 @@ def _linker_option_selects_script(argument: str) -> bool:
     return (
         (argument.startswith("-T") and len(argument) > 2)
         or (argument.startswith("-dT") and len(argument) > 3)
-        or argument.startswith(("--script=", "--default-script="))
+        or argument.startswith(("--script=", "--default-script=", "--mri-script="))
     )
 
 
