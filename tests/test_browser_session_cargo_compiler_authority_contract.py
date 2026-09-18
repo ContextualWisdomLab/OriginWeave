@@ -104,8 +104,8 @@ def _codegen_option_selects_linker_plugin(option: str) -> bool:
 
 
 def _codegen_option_extends_external_inputs(option: str) -> bool:
-    """Return whether one rustc codegen option consumes external optimization input."""
-    return option.startswith(("profile-use=", "profile-sample-use="))
+    """Return whether one rustc codegen option consumes external or mutable compiler input."""
+    return option.startswith(("incremental=", "profile-use=", "profile-sample-use="))
 
 
 def _linker_argument_is_positional_native_input(argument: str) -> bool:
