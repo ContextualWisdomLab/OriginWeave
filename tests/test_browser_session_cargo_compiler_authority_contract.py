@@ -184,6 +184,15 @@ def _linker_option_selects_runtime_search_path(argument: str) -> bool:
     return argument.startswith("-Y") and len(argument) > 2
 
 
+def _linker_option_remaps_inputs(argument: str) -> bool:
+    """Return whether GNU-compatible linker syntax rewrites reviewed input-file selection."""
+    if argument in {"--remap-inputs", "-remap-inputs", "--remap-inputs-file", "-remap-inputs-file"}:
+        return True
+    return argument.startswith(
+        ("--remap-inputs=", "-remap-inputs=", "--remap-inputs-file=", "-remap-inputs-file=")
+    )
+
+
 def _linker_option_uses_response_file(argument: str) -> bool:
     """Return whether a direct-linker argument delegates parsing to an opaque response file."""
     return argument.startswith("@")
@@ -229,6 +238,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_selects_runtime_audit_library(argument)
             or _linker_option_selects_runtime_filter_library(argument)
             or _linker_option_selects_runtime_search_path(argument)
+            or _linker_option_remaps_inputs(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
             or _linker_argument_is_positional_native_input(argument)
