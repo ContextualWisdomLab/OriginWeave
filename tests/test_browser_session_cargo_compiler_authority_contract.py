@@ -36,6 +36,7 @@ LINKER_SYMBOL_POLICY_FILE_OPTIONS = frozenset(
 LINKER_LAYOUT_PROFILE_FILE_OPTIONS = frozenset(
     {
         "--call-graph-ordering-file",
+        "-call-graph-ordering-file",
         "--irpgo-profile",
         "--symbol-ordering-file",
         "--lto-sample-profile",
