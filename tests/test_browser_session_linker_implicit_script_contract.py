@@ -64,6 +64,12 @@ class BrowserSessionLinkerImplicitScriptContractTests(unittest.TestCase):
                     f'[build]\nrustflags = ["-C", "link-args={forwarded}"]\n'
                 )
 
+    def test_bare_linker_option_operand_remains_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,-z,relro"]\n'
+        )
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_option_only_link_arguments_remain_allowed(self) -> None:
         root = self._workspace_with_config(
             '[build]\nrustflags = ["-C", "link-arg=-Wl,--as-needed"]\n'
