@@ -42,30 +42,32 @@ class BrowserSessionRustdocRenderInputAuthorityContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Cargo .*execution override"):
             authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
-    def test_build_rustdocflags_html_header_input_fails_closed(self) -> None:
-        self._assert_render_input_fails_closed(
-            '[build]\nrustdocflags = ["--html-in-header", "tools/review-bypass-header.html"]\n'
+    def test_build_rustdocflags_render_file_inputs_fail_closed(self) -> None:
+        selectors = (
+            ("--html-in-header", "tools/review-bypass-header.html"),
+            ("--html-before-content", "tools/review-bypass-before.html"),
+            ("--html-after-content", "tools/review-bypass-after.html"),
+            ("--markdown-before-content", "tools/review-bypass-before.md"),
+            ("--markdown-after-content", "tools/review-bypass-after.md"),
+            ("--extend-css", "tools/review-bypass.css"),
+            ("--theme", "tools/review-bypass-theme.css"),
+            ("--check-theme", "tools/review-bypass-theme.css"),
+            ("-e", "tools/review-bypass-short.css"),
         )
+        for selector, path in selectors:
+            with self.subTest(selector=selector):
+                self._assert_render_input_fails_closed(
+                    f'[build]\nrustdocflags = ["{selector}", "{path}"]\n'
+                )
 
-    def test_target_rustdocflags_html_body_input_fails_closed(self) -> None:
+    def test_target_rustdocflags_equals_render_file_input_fails_closed(self) -> None:
         self._assert_render_input_fails_closed(
             "[target.'cfg(unix)']\nrustdocflags = [\"--html-before-content=tools/review-bypass-before.html\"]\n"
         )
 
-    def test_build_rustdocflags_css_and_theme_inputs_fail_closed(self) -> None:
-        for rustdocflags in (
-            '["--extend-css", "tools/review-bypass.css"]',
-            '["--theme", "tools/review-bypass-theme.css"]',
-            '["--check-theme", "tools/review-bypass-theme.css"]',
-        ):
-            with self.subTest(rustdocflags=rustdocflags):
-                self._assert_render_input_fails_closed(
-                    f"[build]\nrustdocflags = {rustdocflags}\n"
-                )
-
     def test_unrelated_rustdoc_render_flags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
-            '[build]\nrustdocflags = ["--document-private-items", "--default-theme", "ayu"]\n'
+            '[build]\nrustdocflags = ["--document-private-items", "--default-theme", "ayu", "--markdown-css", "reviewed.css"]\n'
         )
         authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
