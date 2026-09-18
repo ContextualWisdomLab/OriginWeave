@@ -160,6 +160,8 @@ def _linker_option_selects_runtime_filter_library(argument: str) -> bool:
         return True
     if argument.startswith(("--auxiliary=", "-auxiliary=", "--filter=", "-filter=")):
         return True
+    if argument.startswith("-fini="):
+        return False
     return (
         (argument.startswith("-f") and len(argument) > 2 and not argument.startswith("--"))
         or (argument.startswith("-F") and len(argument) > 2)
