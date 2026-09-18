@@ -21,6 +21,9 @@ TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
+LINKER_PLUGIN_LTO_BOOLEAN_VALUES = frozenset(
+    {"y", "yes", "on", "true", "n", "no", "off", "false"}
+)
 
 
 def _linker_driver_argument_selects_executable(argument: str) -> bool:
@@ -69,6 +72,14 @@ def _linker_option_selects_script(argument: str) -> bool:
 def _linker_option_uses_response_file(argument: str) -> bool:
     """Return whether a direct-linker argument delegates parsing to an opaque response file."""
     return argument.startswith("@")
+
+
+def _codegen_option_selects_linker_plugin(option: str) -> bool:
+    """Return whether one rustc codegen option names an explicit linker-plugin artifact."""
+    if not option.startswith("linker-plugin-lto="):
+        return False
+    value = option.partition("=")[2]
+    return value not in LINKER_PLUGIN_LTO_BOOLEAN_VALUES
 
 
 def _linker_argument_is_positional_native_input(argument: str) -> bool:
@@ -179,6 +190,8 @@ def _flags_select_linker(value: object) -> bool:
         if option == "linker-flavor" or option.startswith("linker-flavor="):
             return True
         if option == "dlltool" or option.startswith("dlltool="):
+            return True
+        if _codegen_option_selects_linker_plugin(option):
             return True
         if option.startswith("link-arg="):
             linker_driver_arguments.append(option.partition("=")[2])
