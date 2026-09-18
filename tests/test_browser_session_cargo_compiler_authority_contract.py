@@ -246,6 +246,7 @@ def _forwarded_linker_arguments(argument: str) -> tuple[str, ...]:
         return tuple(argument.removeprefix("--for-linker=").split(","))
     return ()
 
+
 def _linker_driver_arguments_select_executable(arguments: list[str]) -> bool:
     """Return whether driver arguments can replace tools, extend link inputs, or load linker code."""
     direct_arguments: list[str] = []
