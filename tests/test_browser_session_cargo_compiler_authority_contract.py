@@ -232,6 +232,32 @@ def _flags_select_rustdoc_test_execution(value: object) -> bool:
     )
 
 
+def _flags_select_rustdoc_doctest_compiler_authority(value: object) -> bool:
+    """Return whether rustdoc forwards authority-extending arguments to a doctest compiler."""
+    arguments = _flag_arguments(value)
+    forwarded: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--doctest-build-arg":
+            if index + 1 >= len(arguments):
+                return True
+            forwarded.append(arguments[index + 1])
+            index += 2
+            continue
+        if argument.startswith("--doctest-build-arg="):
+            forwarded.append(argument.partition("=")[2])
+        index += 1
+
+    if not forwarded:
+        return False
+    return (
+        _flags_select_codegen_backend(forwarded)
+        or _flags_select_linker(forwarded)
+        or any(_rustc_argument_extends_external_inputs(argument) for argument in forwarded)
+    )
+
+
 def _configured_unstable_toolchain_inputs(value: object) -> list[str]:
     """Return Git-owned unstable Cargo settings that alter compiler or standard-library inputs."""
     if not isinstance(value, dict):
@@ -363,6 +389,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 build_configured.append("rustdocflags:external link input")
             if _flags_select_rustdoc_test_execution(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:doctest execution")
+            if _flags_select_rustdoc_doctest_compiler_authority(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:doctest compiler authority")
 
         target_configured: dict[str, list[str]] = {}
         target = parsed.get("target")
@@ -389,6 +417,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     configured.append("rustdocflags:external link input")
                 if _flags_select_rustdoc_test_execution(settings.get("rustdocflags")):
                     configured.append("rustdocflags:doctest execution")
+                if _flags_select_rustdoc_doctest_compiler_authority(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:doctest compiler authority")
                 if configured:
                     target_configured[str(target_name)] = configured
 
