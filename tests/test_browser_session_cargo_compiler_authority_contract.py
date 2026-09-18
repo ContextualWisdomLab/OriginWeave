@@ -49,7 +49,9 @@ def _linker_argument_extends_external_inputs(argument: str) -> bool:
 
 
 def _rustc_argument_extends_external_inputs(argument: str) -> bool:
-    """Return whether one rustc argument widens external crate or native-library inputs."""
+    """Return whether one rustc argument widens external crate, native-library, or sysroot inputs."""
+    if argument == "--sysroot" or argument.startswith("--sysroot="):
+        return True
     if argument == "--extern" or argument.startswith("--extern="):
         return True
     return _linker_argument_extends_external_inputs(argument)
@@ -159,7 +161,7 @@ def _flag_arguments(value: object) -> list[str]:
 
 
 def _flags_extend_external_link_inputs(value: object) -> bool:
-    """Return whether Git-owned rustc flags widen external crate or native-library inputs."""
+    """Return whether Git-owned Rust flags widen external compiler/documentation inputs."""
     return any(_rustc_argument_extends_external_inputs(argument) for argument in _flag_arguments(value))
 
 
