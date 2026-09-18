@@ -22,7 +22,7 @@ UNSTABLE_TOOLCHAIN_INPUT_KEYS = frozenset(
     {"build-std", "build-std-features", "codegen-backend"}
 )
 LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
-LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script"})
+LINKER_SCRIPT_OPTIONS = frozenset({"-T", "--script", "-dT", "--default-script"})
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
 LINKER_PLUGIN_LTO_BOOLEAN_VALUES = frozenset(
     {"y", "yes", "on", "true", "n", "no", "off", "false"}
@@ -103,7 +103,11 @@ def _linker_option_selects_script(argument: str) -> bool:
     """Return whether one linker option selects a script that can introduce link inputs."""
     if argument in LINKER_SCRIPT_OPTIONS:
         return True
-    return (argument.startswith("-T") and len(argument) > 2) or argument.startswith("--script=")
+    return (
+        (argument.startswith("-T") and len(argument) > 2)
+        or (argument.startswith("-dT") and len(argument) > 3)
+        or argument.startswith(("--script=", "--default-script="))
+    )
 
 
 def _linker_option_uses_response_file(argument: str) -> bool:
