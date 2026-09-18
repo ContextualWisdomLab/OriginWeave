@@ -118,12 +118,23 @@ def _linker_option_forwards_llvm_options(argument: str) -> bool:
 
 def _linker_option_selects_script(argument: str) -> bool:
     """Return whether one linker option selects a script that can introduce link inputs."""
-    if argument in LINKER_SCRIPT_OPTIONS:
+    if argument in LINKER_SCRIPT_OPTIONS or argument in {
+        "--section-ordering-file",
+        "-section-ordering-file",
+    }:
         return True
     return (
         (argument.startswith("-T") and len(argument) > 2)
         or (argument.startswith("-dT") and len(argument) > 3)
-        or argument.startswith(("--script=", "--default-script=", "--mri-script="))
+        or argument.startswith(
+            (
+                "--script=",
+                "--default-script=",
+                "--mri-script=",
+                "--section-ordering-file=",
+                "-section-ordering-file=",
+            )
+        )
     )
 
 
