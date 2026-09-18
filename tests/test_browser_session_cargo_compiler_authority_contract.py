@@ -112,6 +112,15 @@ def _linker_option_selects_script(argument: str) -> bool:
     )
 
 
+def _linker_option_selects_just_symbols_or_rpath(argument: str) -> bool:
+    """Return whether GNU-compatible linker syntax selects an external -R/just-symbols path."""
+    if argument in {"-R", "--just-symbols"}:
+        return True
+    if argument.startswith("--just-symbols="):
+        return True
+    return argument.startswith("-R") and len(argument) > 2
+
+
 def _linker_option_uses_response_file(argument: str) -> bool:
     """Return whether a direct-linker argument delegates parsing to an opaque response file."""
     return argument.startswith("@")
@@ -150,6 +159,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_selects_error_handler(argument)
             or _linker_option_selects_dtlto_executable(argument)
             or _linker_option_selects_script(argument)
+            or _linker_option_selects_just_symbols_or_rpath(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
             or _linker_argument_is_positional_native_input(argument)
