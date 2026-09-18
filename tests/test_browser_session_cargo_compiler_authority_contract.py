@@ -85,6 +85,13 @@ def _linker_option_loads_plugin(argument: str) -> bool:
     return argument.startswith(("-plugin=", "--plugin="))
 
 
+def _linker_option_selects_error_handler(argument: str) -> bool:
+    """Return whether one LLD option selects an executable error-handler script."""
+    return argument == "--error-handling-script" or argument.startswith(
+        "--error-handling-script="
+    )
+
+
 def _linker_option_selects_script(argument: str) -> bool:
     """Return whether one linker option selects a script that can introduce link inputs."""
     if argument in LINKER_SCRIPT_OPTIONS:
@@ -127,6 +134,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             continue
         if (
             _linker_option_loads_plugin(argument)
+            or _linker_option_selects_error_handler(argument)
             or _linker_option_selects_script(argument)
             or _linker_option_uses_response_file(argument)
             or _linker_argument_extends_external_inputs(argument)
