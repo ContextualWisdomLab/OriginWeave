@@ -223,6 +223,15 @@ def _flags_select_linker(value: object) -> bool:
     return _linker_driver_arguments_select_executable(linker_driver_arguments)
 
 
+def _flags_select_rustdoc_test_execution(value: object) -> bool:
+    """Return whether Git-owned rustdoc flags select external doctest executables."""
+    selectors = ("--test-runtool", "--test-builder", "--test-builder-wrapper")
+    return any(
+        argument in selectors or argument.startswith(tuple(f"{selector}=" for selector in selectors))
+        for argument in _flag_arguments(value)
+    )
+
+
 def _configured_unstable_toolchain_inputs(value: object) -> list[str]:
     """Return Git-owned unstable Cargo settings that alter compiler or standard-library inputs."""
     if not isinstance(value, dict):
@@ -352,6 +361,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 build_configured.append("rustdocflags:codegen linker")
             if _flags_extend_external_link_inputs(build.get("rustdocflags")):
                 build_configured.append("rustdocflags:external link input")
+            if _flags_select_rustdoc_test_execution(build.get("rustdocflags")):
+                build_configured.append("rustdocflags:doctest execution")
 
         target_configured: dict[str, list[str]] = {}
         target = parsed.get("target")
@@ -376,6 +387,8 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                     configured.append("rustdocflags:codegen linker")
                 if _flags_extend_external_link_inputs(settings.get("rustdocflags")):
                     configured.append("rustdocflags:external link input")
+                if _flags_select_rustdoc_test_execution(settings.get("rustdocflags")):
+                    configured.append("rustdocflags:doctest execution")
                 if configured:
                     target_configured[str(target_name)] = configured
 
