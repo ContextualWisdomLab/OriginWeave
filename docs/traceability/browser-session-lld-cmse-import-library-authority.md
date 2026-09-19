@@ -1,40 +1,43 @@
 # Browser Session LLD CMSE import-library authority
 
-Status: Open repair finding
+Status: Source repair implemented; hosted proof pending
 
 ## Problem
 
 LLVM LLD's ELF driver defines `--in-implib` as an ARM CMSE input selector. The option reads an existing CMSE secure-code import library from a previous program revision so LLD can preserve secure gateway entry-function addresses in a new CMSE import library or secure image.
 
-On the reviewed Browser Session Cargo authority path, the split spelling `--in-implib FILE` is conservatively caught because `FILE` becomes an unconsumed positional linker input. The `EEq` joined spelling `--in-implib=FILE` keeps the external artifact path inside the option token. The current direct-linker classifier does not model that option, so the joined spelling is not yet rejected by the canonical authority predicate.
+On the reviewed Browser Session Cargo authority path, the split spelling `--in-implib FILE` is conservatively caught because `FILE` becomes an unconsumed positional linker input. The `EEq` joined spelling `--in-implib=FILE` kept the external artifact path inside the option token and previously bypassed the canonical direct-linker authority predicate.
 
 This is an input-provenance gap, not a general ARM CMSE ban. `--out-implib=FILE` names an output destination and is not equivalent to the input selector.
 
 ## Primary evidence
 
-- LLVM LLD `lld/ELF/Options.td`: `in_implib` is `EEq<"in-implib", ...>` and is documented as reading an existing CMSE secure-code import library and preserving entry-function addresses in the resulting library/image.
-- LLVM LLD `lld/ELF/Arch/ARM.cpp`: the CMSE import library is an ELF object with a symbol table; `--in-implib` selects an input import library from a previous revision of the program.
-- LLVM LLD ARM tests exercise `--in-implib=lib.o`, reject multiple input import libraries, reject use without `--cmse-implib`, and reject the option on non-ARM targets.
+LLVM upstream main at `f8f4816496f6126f371350819d48017d1c330b56` provides the current primary evidence used for this repair:
+
+- `lld/ELF/Options.td`: `in_implib` is `EEq<"in-implib", ...>` and is documented as reading an existing CMSE secure-code import library and preserving entry-function addresses in the resulting library/image.
+- `lld/ELF/Options.td`: `out_implib` is separately documented as outputting the CMSE secure-code import library to a file.
+- `lld/ELF/Driver.cpp`: `OPT_in_implib` populates the CMSE input-library argument and is rejected on unsupported targets.
+- LLD ARM tests exercise the CMSE input option and its validation rules.
 
 Upstream references:
 
-- <https://github.com/llvm/llvm-project/blob/main/lld/ELF/Options.td>
-- <https://github.com/llvm/llvm-project/blob/main/lld/ELF/Arch/ARM.cpp>
-- <https://github.com/llvm/llvm-project/blob/main/lld/test/ELF/arm-cmse-diagnostics.s>
+- <https://github.com/llvm/llvm-project/blob/f8f4816496f6126f371350819d48017d1c330b56/lld/ELF/Options.td>
+- <https://github.com/llvm/llvm-project/blob/f8f4816496f6126f371350819d48017d1c330b56/lld/ELF/Driver.cpp>
+- <https://github.com/llvm/llvm-project/blob/f8f4816496f6126f371350819d48017d1c330b56/lld/test/ELF/arm-cmse-diagnostics.s>
 
 ## Owner boundary
 
-`tests/test_browser_session_cargo_compiler_authority_contract.py` remains the single writer for Git-owned Cargo compiler/linker input authority. No parallel Cargo topology/config scanner is introduced here.
+`tests/test_browser_session_cargo_compiler_authority_contract.py` remains the single writer for Git-owned Cargo compiler/linker input authority. No parallel Cargo topology/config scanner was introduced.
 
-The repair belongs in the existing direct-linker classifier and must be consumed through the existing `rustflags`, `rustdocflags`, and doctest compiler-forwarding paths.
+The repair is consumed through the existing direct-linker classifier, so `rustflags`, `rustdocflags`, and rustdoc doctest compiler forwarding continue to share one authority decision path.
 
-## Required repair
+## RED → repair
 
-1. Add a hostile contract for the joined `--in-implib=...` spelling and retain `--out-implib=...` as an output-only control.
-2. Add one bounded predicate for split/joined `--in-implib` and consume it from `_direct_linker_arguments_extend_authority()`.
-3. Prove the exact repaired head with the focused contract before treating this document as closed.
+- Structural RED: `411ec418c73b89a0f3923af0a16a214faafe0000` adds `tests/test_browser_session_lld_cmse_import_library_authority_contract.py`. It requires joined `--in-implib=...` to fail closed through the canonical authority helper, exercises rustdoc doctest compiler forwarding, and keeps output-only `--out-implib=...` as an allowed control.
+- Minimal causal repair: `28ffd6fc4784b25e2d48f4d16b0de0acc4324c47` adds `_linker_option_selects_cmse_import_library()` and consumes it from `_direct_linker_arguments_extend_authority()`. The repair changes the canonical authority file by six added lines and no deletions; no unrelated rewrite or duplicate scanner was introduced.
+- Exact compare from predecessor `65511f47d355a9c68ed669679bc406bd9230ab5f` to repair head is two commits, two files: the 36-line hostile contract plus the six-line canonical classifier repair.
 
-The earlier attempted RED fixture was removed rather than leaving the branch knowingly red before the canonical single-writer repair could be applied atomically.
+No pull-request-triggered hosted workflow exists yet for repair head `28ffd6fc4784b25e2d48f4d16b0de0acc4324c47`, so this document does not claim hosted executable GREEN, repository/security GREEN, whole-PR review closure, or 100% quality-gate closure.
 
 ## Rejected alternatives
 
