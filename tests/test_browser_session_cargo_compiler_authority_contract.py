@@ -119,8 +119,22 @@ def _linker_option_selects_error_handler(argument: str) -> bool:
 
 
 def _linker_option_selects_dtlto_executable(argument: str) -> bool:
-    """Return whether one LLD DTLTO option selects a distributor or remote compiler executable."""
-    return argument.startswith(("--thinlto-distributor=", "--thinlto-remote-compiler="))
+    """Return whether one LLD DTLTO option selects or controls a subprocess."""
+    if argument in {
+        "--thinlto-distributor-arg",
+        "--thinlto-remote-compiler-prepend-arg",
+        "--thinlto-remote-compiler-arg",
+    }:
+        return True
+    return argument.startswith(
+        (
+            "--thinlto-distributor=",
+            "--thinlto-distributor-arg=",
+            "--thinlto-remote-compiler=",
+            "--thinlto-remote-compiler-prepend-arg=",
+            "--thinlto-remote-compiler-arg=",
+        )
+    )
 
 
 def _linker_option_forwards_llvm_options(argument: str) -> bool:
