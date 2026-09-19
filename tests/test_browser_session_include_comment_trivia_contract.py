@@ -68,6 +68,14 @@ class BrowserSessionIncludeCommentTriviaContractTests(unittest.TestCase):
             'include!\u200f("../generated_adapter.rs");\n'
         )
 
+    def test_xid_prefix_macro_name_is_not_builtin_include(self) -> None:
+        root = self._workspace_with_source(
+            'macro_rules! a\u0301include { ($path:literal) => {}; }\n'
+            'a\u0301include!("../generated_adapter.rs");\n'
+        )
+
+        source_contract._assert_no_unmodeled_rust_source_indirection(root)
+
 
 if __name__ == "__main__":
     unittest.main()
