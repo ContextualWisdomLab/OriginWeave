@@ -55,12 +55,72 @@ def _has_embedded_file_macro(text: str) -> bool:
     return False
 
 
+def _use_tree_aliases_embedded_file_macro(use_tree: str) -> bool:
+    """Return whether one Rust use tree renames include_bytes!/include_str! authority."""
+    cursor = 0
+    while cursor < len(use_tree):
+        trivia_end = source_indirection._skip_rust_trivia(use_tree, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        match = EMBEDDED_FILE_MACRO_TOKEN.match(use_tree, cursor)
+        if match is None:
+            cursor += 1
+            continue
+
+        after_macro = source_indirection._skip_rust_trivia(use_tree, match.end())
+        as_match = source_indirection.AS_TOKEN.match(use_tree, after_macro)
+        if as_match is not None:
+            alias_start = source_indirection._skip_rust_trivia(use_tree, as_match.end())
+            if alias_start < len(use_tree) and use_tree[alias_start] != "_":
+                return True
+        cursor = match.end()
+    return False
+
+
+def _has_aliased_embedded_file_import(text: str) -> bool:
+    """Detect lexical use aliases that would hide embedded-file macro names at invocation."""
+    cursor = 0
+    while cursor < len(text):
+        trivia_end = source_indirection._skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        raw_end = source_indirection._raw_string_end(text, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            cursor = source_indirection._quoted_string_end(text, cursor)
+            continue
+        if text[cursor] == "'":
+            char_end = source_indirection._simple_char_literal_end(text, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+
+        use_match = source_indirection.USE_TOKEN.match(text, cursor)
+        if use_match is None:
+            cursor += 1
+            continue
+
+        statement_end = source_indirection._rust_use_statement_end(text, use_match.end())
+        if statement_end is None:
+            return False
+        if _use_tree_aliases_embedded_file_macro(text[use_match.end():statement_end]):
+            return True
+        cursor = statement_end + 1
+    return False
+
+
 def _assert_no_unmodeled_rust_embedded_file_inputs(root: pathlib.Path) -> None:
     """Fail closed when reviewed Rust source embeds file bytes outside the source closure."""
     source_indirection._assert_no_unmodeled_rust_source_indirection(root)
     for source in source_indirection.boundary._workspace_production_sources(root):
         text = source.read_text(encoding="utf-8")
-        if _has_embedded_file_macro(text):
+        if _has_embedded_file_macro(text) or _has_aliased_embedded_file_import(text):
             relative = source.relative_to(root).as_posix()
             raise AssertionError(
                 "Rust embedded file input requires an explicit provenance contract: "
