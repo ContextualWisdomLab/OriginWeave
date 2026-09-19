@@ -76,6 +76,15 @@ class BrowserSessionIncludeCommentTriviaContractTests(unittest.TestCase):
 
         source_contract._assert_no_unmodeled_rust_source_indirection(root)
 
+    def test_xid_prefixed_import_name_is_not_builtin_include_alias(self) -> None:
+        root = self._workspace_with_source(
+            'mod source { pub fn a\u0301include() {} }\n'
+            'use source::a\u0301include as embed;\n'
+            'pub fn call_surface() { embed(); }\n'
+        )
+
+        source_contract._assert_no_unmodeled_rust_source_indirection(root)
+
 
 if __name__ == "__main__":
     unittest.main()
