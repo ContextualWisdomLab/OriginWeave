@@ -94,6 +94,34 @@ def _has_include_macro(text: str) -> bool:
     return False
 
 
+def _has_custom_target_mod_token(text: str) -> bool:
+    """Detect lexical Rust mod tokens outside comments and string/character literals."""
+    cursor = 0
+    while cursor < len(text):
+        trivia_end = _skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        raw_end = _raw_string_end(text, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            cursor = _quoted_string_end(text, cursor)
+            continue
+        if text[cursor] == "'":
+            char_end = _simple_char_literal_end(text, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+
+        if CUSTOM_TARGET_MOD_TOKEN.match(text, cursor) is not None:
+            return True
+        cursor += 1
+    return False
+
+
 def _rust_use_statement_end(text: str, offset: int) -> int | None:
     """Return the semicolon ending one Rust use declaration while ignoring comment trivia."""
     cursor = offset
@@ -362,7 +390,7 @@ def _assert_no_unmodeled_rust_source_indirection(root: pathlib.Path) -> None:
         # compiler-derived source inputs replace this guard, any lexical `mod` token is an
         # intentionally conservative provenance stop: comments/trivia, raw/Unicode names,
         # visibility spellings, and inline-vs-outlined grammar must not create bypasses.
-        if not _is_under_any_default_src(source, default_src_roots) and CUSTOM_TARGET_MOD_TOKEN.search(text):
+        if not _is_under_any_default_src(source, default_src_roots) and _has_custom_target_mod_token(text):
             raise AssertionError(
                 "Rust module source indirection from a custom Cargo target requires an explicit "
                 f"provenance contract: {relative}"
