@@ -71,6 +71,17 @@ class BrowserSessionRustIncludeLexicalControlContractTests(unittest.TestCase):
 
         source_indirection._assert_no_unmodeled_rust_source_indirection(root)
 
+    def test_grouped_use_comment_alias_text_is_not_source_indirection(self) -> None:
+        root = self._workspace_with_source(
+            'use core::{\n'
+            '    /* include as hidden_include */\n'
+            '    fmt,\n'
+            '};\n'
+            'pub fn reviewed_surface() { let _ = fmt::Error; }\n'
+        )
+
+        source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+
     def test_character_literal_does_not_hide_following_real_include(self) -> None:
         root = self._workspace_with_source(
             "pub const MARKER: char = 'x';\n"
