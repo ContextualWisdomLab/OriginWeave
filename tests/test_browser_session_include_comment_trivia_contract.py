@@ -15,7 +15,7 @@ spec.loader.exec_module(source_contract)
 
 
 class BrowserSessionIncludeCommentTriviaContractTests(unittest.TestCase):
-    """Keep Rust comment trivia from bypassing include! source-provenance review."""
+    """Keep Rust lexical trivia from bypassing include! source-provenance review."""
 
     def _workspace_with_source(self, source_text: str) -> pathlib.Path:
         directory = tempfile.TemporaryDirectory()
@@ -56,6 +56,16 @@ class BrowserSessionIncludeCommentTriviaContractTests(unittest.TestCase):
     def test_line_comment_between_include_and_bang_fails_closed(self) -> None:
         self._assert_include_trivia_fails_closed(
             'include // provenance gap\n! ("../generated_adapter.rs");\n'
+        )
+
+    def test_non_ascii_rust_whitespace_between_include_and_bang_fails_closed(self) -> None:
+        self._assert_include_trivia_fails_closed(
+            'include\u200e!("../generated_adapter.rs");\n'
+        )
+
+    def test_non_ascii_rust_whitespace_between_bang_and_delimiter_fails_closed(self) -> None:
+        self._assert_include_trivia_fails_closed(
+            'include!\u200f("../generated_adapter.rs");\n'
         )
 
 
