@@ -85,6 +85,11 @@ class BrowserSessionRustdocRenderInputAuthorityContractTests(unittest.TestCase):
             "[target.'cfg(unix)']\nrustdocflags = [\"-Z\", \"unstable-options\", \"--with-examples=tools/review-bypass.calls\"]\n"
         )
 
+    def test_host_rustdocflags_with_examples_input_fails_closed(self) -> None:
+        self._assert_render_input_fails_closed(
+            '[host]\nrustdocflags = ["-Z", "unstable-options", "--with-examples", "tools/review-bypass.calls"]\n'
+        )
+
     def test_scrape_examples_output_path_remains_output_only(self) -> None:
         root = self._workspace_with_config(
             '[build]\nrustdocflags = ["-Z", "unstable-options", "--scrape-examples-output-path", "target/reviewed.calls"]\n'
