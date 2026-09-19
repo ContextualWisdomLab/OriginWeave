@@ -9,6 +9,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Failed closed when repository-owned Rust/rustdoc linker forwarding opens LLD's LLVMgold-compatible `plugin-opt=-...` opaque LLVM option-processing tunnel, including one-/two-dash spellings, so arbitrary LLVM options cannot bypass reviewed deterministic linker authority.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding loads LLD pass-plugin libraries through separated/joined `--load-pass-plugin`, keeping executable LTO pass code inside reviewed toolchain/plugin provenance.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects Distributed ThinLTO distributor/remote-compiler subprocess authority or forwards their argv through `--thinlto-distributor-arg`, `--thinlto-remote-compiler-prepend-arg`, and `--thinlto-remote-compiler-arg`, preventing repository-owned linker flags from opening unreviewed subprocess/toolchain authority.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects native libraries through GNU-compatible long-form `--library` / `--library=` aliases, so joined double-dash library selection cannot bypass the reviewed external-input authority boundary.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects LLD `--thinlto-cache-dir=`, preventing mutable cached native ThinLTO objects from becoming unreviewed link inputs outside the reviewed Cargo package/source closure.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects context-sensitive LTO PGO profiles through LLD `--lto-cs-profile-file=` or its one-/two-dash `plugin-opt=cs-profile-path=` aliases, keeping profile-guided code generation inside reviewed build-input provenance.
