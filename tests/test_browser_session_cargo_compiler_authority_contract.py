@@ -603,9 +603,7 @@ def _configured_host_execution_authority(
     for key, setting in value.items():
         if key in TARGET_EXECUTION_KEYS or key in {"rustflags", "rustdocflags"} or not isinstance(setting, dict):
             continue
-        if depth >= 1:
-            configured.append(f"{prefix}.links build-script override:{key}")
-            continue
+        configured.append(f"{prefix}.links build-script override:{key}")
         configured.extend(
             _configured_host_execution_authority(setting, f"{prefix}.{key}", depth + 1)
         )
