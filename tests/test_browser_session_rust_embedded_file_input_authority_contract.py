@@ -232,6 +232,24 @@ class BrowserSessionRustEmbeddedFileInputAuthorityContractTests(unittest.TestCas
 
         _assert_no_unmodeled_rust_embedded_file_inputs(root)
 
+    def test_raw_string_alias_text_is_not_embedded_file_authority(self) -> None:
+        root = self._workspace_with_source(
+            'pub const NOTE: &str = r#"use core::include_bytes as read_blob; '
+            'read_blob!(\\"../unreviewed.bin\\")"#;\n'
+        )
+
+        _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
+    def test_character_literal_does_not_hide_following_aliased_file_input(self) -> None:
+        root = self._workspace_with_source(
+            "pub const MARKER: char = 'x';\n"
+            'use core::include_bytes as read_blob;\n'
+            'pub static EMBEDDED: &[u8] = read_blob!("../unreviewed.bin");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
     def test_comment_and_string_mentions_are_not_embedded_file_authority(self) -> None:
         root = self._workspace_with_source(
             '// include_bytes!("../unreviewed.bin")\n'
