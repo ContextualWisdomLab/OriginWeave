@@ -82,6 +82,21 @@ class BrowserSessionCustomTargetModLexicalContractTests(unittest.TestCase):
 
         indirection._assert_no_unmodeled_rust_source_indirection(root)
 
+    def test_xid_continue_before_mod_keeps_one_identifier_token(self) -> None:
+        root = self._custom_target_workspace(
+            "pub fn a\u0301mod() {}\npub fn lifecycle_adapter_surface() {}\n"
+        )
+
+        indirection._assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_non_ascii_rust_whitespace_still_separates_real_mod_keyword(self) -> None:
+        root = self._custom_target_workspace(
+            "mod\u200ehelper;\npub fn lifecycle_adapter_surface() {}\n"
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
+            indirection._assert_no_unmodeled_rust_source_indirection(root)
+
 
 if __name__ == "__main__":
     unittest.main()
