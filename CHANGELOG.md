@@ -9,6 +9,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects native libraries through GNU-compatible long-form `--library` / `--library=` aliases, so joined double-dash library selection cannot bypass the reviewed external-input authority boundary.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects LLD `--thinlto-cache-dir=`, preventing mutable cached native ThinLTO objects from becoming unreviewed link inputs outside the reviewed Cargo package/source closure.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects context-sensitive LTO PGO profiles through LLD `--lto-cs-profile-file=` or its one-/two-dash `plugin-opt=cs-profile-path=` aliases, keeping profile-guided code generation inside reviewed build-input provenance.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects LLD layout/profile files through `call-graph-ordering-file`, `irpgo-profile`, `symbol-ordering-file`, `lto-sample-profile`, or `plugin-opt=sample-profile=`, preventing unreviewed external layout/profile material from changing section placement or LTO decisions.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects an existing ARM CMSE secure-code import library through LLD `--in-implib=`, while leaving output-only `--out-implib=` outside input-authority classification.
