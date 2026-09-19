@@ -1,16 +1,11 @@
 import importlib.util
 import pathlib
-import re
 import tempfile
 import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_INDIRECTION_TEST = ROOT / "tests/test_browser_session_rust_source_indirection_contract.py"
-COMPILE_TIME_ENVIRONMENT_MACRO_TOKEN = re.compile(
-    r"(?<![\w#])(?:r#)?(?:env|option_env)(?!\w)",
-    re.UNICODE,
-)
 
 spec = importlib.util.spec_from_file_location(
     "browser_session_rust_source_indirection_contract",
@@ -20,6 +15,20 @@ if spec is None or spec.loader is None:
     raise RuntimeError("unable to load Browser Session Rust source-indirection contract")
 source_indirection = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(source_indirection)
+
+
+def _compile_time_environment_macro_token_end(text: str, offset: int) -> int | None:
+    """Return the end of a lexical env/option_env identifier token at offset."""
+    for spelling in ("env", "option_env"):
+        end = source_indirection._rust_identifier_token_end(
+            text,
+            offset,
+            spelling,
+            allow_raw=True,
+        )
+        if end is not None:
+            return end
+    return None
 
 
 def _has_compile_time_environment_macro(text: str) -> bool:
@@ -44,12 +53,12 @@ def _has_compile_time_environment_macro(text: str) -> bool:
                 cursor = char_end
                 continue
 
-        match = COMPILE_TIME_ENVIRONMENT_MACRO_TOKEN.match(text, cursor)
-        if match is not None:
-            bang = source_indirection._skip_rust_trivia(text, match.end())
+        token_end = _compile_time_environment_macro_token_end(text, cursor)
+        if token_end is not None:
+            bang = source_indirection._skip_rust_trivia(text, token_end)
             if bang < len(text) and text[bang] == "!":
                 return True
-            cursor = match.end()
+            cursor = token_end
             continue
         cursor += 1
     return False
@@ -77,15 +86,15 @@ def _use_tree_aliases_compile_time_environment_macro(use_tree: str) -> bool:
                 cursor = char_end
                 continue
 
-        match = COMPILE_TIME_ENVIRONMENT_MACRO_TOKEN.match(use_tree, cursor)
-        if match is None:
+        token_end = _compile_time_environment_macro_token_end(use_tree, cursor)
+        if token_end is None:
             cursor += 1
             continue
 
-        after_macro = source_indirection._skip_rust_trivia(use_tree, match.end())
+        after_macro = source_indirection._skip_rust_trivia(use_tree, token_end)
         as_match = source_indirection.AS_TOKEN.match(use_tree, after_macro)
         if as_match is None:
-            cursor = match.end()
+            cursor = token_end
             continue
 
         alias_start = source_indirection._skip_rust_trivia(use_tree, as_match.end())
@@ -96,7 +105,7 @@ def _use_tree_aliases_compile_time_environment_macro(use_tree: str) -> bool:
             if next_offset >= len(use_tree) or not source_indirection._rust_keyword_is_identifier_adjacent(
                 use_tree[next_offset]
             ):
-                cursor = match.end()
+                cursor = token_end
                 continue
         return True
     return False
