@@ -1,6 +1,5 @@
 import importlib.util
 import pathlib
-import re
 import tempfile
 import unittest
 
@@ -16,9 +15,6 @@ spec.loader.exec_module(boundary)
 
 
 INCLUDE_TOKEN = "include"
-USE_TOKEN = re.compile(r"(?<![\w#])use(?!\w)", re.UNICODE)
-AS_TOKEN = re.compile(r"(?<![\w#])as(?!\w)", re.UNICODE)
-PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
 CUSTOM_TARGET_MOD_TOKEN = "mod"
 RUST_PATTERN_WHITESPACE = frozenset(
     "\u0009\u000a\u000b\u000c\u000d\u0020\u0085\u200e\u200f\u2028\u2029"
@@ -199,14 +195,14 @@ def _has_aliased_include_import(text: str) -> bool:
                 cursor = char_end
                 continue
 
-        use_match = USE_TOKEN.match(text, cursor)
-        if use_match is None:
+        use_end = _rust_identifier_token_end(text, cursor, "use")
+        if use_end is None:
             cursor += 1
             continue
-        statement_end = _rust_use_statement_end(text, use_match.end())
+        statement_end = _rust_use_statement_end(text, use_end)
         if statement_end is None:
             return False
-        use_tree = text[use_match.end():statement_end]
+        use_tree = text[use_end:statement_end]
         use_cursor = 0
         while use_cursor < len(use_tree):
             trivia_end = _skip_rust_trivia(use_tree, use_cursor)
@@ -237,11 +233,11 @@ def _has_aliased_include_import(text: str) -> bool:
                 use_cursor += 1
                 continue
             include_cursor = _skip_rust_trivia(use_tree, include_end)
-            as_match = AS_TOKEN.match(use_tree, include_cursor)
-            if as_match is None:
+            as_end = _rust_identifier_token_end(use_tree, include_cursor, "as")
+            if as_end is None:
                 use_cursor = include_end
                 continue
-            alias_start = _skip_rust_trivia(use_tree, as_match.end())
+            alias_start = _skip_rust_trivia(use_tree, as_end)
             if alias_start >= len(use_tree):
                 use_cursor = include_end
                 continue
