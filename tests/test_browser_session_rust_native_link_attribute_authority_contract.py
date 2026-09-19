@@ -115,6 +115,21 @@ class BrowserSessionRustNativeLinkAttributeAuthorityContractTests(unittest.TestC
         with self.assertRaisesRegex(AssertionError, "Rust link attribute"):
             _assert_no_unmodeled_rust_native_link_inputs(root)
 
+    def test_commented_native_link_attribute_is_not_native_link_authority(self) -> None:
+        root = self._workspace_with_source(
+            '// #[link(name = "review_bypass")]\n'
+            'pub fn documented() {}\n'
+        )
+
+        _assert_no_unmodeled_rust_native_link_inputs(root)
+
+    def test_string_containing_native_link_attribute_is_not_native_link_authority(self) -> None:
+        root = self._workspace_with_source(
+            'pub const NOTE: &str = "#[link(name = \\"review_bypass\\")]";\n'
+        )
+
+        _assert_no_unmodeled_rust_native_link_inputs(root)
+
     def test_link_word_inside_attribute_string_is_not_native_link_authority(self) -> None:
         root = self._workspace_with_source(
             '#[doc = "link(name = \\\"not_an_attribute\\\")"]\n'
