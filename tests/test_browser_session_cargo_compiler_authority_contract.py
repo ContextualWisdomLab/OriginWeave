@@ -42,6 +42,9 @@ LINKER_LAYOUT_PROFILE_FILE_OPTIONS = frozenset(
         "--lto-sample-profile",
         "--plugin-opt=sample-profile",
         "-plugin-opt=sample-profile",
+        "--lto-cs-profile-file",
+        "--plugin-opt=cs-profile-path",
+        "-plugin-opt=cs-profile-path",
     }
 )
 LINKER_OPTIONS_WITH_SEPARATE_OPERAND = frozenset({"-z"})
