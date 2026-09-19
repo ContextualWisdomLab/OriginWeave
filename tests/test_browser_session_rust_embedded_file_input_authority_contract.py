@@ -77,8 +77,8 @@ def _use_tree_aliases_embedded_file_macro(use_tree: str) -> bool:
                 return False
             if use_tree[alias_start] == "_":
                 next_offset = alias_start + 1
-                if next_offset >= len(use_tree) or not (
-                    use_tree[next_offset].isalnum() or use_tree[next_offset] == "_"
+                if next_offset >= len(use_tree) or not source_indirection._rust_keyword_is_identifier_adjacent(
+                    use_tree[next_offset]
                 ):
                     cursor = match.end()
                     continue
@@ -215,10 +215,28 @@ class BrowserSessionRustEmbeddedFileInputAuthorityContractTests(unittest.TestCas
         with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
             _assert_no_unmodeled_rust_embedded_file_inputs(root)
 
+    def test_unicode_continuation_include_bytes_alias_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'use core::include_bytes as _\u0301;\n'
+            'pub static EMBEDDED: &[u8] = _\u0301!("../unreviewed.bin");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
     def test_aliased_include_str_file_input_fails_closed(self) -> None:
         root = self._workspace_with_source(
             'use std::include_str as read_text;\n'
             'pub static EMBEDDED: &str = read_text!("../unreviewed.txt");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
+    def test_unicode_continuation_include_str_alias_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'use std::include_str as _\u0301;\n'
+            'pub static EMBEDDED: &str = _\u0301!("../unreviewed.txt");\n'
         )
 
         with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
