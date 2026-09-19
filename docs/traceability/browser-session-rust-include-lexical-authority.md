@@ -11,16 +11,18 @@ That behavior is conservative but incorrect: Rust non-doc comments are lexically
 ## Evidence and repair
 
 - Structural RED `6bf90e950ebbe09f28f56d4e6665433265cb238d` adds independent controls requiring line-comment and ordinary-string `include!(...)` text to remain lexical data while a real `include!(...)` invocation still fails closed.
-- Minimal causal repair `6ad8f195e1bc9c649024b1e29244f00313d9a3e9` keeps ownership in `tests/test_browser_session_rust_source_indirection_contract.py`. `_has_include_macro()` and `_has_aliased_include_import()` now reuse the existing Rust trivia/raw-string/quoted-string/character-literal helpers before recognizing `include` or `use` tokens. No Cargo topology, production crate, or browser-domain authority is duplicated.
+- Minimal causal repair `6ad8f195e1bc9c649024b1e29244f00313d9a3e9` keeps ownership in `tests/test_browser_session_rust_source_indirection_contract.py`. `_has_include_macro()` and the outer `_has_aliased_include_import()` scan reuse the existing Rust trivia/raw-string/quoted-string/character-literal helpers before recognizing `include` or `use` tokens. No Cargo topology, production crate, or browser-domain authority is duplicated.
 - Edge-case successor `2f3311b47509e86421917099c678919f39c43d01` adds raw-string false-positive coverage, commented `use core::include as ...` coverage, and character-literal scan resumption before a real hostile `include!`.
+- Focused review of `4e4e217d010dbd2ad557d700ece931654b3791d4` found one remaining lexical false positive: once a real `use` declaration was captured, its inner use-tree still used raw `INCLUDE_TOKEN.finditer(use_tree)`, so `use core::{ /* include as hidden_include */ fmt };` was misclassified as alias authority.
+- Review-driven RED `6134c1b5583b05f6847078e33ded2770b410e8ed` adds that grouped-use comment control. Repair `be359649734acc0173cb3c61802f7905f67d7980` replaces the inner raw scan with the same trivia/literal-aware cursor discipline while preserving real callable alias rejection.
 
 The repair is intentionally lexical rather than pathname-based. Allowlisting a path would not fix the category error: comment/literal text must never become authority regardless of its spelling, while a real `include!` remains provenance-relevant even for an in-repository path until the compiler-derived source-input contract explicitly models it.
 
 ## Invariants
 
 1. A lexical `include!` macro invocation in a reviewed production source fails closed until an explicit source-provenance contract admits the included file.
-2. A lexical `use ... include as <callable>` declaration fails closed under the same authority boundary.
-3. Line/block comments and ordinary/raw string or character literal contents do not create source-input authority merely because their text resembles `include!` or an alias declaration.
+2. A lexical `use ... include as <callable>` declaration fails closed under the same authority boundary, including grouped use trees.
+3. Line/block comments and ordinary/raw string or character literal contents do not create source-input authority merely because their text resembles `include!` or an alias declaration, including comments nested inside a real use tree.
 4. Scanning resumes after a literal token and still rejects a following real `include!` invocation.
 5. `tests/test_browser_session_trusted_adapter_boundary.py` remains the single writer for production Cargo package/source topology; this repair changes only lexical classification inside the existing Rust source-indirection owner.
 
@@ -32,7 +34,7 @@ The repair is intentionally lexical rather than pathname-based. Allowlisting a p
 
 ## Acceptance
 
-This slice is acceptable only when the RED controls are demonstrably failing on the predecessor and GREEN on the repair generation, the current production-source contract remains fail closed for real `include!`, current-head static review finds no ownership or lexer regression, and hosted repository/security checks are independently satisfied after the central workflow prerequisite chain permits them. Command acknowledgement or a static review response is not hosted GREEN.
+This slice is acceptable only when both RED generations are demonstrably failing on their predecessors and GREEN on the corresponding repairs, the current production-source contract remains fail closed for real `include!` and callable aliases, current-head static review finds no ownership or lexer regression, and hosted repository/security checks are independently satisfied after the central workflow prerequisite chain permits them. Command acknowledgement or a static review response is not hosted GREEN.
 
 ## Authoritative references
 
