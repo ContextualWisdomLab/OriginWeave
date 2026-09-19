@@ -573,6 +573,8 @@ def _configured_host_execution_authority(
         return []
     configured: list[str] = []
     host_setting_keys = TARGET_EXECUTION_KEYS | {"rustflags", "rustdocflags"}
+    if depth > 0 and not value:
+        configured.append(f"{prefix}:links build-script override")
     for key in sorted(TARGET_EXECUTION_KEYS.intersection(value)):
         configured.append(f"{prefix}.{key}")
 
