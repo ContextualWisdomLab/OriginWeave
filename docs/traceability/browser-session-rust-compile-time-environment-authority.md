@@ -12,6 +12,8 @@ Cargo can also set compilation environment values through build-script `cargo::r
 
 Before this generation, the Rust source-indirection owner governed `include!`, module/path indirection, and the shared Rust lexical helpers; the embedded-file supplement governed `include_bytes!` and `include_str!`. Neither classified direct source-level `env!` or `option_env!`. The initial compile-time-environment repair then closed direct and namespaced spellings but still allowed the same built-in macros to be imported under a callable alias such as `use std::env as read_build_env; read_build_env!(...)`. Rust resolves that alias as the macro, so the artifact can still depend on ambient build state while the invocation no longer contains the literal token `env` or `option_env`.
 
+The callable-alias generation exposed a second, opposite risk in the lexical classifier: its direct macro token used Python `\w` boundaries. Rust identifiers instead follow Unicode `XID_Continue`. A combining mark such as U+0301 can therefore be part of a larger Rust identifier while Python `\w` reports it as non-word. A valid user macro such as `_\u0301env!()` could consequently be misclassified as the built-in `env!` solely because the substring `env` follows a continuation scalar. That is a false positive in a fail-closed security contract and would make legitimate source unreviewable for the wrong reason.
+
 ## Decision
 
 Keep `tests/test_browser_session_trusted_adapter_boundary.py` as the single writer for production Cargo package/source topology and `tests/test_browser_session_rust_source_indirection_contract.py` as the shared Rust lexical/source-indirection owner.
@@ -22,10 +24,11 @@ Keep `tests/test_browser_session_trusted_adapter_boundary.py` as the single writ
 - consumes the canonical production-source closure instead of rediscovering Cargo topology;
 - reuses the shared trivia, raw-string, quoted-string, character-literal, `use`/`as`, use-statement, and Rust identifier-boundary helpers;
 - fails closed on lexical `env!` and `option_env!`, including namespaced spellings;
+- resolves `env` / `option_env` token boundaries through the shared Rust identifier-token helper rather than Python regex `\w` semantics;
 - fails closed when a Rust `use` tree gives either macro a callable direct, grouped, or raw-identifier alias;
 - treats exact `as _` as a discard import, while `_` followed by a Rust identifier-continuation scalar remains a callable identifier rather than a discard alias;
 - ignores mentions inside comments and string/character/raw-string literals;
-- conservatively rejects locally shadowed macros with the same names until macro-expansion provenance is modeled.
+- conservatively rejects locally shadowed macros with the exact built-in names until macro-expansion provenance is modeled.
 
 The policy does not treat runtime `std::env::var` as the same build-input class. Runtime environment access is a separate product/runtime authority concern and must be governed by the runtime boundary that owns it.
 
@@ -45,11 +48,13 @@ Focused re-review of exact `f12499cba44f95733cd4d8bb006548aff8804858e` found no 
 
 A later CodeRabbit security review found a valid remaining bypass: Rust permits imports such as `use std::env as read_build_env;`, after which `read_build_env!(...)` executes the same compile-time environment macro without exposing the literal macro name at the call site. Structural RED `845d49bc608dbbb39c4e5de965426a549e54b639` adds direct `env!`, grouped `option_env!`, and raw-identifier alias hostile fixtures plus an exact `as _` control. Minimal repair `4830e4215b0340ac582c8afd9648b026ae4ff5d4` adds callable use-tree alias detection inside the focused supplemental contract while reusing the canonical source closure and shared Rust lexical helpers. The repair also covers a combining-mark continuation after `_` so Unicode `XID_Continue` input cannot be mistaken for the exact discard alias.
 
-This alias repair is source-semantic evidence only until the exact successor receives fresh review and hosted execution. No predecessor focused-review verdict is carried forward as proof for the new generation.
+Fresh lexical review then found that the direct `env` / `option_env` token itself still used Python `\w` boundaries even though the alias path had moved to the shared Rust identifier-boundary helper. Structural RED `f4dd6e59c0a087a60053041d344c2db76df8bc3a` adds a supplemental control for a user macro whose identifier is `_` + U+0301 COMBINING ACUTE ACCENT + `env`; under the predecessor scanner, the combining mark is not Python `\w`, so the internal `env` substring is incorrectly treated as the built-in macro. Minimal repair `2f960cb82837abed1b4591d447cca5a609948def` removes the Python-regex token boundary from the focused owner and resolves both direct-macro and use-tree token ends through `source_indirection._rust_identifier_token_end(..., allow_raw=True)`. Real `env!` remains fail closed, raw identifiers remain supported, and no second Rust lexer or Cargo topology scanner is introduced.
+
+This identifier-boundary repair is source-semantic evidence only until the exact successor receives fresh review and hosted execution. No predecessor focused-review verdict is carried forward as proof for the new generation.
 
 ## Security and buyer effect
 
-The contract prevents Git-reviewed Browser Session Rust source from silently binding artifact content to ambient build values through the two standard compile-time environment macros, whether invoked by their built-in spelling, a namespace-qualified spelling, or a callable `use` alias. This narrows release provenance: a build cannot claim source-only reproducibility while an unmodeled environment variable changes compiled bytes or embedded metadata through a trivially renamed macro.
+The contract prevents Git-reviewed Browser Session Rust source from silently binding artifact content to ambient build values through the two standard compile-time environment macros, whether invoked by their built-in spelling, a namespace-qualified spelling, or a callable `use` alias. At the same time, it now avoids rejecting a larger valid Rust identifier merely because it contains `env` after a Unicode identifier-continuation scalar. This keeps the fail-closed contract tied to Rust lexical authority instead of Python's Unicode word-character table.
 
 This is necessary but not sufficient for reproducible release evidence. Runner environment, build-script output, proc-macro or declarative-macro expansion that synthesizes equivalent calls, generated source, direct compiler invocation, and externally injected Cargo environment remain CI/release supply-chain evidence surfaces unless separately attested.
 
@@ -59,7 +64,7 @@ Acceptance for this generation requires all of the following on the reconciled e
 
 - the focused contract passes with the existing Rust source-indirection, embedded-file, Cargo-environment, and trusted-adapter contracts;
 - repository/security workflows run on the exact head and pass without gate weakening;
-- current-head review confirms the supplemental contract consumes rather than duplicates canonical topology/lexical ownership and that callable-alias handling matches Rust identifier semantics;
+- current-head review confirms the supplemental contract consumes rather than duplicates canonical topology/lexical ownership and that direct and callable-alias handling match Rust identifier semantics;
 - release evidence, if produced, binds the exact source tree, toolchain, environment-variable names and values that may affect compilation, producer identity for generated values, SBOM/provenance, independent reproducibility, and rollback.
 
 If the product later needs a compile-time environment value, do not delete the fail-closed rule. Replace it in the same reviewed change with a versioned contract that binds variable name, purpose, producer, canonical value or digest, secrecy classification, target/toolchain scope, invalidation semantics, SBOM/provenance linkage, independent reproducibility, and rollback.
