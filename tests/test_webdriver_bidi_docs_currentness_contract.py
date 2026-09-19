@@ -57,7 +57,7 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
         self.assertIn("historical/reference publication", doctoring)
         self.assertIn("docs/traceability/webdriver-bidi-publication-current.md", doctoring)
 
-        self.assertIn("Observed: 2026-09-16", receipt)
+        self.assertIn("Observed: 2026-09-19", receipt)
         self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
         self.assertIn("Latest published Working Draft: `2026-09-16`", receipt)
         self.assertIn("Previous published Working Draft: `2026-09-14`", receipt)
