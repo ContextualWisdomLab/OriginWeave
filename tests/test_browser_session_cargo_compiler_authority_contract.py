@@ -21,7 +21,7 @@ TARGET_EXECUTION_KEYS = frozenset({"linker", "runner"})
 UNSTABLE_TOOLCHAIN_INPUT_KEYS = frozenset(
     {"build-std", "build-std-features", "codegen-backend"}
 )
-LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin"})
+LINKER_PLUGIN_OPTIONS = frozenset({"-plugin", "--plugin", "--load-pass-plugin"})
 LINKER_SCRIPT_OPTIONS = frozenset(
     {"-T", "--script", "-dT", "--default-script", "-c", "--mri-script"}
 )
@@ -108,7 +108,7 @@ def _linker_option_loads_plugin(argument: str) -> bool:
     """Return whether one direct linker option requests dynamically loaded plugin code."""
     if argument in LINKER_PLUGIN_OPTIONS:
         return True
-    return argument.startswith(("-plugin=", "--plugin="))
+    return argument.startswith(("-plugin=", "--plugin=", "--load-pass-plugin="))
 
 
 def _linker_option_selects_error_handler(argument: str) -> bool:
