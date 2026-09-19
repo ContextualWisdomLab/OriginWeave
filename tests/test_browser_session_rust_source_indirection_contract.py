@@ -138,19 +138,45 @@ def _has_aliased_include_import(text: str) -> bool:
         if statement_end is None:
             return False
         use_tree = text[use_match.end():statement_end]
-        for include_match in INCLUDE_TOKEN.finditer(use_tree):
+        use_cursor = 0
+        while use_cursor < len(use_tree):
+            trivia_end = _skip_rust_trivia(use_tree, use_cursor)
+            if trivia_end != use_cursor:
+                use_cursor = trivia_end
+                continue
+
+            raw_end = _raw_string_end(use_tree, use_cursor)
+            if raw_end is not None:
+                use_cursor = raw_end
+                continue
+            if use_tree[use_cursor] == '"':
+                use_cursor = _quoted_string_end(use_tree, use_cursor)
+                continue
+            if use_tree[use_cursor] == "'":
+                char_end = _simple_char_literal_end(use_tree, use_cursor)
+                if char_end is not None:
+                    use_cursor = char_end
+                    continue
+
+            include_match = INCLUDE_TOKEN.match(use_tree, use_cursor)
+            if include_match is None:
+                use_cursor += 1
+                continue
             include_cursor = _skip_rust_trivia(use_tree, include_match.end())
             as_match = AS_TOKEN.match(use_tree, include_cursor)
             if as_match is None:
+                use_cursor = include_match.end()
                 continue
             alias_start = _skip_rust_trivia(use_tree, as_match.end())
             if alias_start >= len(use_tree):
+                use_cursor = include_match.end()
                 continue
             if use_tree[alias_start] == "_":
                 next_offset = alias_start + 1
                 if next_offset >= len(use_tree) or not (
                     use_tree[next_offset].isalnum() or use_tree[next_offset] == "_"
                 ):
+                    use_cursor = include_match.end()
                     continue
             return True
         cursor = statement_end + 1
