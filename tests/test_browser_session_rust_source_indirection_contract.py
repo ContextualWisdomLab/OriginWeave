@@ -247,8 +247,8 @@ def _has_aliased_include_import(text: str) -> bool:
                 continue
             if use_tree[alias_start] == "_":
                 next_offset = alias_start + 1
-                if next_offset >= len(use_tree) or not (
-                    use_tree[next_offset].isalnum() or use_tree[next_offset] == "_"
+                if next_offset >= len(use_tree) or not _rust_keyword_is_identifier_adjacent(
+                    use_tree[next_offset]
                 ):
                     use_cursor = include_end
                     continue
@@ -555,6 +555,17 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
 
     def test_bracketed_include_macro_fails_closed(self) -> None:
         self._assert_include_form_fails_closed('include!["../generated_adapter.rs"];\n')
+
+    def test_unicode_continuation_aliased_include_import_fails_closed(self) -> None:
+        self._assert_include_form_fails_closed(
+            'use core::include as _\u0301;\n_\u0301!("../generated_adapter.rs");\n'
+        )
+
+    def test_exact_underscore_include_import_is_not_callable_alias(self) -> None:
+        root = self._workspace_with_source(
+            'use core::include as _;\npub fn reviewed_surface() {}\n'
+        )
+        _assert_no_unmodeled_rust_source_indirection(root)
 
     def test_bare_module_from_custom_target_fails_closed(self) -> None:
         root = self._custom_target_workspace(
