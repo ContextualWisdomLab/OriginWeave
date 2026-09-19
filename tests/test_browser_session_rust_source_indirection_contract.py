@@ -416,7 +416,12 @@ def _has_path_meta(attribute_body: str) -> bool:
                 cursor = char_end
                 continue
 
-        path_end = _rust_identifier_token_end(attribute_body, cursor, "path")
+        path_end = _rust_identifier_token_end(
+            attribute_body,
+            cursor,
+            "path",
+            allow_raw=True,
+        )
         if path_end is None:
             cursor += 1
             continue
