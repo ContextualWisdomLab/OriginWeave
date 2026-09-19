@@ -4,9 +4,9 @@ Status: source-semantic repair evidence; not hosted executable GREEN.
 
 ## Problem
 
-OriginWeave treats `tests/test_browser_session_cargo_compiler_authority_contract.py` as the single writer for repository-selected Cargo compiler/rustdoc execution and input authority. The existing contract rejected rustdoc replacement, `@path`, `--extern`, `-L`/`-l`, sysroot, codegen/linker authority, doctest execution programs, and doctest compiler forwarding, but it did not classify rustdoc's rendering file selectors.
+OriginWeave treats `tests/test_browser_session_cargo_compiler_authority_contract.py` as the single writer for repository-selected Cargo compiler/rustdoc execution and input authority. The existing contract rejected rustdoc replacement, `@path`, `--extern`, `-L`/`-l`, sysroot, codegen/linker authority, doctest execution programs, and doctest compiler forwarding, but it did not initially classify rustdoc's rendering file selectors.
 
-Rustdoc documents `--html-in-header`, `--html-before-content`, and `--html-after-content` as reading files and inserting their contents into generated HTML. It also reads file inputs for `--extend-css`/`-e`, `--theme`, and `--check-theme`; current rustdoc source additionally exposes `--markdown-before-content` and `--markdown-after-content` as file-backed rendering inputs. The unstable `--index-page PATH` option is another file-backed surface: rustdoc converts the argument to a path, requires it to be a file, records it as a loaded path, and uses that Markdown file as the generated index page. A Git-owned `build.rustdocflags` or target `rustdocflags` entry could therefore make generated documentation depend on content outside the reviewed Cargo source/dependency closure even when the Rust source and compiler inputs were unchanged.
+Rustdoc documents `--html-in-header`, `--html-before-content`, and `--html-after-content` as reading files and inserting their contents into generated HTML. It also reads file inputs for `--extend-css`/`-e`, `--theme`, and `--check-theme`; current rustdoc source additionally exposes `--markdown-before-content` and `--markdown-after-content` as file-backed rendering inputs. The unstable `--index-page PATH` option is another file-backed surface: rustdoc converts the argument to a path, requires it to be a file, records it as a loaded path, and uses that Markdown file as the generated index page. The unstable `--with-examples INPUT.calls` option is also an input authority: rustdoc documents that the calls file produced by the scrape-examples phase is passed into a later documentation invocation through `--with-examples`. A Git-owned `build.rustdocflags` or target `rustdocflags` entry could therefore make generated documentation depend on content outside the reviewed Cargo source/dependency closure even when the Rust source and compiler inputs were unchanged.
 
 For a repository that publishes generated documentation, that is a provenance and documentation-integrity gap. It is not treated as Browser Session runtime policy authority, and no claim is made that every such input is executable script content.
 
@@ -15,6 +15,7 @@ For a repository that publishes generated documentation, that is a provenance an
 - Production Cargo package/source topology remains owned by `tests/test_browser_session_trusted_adapter_boundary.py`.
 - This contract must not create a second Cargo configuration/topology scanner.
 - Ordinary rustdoc presentation controls that do not make rustdoc read another file, such as `--document-private-items`, `--default-theme`, and `--markdown-css`, remain outside this fail-closed rule.
+- Output-only scrape-example selection such as `--scrape-examples-output-path` is not reclassified as an input merely because it names a path.
 - Environment `RUSTDOCFLAGS` / `CARGO_ENCODED_RUSTDOCFLAGS`, ancestor or `$CARGO_HOME` configuration, and direct `cargo rustdoc -- ...` remain CI/release environment provenance surfaces.
 
 ## Alternatives considered
@@ -33,7 +34,9 @@ A fresh primary-source sweep then found the unstable `--index-page PATH` file in
 
 A later documentation-metadata finding broadened the owner name, not the render-file semantics. Repair `47ff4370afdda5487224c437f6883d8947500c3f` renamed the shared classifier to `_flags_select_rustdoc_documentation_input()` and its option set to `RUSTDOC_DOCUMENTATION_INPUT_OPTIONS`, with rejection marker `rustdocflags:documentation input`, so rendered-file and cross-crate metadata inputs share one accurate authority boundary. The separate metadata rationale and RED are documented in `browser-session-rustdoc-doc-meta-input-authority.md`.
 
-The classifier now includes these render-file selectors:
+A 2026-09-20 primary-source sweep found a second unmodeled unstable documentation input: `--with-examples INPUT.calls`. Rustdoc's own book describes a two-phase workflow in which `--scrape-examples-output-path output.calls` writes a calls file and a later `rustdoc ... --with-examples output.calls` invocation consumes that file. Structural RED `d52950ebcc9943d2b9f2e554e08ce518382888e5` added build-level split-form and target-level equals-form Cargo fixtures and kept `--scrape-examples-output-path` as an explicit output-only control. Minimal repair `363a6399765e0ccd7a022a0526a6c77679b1c5f5` added only `--with-examples` to the existing `RUSTDOC_DOCUMENTATION_INPUT_OPTIONS` owner, so build, target, and host `rustdocflags` reuse the existing fail-closed path without adding another Cargo scanner.
+
+The classifier now includes these rendered/documentation-input selectors:
 
 - `--html-in-header`
 - `--html-before-content`
@@ -44,6 +47,7 @@ The classifier now includes these render-file selectors:
 - `--extend-css` and its short `-e` form
 - `--theme`
 - `--check-theme`
+- unstable `--with-examples`
 
 The trusted-adapter boundary remains the single writer for Cargo package/source discovery; this change only extends the existing rustdoc input-authority classifier.
 
@@ -51,6 +55,8 @@ The trusted-adapter boundary remains the single writer for Cargo package/source 
 
 - Rust Project. (2026). *The rustdoc book: Command-line arguments*. https://doc.rust-lang.org/rustdoc/command-line-arguments.html
   - documents file-backed HTML inclusion, CSS extension, theme/check-theme, and the distinction between `--markdown-css` and files whose contents rustdoc reads.
+- Rust Project. (2026). *The rustdoc book: Unstable features*. https://doc.rust-lang.org/nightly/rustdoc/unstable-features.html
+  - documents `--with-examples INPUT.calls` and states that the generated calls file from the scrape-examples phase is passed to the subsequent documentation invocation; this is the primary authority for classifying `--with-examples` as an input rather than an output selector.
 - Rust Project. (2026). *rustdoc option definitions (`rustdoc/lib.rs`)*. https://doc.rust-lang.org/beta/nightly-rustc/src/rustdoc/lib.rs.html
   - identifies the HTML/Markdown file selectors, `--extend-css`, and unstable `--index-page PATH` used by current rustdoc.
 - Rust Project. (2026). *rustdoc configuration (`rustdoc/config.rs`)*. https://doc.rust-lang.org/beta/nightly-rustc/src/rustdoc/config.rs.html
@@ -60,7 +66,7 @@ The trusted-adapter boundary remains the single writer for Cargo package/source 
 
 ## Security and buyer effect
 
-Repository-reviewed Rust source can no longer silently acquire additional rendered-document content through Git-owned Cargo `rustdocflags` using the modeled rustdoc file selectors, including the unstable custom index page. This narrows the documentation supply-chain boundary and prevents a source review from incorrectly implying that generated documentation is derived only from reviewed repository inputs.
+Repository-reviewed Rust source can no longer silently acquire additional rendered-document content through Git-owned Cargo `rustdocflags` using the modeled rustdoc file selectors, including the unstable custom index page and scrape-examples calls file. This narrows the documentation supply-chain boundary and prevents a source review from incorrectly implying that generated documentation is derived only from reviewed repository inputs.
 
 This does **not** prove generated documentation publication, GitHub Pages deployment, CSP behavior, browser rendering, accessibility, or release provenance. Those require their own exact-head build/publish/browser evidence.
 
@@ -68,6 +74,7 @@ This does **not** prove generated documentation publication, GitHub Pages deploy
 
 - Environment/direct-CLI rustdoc flags and ambient Cargo configuration remain CI/release supply-chain inputs.
 - `--markdown-css` writes a stylesheet reference into Markdown-rendered HTML rather than loading the referenced file contents during rustdoc execution. It is intentionally not classified as this file-input surface; external-resource policy for published documentation should be owned by the docs/site publication boundary.
+- `--scrape-examples-output-path` writes the calls artifact and is intentionally kept as an output-only control; if a future rustdoc revision changes that contract, toolchain qualification must revisit the classification.
 - Rustdoc's unstable `--read-doc-meta-dir` is now classified by the same canonical documentation-input owner, but its directory/merge semantics and output-only `--write-doc-meta-dir` control are documented separately.
 - Future rustdoc releases may add file-backed rendering options. Exact toolchain qualification must update this contract when those options become relevant.
 - An eventual approved custom render asset contract must identify the artifact immutably, prove repository/release provenance and containment, and connect the generated documentation to SBOM/provenance and rollback evidence rather than relying on a pathname allowlist.
