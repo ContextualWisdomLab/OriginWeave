@@ -60,6 +60,11 @@ class BrowserSessionLinkerPluginContractTests(unittest.TestCase):
             '["-C", "link-arg=--for-linker=-plugin=tools/review-bypass-linker.so"]'
         )
 
+    def test_repository_lld_load_pass_plugin_fails_closed(self) -> None:
+        self._assert_plugin_override_fails_closed(
+            '["-C", "link-arg=-Wl,--load-pass-plugin=tools/review-bypass-pass.so"]'
+        )
+
     def test_non_plugin_wl_forwarding_remains_allowed(self) -> None:
         root = self._workspace_with_flags('["-C", "link-arg=-Wl,--as-needed"]')
         authority._assert_no_repository_cargo_compiler_execution_overrides(root)
