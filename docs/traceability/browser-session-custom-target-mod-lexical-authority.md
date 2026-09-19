@@ -35,7 +35,8 @@ The repair deliberately does not parse module grammar. `mod helper;`, `mod r#typ
 - Predecessor exact `84fb37d31fbb5f1145b78a700ce77771319a032b` used raw `CUSTOM_TARGET_MOD_TOKEN.search(text)` for custom-target roots.
 - Structural RED `bd457be344c729d550e301a403e77bb5959e5b28` adds line-comment, ordinary-string, and raw-string controls. On the predecessor implementation these fixtures are rejected even though the `mod` spelling is lexical data.
 - Minimal repair `6f8b0706acaf5837e3581f1c77d43c318a54462c` adds `_has_custom_target_mod_token()` and changes the custom-target guard to consume it. The helper reuses `_skip_rust_trivia()`, `_raw_string_end()`, `_quoted_string_end()`, and `_simple_char_literal_end()`; Cargo topology ownership is unchanged.
-- Compare `84fb37d3... → bd457be3...` is one test-only file, +64/-0. Compare `84fb37d3... → 6f8b0706...` is two files: the RED contract plus the canonical lexical repair, with no production Rust implementation change.
+- Edge coverage `a4ad6d45d101b79460fbc06ca9ede9b1c3b0b140` adds nested-block-comment lexical data and proves scanning resumes after a character literal to catch a later real `mod` token.
+- Compare `84fb37d3... → bd457be3...` is one test-only file, +64/-0. The repair lineage changes only the focused contract, the canonical lexical helper/call site, and this traceability record; no production Rust implementation or Cargo topology writer changes.
 
 ## Risk and follow-up
 
