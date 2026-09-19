@@ -60,14 +60,37 @@ def _skip_rust_trivia(text: str, offset: int) -> int:
 
 
 def _has_include_macro(text: str) -> bool:
-    """Detect include! macro syntax while honoring Rust whitespace/comment trivia around punctuation."""
-    for match in INCLUDE_TOKEN.finditer(text):
-        bang = _skip_rust_trivia(text, match.end())
-        if bang >= len(text) or text[bang] != "!":
+    """Detect lexical include! macro syntax outside Rust comments and literals."""
+    cursor = 0
+    while cursor < len(text):
+        trivia_end = _skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
             continue
-        delimiter = _skip_rust_trivia(text, bang + 1)
-        if delimiter < len(text) and text[delimiter] in "([{":
-            return True
+
+        raw_end = _raw_string_end(text, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            cursor = _quoted_string_end(text, cursor)
+            continue
+        if text[cursor] == "'":
+            char_end = _simple_char_literal_end(text, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+
+        match = INCLUDE_TOKEN.match(text, cursor)
+        if match is None:
+            cursor += 1
+            continue
+        bang = _skip_rust_trivia(text, match.end())
+        if bang < len(text) and text[bang] == "!":
+            delimiter = _skip_rust_trivia(text, bang + 1)
+            if delimiter < len(text) and text[delimiter] in "([{":
+                return True
+        cursor = match.end()
     return False
 
 
@@ -86,15 +109,38 @@ def _rust_use_statement_end(text: str, offset: int) -> int | None:
 
 
 def _has_aliased_include_import(text: str) -> bool:
-    """Detect use-tree aliases that rename include! before invocation."""
-    for use_match in USE_TOKEN.finditer(text):
+    """Detect lexical use-tree aliases that rename include! before invocation."""
+    cursor = 0
+    while cursor < len(text):
+        trivia_end = _skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        raw_end = _raw_string_end(text, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            cursor = _quoted_string_end(text, cursor)
+            continue
+        if text[cursor] == "'":
+            char_end = _simple_char_literal_end(text, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+
+        use_match = USE_TOKEN.match(text, cursor)
+        if use_match is None:
+            cursor += 1
+            continue
         statement_end = _rust_use_statement_end(text, use_match.end())
         if statement_end is None:
-            continue
+            return False
         use_tree = text[use_match.end():statement_end]
         for include_match in INCLUDE_TOKEN.finditer(use_tree):
-            cursor = _skip_rust_trivia(use_tree, include_match.end())
-            as_match = AS_TOKEN.match(use_tree, cursor)
+            include_cursor = _skip_rust_trivia(use_tree, include_match.end())
+            as_match = AS_TOKEN.match(use_tree, include_cursor)
             if as_match is None:
                 continue
             alias_start = _skip_rust_trivia(use_tree, as_match.end())
@@ -107,6 +153,7 @@ def _has_aliased_include_import(text: str) -> bool:
                 ):
                     continue
             return True
+        cursor = statement_end + 1
     return False
 
 
