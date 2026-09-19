@@ -127,7 +127,7 @@ def _linker_option_forwards_llvm_options(argument: str) -> bool:
     """Return whether one LLD option forwards opaque arguments to LLVM option processing."""
     if argument in {"--mllvm", "-mllvm"}:
         return True
-    return argument.startswith(("--mllvm=", "-mllvm="))
+    return argument.startswith(("--mllvm=", "-mllvm=", "--plugin-opt=-", "-plugin-opt=-"))
 
 
 def _linker_option_selects_script(argument: str) -> bool:
