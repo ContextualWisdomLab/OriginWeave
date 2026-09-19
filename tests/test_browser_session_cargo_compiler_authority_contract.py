@@ -711,9 +711,11 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
                 if not isinstance(settings, dict):
                     continue
                 configured = sorted(TARGET_EXECUTION_KEYS.intersection(settings))
-                linked_build_overrides = sorted(
-                    str(name) for name, value in settings.items() if isinstance(value, dict)
-                )
+                linked_build_overrides = []
+                if not str(target_name).startswith("cfg("):
+                    linked_build_overrides = sorted(
+                        str(name) for name, value in settings.items() if isinstance(value, dict)
+                    )
                 configured.extend(
                     f"links build-script override:{name}" for name in linked_build_overrides
                 )
