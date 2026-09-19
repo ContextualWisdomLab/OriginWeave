@@ -572,6 +572,7 @@ def _configured_host_execution_authority(
     if not isinstance(value, dict):
         return []
     configured: list[str] = []
+    host_setting_keys = TARGET_EXECUTION_KEYS | {"rustflags", "rustdocflags"}
     for key in sorted(TARGET_EXECUTION_KEYS.intersection(value)):
         configured.append(f"{prefix}.{key}")
 
@@ -601,10 +602,15 @@ def _configured_host_execution_authority(
     if _flags_select_rustdoc_doctest_compiler_authority(rustdocflags):
         configured.append(f"{prefix}.rustdocflags:doctest compiler authority")
 
+    if depth > 0 and any(
+        key not in host_setting_keys and not isinstance(setting, dict)
+        for key, setting in value.items()
+    ):
+        configured.append(f"{prefix}:links build-script override")
+
     for key, setting in value.items():
-        if key in TARGET_EXECUTION_KEYS or key in {"rustflags", "rustdocflags"} or not isinstance(setting, dict):
+        if key in host_setting_keys or not isinstance(setting, dict):
             continue
-        configured.append(f"{prefix}.links build-script override:{key}")
         configured.extend(
             _configured_host_execution_authority(setting, f"{prefix}.{key}", depth + 1)
         )
