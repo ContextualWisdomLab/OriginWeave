@@ -1,7 +1,7 @@
 # WebDriver BiDi publication-current receipt
 
 Status: active standards traceability
-Observed: 2026-09-16
+Observed: 2026-09-19
 Runtime-compatible pin: `2026-09-03`
 Latest published Working Draft: `2026-09-16`
 Previous published Working Draft: `2026-09-14`
@@ -9,7 +9,7 @@ Editor's Draft: `https://w3c.github.io/webdriver-bidi/`
 
 ## Problem
 
-The `originweave-bidi` presentation capability map is deliberately version-pinned, but publication provenance and runtime qualification are separate facts. On 2026-09-16 the canonical W3C publication-history page identifies the 16 September 2026 Working Draft as the latest published version, the 14 September 2026 Working Draft as the previous published version, and the Editor's Draft as a separate mutable surface. The adapter remains qualified against the immutable 3 September 2026 Working Draft.
+The `originweave-bidi` presentation capability map is deliberately version-pinned, but publication provenance and runtime qualification are separate facts. A fresh 2026-09-19 read of the canonical W3C publication-history page still identifies the 16 September 2026 Working Draft as the latest published version and the 14 September 2026 Working Draft as the previous published version; no newer dated Working Draft had been published by that observation. The Editor's Draft remains a separate mutable surface. The adapter remains qualified against the immutable 3 September 2026 Working Draft.
 
 Treating publication freshness and runtime qualification as the same datum creates two bad failure modes: documentation can become false whenever W3C publishes a new draft, or an automation can silently repin the runtime compatibility claim without re-running the browser/protocol qualification that gives the pin meaning.
 
@@ -47,7 +47,8 @@ This receipt does not close OriginWeave #292. The buyer-visible acceptance still
 
 ## Traceability
 
-- W3C latest published version observed 2026-09-16: WebDriver BiDi Working Draft, 16 September 2026.
+- W3C publication history re-read on 2026-09-19: no Working Draft newer than 16 September 2026 was listed.
+- W3C latest published version observed 2026-09-19: WebDriver BiDi Working Draft, 16 September 2026.
 - Previous published version: WebDriver BiDi Working Draft, 14 September 2026.
 - Mutable Editor's Draft: https://w3c.github.io/webdriver-bidi/.
 - Runtime-qualified OriginWeave adapter pin: WebDriver BiDi Working Draft, 3 September 2026.
