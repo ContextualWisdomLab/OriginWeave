@@ -36,7 +36,7 @@ def _skip_rust_trivia(text: str, offset: int) -> int:
     """Skip Rust whitespace and nested non-doc comments without changing token meaning."""
     index = offset
     while index < len(text):
-        if text[index].isspace():
+        if text[index] in RUST_PATTERN_WHITESPACE:
             index += 1
             continue
         if text.startswith("//", index):
@@ -373,7 +373,7 @@ def _rust_attribute_bodies(text: str) -> list[str]:
 
 
 def _has_path_meta(attribute_body: str) -> bool:
-    """Return whether an attribute contains a path meta item followed by Rust trivia and '='."""
+    """Return whether an attribute contains a path meta item followed by valid Rust trivia and '='."""
     for match in PATH_TOKEN.finditer(attribute_body):
         cursor = _skip_rust_trivia(attribute_body, match.end())
         if cursor < len(attribute_body) and attribute_body[cursor] == "=":
