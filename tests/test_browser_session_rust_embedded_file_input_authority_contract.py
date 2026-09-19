@@ -56,7 +56,7 @@ def _has_embedded_file_macro(text: str) -> bool:
 
 
 def _use_tree_aliases_embedded_file_macro(use_tree: str) -> bool:
-    """Return whether one Rust use tree renames include_bytes!/include_str! authority."""
+    """Return whether one Rust use tree gives include_bytes!/include_str! a callable alias."""
     cursor = 0
     while cursor < len(use_tree):
         trivia_end = source_indirection._skip_rust_trivia(use_tree, cursor)
@@ -73,8 +73,16 @@ def _use_tree_aliases_embedded_file_macro(use_tree: str) -> bool:
         as_match = source_indirection.AS_TOKEN.match(use_tree, after_macro)
         if as_match is not None:
             alias_start = source_indirection._skip_rust_trivia(use_tree, as_match.end())
-            if alias_start < len(use_tree) and use_tree[alias_start] != "_":
-                return True
+            if alias_start >= len(use_tree):
+                return False
+            if use_tree[alias_start] == "_":
+                next_offset = alias_start + 1
+                if next_offset >= len(use_tree) or not (
+                    use_tree[next_offset].isalnum() or use_tree[next_offset] == "_"
+                ):
+                    cursor = match.end()
+                    continue
+            return True
         cursor = match.end()
     return False
 
