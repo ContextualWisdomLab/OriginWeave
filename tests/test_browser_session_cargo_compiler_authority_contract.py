@@ -63,6 +63,7 @@ RUSTDOC_DOCUMENTATION_INPUT_OPTIONS = frozenset(
         "--theme",
         "--check-theme",
         "--read-doc-meta-dir",
+        "--with-examples",
     }
 )
 
