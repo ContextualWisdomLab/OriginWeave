@@ -43,6 +43,9 @@ class BrowserSessionPathMetaLexicalContractTests(unittest.TestCase):
             )
         )
 
+    def test_raw_identifier_path_meta_remains_authority(self) -> None:
+        self.assertTrue(source_indirection._has_path_meta('r#path = "raw_identifier.rs"'))
+
 
 if __name__ == "__main__":
     unittest.main()
