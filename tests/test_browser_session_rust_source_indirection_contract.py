@@ -395,11 +395,35 @@ def _rust_attribute_bodies(text: str) -> list[str]:
 
 
 def _has_path_meta(attribute_body: str) -> bool:
-    """Return whether an attribute contains a path meta item followed by valid Rust trivia and '='."""
-    for match in PATH_TOKEN.finditer(attribute_body):
-        cursor = _skip_rust_trivia(attribute_body, match.end())
-        if cursor < len(attribute_body) and attribute_body[cursor] == "=":
+    """Return whether a lexical attribute meta item selects a Rust module source path."""
+    cursor = 0
+    while cursor < len(attribute_body):
+        trivia_end = _skip_rust_trivia(attribute_body, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        raw_end = _raw_string_end(attribute_body, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if attribute_body[cursor] == '"':
+            cursor = _quoted_string_end(attribute_body, cursor)
+            continue
+        if attribute_body[cursor] == "'":
+            char_end = _simple_char_literal_end(attribute_body, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+
+        path_end = _rust_identifier_token_end(attribute_body, cursor, "path")
+        if path_end is None:
+            cursor += 1
+            continue
+        equals = _skip_rust_trivia(attribute_body, path_end)
+        if equals < len(attribute_body) and attribute_body[equals] == "=":
             return True
+        cursor = path_end
     return False
 
 
