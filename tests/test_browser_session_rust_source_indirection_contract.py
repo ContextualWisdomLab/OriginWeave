@@ -15,7 +15,7 @@ boundary = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boundary)
 
 
-INCLUDE_TOKEN = re.compile(r"(?<![\w#])(?:r#)?include(?!\w)", re.UNICODE)
+INCLUDE_TOKEN = "include"
 USE_TOKEN = re.compile(r"(?<![\w#])use(?!\w)", re.UNICODE)
 AS_TOKEN = re.compile(r"(?<![\w#])as(?!\w)", re.UNICODE)
 PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
@@ -62,6 +62,39 @@ def _skip_rust_trivia(text: str, offset: int) -> int:
     return index
 
 
+def _rust_keyword_is_identifier_adjacent(char: str) -> bool:
+    """Conservatively reject token boundaries that could be Rust identifier continuation."""
+    if char.isascii():
+        return char.isalnum() or char == "_"
+    return char not in RUST_PATTERN_WHITESPACE
+
+
+def _rust_identifier_token_end(
+    text: str,
+    offset: int,
+    spelling: str,
+    *,
+    allow_raw: bool = False,
+) -> int | None:
+    """Return a conservative Rust identifier-token end independent of Python Unicode tables."""
+    token_start = offset
+    identifier_start = offset
+    if allow_raw and text.startswith("r#", offset) and text.startswith(spelling, offset + 2):
+        identifier_start = offset + 2
+    elif not text.startswith(spelling, offset):
+        return None
+
+    if token_start:
+        previous = text[token_start - 1]
+        if previous == "#" or _rust_keyword_is_identifier_adjacent(previous):
+            return None
+
+    end = identifier_start + len(spelling)
+    if end < len(text) and _rust_keyword_is_identifier_adjacent(text[end]):
+        return None
+    return end
+
+
 def _has_include_macro(text: str) -> bool:
     """Detect lexical include! macro syntax outside Rust comments and literals."""
     cursor = 0
@@ -84,38 +117,22 @@ def _has_include_macro(text: str) -> bool:
                 cursor = char_end
                 continue
 
-        match = INCLUDE_TOKEN.match(text, cursor)
-        if match is None:
+        token_end = _rust_identifier_token_end(text, cursor, INCLUDE_TOKEN, allow_raw=True)
+        if token_end is None:
             cursor += 1
             continue
-        bang = _skip_rust_trivia(text, match.end())
+        bang = _skip_rust_trivia(text, token_end)
         if bang < len(text) and text[bang] == "!":
             delimiter = _skip_rust_trivia(text, bang + 1)
             if delimiter < len(text) and text[delimiter] in "([{":
                 return True
-        cursor = match.end()
+        cursor = token_end
     return False
-
-
-def _rust_keyword_is_identifier_adjacent(char: str) -> bool:
-    """Conservatively reject keyword boundaries that could be Rust identifier continuation."""
-    if char.isascii():
-        return char.isalnum() or char == "_"
-    return char not in RUST_PATTERN_WHITESPACE
 
 
 def _matches_custom_target_mod_token(text: str, offset: int) -> bool:
     """Match the Rust `mod` keyword without relying on Python's Unicode identifier table."""
-    if not text.startswith(CUSTOM_TARGET_MOD_TOKEN, offset):
-        return False
-    if offset:
-        previous = text[offset - 1]
-        if previous == "#" or _rust_keyword_is_identifier_adjacent(previous):
-            return False
-    end = offset + len(CUSTOM_TARGET_MOD_TOKEN)
-    if end < len(text) and _rust_keyword_is_identifier_adjacent(text[end]):
-        return False
-    return True
+    return _rust_identifier_token_end(text, offset, CUSTOM_TARGET_MOD_TOKEN) is not None
 
 
 def _has_custom_target_mod_token(text: str) -> bool:
@@ -210,25 +227,26 @@ def _has_aliased_include_import(text: str) -> bool:
                     use_cursor = char_end
                     continue
 
-            include_match = INCLUDE_TOKEN.match(use_tree, use_cursor)
+            include_match = re.match(r"(?<![\w#])(?:r#)?include(?!\w)", use_tree[use_cursor:], re.UNICODE)
             if include_match is None:
                 use_cursor += 1
                 continue
-            include_cursor = _skip_rust_trivia(use_tree, include_match.end())
+            include_end = use_cursor + include_match.end()
+            include_cursor = _skip_rust_trivia(use_tree, include_end)
             as_match = AS_TOKEN.match(use_tree, include_cursor)
             if as_match is None:
-                use_cursor = include_match.end()
+                use_cursor = include_end
                 continue
             alias_start = _skip_rust_trivia(use_tree, as_match.end())
             if alias_start >= len(use_tree):
-                use_cursor = include_match.end()
+                use_cursor = include_end
                 continue
             if use_tree[alias_start] == "_":
                 next_offset = alias_start + 1
                 if next_offset >= len(use_tree) or not (
                     use_tree[next_offset].isalnum() or use_tree[next_offset] == "_"
                 ):
-                    use_cursor = include_match.end()
+                    use_cursor = include_end
                     continue
             return True
         cursor = statement_end + 1
