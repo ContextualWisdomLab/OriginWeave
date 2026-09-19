@@ -56,6 +56,30 @@ class BrowserSessionRustIncludeLexicalControlContractTests(unittest.TestCase):
 
         source_indirection._assert_no_unmodeled_rust_source_indirection(root)
 
+    def test_raw_string_include_macro_text_is_not_source_indirection(self) -> None:
+        root = self._workspace_with_source(
+            'pub const NOTE: &str = r#"include!(\\"../generated_adapter.rs\\")"#;\n'
+        )
+
+        source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_commented_aliased_include_import_is_not_source_indirection(self) -> None:
+        root = self._workspace_with_source(
+            '// use core::include as hidden_include;\n'
+            'pub fn reviewed_surface() {}\n'
+        )
+
+        source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_character_literal_does_not_hide_following_real_include(self) -> None:
+        root = self._workspace_with_source(
+            "pub const MARKER: char = 'x';\n"
+            'include!("../generated_adapter.rs");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust include! source indirection"):
+            source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+
     def test_real_include_macro_still_fails_closed(self) -> None:
         root = self._workspace_with_source('include!("../generated_adapter.rs");\n')
 
