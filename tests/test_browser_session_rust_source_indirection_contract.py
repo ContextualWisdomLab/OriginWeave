@@ -19,7 +19,10 @@ INCLUDE_TOKEN = re.compile(r"(?<![\w#])(?:r#)?include(?!\w)", re.UNICODE)
 USE_TOKEN = re.compile(r"(?<![\w#])use(?!\w)", re.UNICODE)
 AS_TOKEN = re.compile(r"(?<![\w#])as(?!\w)", re.UNICODE)
 PATH_TOKEN = re.compile(r"(?<![\w#])path(?!\w)", re.UNICODE)
-CUSTOM_TARGET_MOD_TOKEN = re.compile(r"(?<![\w#])mod(?!\w)", re.UNICODE)
+CUSTOM_TARGET_MOD_TOKEN = "mod"
+RUST_PATTERN_WHITESPACE = frozenset(
+    "\u0009\u000a\u000b\u000c\u000d\u0020\u0085\u200e\u200f\u2028\u2029"
+)
 APPROVED_RUST_PATH_ATTRIBUTES = {
     ("crates/originweave-core/src/root.rs", 'path = "lib.rs"'),
 }
@@ -94,6 +97,27 @@ def _has_include_macro(text: str) -> bool:
     return False
 
 
+def _rust_keyword_is_identifier_adjacent(char: str) -> bool:
+    """Conservatively reject keyword boundaries that could be Rust identifier continuation."""
+    if char.isascii():
+        return char.isalnum() or char == "_"
+    return char not in RUST_PATTERN_WHITESPACE
+
+
+def _matches_custom_target_mod_token(text: str, offset: int) -> bool:
+    """Match the Rust `mod` keyword without relying on Python's Unicode identifier table."""
+    if not text.startswith(CUSTOM_TARGET_MOD_TOKEN, offset):
+        return False
+    if offset:
+        previous = text[offset - 1]
+        if previous == "#" or _rust_keyword_is_identifier_adjacent(previous):
+            return False
+    end = offset + len(CUSTOM_TARGET_MOD_TOKEN)
+    if end < len(text) and _rust_keyword_is_identifier_adjacent(text[end]):
+        return False
+    return True
+
+
 def _has_custom_target_mod_token(text: str) -> bool:
     """Detect lexical Rust mod tokens outside comments and string/character literals."""
     cursor = 0
@@ -116,7 +140,7 @@ def _has_custom_target_mod_token(text: str) -> bool:
                 cursor = char_end
                 continue
 
-        if CUSTOM_TARGET_MOD_TOKEN.match(text, cursor) is not None:
+        if _matches_custom_target_mod_token(text, cursor):
             return True
         cursor += 1
     return False
