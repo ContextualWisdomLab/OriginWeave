@@ -12,11 +12,14 @@ The first lexical repair exposed a second, independent language-boundary defect.
 
 The same audit found that Rust's lexical whitespace is the stable Unicode `Pattern_White_Space` set, not Python `str.isspace()`. In particular U+200E LEFT-TO-RIGHT MARK and U+200F RIGHT-TO-LEFT MARK are legal Rust whitespace. Failing to skip them between `include`, `!`, and the macro delimiter creates a false negative in the existing source-provenance stop.
 
+A later residual audit found the same host-language boundary still present in the aliased-`include!` path: `USE_TOKEN` and `AS_TOKEN` used Python `\w`. A valid Rust identifier can contain U+0301 immediately before the ASCII spelling `use`; inside a macro token tree, that spelling is identifier data, not a `UseDeclaration`. The old scanner could nevertheless start a synthetic use-tree at that substring and then mistake later `core::include as hidden_include` token data for executable source-indirection authority. This was an availability false positive in a fail-closed security boundary, not a reason to weaken the source-provenance stop.
+
 This matters commercially because a fail-closed provenance guard still has to distinguish executable authority from inert source text without missing legal Rust token separation. False positives create avoidable adoption friction; false negatives permit compile-time source bytes to enter outside the reviewed provenance boundary.
 
 Primary references:
 
 - Rust Reference, identifiers (`XID_Start`/`XID_Continue`, Unicode 17.0): https://doc.rust-lang.org/reference/identifiers.html
+- Rust Reference, use declarations (`use UseTree ;`, `as ( IDENTIFIER | _ )`): https://doc.rust-lang.org/reference/items/use-declarations.html
 - Rust Reference, whitespace (`Pattern_White_Space`): https://doc.rust-lang.org/reference/whitespace.html
 - Rust Reference, comments: https://doc.rust-lang.org/reference/comments.html
 - Rust Reference, literal expressions: https://doc.rust-lang.org/reference/expressions/literal-expr.html
@@ -29,6 +32,7 @@ Primary references:
 - The scanner must reuse the existing Rust trivia/raw-string/quoted-string/character-literal discipline already used by `include!`, `use`-alias, and attribute discovery rather than introduce a second lexer.
 - Python's Unicode database must not silently define Rust keyword identity. The checked Rust Reference currently targets Unicode 17.0, so the boundary cannot assume Python `\w` or the local Python runtime's identifier tables are equivalent.
 - Rust whitespace handling must use the language's exact stable `Pattern_White_Space` set. Generic host-language whitespace predicates are not lexical authority.
+- `use` and `as` keyword recognition must reuse the same `_rust_identifier_token_end()` boundary as `include`, `path`, and `mod`; raw-identifier acceptance remains spelling-specific and is not enabled for strict keywords.
 - No new source path, module tree, adapter, or dependency is authorized.
 - Default `src/` module trees remain governed by the canonical production-source closure rather than this custom-target guard.
 
@@ -36,11 +40,13 @@ Primary references:
 
 Custom-target module detection advances through the same lexical boundaries already used by the source-indirection contract. Non-doc line/block comments, normal strings, raw strings, and character literals are skipped before the `mod` spelling is considered. A real lexical `mod` token still fails closed exactly as before; only inert comment/literal contents stop being treated as module authority.
 
-The `mod` keyword boundary no longer relies on Python `\w`. ASCII identifier continuation is handled directly. For non-ASCII adjacency the guard is deliberately conservative: any non-ASCII scalar that is not Rust `Pattern_White_Space` prevents classification as the ASCII `mod` keyword. This covers current and future Unicode identifier-continuation additions without pretending the host Python Unicode table is Rust's versioned `XID_Continue` authority. Rust's eleven `Pattern_White_Space` code points are explicit and stable, so non-ASCII legal whitespace such as U+200E continues to separate a real `mod` keyword.
+The `mod` keyword boundary no longer relies on Python `\w`. ASCII identifier continuation is handled directly. For non-ASCII adjacency the guard is deliberately conservative: any non-ASCII scalar that is not Rust `Pattern_White_Space` prevents classification as the ASCII keyword. This covers current and future Unicode identifier-continuation additions without pretending the host Python Unicode table is Rust's versioned `XID_Continue` authority. Rust's eleven `Pattern_White_Space` code points are explicit and stable, so non-ASCII legal whitespace such as U+200E continues to separate a real keyword.
 
-The shared trivia skipper now uses that exact Rust whitespace set as well. This closes legal U+200E/U+200F separation around `include!` and removes host-only whitespace from the lexer contract. Comment handling remains nested and unchanged.
+The shared trivia skipper uses that exact Rust whitespace set as well. This closes legal U+200E/U+200F separation around `include!` and removes host-only whitespace from the lexer contract. Comment handling remains nested and unchanged.
 
-The repair deliberately does not parse module grammar. `mod helper;`, `mod r#type;`, `mod 관찰;`, and `mod /* trivia */ helper;` in a custom target root remain provenance stops. The change only removes raw-text/identifier-boundary false positives and closes Rust-whitespace false negatives.
+Aliased-`include!` discovery now recognizes strict `use` and `as` through `_rust_identifier_token_end()` rather than Python regexes. The valid-use hostile control remains fail closed, while an ASCII `use` substring adjacent to Rust Unicode identifier continuation is treated as identifier data. `include` retains its explicit raw-identifier support; `use` and `as` do not, matching their role as strict grammar keywords rather than imported identifier spellings.
+
+The repair deliberately does not parse module or use-tree grammar beyond the existing provenance heuristic. `mod helper;`, `mod r#type;`, `mod 관찰;`, `mod /* trivia */ helper;`, and a real `use core::include as hidden_include;` remain provenance stops. The changes only remove raw-text/identifier-boundary false positives and close Rust-whitespace false negatives.
 
 ## RED → repair evidence
 
@@ -52,11 +58,11 @@ The repair deliberately does not parse module grammar. `mod helper;`, `mod r#typ
 - Review-driven RED `a214c87d375e75a9c10edc3c6de99b4847c43327` preserves `mod\u0301` as identifier data. Repair `ec32bd9f481280b522ce7554d392021b40c7fea1` replaces the Python-regex keyword boundary with a version-independent conservative Rust boundary backed by the exact stable `Pattern_White_Space` set.
 - Edge coverage `df940ba25b2c7731d6fe631290f000ce1d57bcd0` adds a combining-mark-before-`mod` control and proves U+200E Rust whitespace still separates a real `mod` keyword.
 - Root-cause audit then exposed a real false negative in the shared trivia owner: Python `str.isspace()` does not recognize U+200E/U+200F even though Rust does. Structural RED `ce33ae1aa020b1b9903aa02c5952a90bfd1581e5` adds hostile `include\u200e!` and `include!\u200f(` forms. Repair `e199aac4a64e636b3a7412f3d9347644e96e636b` makes `_skip_rust_trivia()` consume the exact Rust `Pattern_White_Space` set.
+- Structural RED `550d8bf2f00d59b08a13d7a3efa80acbb3614daf` adds a valid macro-token control containing `a\u0301use core::include as hidden_include`; on the predecessor scanner the Python `\w` boundary started a false `UseDeclaration` at the embedded `use` spelling. The same contract keeps a real `use core::include as hidden_include;` as a fail-closed positive control.
+- Minimal repair `1f323bca9494aa3e16d5f3daaf27a5b21277a9fb` removes the remaining `re`/`USE_TOKEN`/`AS_TOKEN`/stale `PATH_TOKEN` regex ownership and reuses `_rust_identifier_token_end()` for strict `use` and `as`. The repair changes only the source-indirection contract (+7/-11); Cargo topology ownership and production Rust code are unchanged.
 
 ## Risk and follow-up
 
 This remains a temporary lexical security boundary. It is not compiler-derived source-input provenance and can intentionally reject legitimate inline modules in custom target roots. Before OriginWeave needs such custom-target module trees, replace the heuristic with compiler-derived or equivalently exact source-input evidence that identifies the actual bytes compiled for supported target configurations without widening Cargo ownership or relying on source-text approximations.
 
-The root-cause audit now has two classes of token ownership. `include` and `path` use the shared `_rust_identifier_token_end()` boundary, while `USE_TOKEN` and `AS_TOKEN` remain the regex-boundary owners that still require dedicated Rust `XID_Continue` hostile/control verification. Do not widen those remaining owners by assumption; preserve a structural RED before changing their shared boundary.
-
-The existing `docs/traceability/browser-session-rust-source-indirection.md` remains the broader source-indirection record. This document narrows the current custom-target lexical correction and shared Rust-whitespace root repair and should be folded into that canonical record when the current stacked Browser Session lineage is reconciled.
+The identifier-boundary root-cause audit is now single-owner for the covered ASCII spellings: `include`, `path`, `mod`, `use`, and `as` all consume `_rust_identifier_token_end()` rather than Python regex keyword boundaries. Future source-indirection syntax must receive its own structural hostile/control fixture before widening this lexical owner. The broader `docs/traceability/browser-session-rust-source-indirection.md` remains the canonical source-indirection record and should absorb this focused history when the current stacked Browser Session lineage is reconciled.
