@@ -562,7 +562,11 @@ def _configured_profile_rustflag_authority(value: object, prefix: str = "profile
     return sorted(configured)
 
 
-def _configured_host_execution_authority(value: object, prefix: str = "host") -> list[str]:
+def _configured_host_execution_authority(
+    value: object,
+    prefix: str = "host",
+    depth: int = 0,
+) -> list[str]:
     """Return nightly Cargo host-target settings that widen execution or compiler-input authority."""
     if not isinstance(value, dict):
         return []
@@ -580,10 +584,31 @@ def _configured_host_execution_authority(value: object, prefix: str = "host") ->
     if _flags_select_ambient_host_cpu(rustflags):
         configured.append(f"{prefix}.rustflags:ambient host cpu")
 
+    rustdocflags = value.get("rustdocflags")
+    if _flags_select_codegen_backend(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:codegen backend")
+    if _flags_select_linker(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:codegen linker")
+    if _flags_extend_external_link_inputs(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:external compiler input")
+    if _flags_select_ambient_host_cpu(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:ambient host cpu")
+    if _flags_select_rustdoc_test_execution(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:doctest execution")
+    if _flags_select_rustdoc_documentation_input(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:documentation input")
+    if _flags_select_rustdoc_doctest_compiler_authority(rustdocflags):
+        configured.append(f"{prefix}.rustdocflags:doctest compiler authority")
+
     for key, setting in value.items():
-        if key in TARGET_EXECUTION_KEYS or key == "rustflags" or not isinstance(setting, dict):
+        if key in TARGET_EXECUTION_KEYS or key in {"rustflags", "rustdocflags"} or not isinstance(setting, dict):
             continue
-        configured.extend(_configured_host_execution_authority(setting, f"{prefix}.{key}"))
+        if depth >= 1:
+            configured.append(f"{prefix}.links build-script override:{key}")
+            continue
+        configured.extend(
+            _configured_host_execution_authority(setting, f"{prefix}.{key}", depth + 1)
+        )
     return sorted(configured)
 
 
