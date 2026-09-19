@@ -84,9 +84,9 @@ def _linker_argument_extends_external_inputs(argument: str) -> bool:
     """Return whether one compiler/linker-driver argument widens external library inputs."""
     if argument == "--sysroot" or argument.startswith("--sysroot="):
         return True
-    if argument in {"-L", "-l", "--library-path"}:
+    if argument in {"-L", "-l", "--library", "--library-path"}:
         return True
-    if argument.startswith("--library-path="):
+    if argument.startswith(("--library=", "--library-path=")):
         return True
     if argument.startswith("-L") and len(argument) > 2:
         return True
