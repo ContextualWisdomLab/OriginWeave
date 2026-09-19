@@ -48,6 +48,8 @@ Alias-edge RED: `423c4088409215e30199943b7167150b3082fa3d`.
 
 Reviewing the first repair exposed an identifier-boundary bug: treating any alias beginning with `_` as the special underscore import would allow a callable alias such as `_read_blob`. Repair `b978c3c79ad0d0938bdb9d14c712693b9ed87417` distinguishes the exact unnameable `_` binding from ordinary identifiers beginning with `_`. Coverage successor `3f40f6662cf68c301579d3a70b3e76d0325eb705` adds grouped-use, exact-underscore, and comment controls without changing ownership.
 
+Focused review of exact `2c108fc14e9a2eaee79ea16219248c42aa1fd815` found one valid fixture-coverage gap rather than a classifier defect: the alias scanner consumes shared raw-string and simple-character-literal helpers, but the focused alias contract did not directly regress those lexical paths. Review-driven test-only repair `07841fbb4d84541758c796011dbcc402c6d40471` adds two separate fixtures: raw-string alias text must remain lexical data, and scanning must resume after a character literal so a following real aliased embedded-file input still fails closed. The classifier and ownership boundaries are unchanged by that repair.
+
 No Cargo topology, runtime browser behavior, linker authority, or cross-repository owner is duplicated by this generation.
 
 ## Security and buyer effect
