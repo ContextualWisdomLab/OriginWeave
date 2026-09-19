@@ -45,6 +45,14 @@ class BrowserSessionCustomTargetModLexicalContractTests(unittest.TestCase):
 
         indirection._assert_no_unmodeled_rust_source_indirection(root)
 
+    def test_nested_block_comment_mod_text_is_lexical_data(self) -> None:
+        root = self._custom_target_workspace(
+            '/* outer /* mod hidden; */ still comment */\n'
+            'pub fn lifecycle_adapter_surface() {}\n'
+        )
+
+        indirection._assert_no_unmodeled_rust_source_indirection(root)
+
     def test_ordinary_string_mod_text_is_lexical_data(self) -> None:
         root = self._custom_target_workspace(
             'pub const NOTE: &str = "mod hidden;";\npub fn lifecycle_adapter_surface() {}\n'
@@ -58,6 +66,14 @@ class BrowserSessionCustomTargetModLexicalContractTests(unittest.TestCase):
         )
 
         indirection._assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_character_literal_does_not_hide_following_real_mod(self) -> None:
+        root = self._custom_target_workspace(
+            "pub const MARKER: char = 'm';\nmod helper;\n"
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust module source indirection"):
+            indirection._assert_no_unmodeled_rust_source_indirection(root)
 
 
 if __name__ == "__main__":
