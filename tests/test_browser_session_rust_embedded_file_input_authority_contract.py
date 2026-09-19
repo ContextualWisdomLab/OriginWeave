@@ -1,11 +1,16 @@
 import importlib.util
 import pathlib
+import re
 import tempfile
 import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_INDIRECTION_TEST = ROOT / "tests/test_browser_session_rust_source_indirection_contract.py"
+EMBEDDED_FILE_MACRO_TOKEN = re.compile(
+    r"(?<![\w#])(?:r#)?(?:include_bytes|include_str)(?!\w)",
+    re.UNICODE,
+)
 
 spec = importlib.util.spec_from_file_location(
     "browser_session_rust_source_indirection_contract",
@@ -15,6 +20,52 @@ if spec is None or spec.loader is None:
     raise RuntimeError("unable to load Browser Session Rust source-indirection contract")
 source_indirection = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(source_indirection)
+
+
+def _has_embedded_file_macro(text: str) -> bool:
+    """Detect compile-time file embedding outside Rust comments and literals."""
+    cursor = 0
+    while cursor < len(text):
+        trivia_end = source_indirection._skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        raw_end = source_indirection._raw_string_end(text, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            cursor = source_indirection._quoted_string_end(text, cursor)
+            continue
+        if text[cursor] == "'":
+            char_end = source_indirection._simple_char_literal_end(text, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+
+        match = EMBEDDED_FILE_MACRO_TOKEN.match(text, cursor)
+        if match is not None:
+            bang = source_indirection._skip_rust_trivia(text, match.end())
+            if bang < len(text) and text[bang] == "!":
+                return True
+            cursor = match.end()
+            continue
+        cursor += 1
+    return False
+
+
+def _assert_no_unmodeled_rust_embedded_file_inputs(root: pathlib.Path) -> None:
+    """Fail closed when reviewed Rust source embeds file bytes outside the source closure."""
+    source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+    for source in source_indirection.boundary._workspace_production_sources(root):
+        text = source.read_text(encoding="utf-8")
+        if _has_embedded_file_macro(text):
+            relative = source.relative_to(root).as_posix()
+            raise AssertionError(
+                "Rust embedded file input requires an explicit provenance contract: "
+                f"{relative}"
+            )
 
 
 class BrowserSessionRustEmbeddedFileInputAuthorityContractTests(unittest.TestCase):
@@ -42,13 +93,16 @@ class BrowserSessionRustEmbeddedFileInputAuthorityContractTests(unittest.TestCas
         )
         return root
 
+    def test_current_production_sources_have_no_unmodeled_embedded_file_inputs(self) -> None:
+        _assert_no_unmodeled_rust_embedded_file_inputs(ROOT)
+
     def test_include_bytes_file_input_fails_closed(self) -> None:
         root = self._workspace_with_source(
             'pub static EMBEDDED: &[u8] = include_bytes!("../unreviewed.bin");\n'
         )
 
         with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
-            source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
 
     def test_include_str_file_input_fails_closed(self) -> None:
         root = self._workspace_with_source(
@@ -56,7 +110,24 @@ class BrowserSessionRustEmbeddedFileInputAuthorityContractTests(unittest.TestCas
         )
 
         with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
-            source_indirection._assert_no_unmodeled_rust_source_indirection(root)
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
+    def test_namespaced_include_bytes_file_input_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'pub static EMBEDDED: &[u8] = core::include_bytes!("../unreviewed.bin");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
+    def test_comment_and_string_mentions_are_not_embedded_file_authority(self) -> None:
+        root = self._workspace_with_source(
+            '// include_bytes!("../unreviewed.bin")\n'
+            'pub const NOTE: &str = "include_str!(\\\"../unreviewed.txt\\\")";\n'
+            'pub fn include_bytes_count() -> usize { 0 }\n'
+        )
+
+        _assert_no_unmodeled_rust_embedded_file_inputs(root)
 
 
 if __name__ == "__main__":
