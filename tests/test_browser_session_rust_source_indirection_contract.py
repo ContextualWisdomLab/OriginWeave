@@ -227,11 +227,15 @@ def _has_aliased_include_import(text: str) -> bool:
                     use_cursor = char_end
                     continue
 
-            include_match = re.match(r"(?<![\w#])(?:r#)?include(?!\w)", use_tree[use_cursor:], re.UNICODE)
-            if include_match is None:
+            include_end = _rust_identifier_token_end(
+                use_tree,
+                use_cursor,
+                INCLUDE_TOKEN,
+                allow_raw=True,
+            )
+            if include_end is None:
                 use_cursor += 1
                 continue
-            include_end = use_cursor + include_match.end()
             include_cursor = _skip_rust_trivia(use_tree, include_end)
             as_match = AS_TOKEN.match(use_tree, include_cursor)
             if as_match is None:
