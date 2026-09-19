@@ -167,13 +167,40 @@ def _simple_char_literal_end(text: str, offset: int) -> int | None:
     return None
 
 
+def _next_rust_attribute_marker(text: str, offset: int) -> int | None:
+    """Find the next lexical `#` outside Rust comments and string/character literals."""
+    cursor = offset
+    while cursor < len(text):
+        trivia_end = _skip_rust_trivia(text, cursor)
+        if trivia_end != cursor:
+            cursor = trivia_end
+            continue
+
+        raw_end = _raw_string_end(text, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            cursor = _quoted_string_end(text, cursor)
+            continue
+        if text[cursor] == "'":
+            char_end = _simple_char_literal_end(text, cursor)
+            if char_end is not None:
+                cursor = char_end
+                continue
+        if text[cursor] == "#":
+            return cursor
+        cursor += 1
+    return None
+
+
 def _rust_attribute_bodies(text: str) -> list[str]:
     """Extract balanced Rust attribute token trees while respecting lexical trivia and literals."""
     bodies: list[str] = []
     search_from = 0
     while True:
-        marker = text.find("#", search_from)
-        if marker < 0:
+        marker = _next_rust_attribute_marker(text, search_from)
+        if marker is None:
             break
 
         cursor = _skip_rust_trivia(text, marker + 1)
@@ -429,6 +456,21 @@ class BrowserSessionRustSourceIndirectionContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, "Rust path attribute requires"):
             _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_commented_path_attribute_text_is_not_source_indirection(self) -> None:
+        root = self._workspace_with_source(
+            '// #[path = "review_bypass.rs"]\n'
+            'pub fn reviewed_surface() {}\n'
+        )
+
+        _assert_no_unmodeled_rust_source_indirection(root)
+
+    def test_string_containing_path_attribute_text_is_not_source_indirection(self) -> None:
+        root = self._workspace_with_source(
+            'pub const NOTE: &str = "#[path = \\"review_bypass.rs\\"]";\n'
+        )
+
+        _assert_no_unmodeled_rust_source_indirection(root)
 
 
 if __name__ == "__main__":
