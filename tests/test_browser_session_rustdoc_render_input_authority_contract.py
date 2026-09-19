@@ -75,6 +75,22 @@ class BrowserSessionRustdocRenderInputAuthorityContractTests(unittest.TestCase):
             "[target.'cfg(unix)']\nrustdocflags = [\"--html-before-content=tools/review-bypass-before.html\"]\n"
         )
 
+    def test_build_rustdocflags_with_examples_input_fails_closed(self) -> None:
+        self._assert_render_input_fails_closed(
+            '[build]\nrustdocflags = ["-Z", "unstable-options", "--with-examples", "tools/review-bypass.calls"]\n'
+        )
+
+    def test_target_rustdocflags_equals_with_examples_input_fails_closed(self) -> None:
+        self._assert_render_input_fails_closed(
+            "[target.'cfg(unix)']\nrustdocflags = [\"-Z\", \"unstable-options\", \"--with-examples=tools/review-bypass.calls\"]\n"
+        )
+
+    def test_scrape_examples_output_path_remains_output_only(self) -> None:
+        root = self._workspace_with_config(
+            '[build]\nrustdocflags = ["-Z", "unstable-options", "--scrape-examples-output-path", "target/reviewed.calls"]\n'
+        )
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_unrelated_rustdoc_render_flags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
             '[build]\nrustdocflags = ["--document-private-items", "--default-theme", "ayu", "--markdown-css", "reviewed.css"]\n'
