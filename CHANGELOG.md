@@ -9,6 +9,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Failed closed when Browser Session production Rust source selects native libraries through direct `#[link(...)]` or `cfg_attr(..., link(...))` attributes, while the shared Rust attribute lexer treats comment and string/character/raw-string text as lexical data rather than authority.
+- Failed closed when Browser Session production Rust source embeds compile-time files through `include_bytes!` or `include_str!`, reusing the canonical production-source closure and shared Rust source-indirection lexer instead of rediscovering Cargo topology.
+- Failed closed when Browser Session production Rust source binds artifact content to ambient build values through direct or namespaced `env!` / `option_env!`; raw-string, character-literal resumption, and namespaced `option_env!` regression coverage preserve lexical correctness, while runtime `std::env` access remains a separate runtime authority.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding opens LLD's LLVMgold-compatible `plugin-opt=-...` opaque LLVM option-processing tunnel, including one-/two-dash spellings, so arbitrary LLVM options cannot bypass reviewed deterministic linker authority.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding loads LLD pass-plugin libraries through separated/joined `--load-pass-plugin`, keeping executable LTO pass code inside reviewed toolchain/plugin provenance.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects Distributed ThinLTO distributor/remote-compiler subprocess authority or forwards their argv through `--thinlto-distributor-arg`, `--thinlto-remote-compiler-prepend-arg`, and `--thinlto-remote-compiler-arg`, preventing repository-owned linker flags from opening unreviewed subprocess/toolchain authority.
