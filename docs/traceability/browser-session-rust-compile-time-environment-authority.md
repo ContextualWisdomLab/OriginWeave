@@ -1,0 +1,63 @@
+# Browser Session Rust compile-time environment authority
+
+## Status
+
+Implemented on PR #317 as a focused repository contract. This document records source-semantic evidence only; it is not hosted CI, protected-main integration, or release evidence.
+
+## Problem
+
+Rust 1.98.1 documents `env!` as reading an environment variable at compile time and expanding to its string value, and `option_env!` as the optional form that expands to `Option<&'static str>`. These values can therefore enter Browser Session artifacts without appearing in the reviewed Rust source, dependency graph, or linker-input set.
+
+Cargo can also set compilation environment values through build-script `cargo::rustc-env=VAR=VALUE`. The Cargo Book explicitly describes retrieving such values with `env!` in the compiled crate. Repository `[env]` configuration is already governed by `tests/test_browser_session_cargo_environment_authority_contract.py`, but that contract does not make every ambient runner variable or build-script-produced value part of reviewed artifact provenance.
+
+Before this generation, the Rust source-indirection owner governed `include!`, module/path indirection, and the shared Rust lexical helpers; the embedded-file supplement governed `include_bytes!` and `include_str!`. Neither classified direct source-level `env!` or `option_env!`. A reviewed production `.rs` file could therefore make artifact content depend on a build environment value whose producer, value, and lifecycle were outside the source closure.
+
+## Decision
+
+Keep `tests/test_browser_session_trusted_adapter_boundary.py` as the single writer for production Cargo package/source topology and `tests/test_browser_session_rust_source_indirection_contract.py` as the shared Rust lexical/source-indirection owner.
+
+Add `tests/test_browser_session_rust_compile_time_environment_authority_contract.py` as a focused supplemental contract that:
+
+- first consumes the existing source-indirection assertion;
+- consumes the canonical production-source closure instead of rediscovering Cargo topology;
+- reuses the shared trivia, raw-string, quoted-string, and character-literal lexer helpers;
+- fails closed on lexical `env!` and `option_env!`, including namespaced spellings;
+- ignores mentions inside comments and string/character/raw-string literals;
+- conservatively rejects locally shadowed macros with the same names until macro-expansion provenance is modeled.
+
+The policy does not treat runtime `std::env::var` as the same build-input class. Runtime environment access is a separate product/runtime authority concern and must be governed by the runtime boundary that owns it.
+
+## RED → repair evidence
+
+Structural RED: `87eb778a1b5526811e43b851fe839755ee224ca2`.
+
+The RED adds realistic workspaces whose production Rust source calls `env!` and `option_env!` and asks the pre-existing source-indirection assertion to reject them. The predecessor `c52ad3a5fdcc7e482e8a6b872e1e3d44fed6477a` has no compile-time environment classifier, so those assertions expose the missing provenance boundary while comment/string controls remain accepted.
+
+Minimal repair: `a6eec1a700aff4cd5ad807629e6f55e44abde2aa`.
+
+The repair stays inside the new focused contract. It adds one compile-time-environment macro classifier, delegates source discovery and lexical handling to existing owners, adds a current-production postcondition, covers direct/optional/namespaced forms, and preserves comment/string controls. No Cargo topology, runtime environment policy, browser behavior, linker authority, or cross-repository owner is duplicated.
+
+## Security and buyer effect
+
+The contract prevents Git-reviewed Browser Session Rust source from silently binding artifact content to ambient build values through the two standard compile-time environment macros. This narrows release provenance: a build cannot claim source-only reproducibility while an unmodeled environment variable changes compiled bytes or embedded metadata.
+
+This is necessary but not sufficient for reproducible release evidence. Runner environment, build-script output, proc-macro or declarative-macro expansion that synthesizes equivalent calls, generated source, direct compiler invocation, and externally injected Cargo environment remain CI/release supply-chain evidence surfaces unless separately attested.
+
+## Acceptance and rollback
+
+Acceptance for this generation requires all of the following on the reconciled exact head:
+
+- the focused contract passes with the existing Rust source-indirection, embedded-file, Cargo-environment, and trusted-adapter contracts;
+- repository/security workflows run on the exact head and pass without gate weakening;
+- current-head review confirms the supplemental contract consumes rather than duplicates canonical topology/lexical ownership;
+- release evidence, if produced, binds the exact source tree, toolchain, environment-variable names and values that may affect compilation, producer identity for generated values, SBOM/provenance, and an independent reproducible-build result.
+
+If the product later needs a compile-time environment value, do not delete the fail-closed rule. Replace it in the same reviewed change with a versioned contract that binds variable name, purpose, producer, canonical value or digest, secrecy classification, target/toolchain scope, invalidation semantics, SBOM/provenance linkage, independent reproducibility, and rollback.
+
+## References
+
+Rust Project. (2026). *env macro (Rust 1.98.1)*. The Rust Standard Library. https://doc.rust-lang.org/core/macro.env.html
+
+Rust Project. (2026). *option_env macro (Rust 1.98.1)*. The Rust Standard Library. https://doc.rust-lang.org/core/macro.option_env.html
+
+Rust Project. (2026). *Build scripts*. The Cargo Book. https://doc.rust-lang.org/cargo/reference/build-scripts.html
