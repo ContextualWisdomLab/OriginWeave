@@ -189,6 +189,15 @@ class BrowserSessionRustEmbeddedFileInputAuthorityContractTests(unittest.TestCas
         with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
             _assert_no_unmodeled_rust_embedded_file_inputs(root)
 
+    def test_underscore_prefixed_alias_still_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'use core::include_bytes as _read_blob;\n'
+            'pub static EMBEDDED: &[u8] = _read_blob!("../unreviewed.bin");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust embedded file input"):
+            _assert_no_unmodeled_rust_embedded_file_inputs(root)
+
     def test_aliased_include_str_file_input_fails_closed(self) -> None:
         root = self._workspace_with_source(
             'use std::include_str as read_text;\n'
