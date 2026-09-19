@@ -123,6 +123,41 @@ class BrowserSessionRustCompileTimeEnvironmentAuthorityContractTests(unittest.Te
         with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
             _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
 
+    def test_aliased_env_macro_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'use std::env as read_build_env;\n'
+            'pub const BUILD_ID: &str = read_build_env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
+            _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
+
+    def test_grouped_aliased_option_env_macro_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'use core::{option_env as read_optional_build_env};\n'
+            'pub const BUILD_ID: Option<&str> = read_optional_build_env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
+            _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
+
+    def test_raw_identifier_aliased_env_macro_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'use std::env as r#type;\n'
+            'pub const BUILD_ID: &str = r#type!("ORIGINWEAVE_UNREVIEWED_BUILD_ID");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
+            _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
+
+    def test_underscore_import_is_not_callable_compile_time_environment_authority(self) -> None:
+        root = self._workspace_with_source(
+            'use std::env as _;\n'
+            'pub fn reviewed_runtime_environment() -> Option<String> { std::env::var("PATH").ok() }\n'
+        )
+
+        _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
+
     def test_comment_string_and_raw_string_mentions_are_not_compile_time_environment_authority(self) -> None:
         root = self._workspace_with_source(
             '// env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID")\n'
