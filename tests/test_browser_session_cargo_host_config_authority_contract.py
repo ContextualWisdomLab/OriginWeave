@@ -78,6 +78,14 @@ class BrowserSessionCargoHostConfigAuthorityContractTests(unittest.TestCase):
             'rustc-link-search = ["tools/review-bypass-native"]\n'
         )
 
+    def test_repository_empty_host_links_build_script_override_fails_closed(self) -> None:
+        self._assert_host_authority_fails_closed('[host.review_bypass]\n')
+
+    def test_repository_empty_host_triple_links_build_script_override_fails_closed(self) -> None:
+        self._assert_host_authority_fails_closed(
+            '[host.x86_64-unknown-linux-gnu.review_bypass]\n'
+        )
+
     def test_unrelated_host_rustflags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
             '[host]\nrustflags = ["-C", "opt-level=2"]\n'
