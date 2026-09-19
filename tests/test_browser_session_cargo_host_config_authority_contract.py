@@ -60,9 +60,27 @@ class BrowserSessionCargoHostConfigAuthorityContractTests(unittest.TestCase):
             '[host]\nrustflags = ["-C", "link-arg=-Wl,--library=review_bypass"]\n'
         )
 
+    def test_repository_host_rustdocflags_external_input_fails_closed(self) -> None:
+        self._assert_host_authority_fails_closed(
+            '[host.x86_64-unknown-linux-gnu]\n'
+            'rustdocflags = ["--extern=review_bypass=tools/libreview_bypass.rlib"]\n'
+        )
+
+    def test_repository_host_links_build_script_override_fails_closed(self) -> None:
+        self._assert_host_authority_fails_closed(
+            '[host.x86_64-unknown-linux-gnu.review_bypass]\n'
+            'rustc-link-search = ["tools/review-bypass-native"]\n'
+        )
+
     def test_unrelated_host_rustflags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
             '[host]\nrustflags = ["-C", "opt-level=2"]\n'
+        )
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
+    def test_unrelated_host_rustdocflags_remain_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[host]\nrustdocflags = ["--document-private-items"]\n'
         )
         authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
