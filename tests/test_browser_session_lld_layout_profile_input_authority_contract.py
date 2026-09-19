@@ -25,6 +25,9 @@ class BrowserSessionLldLayoutProfileInputAuthorityContractTests(unittest.TestCas
             "--lto-sample-profile=tools/sample.prof",
             "--plugin-opt=sample-profile=tools/sample.prof",
             "-plugin-opt=sample-profile=tools/sample.prof",
+            "--lto-cs-profile-file=tools/context-sensitive.profdata",
+            "--plugin-opt=cs-profile-path=tools/context-sensitive.profdata",
+            "-plugin-opt=cs-profile-path=tools/context-sensitive.profdata",
         )
         for linker_option in hostile:
             with self.subTest(linker_option=linker_option):
@@ -35,6 +38,13 @@ class BrowserSessionLldLayoutProfileInputAuthorityContractTests(unittest.TestCas
         rustdocflags = [
             "--doctest-build-arg=-C",
             "--doctest-build-arg=link-arg=-Wl,--lto-sample-profile=tools/sample.prof",
+        ]
+        self.assertTrue(authority._flags_select_rustdoc_doctest_compiler_authority(rustdocflags))
+
+    def test_rustdoc_doctest_forwarding_cannot_select_lld_context_sensitive_profile_file(self) -> None:
+        rustdocflags = [
+            "--doctest-build-arg=-C",
+            "--doctest-build-arg=link-arg=-Wl,--lto-cs-profile-file=tools/context-sensitive.profdata",
         ]
         self.assertTrue(authority._flags_select_rustdoc_doctest_compiler_authority(rustdocflags))
 
