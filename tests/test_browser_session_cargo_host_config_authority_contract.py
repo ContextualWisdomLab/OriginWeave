@@ -84,6 +84,12 @@ class BrowserSessionCargoHostConfigAuthorityContractTests(unittest.TestCase):
         )
         authority._assert_no_repository_cargo_compiler_execution_overrides(root)
 
+    def test_unrelated_host_triple_rustflags_remain_allowed(self) -> None:
+        root = self._workspace_with_config(
+            '[host.x86_64-unknown-linux-gnu]\nrustflags = ["-C", "opt-level=2"]\n'
+        )
+        authority._assert_no_repository_cargo_compiler_execution_overrides(root)
+
     def test_unrelated_host_rustdocflags_remain_allowed(self) -> None:
         root = self._workspace_with_config(
             '[host]\nrustdocflags = ["--document-private-items"]\n'
