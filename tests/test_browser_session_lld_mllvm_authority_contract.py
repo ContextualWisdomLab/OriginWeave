@@ -67,6 +67,30 @@ class BrowserSessionLldMllvmAuthorityContractTests(unittest.TestCase):
             "rustdocflags:doctest compiler authority",
         )
 
+    def test_build_rustflags_lld_plugin_opt_llvm_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustflags = ["-C", "link-arg=-Wl,--plugin-opt=-debug-pass=Structure"]\n',
+            "rustflags:codegen linker",
+        )
+
+    def test_target_rustflags_lld_single_dash_plugin_opt_llvm_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            "[target.'cfg(unix)']\nrustflags = [\"-C\", \"link-arg=-Wl,-plugin-opt=-print-after-all\"]\n",
+            "rustflags:codegen linker",
+        )
+
+    def test_build_rustdocflags_lld_plugin_opt_llvm_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustdocflags = ["-C", "link-arg=-Wl,--plugin-opt=-print-after-all"]\n',
+            "rustdocflags:codegen linker",
+        )
+
+    def test_doctest_build_arg_lld_plugin_opt_llvm_fails_closed(self) -> None:
+        self._assert_fails_closed(
+            '[build]\nrustdocflags = ["--doctest-build-arg=-C", "--doctest-build-arg=link-arg=-Wl,--plugin-opt=-print-after-all"]\n',
+            "rustdocflags:doctest compiler authority",
+        )
+
     def test_typed_linker_control_remains_allowed(self) -> None:
         directory, root = _workspace_with_config(
             '[build]\nrustflags = ["-C", "link-arg=-Wl,-z,relro"]\n'
