@@ -27,6 +27,13 @@ class BrowserSessionLldDtltoArgumentAuthorityContractTests(unittest.TestCase):
                 rustflags = ["-C", f"link-arg=-Wl,{option}"]
                 self.assertTrue(authority._flags_select_linker(rustflags))
 
+    def test_separated_dtlto_subprocess_argument_fails_closed(self) -> None:
+        rustflags = [
+            "-C",
+            "link-arg=-Wl,--thinlto-remote-compiler-arg,--target=riscv64-unknown-linux-gnu",
+        ]
+        self.assertTrue(authority._flags_select_linker(rustflags))
+
     def test_rustdoc_doctest_forwarding_cannot_select_dtlto_subprocess_arguments(self) -> None:
         rustdocflags = [
             "--doctest-build-arg=-C",
