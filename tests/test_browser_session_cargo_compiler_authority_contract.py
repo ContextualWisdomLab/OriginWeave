@@ -562,6 +562,31 @@ def _configured_profile_rustflag_authority(value: object, prefix: str = "profile
     return sorted(configured)
 
 
+def _configured_host_execution_authority(value: object, prefix: str = "host") -> list[str]:
+    """Return nightly Cargo host-target settings that widen execution or compiler-input authority."""
+    if not isinstance(value, dict):
+        return []
+    configured: list[str] = []
+    for key in sorted(TARGET_EXECUTION_KEYS.intersection(value)):
+        configured.append(f"{prefix}.{key}")
+
+    rustflags = value.get("rustflags")
+    if _flags_select_codegen_backend(rustflags):
+        configured.append(f"{prefix}.rustflags:codegen backend")
+    if _flags_select_linker(rustflags):
+        configured.append(f"{prefix}.rustflags:codegen linker")
+    if _flags_extend_external_link_inputs(rustflags):
+        configured.append(f"{prefix}.rustflags:external compiler input")
+    if _flags_select_ambient_host_cpu(rustflags):
+        configured.append(f"{prefix}.rustflags:ambient host cpu")
+
+    for key, setting in value.items():
+        if key in TARGET_EXECUTION_KEYS or key == "rustflags" or not isinstance(setting, dict):
+            continue
+        configured.extend(_configured_host_execution_authority(setting, f"{prefix}.{key}"))
+    return sorted(configured)
+
+
 def _configured_custom_target_specs(value: object) -> list[str]:
     """Return repository-selected custom rustc target specification paths."""
     if isinstance(value, str):
@@ -622,6 +647,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         unstable_configured = _configured_unstable_toolchain_inputs(parsed.get("unstable"))
         profile_codegen_backends = _configured_profile_codegen_backends(parsed.get("profile"))
         profile_rustflag_authority = _configured_profile_rustflag_authority(parsed.get("profile"))
+        host_configured = _configured_host_execution_authority(parsed.get("host"))
 
         build = parsed.get("build")
         build_configured = (
@@ -696,6 +722,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
         if (
             build_configured
             or target_configured
+            or host_configured
             or environment_configured
             or include_configured
             or unstable_configured
@@ -706,7 +733,7 @@ def _assert_no_repository_cargo_compiler_execution_overrides(root: pathlib.Path)
             raise AssertionError(
                 "Cargo Rust tool/target execution override requires an explicit Browser Session provenance contract: "
                 f"{relative} build_keys={build_configured} target_keys={target_configured} "
-                f"env_keys={environment_configured} include={include_configured} "
+                f"host_keys={host_configured} env_keys={environment_configured} include={include_configured} "
                 f"unstable_keys={unstable_configured} profile_codegen_backends={profile_codegen_backends} "
                 f"profile_rustflag_authority={profile_rustflag_authority}"
             )
