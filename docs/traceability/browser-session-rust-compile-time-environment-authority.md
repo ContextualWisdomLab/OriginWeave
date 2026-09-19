@@ -37,6 +37,8 @@ Minimal repair: `a6eec1a700aff4cd5ad807629e6f55e44abde2aa`.
 
 The repair stays inside the new focused contract. It adds one compile-time-environment macro classifier, delegates source discovery and lexical handling to existing owners, adds a current-production postcondition, covers direct/optional/namespaced forms, and preserves comment/string controls. No Cargo topology, runtime environment policy, browser behavior, linker authority, or cross-repository owner is duplicated.
 
+Focused review of traceability exact `75eb414f69a7be2dcc851aca58d47e156a41133c` found a valid fixture-coverage gap rather than a classifier defect: the supplemental contract depended on shared raw-string and character-literal handling without directly exercising those boundaries, and it covered namespaced `env!` but not namespaced `option_env!`. Review-driven coverage repair `f9934fe67c6cf7bd5c0ab946be6b881503a14c65` changes only the focused contract (`+19/-1`). It adds a raw-string false-positive control, proves that scanning resumes after a character literal and still rejects a following real macro, and rejects `core::option_env!`.
+
 ## Security and buyer effect
 
 The contract prevents Git-reviewed Browser Session Rust source from silently binding artifact content to ambient build values through the two standard compile-time environment macros. This narrows release provenance: a build cannot claim source-only reproducibility while an unmodeled environment variable changes compiled bytes or embedded metadata.
