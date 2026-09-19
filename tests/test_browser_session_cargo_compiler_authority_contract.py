@@ -165,6 +165,11 @@ def _linker_option_selects_layout_profile_file(argument: str) -> bool:
     )
 
 
+def _linker_option_selects_cmse_import_library(argument: str) -> bool:
+    """Return whether LLD consumes an existing CMSE secure-code import library."""
+    return argument == "--in-implib" or argument.startswith("--in-implib=")
+
+
 def _linker_option_selects_just_symbols_or_rpath(argument: str) -> bool:
     """Return whether GNU-compatible linker syntax selects an external -R/just-symbols path."""
     if argument in {"-R", "--just-symbols"}:
@@ -265,6 +270,7 @@ def _direct_linker_arguments_extend_authority(arguments: tuple[str, ...] | list[
             or _linker_option_selects_script(argument)
             or _linker_option_selects_symbol_policy_file(argument)
             or _linker_option_selects_layout_profile_file(argument)
+            or _linker_option_selects_cmse_import_library(argument)
             or _linker_option_selects_just_symbols_or_rpath(argument)
             or _linker_option_controls_runtime_loader(argument)
             or _linker_option_selects_runtime_audit_library(argument)
