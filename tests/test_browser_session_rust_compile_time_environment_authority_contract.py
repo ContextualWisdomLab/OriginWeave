@@ -115,14 +115,32 @@ class BrowserSessionRustCompileTimeEnvironmentAuthorityContractTests(unittest.Te
         with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
             _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
 
-    def test_comment_and_string_mentions_are_not_compile_time_environment_authority(self) -> None:
+    def test_namespaced_option_env_macro_fails_closed(self) -> None:
+        root = self._workspace_with_source(
+            'pub const BUILD_ID: Option<&str> = core::option_env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
+            _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
+
+    def test_comment_string_and_raw_string_mentions_are_not_compile_time_environment_authority(self) -> None:
         root = self._workspace_with_source(
             '// env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID")\n'
             'pub const NOTE: &str = "option_env!(\\\"ORIGINWEAVE_UNREVIEWED_BUILD_ID\\\")";\n'
+            'pub const RAW_NOTE: &str = r#"env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID")"#;\n'
             'pub fn env_count() -> usize { 0 }\n'
         )
 
         _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
+
+    def test_character_literal_does_not_hide_following_real_macro(self) -> None:
+        root = self._workspace_with_source(
+            "pub const MARKER: char = 'x';\n"
+            'pub const BUILD_ID: &str = env!("ORIGINWEAVE_UNREVIEWED_BUILD_ID");\n'
+        )
+
+        with self.assertRaisesRegex(AssertionError, "Rust compile-time environment input"):
+            _assert_no_unmodeled_rust_compile_time_environment_inputs(root)
 
 
 if __name__ == "__main__":
