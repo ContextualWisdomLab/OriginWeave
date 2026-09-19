@@ -9,6 +9,16 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Fixed
 
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects context-sensitive LTO PGO profiles through LLD `--lto-cs-profile-file=` or its one-/two-dash `plugin-opt=cs-profile-path=` aliases, keeping profile-guided code generation inside reviewed build-input provenance.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects LLD layout/profile files through `call-graph-ordering-file`, `irpgo-profile`, `symbol-ordering-file`, `lto-sample-profile`, or `plugin-opt=sample-profile=`, preventing unreviewed external layout/profile material from changing section placement or LTO decisions.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects an existing ARM CMSE secure-code import library through LLD `--in-implib=`, while leaving output-only `--out-implib=` outside input-authority classification.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding rewrites reviewed link inputs through GNU-compatible `--remap-inputs` / `--remap-inputs-file` spellings, including their single-dash aliases.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding imports external section-ordering policy through GNU-compatible `--section-ordering-file`, including the valid single-dash spelling.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding opens LLD's opaque LLVM option-processing tunnel through `--mllvm` / `-mllvm`, rather than treating unknown LLVM options as reviewed deterministic linker policy.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding changes the default library search path through GNU `-Y`, including compact `-Ypath` syntax.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding embeds ELF runtime filter/auxiliary resolution through GNU-compatible `-f` / `--auxiliary` and `-F` / `--filter`, preventing unreviewed runtime shared objects from becoming symbol-resolution authority.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding selects ELF rtld-audit libraries through `--audit`, `--depaudit`, or `-P`, preventing unreviewed runtime audit code from being recorded in the linked artifact.
+- Failed closed when repository-owned Rust/rustdoc linker forwarding changes or removes the ELF runtime interpreter through `-I`, `--dynamic-linker`, or `--no-dynamic-linker`.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU symbol-policy files through `--version-script`, `--dynamic-list`, `--retain-symbols-file`, or `--export-dynamic-symbol-list`, preventing unreviewed external symbol visibility/retention policy from changing the linked artifact outside the reviewed Cargo package/source closure.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU-compatible `-R` / `--just-symbols`, preventing an unreviewed symbol-address file or ambiguous rpath operand from changing link behavior outside the reviewed Cargo package/source closure.
 - Failed closed when repository-owned Rust/rustdoc linker forwarding selects GNU `-c` / `--mri-script`, preventing an unreviewed MRI command file from changing link behavior outside the reviewed Cargo package/source closure.
