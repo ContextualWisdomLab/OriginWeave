@@ -92,12 +92,12 @@ def _use_tree_aliases_compile_time_environment_macro(use_tree: str) -> bool:
             continue
 
         after_macro = source_indirection._skip_rust_trivia(use_tree, token_end)
-        as_match = source_indirection.AS_TOKEN.match(use_tree, after_macro)
-        if as_match is None:
+        as_end = source_indirection._rust_identifier_token_end(use_tree, after_macro, "as")
+        if as_end is None:
             cursor = token_end
             continue
 
-        alias_start = source_indirection._skip_rust_trivia(use_tree, as_match.end())
+        alias_start = source_indirection._skip_rust_trivia(use_tree, as_end)
         if alias_start >= len(use_tree):
             return False
         if use_tree[alias_start] == "_":
@@ -133,14 +133,14 @@ def _has_aliased_compile_time_environment_import(text: str) -> bool:
                 cursor = char_end
                 continue
 
-        use_match = source_indirection.USE_TOKEN.match(text, cursor)
-        if use_match is None:
+        use_end = source_indirection._rust_identifier_token_end(text, cursor, "use")
+        if use_end is None:
             cursor += 1
             continue
-        statement_end = source_indirection._rust_use_statement_end(text, use_match.end())
+        statement_end = source_indirection._rust_use_statement_end(text, use_end)
         if statement_end is None:
             return False
-        if _use_tree_aliases_compile_time_environment_macro(text[use_match.end():statement_end]):
+        if _use_tree_aliases_compile_time_environment_macro(text[use_end:statement_end]):
             return True
         cursor = statement_end + 1
     return False
