@@ -261,8 +261,10 @@ fn unicode_18_default_ignorable_reproducibility_context_fails_closed() {
         '\u{e0fff}',
     ] {
         let hostile = format!("runner{hostile_scalar}suffix");
-        let mut context = run_context();
-        context.reasoning_configuration = &hostile;
+        let context = ControlledBenchmarkRunContext {
+            reasoning_configuration: &hostile,
+            ..run_context()
+        };
 
         assert_eq!(
             evaluate_controlled_benchmark_suite_for_run(
