@@ -790,9 +790,10 @@ fn is_bidi_control(character: char) -> bool {
 
 /// Identifies Unicode 18.0.0 `Default_Ignorable_Code_Point` exactly.
 ///
-/// The compressed ranges below are the 4,174 scalars published in Unicode 18.0.0
-/// `DerivedCoreProperties.txt`. They are intentionally version-pinned instead of
-/// delegated to a moving Unicode library so a toolchain or dependency upgrade cannot
+/// The compressed ranges below match the 4,174-scalar
+/// `Default_Ignorable_Code_Point` property set currently served for Unicode 18.0.0.
+/// Immutable raw-file provenance is tracked separately; the ranges stay version-pinned
+/// instead of delegated to a moving Unicode library so a toolchain or dependency upgrade cannot
 /// silently change benchmark evidence identity admission. This profile has no tailored
 /// ZWJ/ZWNJ, variation-selector, tag, or script-specific exception.
 fn is_unicode_18_default_ignorable(character: char) -> bool {
