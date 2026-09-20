@@ -1,6 +1,6 @@
 # Controlled benchmark Unicode identity security
 
-Status: active successor work for #323, stacked on #322 and #237. This record does not describe protected-main shipment. Requirement-to-code/test evidence is indexed in [`../traceability/controlled-benchmark-unicode-identity.md`](../traceability/controlled-benchmark-unicode-identity.md). Final Unicode 18.0.0 UCD provenance is a separate promotion gate tracked by #325.
+Status: active successor work for #323, stacked on #322 and #237. This record does not describe protected-main shipment. Requirement-to-code/test evidence is indexed in [`../traceability/controlled-benchmark-unicode-identity.md`](../traceability/controlled-benchmark-unicode-identity.md). Unicode 18.0.0 formal-release provenance reconciliation is tracked by #325.
 
 ## Problem
 
@@ -10,15 +10,15 @@ Status: active successor work for #323, stacked on #322 and #237. This record do
 
 Unicode Standard Annex #31 Revision 45 defines the Default-Ignorable Exclusion Profile as excluding every code point whose `Default_Ignorable_Code_Point` property is true. Unicode Technical Standard #39 Revision 34 classifies `Default_Ignorable` characters as Restricted in its General Security Profile; ZWJ and ZWNJ are included unless an implementation explicitly adopts and documents a tailored profile. Both publications are stable and approved for Unicode 18.0.0.
 
-The property table implemented by #324 was derived from the `DerivedCoreProperties-18.0.0.txt` snapshot dated 2026-08-07. That snapshot contains 4,174 `Default_Ignorable_Code_Point` scalars and states that DICP itself has no general stability guarantee. On 2026-09-15 KST, however, the nominal versioned URL `/Public/18.0.0/ucd/DerivedCoreProperties.txt` still redirected to the mutable `/Public/draft/ucd/DerivedCoreProperties.txt` location, while the Unicode 18 beta status page still described formal release as planned for 2026-09-16. Therefore the current table is a version-targeted pre-release UCD snapshot, not immutable final Unicode 18.0.0 UCD provenance. #325 requires explicit reconciliation after final publication.
+The property table implemented by #324 originated from `DerivedCoreProperties-18.0.0.txt` dated 2026-08-07. Before formal publication, the nominal versioned URL still resolved through `/Public/draft/`, so #324 correctly treated that observation as pre-release evidence. Fresh 2026-09-20 KST revalidation establishes a later publication state: the Unicode Consortium release registry lists Unicode 18.0.0 as released on 2026-09-16, the release announcement states that Version 18.0 is now available, the Version 18.0.0 page supplies the formal citation and says the UCD data files are available, and the versioned `DerivedCoreProperties.txt` path is directly available. The Version 18.0.0 summary page still contains a contradictory preliminary-draft banner; #325 records that as a publication-site inconsistency rather than allowing it to override the Consortium's release registry, announcement, formal version citation, and versioned UCD artifact.
 
 This rule is intentionally narrower than a product-wide Unicode policy. OriginWeave must preserve browser-issued protocol identity such as WebDriver BiDi `browser.UserContext` losslessly because Browser Session does not own that external identifier grammar. The controlled benchmark does own its reproducibility-label grammar, so a fail-closed identifier profile is appropriate only at this boundary.
 
 ## Decision
 
-Adopt an explicit benchmark evidence-identity profile named `unicode-18.0.0-default-ignorable-exclusion`. The current implementation rejects the 4,174 DICP scalars in the 2026-08-07 Unicode 18.0.0 pre-release UCD snapshot with no tailored exceptions. It continues to reject the existing C0/C1 and `U+2028`/`U+2029` rendering controls. Ordinary visible Korean, Japanese, Chinese, Vietnamese, Spanish, German, French, Arabic, and Hebrew remain admissible when they do not contain an excluded scalar.
+Adopt an explicit benchmark evidence-identity profile named `unicode-18.0.0-default-ignorable-exclusion`. The current implementation rejects all 4,174 DICP scalars in the versioned Unicode 18.0.0 `DerivedCoreProperties.txt` property set with no tailored exceptions. It continues to reject the existing C0/C1 and `U+2028`/`U+2029` rendering controls. Ordinary visible Korean, Japanese, Chinese, Vietnamese, Spanish, German, French, Arabic, and Hebrew remain admissible when they do not contain an excluded scalar.
 
-The implementation pins that property table locally rather than relying on a moving Unicode dependency. The compressed Rust ranges are exactly the 4,174 scalars in the 2026-08-07 snapshot: `U+00AD`, `U+034F`, `U+061C`, `U+115F..1160`, `U+17B4..17B5`, `U+180B..180F`, `U+200B..200F`, `U+202A..202E`, `U+2060..206F`, `U+3164`, `U+FE00..FE0F`, `U+FEFF`, `U+FFA0`, `U+FFF0..FFF8`, `U+1BCA0..1BCA3`, `U+1D173..1D17A`, and `U+E0000..E0FFF`. The latter contiguous range is a compression of the source snapshot's reserved, tag, and variation-selector subranges; it does not widen beyond that observed property set.
+The implementation pins that property table locally rather than relying on a moving Unicode dependency. Fresh direct comparison of the formally released versioned UCD artifact finds 27 DICP source entries / 4,174 scalars. Those entries compress exactly to the implementation's 17 ranges/singletons: `U+00AD`, `U+034F`, `U+061C`, `U+115F..1160`, `U+17B4..17B5`, `U+180B..180F`, `U+200B..200F`, `U+202A..202E`, `U+2060..206F`, `U+3164`, `U+FE00..FE0F`, `U+FEFF`, `U+FFA0`, `U+FFF0..FFF8`, `U+1BCA0..1BCA3`, `U+1D173..1D17A`, and `U+E0000..E0FFF`. The compressed `180B..180F`, `2060..206F`, and `E0000..E0FFF` ranges are exact unions of adjacent source entries with no gaps and therefore do not widen the published property set.
 
 No normalization, case folding, confusable skeletonization, mixed-script restriction, or ASCII-only admission is introduced. Byte identity remains authoritative after admission. The existing public `ControlCharacterRunContext` variant is retained for compatibility even though its diagnostic now describes the broader rendering/default-ignorable boundary; changing the public variant name would create unrelated API churn without changing the fail-closed result.
 
@@ -34,13 +34,13 @@ Production repair exact: `19a37a667baeffe824c4fb025942eecb40bc67c8`. It introduc
 
 Coverage successor exact: `02edb5b2cb5ff9e1237afbc83d9a0f3e7aa48d6a`. It covers the profile identifier and endpoints or representatives of every compressed property range while retaining visible multilingual and ordinary RTL acceptance cases.
 
-These commits are active branch evidence only. Exact-head repository contracts, rustfmt, locked tests, strict Clippy, rustdoc/API docs, production function/line/region/branch coverage, applicable browser/security workflows, and #325 final-UCD reconciliation still need to complete before promotion.
+These commits are active branch evidence only. Exact-head repository contracts, rustfmt, locked tests, strict Clippy, rustdoc/API docs, production function/line/region/branch coverage, applicable browser/security workflows, and #325 immutable-receipt closure still need to complete before promotion.
 
 ## Publication provenance gate
 
-The stable UAX #31 and UTS #39 documents establish the intended security profile, but they do not make a mutable pre-release UCD data file immutable. At or after formal Unicode 18.0.0 publication, #325 requires OriginWeave to fetch the canonical versioned `DerivedCoreProperties.txt`, establish that it no longer resolves to the draft location, and compare the final DICP entries, scalar count, exact code points/ranges, file date, and an immutable content receipt against the 2026-08-07 snapshot.
+Formal-release finality and property-set equivalence are now satisfied at the standards/data level. On 2026-09-20 KST, the official Unicode release registry identifies Unicode 18.0.0 as the 2026-09-16 release; the official release announcement says Version 18.0 is available; the formal Version 18.0.0 page states that UCD data files are available; and the direct versioned `DerivedCoreProperties.txt` artifact exposes the same 27-entry / 4,174-scalar DICP set already pinned by #324.
 
-If the final property is equivalent, the evidence dossier may record that equivalence and promote the profile's provenance without changing its admitted grammar. If the final property differs, OriginWeave must not silently rewrite this profile: a fresh compatibility/security RED and a new profile identity are required.
+#325 therefore no longer waits for the stale preliminary banner to disappear. Its remaining provenance work is an immutable byte-level receipt for the versioned artifact: resolved URL/redirect result, header/date, byte length, full-file SHA-256, and a normalized DICP-property digest. If that receipt confirms the same property set, the dossier may close provenance without changing admission semantics. If it unexpectedly differs, OriginWeave must not silently rewrite this profile: a fresh compatibility/security RED and a new profile identity are required.
 
 ## Alternatives considered
 
@@ -48,7 +48,7 @@ Keeping #322's finite reviewed list was rejected because it leaves other byte-di
 
 Rejecting all non-ASCII text was rejected because it would conflate script diversity with evidence-rendering risk. NFC/NFKC, case folding, and confusable detection were rejected from this slice because they change comparison semantics rather than merely excluding the explicitly adopted property and require their own migration analysis.
 
-Treating the 2026-08-07 UCD snapshot as final merely because its header says `18.0.0` was rejected. The live versioned URL still resolves to `/Public/draft/`, and Unicode explicitly treats beta UCD files as prepublication material until formal release. Release provenance therefore remains fail-closed until #325 is satisfied.
+Treating the 2026-08-07 file as final before formal publication was rejected and remains correct for that historical checkpoint. Treating the lingering preliminary banner as stronger than the later official release registry, release announcement, formal version citation, and directly published versioned UCD artifact is now also rejected; doing so would preserve a false release gate after the Consortium has formally published 18.0.0.
 
 ## Migration, reversal, and risk
 
@@ -60,10 +60,14 @@ This exclusion reduces audit/display ambiguity but does not establish complete U
 
 ## References
 
+Unicode Consortium. (2026, September 16). *Unicode recent releases*. https://www.unicode.org/releases/
+
+Unicode Consortium. (2026, September 16). *Announcing the Unicode Standard, Version 18.0*. https://blog.unicode.org/2026/09/announcing-unicode-standard-version-180.html
+
+Unicode Consortium. (2026). *The Unicode Standard, Version 18.0.0*. https://www.unicode.org/versions/Unicode18.0.0/
+
 Unicode Consortium. (2026, September 1). *Unicode identifiers and syntax* (Unicode Standard Annex #31, Version 18.0.0, Revision 45). https://www.unicode.org/reports/tr31/tr31-45.html
 
 Unicode Consortium. (2026, August 27). *Unicode security mechanisms* (Unicode Technical Standard #39, Version 18.0.0, Revision 34). https://www.unicode.org/reports/tr39/tr39-34.html
 
-Unicode Consortium. (2026, August 7). *DerivedCoreProperties-18.0.0.txt* [pre-release Unicode Character Database snapshot observed via `/Public/draft/ucd/` on 2026-09-15]. https://www.unicode.org/Public/18.0.0/ucd/DerivedCoreProperties.txt
-
-Unicode Consortium. (2026). *BETA Unicode 18.0.0*. https://www.unicode.org/versions/beta-18.0.0.html
+Unicode Consortium. (2026, August 7). *DerivedCoreProperties-18.0.0.txt* [Unicode 18.0.0 Unicode Character Database artifact]. https://www.unicode.org/Public/18.0.0/ucd/DerivedCoreProperties.txt
