@@ -27,9 +27,10 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
             adr,
         )
         self.assertIn("runtime-qualified 3 September 2026", adr)
-        self.assertIn("latest published 16 September 2026", adr)
-        self.assertIn("14 September 2026 as the previous published version", adr)
-        self.assertNotIn("latest published 9 September 2026", adr)
+        self.assertIn("latest published 9 September 2026", adr)
+        self.assertIn("3 September 2026 as the previous published version", adr)
+        self.assertNotIn("latest published 16 September 2026", adr)
+        self.assertNotIn("14 September 2026 as the previous published version", adr)
 
     def test_publication_freshness_is_single_sourced_from_runtime_qualification_docs(self) -> None:
         """Architecture and doctoring stay qualification records; the receipt owns publication churn."""
@@ -40,9 +41,10 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         runtime_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
-        latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260916/"
-        previous_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/"
-        stale_latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/"
+        latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/"
+        previous_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        false_latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260916/"
+        false_previous_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/"
         editors_draft_uri = "https://w3c.github.io/webdriver-bidi/"
 
         for path, text in {
@@ -55,15 +57,13 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
 
         self.assertIn("Observed: 2026-09-21", receipt)
         self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
-        self.assertIn("Latest published Working Draft: `2026-09-16`", receipt)
-        self.assertIn("Previous published Working Draft: `2026-09-14`", receipt)
+        self.assertIn("Latest published Working Draft: `2026-09-09`", receipt)
+        self.assertIn("Previous published Working Draft: `2026-09-03`", receipt)
         self.assertIn("Editor's Draft: `https://w3c.github.io/webdriver-bidi/`", receipt)
         self.assertIn(latest_uri, receipt)
         self.assertIn(previous_uri, receipt)
-        self.assertNotIn(
-            "Latest immutable published Working Draft: https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/",
-            receipt,
-        )
+        self.assertNotIn(false_latest_uri, receipt)
+        self.assertNotIn(false_previous_uri, receipt)
         self.assertIn(editors_draft_uri, receipt)
         self.assertIn(
             "PR #229, which has inherited merged PR #293",
