@@ -1,64 +1,87 @@
 # Controlled benchmark Unicode identity security
 
-Status: active-PR doctoring for #322, stacked on #237. This record does not describe protected-main shipment.
+Status: active successor work for #323, stacked on #322 and #237. This record does not describe protected-main shipment. Requirement-to-code/test evidence is indexed in [`../traceability/controlled-benchmark-unicode-identity.md`](../traceability/controlled-benchmark-unicode-identity.md). Unicode 18.0.0 artifact provenance reconciliation is tracked by #325.
 
 ## Problem
 
 `ControlledBenchmarkRunContext` carries OriginWeave-owned reproducibility identities such as source revision, Chromium revision, OS image, hardware profile, protocol-adapter set, model/provider route, reasoning configuration, fixture/corpus version, and seed-set identity. These strings are compared byte-for-byte and are expected to appear in logs, reports, retained benchmark evidence, and later signed evidence summaries.
 
-The #237 parent rejects blank values, surrounding whitespace, and C0/C1 control characters. The first #322 slice then closed Unicode bidirectional formatting controls. A second review of the same evidence-rendering boundary found a separate gap: Rust `char::is_control` covers General Category `Cc`, while `U+2028` LINE SEPARATOR and `U+2029` PARAGRAPH SEPARATOR are `Zl` and `Zp`. An internal LS or PS survives surrounding-whitespace checks yet can render one byte-exact identity as multiple lines or paragraphs. That can make log/report review disagree with the stored scalar sequence even without a bidi override.
+#322 already rejects C0/C1 controls, `U+2028` LINE SEPARATOR, `U+2029` PARAGRAPH SEPARATOR, and the exact `Bidi_Control` set. That closes reviewed line/paragraph and directional-rendering cases, but not the broader Unicode default-ignorable set. For example, ZERO WIDTH SPACE, ZWNJ, ZWJ, WORD JOINER, ZERO WIDTH NO-BREAK SPACE, and variation selectors can remain byte-distinct while being invisible or presentation-dependent. The exact #322 predecessor therefore admitted values that can be difficult to distinguish in an audit or signed evidence summary.
 
-Unicode UAX #44 defines `Zl` as `U+2028 LINE SEPARATOR` only, `Zp` as `U+2029 PARAGRAPH SEPARATOR` only, and `Cc` separately as C0/C1 controls. The Unicode Standard's newline guidance states that LS and PS are unambiguous Unicode line and paragraph separators and, unlike the other newline forms it discusses, are not encoded as control codes. The application therefore cannot rely on `char::is_control` to close this rendering boundary.
+Unicode Standard Annex #31 Revision 45 defines the Default-Ignorable Exclusion Profile as excluding every code point whose `Default_Ignorable_Code_Point` property is true. Unicode Technical Standard #39 Revision 34 classifies `Default_Ignorable` characters as Restricted in its General Security Profile; ZWJ and ZWNJ are included unless an implementation explicitly adopts and documents a tailored profile. Both publications are stable and approved for Unicode 18.0.0.
 
-This differs from browser-issued protocol identity. OriginWeave must preserve WebDriver BiDi addresses such as `browser.UserContext` losslessly because Browser Session does not own that external identifier grammar. The controlled benchmark does own its reproducibility-label grammar, so a narrower fail-closed admission rule is appropriate here.
+The property table implemented by #324 originated from `DerivedCoreProperties-18.0.0.txt` dated 2026-08-07. Before and immediately after formal publication, the nominal versioned URL was observed routing through `/Public/draft/`, so #324 correctly kept immutable artifact provenance open. Fresh 2026-09-21 KST revalidation changes that artifact state: `https://www.unicode.org/Public/18.0.0/ucd/DerivedCoreProperties.txt` now responds directly with HTTP 200 as `DerivedCoreProperties-18.0.0.txt`, and the `/Public/18.0.0/` index directly exposes the versioned `ucd/` directory. The Unicode Consortium release registry separately establishes the formal Unicode 18.0.0 release on 2026-09-16. Standard-release authority and data-artifact authority remain distinct, but both are now independently evidenced.
+
+This rule is intentionally narrower than a product-wide Unicode policy. OriginWeave must preserve browser-issued protocol identity such as WebDriver BiDi `browser.UserContext` losslessly because Browser Session does not own that external identifier grammar. The controlled benchmark does own its reproducibility-label grammar, so a fail-closed identifier profile is appropriate only at this boundary.
 
 ## Decision
 
-Reject rendering controls that can make controlled-benchmark identity presentation ambiguous:
+Adopt an explicit benchmark evidence-identity profile named `unicode-18.0.0-default-ignorable-exclusion`. The current implementation rejects all 4,174 DICP scalars in the verified Unicode 18.0.0 `DerivedCoreProperties.txt` property set with no tailored exceptions. It continues to reject the existing C0/C1 and `U+2028`/`U+2029` rendering controls. Ordinary visible Korean, Japanese, Chinese, Vietnamese, Spanish, German, French, Arabic, and Hebrew remain admissible when they do not contain an excluded scalar.
 
-- C0/C1 control characters already covered by `char::is_control`;
-- `U+2028` LINE SEPARATOR and `U+2029` PARAGRAPH SEPARATOR;
-- `U+061C` ARABIC LETTER MARK;
-- `U+200E` LEFT-TO-RIGHT MARK and `U+200F` RIGHT-TO-LEFT MARK;
-- `U+202A..U+202E` embedding, override, and pop-directional-formatting controls; and
-- `U+2066..U+2069` isolate controls.
+The implementation pins that property table locally rather than relying on a moving Unicode dependency. Direct comparison of the stable versioned Unicode 18.0.0 DICP finds 27 DICP source entries / 4,174 scalars. Those entries compress exactly to the implementation's 17 ranges/singletons: `U+00AD`, `U+034F`, `U+061C`, `U+115F..1160`, `U+17B4..17B5`, `U+180B..180F`, `U+200B..200F`, `U+202A..202E`, `U+2060..206F`, `U+3164`, `U+FE00..FE0F`, `U+FEFF`, `U+FFA0`, `U+FFF0..FFF8`, `U+1BCA0..1BCA3`, `U+1D173..1D17A`, and `U+E0000..E0FFF`. The compressed `180B..180F`, `2060..206F`, and `E0000..E0FFF` ranges are exact unions of adjacent source entries with no gaps and therefore do not widen the property set.
 
-Do not reject ordinary visible right-to-left scripts. The regression therefore keeps Arabic and Hebrew text admissible when no formatting control or line/paragraph separator is present. No Unicode normalization, confusable folding, ASCII-only restriction, or browser-protocol normalization is introduced by this slice.
+No normalization, case folding, confusable skeletonization, mixed-script restriction, or ASCII-only admission is introduced. Byte identity remains authoritative after admission. The existing public `ControlCharacterRunContext` variant is retained for compatibility even though its diagnostic now describes the broader rendering/default-ignorable boundary; changing the public variant name would create unrelated API churn without changing the fail-closed result.
 
-The implementation remains dependency-free. One private helper matches `U+2028`/`U+2029`; another matches the exact `Bidi_Control` scalar set. Both run before run-context equality can influence suite evidence. The existing typed `ControlCharacterRunContext` failure remains the fail-closed public diagnostic so this repair does not widen the public error surface unnecessarily.
+Validation still runs independently on expected and observed context values before equality can influence benchmark evidence. No benchmark threshold, registry membership, browser authority, model/provider routing, evidence signing/persistence, workflow, or release authority changes in this slice.
 
 ## Test-first evidence
 
-Parent exact: `ea92c326e2dc4e3daa869aff1266c10b05453e7d`.
+Parent #322 exact: `a4c8ceaf67a075ef483334802aacfc54cf502068`.
 
-Bidi test-first exact: `a02b1d6e3a2034944ba337973bc9d0385976907c`. The test injects all 12 `Bidi_Control` scalar values and requires `ControlCharacterRunContext`; it also adds a visible Arabic/Hebrew acceptance case. The parent source only used `char::is_control`, so the bidi-control assertions were semantic RED by source inspection. Hosted execution was unavailable at creation time; this is not an executed RED claim.
+Test-first exact: `592a1a3bc49a922df86285eab332308770b77474`. It adds hostile cases for `U+200B`, `U+200C`, `U+200D`, `U+2060`, `U+FEFF`, and `U+FE0F` and requires the existing typed fail-closed error. The predecessor validator accepted each of those values because they are outside its C0/C1, line-separator, and `Bidi_Control` predicates. Hosted Rust execution was not available when the RED was authored, so this is a source-reproduced semantic RED, not a claim that a GitHub runner executed the failure.
 
-Bidi production repair exact: `11b2c16422481eb674a90ae61e941a5b247c4024`. `validate_run_context_field` rejects C0/C1 controls or the exact bidi-control set before equality comparison.
+Production repair exact: `19a37a667baeffe824c4fb025942eecb40bc67c8`. It introduces the versioned profile constant and the pinned DICP predicate, then applies it before expected/observed byte equality.
 
-Line-separator test-first exact: `4c17e0b36aa627e036dcbe3d82332a7bc0cc594c`. It adds hostile `U+2028` and `U+2029` identities and requires the same typed fail-closed error. The predecessor source accepted both because they are not `Cc` and are outside `Bidi_Control`; this is again a semantic RED established from the exact predecessor source, not a claim that a hosted runner executed the failing test.
+Coverage successor exact: `02edb5b2cb5ff9e1237afbc83d9a0f3e7aa48d6a`. It covers the profile identifier and endpoints or representatives of every compressed property range while retaining visible multilingual and ordinary RTL acceptance cases.
 
-Line-separator production repair exact: `c89f76c5761a46745a5d1d2176828bfd6c3c2f32`. The validator adds the narrow `is_unicode_line_separator` predicate, and rustdoc plus the public diagnostic are widened only enough to describe the actual admitted rendering-control boundary. Exact `4f8bce55d2f03a73260c2629c0eca2012f79a539` aligns the diagnostic regression with that public message.
+Rustdoc provenance correction exact: `e0b9bd793ceaf784b45ec9c4a720c5243892abdf`. It removes the earlier wording that conflated semantic property-set equality with immutable raw-file publication. Production and test semantics are unchanged.
 
-None of these changes alter benchmark thresholds, registry membership/versioning, browser authority, model/provider routing, evidence signing/persistence, workflows, or release authority.
+These commits are active branch evidence only. Exact-head repository contracts, rustfmt, locked tests, strict Clippy, rustdoc/API docs, production function/line/region/branch coverage, applicable browser/security workflows, and normal repository policy still need to complete before promotion.
+
+## Publication provenance gate
+
+Formal Unicode Standard release and immutable UCD artifact publication are different claims. The Unicode release registry and Version 18.0.0 materials establish the formal 2026-09-16 standard release. On 2026-09-21 KST, the canonical versioned UCD request `https://www.unicode.org/Public/18.0.0/ucd/DerivedCoreProperties.txt` returned HTTP 200 directly from the versioned path instead of redirecting to `/Public/draft/`; the versioned `/Public/18.0.0/` index likewise exposed its own `ucd/` directory.
+
+The stable versioned artifact receipt is:
+
+- file identity: `DerivedCoreProperties-18.0.0.txt`
+- embedded file date: `2026-08-07, 16:19:42 GMT`
+- raw file byte length: **1,159,889 bytes**
+- raw file SHA-256: **`09c928886a178fcafd93c29e4bd59073a058e5a100b716d425cb563ab50f68c9`**
+- observed HTTP metadata: `Last-Modified: Tue, 01 Sep 2026 20:29:02 GMT`, `ETag: "11b2d1-65a71c4edff80-gzip"`
+
+The receipt hashes the decoded file bytes, not the HTTP gzip transfer representation. A second direct retrieval produced the same 1,159,889-byte body and SHA-256. The hexadecimal ETag size prefix `11b2d1` is also 1,159,889, which is consistent with the file-byte count; the ETag itself is not used as the cryptographic identity.
+
+The property comparison remains independently reproducible. Expanding the 27 `Default_Ignorable_Code_Point` source entries to the ascending scalar set and encoding each scalar as six uppercase hexadecimal digits followed by LF (`%06X\n`) produces a 29,218-byte normalized stream with SHA-256 `673264e62183e35f6055a2ad4940403e706669e0750fcc5d56a99f158fb3bb93`. Expanding #324's 17 compressed implementation ranges produces the same stream and digest. The raw-file receipt and normalized property-set receipt therefore establish two different facts: immutable artifact identity and semantic equality of the property set consumed by OriginWeave.
+
+The artifact-dependent parts of #325 are now satisfied by the stable versioned route, raw receipt, and repeated property comparison. #325 remains open until this evidence is incorporated into the current #324 exact head and that head completes repository contracts, rustfmt, locked tests, strict Clippy, rustdoc/API docs, 100% production function/line/region/branch coverage, required security/browser workflows, review, and normal repository policy. If a later authoritative Unicode artifact changes these bytes or the normalized property set, OriginWeave must not silently rewrite this profile: a fresh compatibility/security RED and a new profile identity are required.
 
 ## Alternatives considered
 
-Rejecting all non-ASCII text was rejected because it would conflate script diversity with rendering-control risk and would break legitimate internationalized operator-controlled labels. Applying Unicode normalization was rejected because canonicalization would change exact evidence identity and does not by itself solve directional reordering or explicit line/paragraph separation. Treating byte equality as sufficient was rejected because UAX #9 separates logical order from rendered order for bidirectional text, while the Unicode Standard explicitly assigns LS and PS line/paragraph boundary semantics.
+Keeping #322's finite reviewed list was rejected because it leaves other byte-distinct invisible or presentation-dependent DICP values admissible and would make the policy depend on recurring manual discovery. A moving Unicode library predicate was rejected because DICP has no unconditional stability guarantee; a dependency or toolchain update could silently change the accepted evidence grammar. Tailoring ZWJ/ZWNJ or emoji variation selectors was rejected for this benchmark-owned machine/audit identity because these fields are not natural-language prose or emoji labels and there is no buyer requirement that justifies the extra ambiguity.
 
-A broader Unicode security profile may be warranted later for externally supplied product identifiers. That is not silently introduced here: any expansion to confusable, default-ignorable, script-restriction, or normalization policy needs its own threat model, compatibility analysis, tests, and versioned contract.
+Rejecting all non-ASCII text was rejected because it would conflate script diversity with evidence-rendering risk. NFC/NFKC, case folding, and confusable detection were rejected from this slice because they change comparison semantics rather than merely excluding the explicitly adopted property and require their own migration analysis.
 
-## Risks and follow-up
+Treating the 2026-08-07 file as final before formal publication was rejected and remains correct for that historical checkpoint. Treating formal release of the Unicode Standard alone as proof of immutable UCD publication was likewise rejected; the artifact route and raw-byte receipt were verified independently once the versioned path became stable.
 
-The current repair prevents the reviewed directional and line/paragraph rendering controls from entering benchmark-owned run-context identities but does not authenticate those identities. The durable evidence owner must still bind them to execution artifacts. It also does not claim complete Unicode spoofing resistance; UTS #39 covers a wider space of identifier-security mechanisms.
+## Migration, reversal, and risk
 
-The parent #237 and child #322 remain active-PR evidence. Exact-head repository contracts, rustfmt, locked tests, strict Clippy, rustdoc/API docs, 100% production function/line/region/branch coverage, and required security/review workflows must execute before promotion. Cancelled, skipped, queued-only, predecessor, or status-only jobs are not passing evidence.
+Every retained benchmark result is already bound to an OriginWeave source revision. The new profile adds an explicit profile identifier so future evidence schemas can record the grammar directly rather than infer it from source history. Until that binding is wired into durable evidence by its canonical owner, source revision remains the compatibility anchor.
+
+A future Unicode-version upgrade or tailored exception must not silently edit the current profile. It requires a new profile identifier, a fresh property/data comparison, hostile and compatibility tests, doctoring and changelog changes, and an explicit decision about whether old evidence remains acceptable. Reversal to a less restrictive profile has the same migration requirement because previously rejected identities could become admissible.
+
+This exclusion reduces audit/display ambiguity but does not establish complete Unicode spoofing resistance. Confusables, mixed-script policy, normalization, and natural-language join-control usability remain separate threat and compatibility decisions. Durable evidence signing and provenance remain owned by their existing canonical boundaries.
 
 ## References
 
+Unicode Consortium. (2026, September 16). *Unicode recent releases*. https://www.unicode.org/releases/
+
+Unicode Consortium. (2026, September 16). *Announcing the Unicode Standard, Version 18.0*. https://blog.unicode.org/2026/09/announcing-unicode-standard-version-180.html
+
+Unicode Consortium. (2026). *The Unicode Standard, Version 18.0.0*. https://www.unicode.org/versions/Unicode18.0.0/
+
+Unicode Consortium. (2026, September 1). *Unicode identifiers and syntax* (Unicode Standard Annex #31, Version 18.0.0, Revision 45). https://www.unicode.org/reports/tr31/tr31-45.html
+
 Unicode Consortium. (2026, August 27). *Unicode security mechanisms* (Unicode Technical Standard #39, Version 18.0.0, Revision 34). https://www.unicode.org/reports/tr39/tr39-34.html
 
-Unicode Consortium. (2025, August 13). *Unicode bidirectional algorithm* (Unicode Standard Annex #9, Version 17.0.0, Revision 51). https://www.unicode.org/reports/tr9/tr9-51.html
-
-Unicode Consortium. (2025). *Unicode Character Database* (Unicode Standard Annex #44, Version 17.0.0). https://www.unicode.org/reports/tr44/
-
-Unicode Consortium. (2025). *The Unicode Standard, Version 17.0.0: Chapter 5, Implementation guidelines—Newline guidelines*. https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-5/
+Unicode Consortium. (2026, August 7; stable versioned route revalidated 2026-09-21). *DerivedCoreProperties-18.0.0.txt* [Unicode 18.0.0 Unicode Character Database artifact]. https://www.unicode.org/Public/18.0.0/ucd/DerivedCoreProperties.txt
