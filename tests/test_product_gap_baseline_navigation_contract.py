@@ -94,9 +94,18 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, traceability)
 
-        delivery = next(
-            line for line in traceability.splitlines() if "Delivery remains" in line
-        )
+        decision_start = "## Decision"
+        decision_end = "## Historical-evidence boundary"
+        self.assertEqual(1, traceability.count(decision_start))
+        self.assertEqual(1, traceability.count(decision_end))
+        decision_tail = traceability.split(decision_start, 1)[1]
+        self.assertIn(decision_end, decision_tail)
+        decision = decision_tail.split(decision_end, 1)[0]
+        delivery_lines = [
+            line for line in decision.splitlines() if "Delivery remains" in line
+        ]
+        self.assertEqual(1, len(delivery_lines))
+        delivery = delivery_lines[0]
         self.assertLess(delivery.index("#237"), delivery.index("#322"))
         self.assertLess(delivery.index("#322"), delivery.index("#324"))
         self.assertIn("ordinary/non-force", delivery)
