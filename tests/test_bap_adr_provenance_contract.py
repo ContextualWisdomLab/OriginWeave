@@ -10,6 +10,11 @@ BAP = ROOT / "crates" / "originweave-bap" / "src" / "lib.rs"
 
 
 class BapAdrProvenanceContract(unittest.TestCase):
+    def bounded_section(self, text: str, start: str, end: str) -> str:
+        self.assertIn(start, text)
+        self.assertIn(end, text)
+        return text.split(start, 1)[1].split(end, 1)[0]
+
     def test_proposed_adr_tracks_protected_main_implementation_without_false_active_pr_provenance(self) -> None:
         docs_index = DOCS_INDEX.read_text(encoding="utf-8")
         adr_index = ADR_INDEX.read_text(encoding="utf-8")
@@ -18,28 +23,40 @@ class BapAdrProvenanceContract(unittest.TestCase):
         bap = BAP.read_text(encoding="utf-8")
 
         self.assertIn('"crates/originweave-bap"', workspace)
-        self.assertIn("Stable internal Browser Agent Protocol lifecycle contracts", bap)
+        self.assertIn("pub enum BapTaskState", bap)
+        self.assertIn("pub enum BapTaskEvent", bap)
         self.assertIn("- **Status:** Proposed", adr)
 
-        protected_docs = docs_index.split(
-            "### Protected-main baseline proposed decisions", 1
-        )[1].split("### Proposed decisions introduced by", 1)[0]
-        protected_adr = adr_index.split(
-            "### Protected-main baseline proposed decisions", 1
-        )[1].split("### Proposed decisions introduced by", 1)[0]
-        self.assertIn("ADR 0016", protected_docs)
-        self.assertIn("[0016]", protected_adr)
-
-        self.assertNotIn(
-            "ADR 0016 is owned by this active BAP lifecycle feature branch",
+        protected_docs = self.bounded_section(
             docs_index,
+            "### Protected-main baseline proposed decisions",
+            "### Proposed decisions introduced by",
         )
-        self.assertNotIn(
-            "ADR 0016 belongs to the active BAP lifecycle feature branch",
+        introduced_docs = self.bounded_section(
+            docs_index,
+            "### Proposed decisions introduced by",
+            "See the [ADR index]",
+        )
+        protected_adr = self.bounded_section(
             adr_index,
+            "### Protected-main baseline proposed decisions",
+            "### Proposed decisions introduced by documentation reconciliation",
         )
-        self.assertNotIn("removal of the active BAP lifecycle branch", adr)
-        self.assertIn("Proposed lifecycle does not erase protected-main implementation evidence", adr)
+        introduced_adr = self.bounded_section(
+            adr_index,
+            "### Proposed decisions introduced by documentation reconciliation",
+            "## Index completeness rule",
+        )
+
+        self.assertIn("ADR 0016", protected_docs)
+        self.assertNotIn("ADR 0016", introduced_docs)
+        self.assertIn("[0016]", protected_adr)
+        self.assertNotIn("[0016]", introduced_adr)
+
+        context = self.bounded_section(adr, "## Context", "## Decision drivers")
+        self.assertIn("merged PR #208", context)
+        self.assertIn("protected `main`", context)
+        self.assertIn("Proposed", context)
 
 
 if __name__ == "__main__":
