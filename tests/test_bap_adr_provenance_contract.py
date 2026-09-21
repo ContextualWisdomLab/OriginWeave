@@ -15,6 +15,14 @@ class BapAdrProvenanceContract(unittest.TestCase):
         self.assertIn(end, text)
         return text.split(start, 1)[1].split(end, 1)[0]
 
+    def test_bounded_section_requires_end_marker_after_start_marker(self) -> None:
+        with self.assertRaises(AssertionError):
+            self.bounded_section(
+                "END\nSTART\npayload without a trailing end marker",
+                "START",
+                "END",
+            )
+
     def test_proposed_adr_tracks_protected_main_implementation_without_false_active_pr_provenance(self) -> None:
         docs_index = DOCS_INDEX.read_text(encoding="utf-8")
         adr_index = ADR_INDEX.read_text(encoding="utf-8")
