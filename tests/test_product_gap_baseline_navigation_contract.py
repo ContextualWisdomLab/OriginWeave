@@ -84,6 +84,17 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertNotIn("2026-08-07 pre-release Unicode 18.0.0 UCD snapshot", text)
         self.assertNotIn("At or after final Unicode 18.0.0 UCD publication", text)
 
+        traceability_lines = traceability.splitlines()
+        decision_start = "## Decision"
+        decision_end = "## Historical-evidence boundary"
+        self.assertEqual(1, traceability_lines.count(decision_start))
+        self.assertEqual(1, traceability_lines.count(decision_end))
+        decision_start_index = traceability_lines.index(decision_start)
+        decision_end_index = traceability_lines.index(decision_end)
+        self.assertLess(decision_start_index, decision_end_index)
+        decision_lines = traceability_lines[decision_start_index + 1 : decision_end_index]
+        decision = "\n".join(decision_lines)
+
         for marker in (
             "4e70d5ed9ce13f7b59012d39646e94ac41519c89",
             "35629802868",
@@ -92,17 +103,10 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             "hostile expected / valid observed",
             "no blocking issue",
         ):
-            self.assertIn(marker, traceability)
+            self.assertIn(marker, decision)
 
-        decision_start = "## Decision"
-        decision_end = "## Historical-evidence boundary"
-        self.assertEqual(1, traceability.count(decision_start))
-        self.assertEqual(1, traceability.count(decision_end))
-        decision_tail = traceability.split(decision_start, 1)[1]
-        self.assertIn(decision_end, decision_tail)
-        decision = decision_tail.split(decision_end, 1)[0]
         delivery_lines = [
-            line for line in decision.splitlines() if "Delivery remains" in line
+            line for line in decision_lines if "Delivery remains" in line
         ]
         self.assertEqual(1, len(delivery_lines))
         delivery = delivery_lines[0]
