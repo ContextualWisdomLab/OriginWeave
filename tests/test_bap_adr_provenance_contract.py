@@ -12,8 +12,9 @@ BAP = ROOT / "crates" / "originweave-bap" / "src" / "lib.rs"
 class BapAdrProvenanceContract(unittest.TestCase):
     def bounded_section(self, text: str, start: str, end: str) -> str:
         self.assertIn(start, text)
-        self.assertIn(end, text)
-        return text.split(start, 1)[1].split(end, 1)[0]
+        tail = text.split(start, 1)[1]
+        self.assertIn(end, tail)
+        return tail.split(end, 1)[0]
 
     def test_bounded_section_requires_end_marker_after_start_marker(self) -> None:
         with self.assertRaises(AssertionError):
