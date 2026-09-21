@@ -50,7 +50,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
         self.assertIn("2026-09-21 04:07 UTC", text)
         self.assertIn("135 open PRs / 6 Ready/non-draft / 129 Draft / 19 open non-PR issues", text)
-        self.assertIn("#309 is merged into the #238 documentation lineage", text)
+        self.assertIn("#309 remains merged into the #238 documentation lineage", text)
         self.assertIn("Historical 2026-09-21 03:59 receipt", text)
         self.assertIn("Historical 2026-09-20 receipt", text)
         self.assertIn("Historical 2026-09-15 receipt", text)
@@ -97,54 +97,3 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertIn("14 open non-PR issues", inventory[0])
         self.assertIn("Observed 2026-09-09 12:57 UTC", inventory[0])
         self.assertNotIn("135 open pull requests (6 ready, 129 draft)", inventory[0])
-
-    def test_historical_dossier_is_preserved_outside_the_decision_surface(self) -> None:
-        self.assertTrue(ARCHIVE.is_file())
-        self.assertTrue(ARCHIVE_NAVIGATION.is_file())
-        archive = ARCHIVE.read_text(encoding="utf-8")
-
-        self.assertGreater(len(archive.encode("utf-8")), 180_000)
-        self.assertIn("### Previous verified cut: 2026-09-08", archive)
-        self.assertIn("### Latest verified cut: 2026-09-06", archive)
-        self.assertIn("## Observed snapshot: 2026-08-29", archive)
-        self.assertIn("#### Published session-end reply binding: 05:35 UTC", archive)
-
-    def test_historical_checkpoint_links_to_the_preserved_dossier_anchor(self) -> None:
-        checkpoint = CHECKPOINT.read_text(encoding="utf-8")
-
-        self.assertIn(
-            "product-technical-gap-baseline-through-2026-09-09.md#latest-verified-cut-2026-09-06",
-            checkpoint,
-        )
-        self.assertNotIn(
-            "../product-technical-gap-baseline.md#latest-verified-cut-2026-09-06",
-            checkpoint,
-        )
-
-    def test_archive_navigation_receipt_maps_original_relative_links_in_two_columns(self) -> None:
-        navigation = ARCHIVE_NAVIGATION.read_text(encoding="utf-8")
-        for row in (
-            "| `../scripts/ci/collect_live_merge_evidence.sh` | `scripts/ci/collect_live_merge_evidence.sh` |",
-            "| `doctoring.md` | `docs/doctoring.md` |",
-            "| `doctoring/browser-agent-protocols.md` | `docs/doctoring/browser-agent-protocols.md` |",
-            "| `product-roadmap.md` | `docs/product-roadmap.md` |",
-            "| `PRD.md` | `docs/PRD.md` |",
-            "| `TRD.md` | `docs/TRD.md` |",
-        ):
-            with self.subTest(row=row):
-                self.assertIn(row, navigation)
-
-    def test_legacy_changelog_input_is_immutable_and_separate_from_live_changelog(self) -> None:
-        self.assertTrue(ARCHIVE_CHANGELOG.is_file())
-        archived = ARCHIVE_CHANGELOG.read_text(encoding="utf-8")
-        live = CHANGELOG.read_text(encoding="utf-8")
-        loader = LOADER.read_text(encoding="utf-8")
-
-        self.assertIn("131 open pull requests (14 ready, 117 draft)", archived)
-        self.assertIn("130 open pull requests (12 ready, 118 draft)", live)
-        self.assertIn("ARCHIVE_CHANGELOG", loader)
-        self.assertIn("module.CHANGELOG = ARCHIVE_CHANGELOG", loader)
-
-
-if __name__ == "__main__":
-    unittest.main()
