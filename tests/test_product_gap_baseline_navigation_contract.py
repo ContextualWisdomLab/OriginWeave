@@ -91,12 +91,18 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             "valid expected / hostile observed",
             "hostile expected / valid observed",
             "no blocking issue",
-            "#237 exact acceptance and normal protected integration",
-            "#322 ordinary/non-force adoption plus fresh exact-head acceptance/integration",
-            "#324 ordinary/non-force adoption plus fresh exact-head acceptance/integration",
-            "Any adoption/restack creates a new exact head and requires new evidence.",
         ):
             self.assertIn(marker, traceability)
+
+        delivery = next(
+            line for line in traceability.splitlines() if "Delivery remains" in line
+        )
+        self.assertLess(delivery.index("#237"), delivery.index("#322"))
+        self.assertLess(delivery.index("#322"), delivery.index("#324"))
+        self.assertIn("ordinary/non-force", delivery)
+        self.assertIn("fresh exact-head", delivery)
+        self.assertIn("new exact head", delivery)
+        self.assertIn("new evidence", delivery)
 
     def test_changelog_preserves_the_previous_dated_inventory_receipt(self) -> None:
         baseline = BASELINE.read_text(encoding="utf-8")
