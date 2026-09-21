@@ -1,7 +1,7 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE, CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
-    ControlledBenchmarkRunContext, ControlledBenchmarkSuiteError, ControlledBenchmarkSupportProfile,
-    evaluate_controlled_benchmark_suite_for_run,
+    ControlledBenchmarkRunContext, ControlledBenchmarkSuiteError,
+    ControlledBenchmarkSupportProfile, evaluate_controlled_benchmark_suite_for_run,
 };
 use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
 
@@ -138,7 +138,11 @@ fn surrounding_whitespace_reproducibility_context_field_fails_closed() {
 
 #[test]
 fn control_character_in_reproducibility_context_fails_closed() {
-    for hostile in ["runner\nspoofed=passed", "runner\0suffix", "runner\u{0085}suffix"] {
+    for hostile in [
+        "runner\nspoofed=passed",
+        "runner\0suffix",
+        "runner\u{0085}suffix",
+    ] {
         let mut context = run_context();
         context.reasoning_configuration = hostile;
 
@@ -160,7 +164,10 @@ fn control_character_in_reproducibility_context_fails_closed() {
 
 #[test]
 fn unicode_line_separator_in_reproducibility_context_fails_closed() {
-    for hostile in ["runner\u{2028}spoofed=passed", "runner\u{2029}spoofed=passed"] {
+    for hostile in [
+        "runner\u{2028}spoofed=passed",
+        "runner\u{2029}spoofed=passed",
+    ] {
         let mut context = run_context();
         context.reasoning_configuration = hostile;
 
@@ -285,10 +292,7 @@ fn unicode_18_default_ignorable_reproducibility_context_fails_closed() {
 
 #[test]
 fn visible_unicode_reproducibility_context_remains_valid() {
-    for visible in [
-        "결정적-ブラウザ-oráculo-v1",
-        "محرك-מבחן-v1",
-    ] {
+    for visible in ["결정적-ブラウザ-oráculo-v1", "محرك-מבחן-v1"] {
         let mut context = run_context();
         context.reasoning_configuration = visible;
 
