@@ -61,7 +61,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
     def test_current_unicode_row_tracks_stable_publication_and_exact_candidate(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
 
-        self.assertIn("b89b40351152abe6a9c15fffd67f785933f6e164", text)
+        self.assertIn("4e70d5ed9ce13f7b59012d39646e94ac41519c89", text)
         self.assertIn("unicode-18.0.0-default-ignorable-exclusion", text)
         self.assertIn("1,159,889 bytes", text)
         self.assertIn(
@@ -74,11 +74,12 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             "673264e62183e35f6055a2ad4940403e706669e0750fcc5d56a99f158fb3bb93",
             text,
         )
-        self.assertIn("35531334971", text)
-        self.assertIn("formatting-only", text)
-        self.assertIn("35531334972", text)
-        self.assertIn("35556275575", text)
-        self.assertIn("35556275524", text)
+        self.assertIn("35629802868", text)
+        self.assertIn("35629802889", text)
+        self.assertIn("terminal runner-backed execution", text)
+        self.assertIn("no blocking issue", text)
+        self.assertIn("hostile expected / valid observed", text)
+        self.assertIn("valid expected / hostile observed", text)
         self.assertNotIn("2026-08-07 pre-release Unicode 18.0.0 UCD snapshot", text)
         self.assertNotIn("At or after final Unicode 18.0.0 UCD publication", text)
 
