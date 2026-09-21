@@ -56,7 +56,7 @@ fn base_profile() -> ControlledBenchmarkSupportProfile {
 }
 
 #[test]
-fn every_unicode_18_default_ignorable_source_scalar_fails_closed() {
+fn every_unicode_18_default_ignorable_source_scalar_fails_closed() -> Result<(), &'static str> {
     assert_eq!(
         CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE,
         "unicode-18.0.0-default-ignorable-exclusion"
@@ -66,14 +66,8 @@ fn every_unicode_18_default_ignorable_source_scalar_fails_closed() {
 
     for &(start, end) in UNICODE_18_DEFAULT_IGNORABLE_SOURCE_RANGES {
         for code_point in start..=end {
-            let hostile_scalar = char::from_u32(code_point);
-            assert!(
-                hostile_scalar.is_some(),
-                "Unicode 18 DICP fixture contains a non-scalar U+{code_point:04X}"
-            );
-            let Some(hostile_scalar) = hostile_scalar else {
-                continue;
-            };
+            let hostile_scalar = char::from_u32(code_point)
+                .ok_or("Unicode 18 DICP fixture ranges must contain only scalar values")?;
             let hostile = format!("runner{hostile_scalar}suffix");
             let context = run_context(&hostile);
 
@@ -96,4 +90,5 @@ fn every_unicode_18_default_ignorable_source_scalar_fails_closed() {
     }
 
     assert_eq!(tested_scalar_count, 4_174);
+    Ok(())
 }
