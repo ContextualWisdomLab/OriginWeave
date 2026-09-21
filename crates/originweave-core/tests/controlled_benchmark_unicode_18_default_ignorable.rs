@@ -92,3 +92,37 @@ fn every_unicode_18_default_ignorable_source_scalar_fails_closed() -> Result<(),
     assert_eq!(tested_scalar_count, 4_174);
     Ok(())
 }
+
+#[test]
+fn every_unicode_18_default_ignorable_observed_scalar_fails_closed() -> Result<(), &'static str> {
+    let expected = run_context("deterministic-no-model");
+    let mut tested_scalar_count = 0_u32;
+
+    for &(start, end) in UNICODE_18_DEFAULT_IGNORABLE_SOURCE_RANGES {
+        for code_point in start..=end {
+            let hostile_scalar = char::from_u32(code_point)
+                .ok_or("Unicode 18 DICP fixture ranges must contain only scalar values")?;
+            let hostile = format!("runner{hostile_scalar}suffix");
+            let observed = run_context(&hostile);
+
+            assert_eq!(
+                evaluate_controlled_benchmark_suite_for_run(
+                    expected,
+                    observed,
+                    CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                    base_profile(),
+                    &[],
+                ),
+                Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                    field: "reasoning_configuration",
+                }),
+                "Unicode 18.0.0 Default_Ignorable_Code_Point escaped observed-context validation: U+{code_point:04X}"
+            );
+
+            tested_scalar_count += 1;
+        }
+    }
+
+    assert_eq!(tested_scalar_count, 4_174);
+    Ok(())
+}
