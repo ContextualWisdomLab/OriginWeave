@@ -66,9 +66,14 @@ fn every_unicode_18_default_ignorable_source_scalar_fails_closed() {
 
     for &(start, end) in UNICODE_18_DEFAULT_IGNORABLE_SOURCE_RANGES {
         for code_point in start..=end {
-            let hostile_scalar = char::from_u32(code_point).unwrap_or_else(|| {
-                panic!("Unicode 18 DICP fixture contains a non-scalar U+{code_point:04X}")
-            });
+            let hostile_scalar = char::from_u32(code_point);
+            assert!(
+                hostile_scalar.is_some(),
+                "Unicode 18 DICP fixture contains a non-scalar U+{code_point:04X}"
+            );
+            let Some(hostile_scalar) = hostile_scalar else {
+                continue;
+            };
             let hostile = format!("runner{hostile_scalar}suffix");
             let context = run_context(&hostile);
 
