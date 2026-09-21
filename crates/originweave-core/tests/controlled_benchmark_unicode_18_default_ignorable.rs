@@ -1,7 +1,7 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE, CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
-    ControlledBenchmarkRunContext, ControlledBenchmarkSuiteError, ControlledBenchmarkSupportProfile,
-    evaluate_controlled_benchmark_suite_for_run,
+    ControlledBenchmarkRunContext, ControlledBenchmarkSuiteError,
+    ControlledBenchmarkSupportProfile, evaluate_controlled_benchmark_suite_for_run,
 };
 
 const UNICODE_18_DEFAULT_IGNORABLE_SOURCE_RANGES: &[(u32, u32)] = &[
