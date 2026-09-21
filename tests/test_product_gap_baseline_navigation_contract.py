@@ -25,7 +25,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
         self.assertLessEqual(len(lines), 220)
         self.assertLessEqual(len(text.encode("utf-8")), 24_000)
-        self.assertIn("## Observed delivery cut — 2026-09-20 22:00 UTC", text)
+        self.assertIn("## Observed delivery cut — 2026-09-21 03:59 UTC", text)
         self.assertIn("## Buyer gap matrix", text)
         self.assertIn("## Evidence and history index", text)
         self.assertLess(lines.index("## Buyer gap matrix"), 90)
@@ -42,14 +42,15 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertIn("19 open non-PR issues", text)
         self.assertIn("#309 is merged into this #238 documentation lineage", text)
         self.assertNotIn("includes this #309 Draft successor", text)
-        self.assertIn("Live GitHub state supersedes this cut after 2026-09-20 22:00 UTC.", text)
+        self.assertIn("Live GitHub state supersedes this cut after 2026-09-21 03:59 UTC.", text)
 
     def test_navigation_traceability_tracks_current_receipt_and_demotes_previous_cuts(self) -> None:
         text = TRACEABILITY.read_text(encoding="utf-8")
 
-        self.assertIn("2026-09-20 22:00 UTC", text)
+        self.assertIn("2026-09-21 03:59 UTC", text)
         self.assertIn("135 open PRs / 5 Ready/non-draft / 130 Draft / 19 open non-PR issues", text)
         self.assertIn("#309 is merged into the #238 documentation lineage", text)
+        self.assertIn("Historical 2026-09-20 receipt", text)
         self.assertIn("Historical 2026-09-15 receipt", text)
         self.assertIn("135 open PRs / 13 Ready/non-draft / 122 Draft / 19 open non-PR issues", text)
         self.assertIn("Historical 2026-09-09 receipt", text)
@@ -58,7 +59,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
     def test_current_unicode_row_tracks_stable_publication_and_exact_candidate(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
 
-        self.assertIn("accdd2d194f21ae1444ccca5297ce6590bc5384e", text)
+        self.assertIn("b89b40351152abe6a9c15fffd67f785933f6e164", text)
         self.assertIn("unicode-18.0.0-default-ignorable-exclusion", text)
         self.assertIn("1,159,889 bytes", text)
         self.assertIn(
@@ -71,6 +72,11 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             "673264e62183e35f6055a2ad4940403e706669e0750fcc5d56a99f158fb3bb93",
             text,
         )
+        self.assertIn("35531334971", text)
+        self.assertIn("formatting-only", text)
+        self.assertIn("35531334972", text)
+        self.assertIn("35556275575", text)
+        self.assertIn("35556275524", text)
         self.assertNotIn("2026-08-07 pre-release Unicode 18.0.0 UCD snapshot", text)
         self.assertNotIn("At or after final Unicode 18.0.0 UCD publication", text)
 
@@ -83,7 +89,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             if line.startswith("- Current delivery inventory:")
         ]
 
-        self.assertIn("2026-09-20 22:00 UTC", baseline)
+        self.assertIn("2026-09-21 03:59 UTC", baseline)
         self.assertEqual(1, len(inventory))
         self.assertIn("130 open pull requests (12 ready, 118 draft)", inventory[0])
         self.assertIn("14 open non-PR issues", inventory[0])
