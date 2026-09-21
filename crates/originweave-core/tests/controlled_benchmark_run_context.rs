@@ -268,15 +268,16 @@ fn unicode_18_default_ignorable_reproducibility_context_fails_closed() {
         '\u{e0fff}',
     ] {
         let hostile = format!("runner{hostile_scalar}suffix");
-        let context = ControlledBenchmarkRunContext {
+        let expected = run_context();
+        let observed = ControlledBenchmarkRunContext {
             reasoning_configuration: &hostile,
             ..run_context()
         };
 
         assert_eq!(
             evaluate_controlled_benchmark_suite_for_run(
-                context,
-                context,
+                expected,
+                observed,
                 CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
                 base_profile(),
                 &[],
@@ -284,7 +285,7 @@ fn unicode_18_default_ignorable_reproducibility_context_fails_closed() {
             Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
                 field: "reasoning_configuration",
             }),
-            "Unicode 18.0.0 Default_Ignorable_Code_Point must not become benchmark evidence identity: U+{:04X}",
+            "Unicode 18.0.0 Default_Ignorable_Code_Point must not become observed benchmark evidence identity: U+{:04X}",
             hostile_scalar as u32
         );
     }
