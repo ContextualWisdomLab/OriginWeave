@@ -56,12 +56,13 @@ fn base_profile() -> ControlledBenchmarkSupportProfile {
 }
 
 #[test]
-fn every_unicode_18_default_ignorable_source_scalar_fails_closed() -> Result<(), &'static str> {
+fn every_unicode_18_default_ignorable_expected_scalar_fails_closed() -> Result<(), &'static str> {
     assert_eq!(
         CONTROLLED_BENCHMARK_UNICODE_IDENTITY_PROFILE,
         "unicode-18.0.0-default-ignorable-exclusion"
     );
 
+    let observed = run_context("deterministic-no-model");
     let mut tested_scalar_count = 0_u32;
 
     for &(start, end) in UNICODE_18_DEFAULT_IGNORABLE_SOURCE_RANGES {
@@ -69,12 +70,12 @@ fn every_unicode_18_default_ignorable_source_scalar_fails_closed() -> Result<(),
             let hostile_scalar = char::from_u32(code_point)
                 .ok_or("Unicode 18 DICP fixture ranges must contain only scalar values")?;
             let hostile = format!("runner{hostile_scalar}suffix");
-            let context = run_context(&hostile);
+            let expected = run_context(&hostile);
 
             assert_eq!(
                 evaluate_controlled_benchmark_suite_for_run(
-                    context,
-                    context,
+                    expected,
+                    observed,
                     CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
                     base_profile(),
                     &[],
@@ -82,7 +83,7 @@ fn every_unicode_18_default_ignorable_source_scalar_fails_closed() -> Result<(),
                 Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
                     field: "reasoning_configuration",
                 }),
-                "Unicode 18.0.0 Default_Ignorable_Code_Point escaped the benchmark identity profile: U+{code_point:04X}"
+                "Unicode 18.0.0 Default_Ignorable_Code_Point escaped expected-context validation: U+{code_point:04X}"
             );
 
             tested_scalar_count += 1;
