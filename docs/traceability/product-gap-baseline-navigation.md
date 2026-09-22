@@ -50,7 +50,11 @@ The currentization therefore changes only the live Unicode buyer row and its reg
 
 ## Decision
 
+### Current receipt
+
 The dated buyer receipt remains **2026-09-21 04:07 UTC**: **135 open PRs / 6 Ready/non-draft / 129 Draft / 19 open non-PR issues** after #238 moved to Ready. #309 remains merged into the #238 documentation lineage. #238 Ready status is review/execution admission only; it is not merge acceptance. Later live GitHub state explicitly supersedes this queue cut.
+
+### Historical receipts
 
 The previous cuts remain evidence, not active acceptance:
 
@@ -58,6 +62,8 @@ The previous cuts remain evidence, not active acceptance:
 - **Historical 2026-09-20 receipt:** 135 open PRs / 5 Ready/non-draft / 130 Draft / 19 open non-PR issues.
 - **Historical 2026-09-15 receipt:** 135 open PRs / 13 Ready/non-draft / 122 Draft / 19 open non-PR issues.
 - **Historical 2026-09-09 receipt:** 130 open PRs / 12 Ready / 118 Draft / 14 open non-PR issues.
+
+### Current Unicode evidence
 
 The live Unicode row now follows Ready/mergeable #324 exact `4e70d5ed9ce13f7b59012d39646e94ac41519c89` and profile `unicode-18.0.0-default-ignorable-exclusion`. Stable Unicode 18.0.0 publication provenance remains unchanged:
 
