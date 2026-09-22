@@ -75,6 +75,8 @@ The implementation follows:
 
 - RFC 9110 for HTTP semantics;
 - RFC 9112 for HTTP/1.1 message syntax and framing;
+- RFC 1951 for the bounded raw-DEFLATE compatibility path;
+- RFC 1952 for the gzip member format, including concatenated member series;
 - RFC 9530 for `Content-Digest` and `Repr-Digest`;
 - RFC 8941 Structured Fields syntax needed by RFC 9530 digest dictionaries;
 - the WHATWG MIME Sniffing Living Standard snapshot reviewed on 17 July 2026;
@@ -385,13 +387,13 @@ Because `rustls::StreamOwned` owns the underlying `TcpStream`, the crate updates
 
 ## Content decoding
 
-`Content-Encoding` is parsed as a comma-separated ordered list. The first slice accepts:
+`Content-Encoding` is parsed as a comma-separated ordered list. The current bounded slice accepts:
 
-- absent or `identity`;
-- exactly one `gzip` coding;
-- exactly one `deflate` coding using the RFC zlib wrapper.
+- absent or exactly one `identity`;
+- exactly one `gzip` coding; the decoder accepts concatenated RFC 1952 members in order, while malformed bytes after the valid member series remain a decoding failure;
+- exactly one `deflate` coding; the RFC 9110 zlib-wrapped form is attempted first, and only an ordinary decoding-format failure triggers the bounded raw RFC 1951 DEFLATE compatibility fallback. Decoded-size and expansion-ratio failures never trigger fallback, and successful raw fallback is recorded as `DeflateRawCompatibility` evidence.
 
-Multiple codings, raw deflate fallback, Brotli, Zstandard, unknown codings, and repeated identity are rejected.
+Multiple codings, Brotli, Zstandard, unknown codings, and repeated identity are rejected as product restrictions. RFC 9110 permits ordered lists of content codings, so rejection of stacked codings is an explicit interoperability limitation rather than a protocol-invalidity claim.
 
 The encoded body is already bounded. Decoding uses an 8 KiB scratch buffer and checks after every decoder read:
 
@@ -634,6 +636,10 @@ The implementation adds ADR 0007 and updates:
 A deterministic loopback suite proves that an authenticated TLS stream yields a successful HTTP result only when start lines, fields, framing, content, decoding, integrity, MIME metadata, redirect metadata, and every time/space budget are valid. Every malformed or excessive input fails closed without reconnecting, following, persisting, executing, or leaking protected values.
 
 ## References
+
+Deutsch, L. P. (1996). *DEFLATE compressed data format specification version 1.3* (RFC 1951). Internet Engineering Task Force. https://doi.org/10.17487/RFC1951
+
+Deutsch, L. P. (1996). *GZIP file format specification version 4.3* (RFC 1952). Internet Engineering Task Force. https://doi.org/10.17487/RFC1952
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
