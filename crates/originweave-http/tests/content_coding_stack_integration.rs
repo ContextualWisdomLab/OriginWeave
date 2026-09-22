@@ -3,14 +3,16 @@
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use flate2::Compression;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_http::{HttpClientPolicy, HttpExchangePlan, HttpMethod, HttpRequestTarget};
+use originweave_http::{
+    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
@@ -24,6 +26,8 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+type ServerResult = Result<Vec<u8>, String>;
 
 struct CertificateMaterial {
     root_der: Vec<u8>,
@@ -85,34 +89,38 @@ fn server_config(material: CertificateMaterial) -> (Vec<u8>, Arc<ServerConfig>) 
     (material.root_der, Arc::new(config))
 }
 
-fn spawn_http_server(config: Arc<ServerConfig>, response: Vec<u8>) -> SocketAddr {
+fn spawn_http_server(
+    config: Arc<ServerConfig>,
+    response: Vec<u8>,
+) -> (SocketAddr, JoinHandle<ServerResult>) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("loopback listener");
     let socket_address = listener.local_addr().expect("listener address");
-    thread::spawn(move || {
-        let (stream, _peer) = listener.accept().expect("loopback accept");
+    let handle = thread::spawn(move || {
+        let (stream, _peer) = listener.accept().map_err(|error| error.to_string())?;
         stream
             .set_read_timeout(Some(TEST_TIMEOUT))
-            .expect("server read timeout");
+            .map_err(|error| error.to_string())?;
         stream
             .set_write_timeout(Some(TEST_TIMEOUT))
-            .expect("server write timeout");
-        let connection = ServerConnection::new(config).expect("server connection");
+            .map_err(|error| error.to_string())?;
+        let connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
         let mut tls = StreamOwned::new(connection, stream);
         let mut request = Vec::new();
         let mut scratch = [0_u8; 512];
         while !request.windows(4).any(|window| window == b"\r\n\r\n") {
-            let count = tls.read(&mut scratch).expect("read request");
-            if count == 0 {
-                break;
+            match tls.read(&mut scratch) {
+                Ok(0) => break,
+                Ok(count) => request.extend_from_slice(&scratch[..count]),
+                Err(error) => return Err(error.to_string()),
             }
-            request.extend_from_slice(&scratch[..count]);
         }
-        tls.write_all(&response).expect("write response");
-        tls.flush().expect("flush response");
+        tls.write_all(&response).map_err(|error| error.to_string())?;
+        tls.flush().map_err(|error| error.to_string())?;
         tls.conn.send_close_notify();
         let _ = tls.flush();
+        Ok(request)
     });
-    socket_address
+    (socket_address, handle)
 }
 
 fn origin_for(socket_address: SocketAddr) -> Origin {
@@ -187,12 +195,12 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
 
     let material = certificate_material();
     let (root_der, config) = server_config(material);
-    let socket_address = spawn_http_server(config, wire_response);
+    let (socket_address, server) = spawn_http_server(config, wire_response);
     let origin = origin_for(socket_address);
     let connection = authenticated_connection(&origin, socket_address, root_der);
     let target = HttpRequestTarget::parse(origin, "/stacked-content-coding").expect("target");
 
-    let response = HttpExchangePlan::new(
+    let result = HttpExchangePlan::new(
         connection,
         HttpMethod::Get,
         target,
@@ -200,8 +208,22 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         HttpClientPolicy::strict_defaults(),
     )
     .expect("HTTP plan")
-    .execute()
-    .expect("RFC 9110 stacked content coding");
+    .execute();
 
-    assert_eq!(response.content(), original);
+    let request = server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+    assert!(
+        request.starts_with(b"GET /stacked-content-coding HTTP/1.1\r\n"),
+        "fixture must prove the expected request reached the authenticated TLS peer"
+    );
+
+    match result {
+        Ok(response) => assert_eq!(response.content(), original),
+        Err(HttpError::UnsupportedContentCoding) => panic!(
+            "current single-coding parser rejects the standards-valid `gzip, deflate` chain"
+        ),
+        Err(error) => panic!("stacked-coding fixture failed before the intended RED: {error:?}"),
+    }
 }
