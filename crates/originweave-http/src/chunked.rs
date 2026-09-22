@@ -35,6 +35,7 @@ pub(crate) struct ChunkedDecoder {
     chunk_count: usize,
     trailer_start: Option<usize>,
     trailers: Vec<FieldLine>,
+    committed_prefix: Vec<u8>,
 }
 
 impl ChunkedDecoder {
@@ -45,6 +46,7 @@ impl ChunkedDecoder {
             chunk_count: 0,
             trailer_start: None,
             trailers: Vec::new(),
+            committed_prefix: Vec::new(),
         }
     }
 
@@ -53,6 +55,7 @@ impl ChunkedDecoder {
         input: &[u8],
         policy: &HttpClientPolicy,
     ) -> Result<ChunkParseResult, HttpError> {
+        self.validate_committed_prefix(input)?;
         if let Some(trailer_start) = self.trailer_start {
             return self.parse_trailers(input, trailer_start, policy);
         }
@@ -76,6 +79,7 @@ impl ChunkedDecoder {
             if chunk_size == 0 {
                 self.chunk_count = next_chunk_count;
                 self.cursor = data_start;
+                self.commit_prefix(input)?;
                 self.trailer_start = Some(data_start);
                 return self.parse_trailers(input, data_start, policy);
             }
@@ -106,7 +110,25 @@ impl ChunkedDecoder {
             self.content.extend_from_slice(&input[data_start..data_end]);
             self.chunk_count = next_chunk_count;
             self.cursor = message_end;
+            self.commit_prefix(input)?;
         }
+    }
+
+    fn validate_committed_prefix(&self, input: &[u8]) -> Result<(), HttpError> {
+        if input.starts_with(&self.committed_prefix) {
+            Ok(())
+        } else {
+            Err(HttpError::MalformedChunkedBody)
+        }
+    }
+
+    fn commit_prefix(&mut self, input: &[u8]) -> Result<(), HttpError> {
+        let committed_length = self.committed_prefix.len();
+        let newly_committed = input
+            .get(committed_length..self.cursor)
+            .ok_or(HttpError::MalformedChunkedBody)?;
+        self.committed_prefix.extend_from_slice(newly_committed);
+        Ok(())
     }
 
     fn parse_trailers(
@@ -187,6 +209,7 @@ impl ChunkedDecoder {
             }
             self.trailers.push(field);
             self.cursor = after_line;
+            self.commit_prefix(input)?;
         }
     }
 }
@@ -370,16 +393,16 @@ mod tests {
             ChunkParseResult::Incomplete
         );
 
-        let mutated_committed_prefix = b"g\r\nx\r\n1\r\nb\r\n0\r\n\r\n";
+        let append_only = b"1\r\na\r\n1\r\nb\r\n0\r\n\r\n";
         assert_eq!(
             decoder
-                .parse(mutated_committed_prefix, &policy)
+                .parse(append_only, &policy)
                 .expect("resume after committed chunk"),
             ChunkParseResult::Complete(ChunkedResult {
                 content: b"ab".to_vec(),
                 trailers: FieldBlock::default(),
                 chunk_count: 3,
-                consumed: mutated_committed_prefix.len(),
+                consumed: append_only.len(),
             })
         );
     }
