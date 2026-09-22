@@ -271,6 +271,8 @@ version = "0.1.0"
 name = "originweave-bidi"
 version = "0.1.0"
 dependencies = [
+ "originweave-browser-session",
+ "originweave-core",
  "originweave-fingerprint",
 ]
 

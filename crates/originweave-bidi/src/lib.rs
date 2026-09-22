@@ -1,15 +1,21 @@
 //! Narrow WebDriver BiDi adapter contracts for OriginWeave browser sessions.
 //!
-//! This crate depends inward on presentation-identity values. It records only
-//! capabilities that the pinned WebDriver BiDi specification can express; it
-//! does not expose generic JavaScript or DevTools pass-through authority and it
-//! does not claim that a command acknowledgement proves page-visible state.
+//! This crate depends inward on presentation-identity and Browser Session values. It records only
+//! capabilities that the pinned WebDriver BiDi specification can express; it does not expose generic
+//! JavaScript or DevTools pass-through authority and it does not claim that a command acknowledgement
+//! proves page-visible state.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod lifecycle_acl;
 mod presentation_capabilities;
 
+pub use lifecycle_acl::{
+    AuthorizedWebDriverBidiPresentationAction, AuthorizedWebDriverBidiPresentationPlan,
+    WebDriverBidiAclError, WebDriverBidiCreatedContext, WebDriverBidiLifecycleAdapter,
+    WebDriverBidiLifecycleBackend, WebDriverBidiPresentationOperation,
+};
 pub use presentation_capabilities::{
     WEBDRIVER_BIDI_PRESENTATION_DOCTORING_SOURCE_COMMIT, WEBDRIVER_BIDI_PRESENTATION_REVISION,
     WebDriverBidiBrowsingContext, WebDriverBidiCommandError, WebDriverBidiPresentationCommand,
