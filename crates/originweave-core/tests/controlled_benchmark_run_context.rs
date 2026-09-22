@@ -168,18 +168,89 @@ fn control_character_in_reproducibility_context_fails_closed() {
 }
 
 #[test]
-fn visible_unicode_reproducibility_context_remains_valid() {
-    let mut context = run_context();
-    context.reasoning_configuration = "결정적-ブラウザ-oráculo-v1";
+fn unicode_line_separator_in_reproducibility_context_fails_closed() {
+    for hostile in ["runner\u{2028}spoofed=passed", "runner\u{2029}spoofed=passed"] {
+        let mut context = run_context();
+        context.reasoning_configuration = hostile;
 
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                field: "reasoning_configuration",
+            }),
+            "Unicode line/paragraph separators must not split benchmark evidence identity rendering: {hostile:?}"
+        );
+    }
+}
+
+#[test]
+fn bidi_control_in_reproducibility_context_fails_closed() {
+    for hostile in [
+        "runner\u{061c}suffix",
+        "runner\u{200e}suffix",
+        "runner\u{200f}suffix",
+        "runner\u{202a}suffix",
+        "runner\u{202b}suffix",
+        "runner\u{202c}suffix",
+        "runner\u{202d}suffix",
+        "runner\u{202e}suffix",
+        "runner\u{2066}suffix",
+        "runner\u{2067}suffix",
+        "runner\u{2068}suffix",
+        "runner\u{2069}suffix",
+    ] {
+        let mut context = run_context();
+        context.reasoning_configuration = hostile;
+
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+                field: "reasoning_configuration",
+            }),
+            "bidi formatting controls must not become benchmark evidence identity: {hostile:?}"
+        );
+    }
+
+    let invalid = ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+        field: "reasoning_configuration",
+    };
     assert_eq!(
-        evaluate_controlled_benchmark_suite_for_run(
-            context,
-            context,
-            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
-            base_profile(),
-            &[],
-        ),
-        Ok(BenchmarkSuiteOutcome::Inconclusive)
+        invalid.to_string(),
+        "controlled benchmark run context field reasoning_configuration contains a C0/C1 control, Unicode line/paragraph separator, or bidirectional formatting character"
     );
+}
+
+#[test]
+fn visible_unicode_reproducibility_context_remains_valid() {
+    for visible in [
+        "결정적-ブラウザ-oráculo-v1",
+        "محرك-מבחן-v1",
+    ] {
+        let mut context = run_context();
+        context.reasoning_configuration = visible;
+
+        assert_eq!(
+            evaluate_controlled_benchmark_suite_for_run(
+                context,
+                context,
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                base_profile(),
+                &[],
+            ),
+            Ok(BenchmarkSuiteOutcome::Inconclusive),
+            "visible Unicode and RTL scripts remain valid without bidi controls: {visible:?}"
+        );
+    }
 }
