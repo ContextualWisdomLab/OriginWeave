@@ -77,6 +77,10 @@ Owns stable value contracts without I/O:
 - `RiskClass`, `Capability`, and `ActionKind`;
 - exact action, target-origin, and intent-bound `ApprovalScope` and `ApprovalEvidence`;
 - `ActionRequest` and `PolicyContext`.
+- versioned controlled-deterministic benchmark case identities and bounded raw-evidence
+  threshold evaluation, including support-profile-specific required cases. This
+  foundation reports controlled-suite evidence only; it does not execute benchmarks,
+  authenticate artifacts, or replace the product-wide release gate.
 
 ### `originweave-policy`
 
