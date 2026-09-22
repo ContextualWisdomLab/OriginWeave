@@ -1,6 +1,6 @@
 # HTTP/1.1 Redirect, Download-Metadata, and MIME Security Evidence
 
-This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect, download-metadata, framing, and observed-MIME contracts. References use APA 7th style.
+This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect, download-metadata, framing, content-coding, and observed-MIME contracts. References use APA 7th style.
 
 ## Redirect-reference authority
 
@@ -34,15 +34,19 @@ Credential-free request evidence records the canonical origin, a domain-separate
 
 Regression evidence uses a request whose path itself contains `credential-value` and whose query contains `q=secret`. The authenticated loopback server must still receive the exact wire request, while the evidence accessor returns only `/` and the evidence `Debug` representation must omit both credential-shaped values. This proves that diagnostic/evidence redaction does not rewrite network behavior or silently replace exact target identity with a lossy string.
 
-## Content-Length termination and segmented surplus bytes
+## Content-Length message boundary
 
-RFC 9112 makes the determined message-body length authoritative: when `Content-Length` governs framing, the recipient reads exactly that amount as the response body. It separately warns that bytes remaining after a complete response cannot safely be interpreted as another response because that creates response-splitting and cache-poisoning risk. OriginWeave's single-use request serializer also sends `Connection: close`, so the reviewed exchange does not reuse the authenticated connection for another HTTP message.
+RFC 9112 makes the determined message-body length authoritative: when `Content-Length` governs framing, the recipient reads exactly that amount as the response body. A persistent transport can remain open after a self-delimited message; transport EOF is not part of that message's completion condition. OriginWeave therefore returns once the exact declared octet count has been authenticated and received instead of waiting for a post-body sentinel read or TLS closure.
 
-The strict OriginWeave contract therefore treats a complete `Content-Length` response as incomplete evidence until a deadline-bound post-body sentinel read reaches transport termination. A byte received after the declared body is rejected as `UnexpectedResponseBytes` even when it arrives in a later TCP/TLS record instead of the same read that contained the response head. This makes framing rejection invariant to network segmentation rather than an artifact of buffering.
+This does not admit bytes that are already buffered beyond the declared message boundary. Such surplus remains a fail-closed `UnexpectedResponseBytes` condition because it is unambiguously present in the same bounded read state. Bytes that arrive only after the self-delimited response has completed are not reinterpreted as current content or as a second response; this HTTP authority is single-use and does not pipeline or reuse the stream.
 
-TLS closure is handled narrowly. If the exact declared body has already been authenticated and received, rustls can surface a missing peer `close_notify` as `UnexpectedEof`; that condition is accepted only as termination of this post-body sentinel. The same condition before the declared `Content-Length` has been satisfied remains `IncompleteResponse`, and timeouts or ordinary transport failures remain typed failures. The compatibility exception therefore cannot turn a truncated body, authentication failure, policy denial, or surplus byte into success.
+Regression evidence uses a real loopback TLS server that sends `Content-Length: 5`, exactly `hello`, and then keeps the transport open beyond the HTTP exchange deadline. The exchange must complete at the declared body boundary. Separate regressions preserve failure for fewer-than-declared bytes and for surplus bytes already present with the completed response.
 
-Regression evidence uses a real loopback TLS server that flushes a one-byte declared body, delays, then sends one additional byte in a later segment. The exchange must reject that delayed byte rather than returning the already-complete declared body as successful evidence.
+## Gzip member semantics
+
+RFC 9110 defines the HTTP `gzip` content coding by reference to RFC 1952. RFC 1952 defines a gzip file as a series of members concatenated without additional framing between them. A second valid gzip member is therefore part of the same coded representation, not trailing garbage.
+
+OriginWeave decodes the complete RFC 1952 member sequence with `flate2`'s multi-member gzip decoder while applying the same aggregate decoded-byte and expansion-ratio budgets used for every other supported content coding. The contract still fails closed when bytes after a valid member sequence cannot be parsed as another gzip member. Regression evidence constructs two independently encoded gzip members and requires their decoded payloads to be concatenated in order; a separate malformed-trailing-bytes case remains a typed `ContentDecodingFailed` error.
 
 ## Reset Content response semantics
 
@@ -60,9 +64,9 @@ The exact pull-request head must demonstrate:
 - exact WHATWG XML signature evidence as `text/xml`, with supplied `text/xml` producing `MimeMismatch::Match` and the classifier version reflecting the changed evidence semantics;
 - exact request-target wire serialization while credential-free evidence retains only the target digest, query-presence flag, and constant root prefix `/`;
 - request-target and exchange-evidence debug output that cannot expose raw path/query bytes or credential-shaped values;
-- rejection of `Content-Length` surplus bytes regardless of whether they are coalesced with the head or arrive in a later TLS/TCP segment;
-- preservation of fail-closed truncation semantics before the declared body length while allowing only the reviewed post-body TLS `UnexpectedEof` termination case;
-- suppression of response content for `205 Reset Content` status semantics;
+- exact `Content-Length` completion without transport-EOF dependence, while truncation and already-buffered surplus remain fail closed;
+- decoding of complete RFC 1952 multi-member gzip representations under the existing decoded-byte and expansion-ratio budgets, while malformed trailing bytes remain rejected;
+- RFC 9112 framing followed by semantic rejection of non-empty `205 Reset Content` responses;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
@@ -70,6 +74,8 @@ The exact pull-request head must demonstrate:
 ## References
 
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
+
+Deutsch, L. P. (1996). *GZIP file format specification version 4.3* (RFC 1952). Internet Engineering Task Force. https://doi.org/10.17487/RFC1952
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
