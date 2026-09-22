@@ -27,6 +27,26 @@ def single_markdown_table_row(text: str, row_label: str) -> str:
     return rows[0]
 
 
+def bounded_markdown_section(text: str, start_heading: str, end_heading: str) -> str:
+    """Return the unique ordered Markdown section between two exact headings."""
+    lines = text.splitlines()
+    if lines.count(start_heading) != 1:
+        raise AssertionError(
+            f"expected exactly one start heading {start_heading!r}, found {lines.count(start_heading)}"
+        )
+    if lines.count(end_heading) != 1:
+        raise AssertionError(
+            f"expected exactly one end heading {end_heading!r}, found {lines.count(end_heading)}"
+        )
+    start_index = lines.index(start_heading)
+    end_index = lines.index(end_heading)
+    if start_index >= end_index:
+        raise AssertionError(
+            f"expected {start_heading!r} before {end_heading!r}"
+        )
+    return "\n".join(lines[start_index + 1 : end_index])
+
+
 class ProductGapBaselineNavigationContractTests(unittest.TestCase):
     """Keep current decisions reachable without discarding immutable history."""
 
@@ -46,15 +66,36 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
     def test_observation_receipt_is_self_inclusive_and_not_continuously_live(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
+        receipt = bounded_markdown_section(
+            text,
+            "## Observed delivery cut — 2026-09-21 04:07 UTC",
+            "## Buyer gap matrix",
+        )
 
         self.assertNotIn("## Current exact observation", text)
-        self.assertIn("This is a dated observation receipt, not a continuously live counter.", text)
-        self.assertIn("135 open pull requests: 6 Ready/non-draft and 129 Draft", text)
-        self.assertIn("19 open non-PR issues", text)
-        self.assertIn("#309 is merged into this #238 documentation lineage", text)
-        self.assertIn("#238 is Ready", text)
-        self.assertNotIn("includes this #309 Draft successor", text)
-        self.assertIn("Live GitHub state supersedes this cut after 2026-09-21 04:07 UTC.", text)
+        self.assertIn("This is a dated observation receipt, not a continuously live counter.", receipt)
+        self.assertIn("135 open pull requests: 6 Ready/non-draft and 129 Draft", receipt)
+        self.assertIn("19 open non-PR issues", receipt)
+        self.assertIn("#309 is merged into this #238 documentation lineage", receipt)
+        self.assertIn("#238 is Ready", receipt)
+        self.assertNotIn("includes this #309 Draft successor", receipt)
+        self.assertIn("Live GitHub state supersedes this cut after 2026-09-21 04:07 UTC.", receipt)
+
+    def test_observation_receipt_cannot_fall_back_to_later_sections(self) -> None:
+        synthetic = (
+            "## Observed delivery cut — 2026-09-21 04:07 UTC\n"
+            "This is a dated observation receipt, not a continuously live counter.\n\n"
+            "## Buyer gap matrix\n"
+            "Historical or buyer prose mentions 135 open pull requests: 6 Ready/non-draft and 129 Draft.\n"
+        )
+
+        self.assertIn("135 open pull requests: 6 Ready/non-draft and 129 Draft", synthetic)
+        receipt = bounded_markdown_section(
+            synthetic,
+            "## Observed delivery cut — 2026-09-21 04:07 UTC",
+            "## Buyer gap matrix",
+        )
+        self.assertNotIn("135 open pull requests: 6 Ready/non-draft and 129 Draft", receipt)
 
     def test_navigation_traceability_tracks_current_receipt_and_demotes_previous_cuts(self) -> None:
         text = TRACEABILITY.read_text(encoding="utf-8")
