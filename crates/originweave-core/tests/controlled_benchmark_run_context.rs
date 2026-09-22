@@ -138,9 +138,16 @@ fn surrounding_whitespace_reproducibility_context_field_fails_closed() {
 
 #[test]
 fn control_character_in_reproducibility_context_fails_closed() {
-    for hostile in ["runner\nspoofed=passed", "runner\0suffix", "runner\u{0085}suffix"] {
+    for hostile in [
+        "runner\nspoofed=passed",
+        "runner\0suffix",
+        "runner\u{0085}suffix",
+    ] {
         let mut context = run_context();
         context.reasoning_configuration = hostile;
+        let invalid = ControlledBenchmarkSuiteError::ControlCharacterRunContext {
+            field: "reasoning_configuration",
+        };
 
         assert_eq!(
             evaluate_controlled_benchmark_suite_for_run(
@@ -150,10 +157,12 @@ fn control_character_in_reproducibility_context_fails_closed() {
                 base_profile(),
                 &[],
             ),
-            Err(ControlledBenchmarkSuiteError::ControlCharacterRunContext {
-                field: "reasoning_configuration",
-            }),
+            Err(invalid.clone()),
             "hostile context identity must not become benchmark evidence: {hostile:?}"
+        );
+        assert_eq!(
+            invalid.to_string(),
+            "controlled benchmark run context field reasoning_configuration contains a control character"
         );
     }
 }
