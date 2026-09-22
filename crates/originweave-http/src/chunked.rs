@@ -79,7 +79,7 @@ impl ChunkedDecoder {
             if chunk_size == 0 {
                 self.chunk_count = next_chunk_count;
                 self.cursor = data_start;
-                self.commit_prefix(input)?;
+                self.commit_prefix(input);
                 self.trailer_start = Some(data_start);
                 return self.parse_trailers(input, data_start, policy);
             }
@@ -110,7 +110,7 @@ impl ChunkedDecoder {
             self.content.extend_from_slice(&input[data_start..data_end]);
             self.chunk_count = next_chunk_count;
             self.cursor = message_end;
-            self.commit_prefix(input)?;
+            self.commit_prefix(input);
         }
     }
 
@@ -122,13 +122,13 @@ impl ChunkedDecoder {
         }
     }
 
-    fn commit_prefix(&mut self, input: &[u8]) -> Result<(), HttpError> {
+    fn commit_prefix(&mut self, input: &[u8]) {
         let committed_length = self.committed_prefix.len();
-        let newly_committed = input
-            .get(committed_length..self.cursor)
-            .ok_or(HttpError::MalformedChunkedBody)?;
+        // `validate_committed_prefix` proves the lower bound, and `cursor` advances only to
+        // positions already parsed from this same input. The slice therefore represents exactly
+        // the newly trusted bytes without introducing an unreachable error branch.
+        let newly_committed = &input[committed_length..self.cursor];
         self.committed_prefix.extend_from_slice(newly_committed);
-        Ok(())
     }
 
     fn parse_trailers(
@@ -209,7 +209,7 @@ impl ChunkedDecoder {
             }
             self.trailers.push(field);
             self.cursor = after_line;
-            self.commit_prefix(input)?;
+            self.commit_prefix(input);
         }
     }
 }
