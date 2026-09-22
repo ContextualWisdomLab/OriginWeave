@@ -17,6 +17,10 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
+        runtime_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/"
+        latest_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260916/"
+        previous_uri = "https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/"
+
         self.assertNotIn(
             "PR #293 is a separate active, stacked browser-adapter slice",
             adr,
@@ -27,8 +31,10 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
             adr,
         )
         self.assertIn("runtime-qualified 3 September 2026", adr)
-        self.assertIn("latest published 16 September 2026", adr)
-        self.assertIn("14 September 2026 as the previous published version", adr)
+        self.assertIn("fresh live W3C publication-history read on 2026-09-22", adr)
+        self.assertIn(runtime_uri, adr)
+        self.assertIn(latest_uri, adr)
+        self.assertIn(previous_uri, adr)
         self.assertNotIn(
             "16 September / 14 September claim is invalid because those entries do not exist",
             adr,
