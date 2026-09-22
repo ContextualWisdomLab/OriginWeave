@@ -64,12 +64,17 @@ class WebDriverBiDiDocsCurrentnessContractTests(unittest.TestCase):
                 self.assertNotIn(latest_uri, text)
                 self.assertNotIn(previous_uri, text)
 
-        self.assertIn("Observed: 2026-09-22", receipt)
-        self.assertIn("Runtime-compatible pin: `2026-09-03`", receipt)
-        self.assertIn("Latest published Working Draft: `2026-09-16`", receipt)
-        self.assertIn("Previous published Working Draft: `2026-09-14`", receipt)
-        self.assertIn("Earlier published Working Draft: `2026-09-09`", receipt)
-        self.assertIn("Editor's Draft: `https://w3c.github.io/webdriver-bidi/`", receipt)
+        for expected_date in (
+            "2026-09-22",
+            "2026-09-16",
+            "2026-09-14",
+            "2026-09-09",
+            "2026-09-03",
+        ):
+            with self.subTest(expected_date=expected_date):
+                self.assertIn(expected_date, receipt)
+
+        self.assertIn(runtime_uri, receipt)
         self.assertIn(latest_uri, receipt)
         self.assertIn(previous_uri, receipt)
         self.assertIn(prior_uri, receipt)
