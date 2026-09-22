@@ -44,7 +44,7 @@ Neither protected main nor PR #170 implements Streamable HTTP transport parsing,
 
 The version boundary is explicit: the protected-main routing foundation and active discovery refinement accept only MCP `2026-07-28`; neither infers compatibility with later protocol generations. OriginWeave Protocol versioning remains independent and cannot be changed by MCP metadata.
 
-PR #293 was merged into PR #229 on 2026-09-09, so its `originweave-bidi` capability boundary is inherited by this parent rather than remaining a separate active stacked slice. The adapter remains runtime-qualified 3 September 2026 against the immutable WebDriver BiDi Working Draft URI `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. A fresh live W3C Technical Report and publication-history read on 2026-09-21 verifies the latest published **9 September 2026** Working Draft, with **3 September 2026** as the previous published version. The predecessor 16 September / 14 September claim is invalid because those entries do not exist in the canonical WebDriver BiDi publication history at this observation. Publication freshness is recorded separately in `docs/traceability/webdriver-bidi-publication-current.md` and does not silently repin runtime compatibility. The mutable Editor's Draft remains a separate research surface. A newer runtime pin requires a dedicated compatibility/conformance change and pinned-browser evidence.
+PR #293 was merged into PR #229 on 2026-09-09, so its `originweave-bidi` capability boundary is inherited by this parent rather than remaining a separate active stacked slice. The adapter remains runtime-qualified 3 September 2026 against the immutable WebDriver BiDi Working Draft URI `https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/`. A fresh live W3C publication-history read on 2026-09-22 verifies the latest published **16 September 2026** Working Draft, with **14 September 2026 as the previous published version**; the history continues with 9 September and 3 September. The prior #229 generation's 9 September / 3 September current-publication pair was based on a stale publication observation and is superseded by this fresh primary-source receipt. Publication freshness is recorded separately in `docs/traceability/webdriver-bidi-publication-current.md` and does not silently repin runtime compatibility. The mutable Editor's Draft remains a separate research surface. A newer runtime pin requires a dedicated compatibility/conformance change and pinned-browser evidence.
 
 The inherited capability map delegates complete-profile admission to `originweave-fingerprint` and intentionally excludes `Screen`, `Languages`, `HardwareConcurrency`, and `Platform`. The standard screen-settings command omits color depth and, importantly, applies one rectangle to both the web-exposed total screen area and available screen area, while the current OriginWeave presentation profile does not model the available-screen rectangle. The locale command likewise cannot prove ordered language preferences. Standard BiDi alone must therefore return the kernel's first `MissingSurface(Screen)` result rather than accept ambient host values.
 
@@ -96,9 +96,13 @@ Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://mo
 
 Parra, D. S., & Delimarsky, D. (2026, July 28). *The 2026-07-28 specification*. Model Context Protocol Blog. https://blog.modelcontextprotocol.io/posts/2026-07-28/
 
-World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* [Working Draft; latest publication observed 2026-09-21]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+World Wide Web Consortium. (2026, September 16). *WebDriver BiDi* [Working Draft; latest publication observed 2026-09-22]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260916/
 
-World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft; previous published version and runtime-qualified OriginWeave adapter pin]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
+World Wide Web Consortium. (2026, September 14). *WebDriver BiDi* [Working Draft; previous published version observed 2026-09-22]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260914/
+
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* [Working Draft; earlier publication]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft; runtime-qualified OriginWeave adapter pin]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
 ## Related documents
 
