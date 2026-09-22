@@ -51,6 +51,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- HTTP `gzip` decoding now accepts concatenated RFC 1952 members through the bounded multi-member decoder while preserving aggregate decoded-size and expansion-ratio limits; malformed trailing bytes remain a typed decoding failure.
 - HTTP `deflate` decoding now keeps the standards-defined zlib path primary but falls back, only after a typed decoding failure, to bounded raw-DEFLATE interoperability for non-conforming peers; the fallback retains the same decoded-size and expansion-ratio gates, rejects trailing bytes, and is explicitly distinguished in credential-free exchange evidence.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
