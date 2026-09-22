@@ -12,6 +12,10 @@
 mod chunked;
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "tests/chunked_committed_prefix_contract.rs"]
+mod chunked_committed_prefix_contract;
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[path = "tests/chunked_wire_budget_contract.rs"]
 mod chunked_wire_budget_contract;
 mod content;
