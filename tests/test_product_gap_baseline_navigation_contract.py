@@ -205,7 +205,7 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
             line for line in decision_lines if "Delivery remains" in line
         ]
         self.assertEqual(1, len(delivery_lines))
-        delivery = delivery_lines[0]
+        delivery = delivery_lines[0].split("Delivery remains", 1)[1]
         self.assertLess(delivery.index("#237"), delivery.index("#322"))
         self.assertLess(delivery.index("#322"), delivery.index("#324"))
         self.assertIn("ordinary/non-force", delivery)
