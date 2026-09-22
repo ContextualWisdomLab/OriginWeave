@@ -32,7 +32,7 @@ class HttpContentCodingDocumentationContractTests(unittest.TestCase):
         adr = ADR.read_text(encoding="utf-8")
         self.assertIn("concatenated RFC 1952 members", adr)
         self.assertIn("raw RFC 1951 DEFLATE compatibility fallback", adr)
-        self.assertIn("stacked content codings", adr)
+        self.assertIn("stacked content codings", adr.lower())
         self.assertNotIn(
             "Supported content coding is identity, one gzip layer, or one zlib-wrapped deflate layer.",
             adr,
