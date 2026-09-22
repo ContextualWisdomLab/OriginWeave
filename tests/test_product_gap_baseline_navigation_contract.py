@@ -16,6 +16,17 @@ CHANGELOG = ROOT / "CHANGELOG.md"
 LOADER = ROOT / "tests/_historical_baseline_contract_loader.py"
 
 
+def single_markdown_table_row(text: str, row_label: str) -> str:
+    """Return the unique buyer-matrix row identified by its stable row label."""
+    prefix = f"| {row_label} |"
+    rows = [line for line in text.splitlines() if line.startswith(prefix)]
+    if len(rows) != 1:
+        raise AssertionError(
+            f"expected exactly one markdown table row for {row_label!r}, found {len(rows)}"
+        )
+    return rows[0]
+
+
 class ProductGapBaselineNavigationContractTests(unittest.TestCase):
     """Keep current decisions reachable without discarding immutable history."""
 
@@ -61,28 +72,32 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
     def test_current_unicode_row_tracks_stable_publication_and_exact_candidate(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         traceability = TRACEABILITY.read_text(encoding="utf-8")
+        unicode_row_label = (
+            "Controlled-benchmark Unicode evidence identity has stable publication provenance"
+        )
+        unicode_row = single_markdown_table_row(text, unicode_row_label)
 
-        self.assertIn("4e70d5ed9ce13f7b59012d39646e94ac41519c89", text)
-        self.assertIn("unicode-18.0.0-default-ignorable-exclusion", text)
-        self.assertIn("1,159,889 bytes", text)
-        self.assertIn(
+        for marker in (
+            "4e70d5ed9ce13f7b59012d39646e94ac41519c89",
+            "unicode-18.0.0-default-ignorable-exclusion",
+            "1,159,889 bytes",
             "09c928886a178fcafd93c29e4bd59073a058e5a100b716d425cb563ab50f68c9",
-            text,
-        )
-        self.assertIn("27 source entries / 4,174 scalars", text)
-        self.assertIn("29,218 bytes", text)
-        self.assertIn(
+            "27 source entries / 4,174 scalars",
+            "29,218 bytes",
             "673264e62183e35f6055a2ad4940403e706669e0750fcc5d56a99f158fb3bb93",
-            text,
-        )
-        self.assertIn("35629802868", text)
-        self.assertIn("35629802889", text)
-        self.assertIn("terminal runner-backed execution", text)
-        self.assertIn("no blocking issue", text)
-        self.assertIn("hostile expected / valid observed", text)
-        self.assertIn("valid expected / hostile observed", text)
-        self.assertNotIn("2026-08-07 pre-release Unicode 18.0.0 UCD snapshot", text)
-        self.assertNotIn("At or after final Unicode 18.0.0 UCD publication", text)
+            "35629802868",
+            "35629802889",
+            "terminal runner-backed execution",
+            "no blocking issue",
+            "hostile expected / valid observed",
+            "valid expected / hostile observed",
+            "#325",
+            "OPEN — LEAF GREEN, STACK BLOCKED",
+        ):
+            self.assertIn(marker, unicode_row)
+
+        self.assertNotIn("2026-08-07 pre-release Unicode 18.0.0 UCD snapshot", unicode_row)
+        self.assertNotIn("At or after final Unicode 18.0.0 UCD publication", unicode_row)
 
         traceability_lines = traceability.splitlines()
         decision_start = "## Decision"
@@ -116,6 +131,23 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
         self.assertIn("fresh exact-head", delivery)
         self.assertIn("new exact head", delivery)
         self.assertIn("new evidence", delivery)
+
+    def test_unicode_candidate_evidence_cannot_fall_back_to_other_sections(self) -> None:
+        row_label = (
+            "Controlled-benchmark Unicode evidence identity has stable publication provenance"
+        )
+        exact_head = "4e70d5ed9ce13f7b59012d39646e94ac41519c89"
+        synthetic = (
+            "## Buyer gap matrix\n"
+            "| Buyer-visible gap | Evidence at this cut | Canonical owner / next acceptance | State |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| {row_label} | stale candidate evidence | #325 | **OPEN** |\n\n"
+            "## Evidence and history index\n"
+            f"Historical predecessor evidence retained at {exact_head}.\n"
+        )
+
+        self.assertIn(exact_head, synthetic)
+        self.assertNotIn(exact_head, single_markdown_table_row(synthetic, row_label))
 
     def test_changelog_preserves_the_previous_dated_inventory_receipt(self) -> None:
         baseline = BASELINE.read_text(encoding="utf-8")
