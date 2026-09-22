@@ -99,16 +99,56 @@ class ProductGapBaselineNavigationContractTests(unittest.TestCase):
 
     def test_navigation_traceability_tracks_current_receipt_and_demotes_previous_cuts(self) -> None:
         text = TRACEABILITY.read_text(encoding="utf-8")
+        current_receipt = bounded_markdown_section(
+            text,
+            "### Current receipt",
+            "### Historical receipts",
+        )
+        historical_receipts = bounded_markdown_section(
+            text,
+            "### Historical receipts",
+            "### Current Unicode evidence",
+        )
 
-        self.assertIn("2026-09-21 04:07 UTC", text)
-        self.assertIn("135 open PRs / 6 Ready/non-draft / 129 Draft / 19 open non-PR issues", text)
-        self.assertIn("#309 remains merged into the #238 documentation lineage", text)
-        self.assertIn("Historical 2026-09-21 03:59 receipt", text)
-        self.assertIn("Historical 2026-09-20 receipt", text)
-        self.assertIn("Historical 2026-09-15 receipt", text)
-        self.assertIn("135 open PRs / 13 Ready/non-draft / 122 Draft / 19 open non-PR issues", text)
-        self.assertIn("Historical 2026-09-09 receipt", text)
-        self.assertIn("130 open PRs / 12 Ready / 118 Draft / 14 open non-PR issues", text)
+        self.assertIn("2026-09-21 04:07 UTC", current_receipt)
+        self.assertIn(
+            "135 open PRs / 6 Ready/non-draft / 129 Draft / 19 open non-PR issues",
+            current_receipt,
+        )
+        self.assertIn("#309 remains merged into the #238 documentation lineage", current_receipt)
+        self.assertIn("Historical 2026-09-21 03:59 receipt", historical_receipts)
+        self.assertIn("Historical 2026-09-20 receipt", historical_receipts)
+        self.assertIn("Historical 2026-09-15 receipt", historical_receipts)
+        self.assertIn(
+            "135 open PRs / 13 Ready/non-draft / 122 Draft / 19 open non-PR issues",
+            historical_receipts,
+        )
+        self.assertIn("Historical 2026-09-09 receipt", historical_receipts)
+        self.assertIn(
+            "130 open PRs / 12 Ready / 118 Draft / 14 open non-PR issues",
+            historical_receipts,
+        )
+
+    def test_navigation_current_receipt_cannot_fall_back_to_historical_receipts(self) -> None:
+        marker = "135 open PRs / 6 Ready/non-draft / 129 Draft / 19 open non-PR issues"
+        synthetic = (
+            "## Decision\n\n"
+            "### Current receipt\n"
+            "Current receipt intentionally missing the queue marker.\n\n"
+            "### Historical receipts\n"
+            f"Historical evidence retains {marker}.\n\n"
+            "### Current Unicode evidence\n"
+            "Current Unicode evidence.\n\n"
+            "## Historical-evidence boundary\n"
+        )
+
+        self.assertIn(marker, synthetic)
+        current_receipt = bounded_markdown_section(
+            synthetic,
+            "### Current receipt",
+            "### Historical receipts",
+        )
+        self.assertNotIn(marker, current_receipt)
 
     def test_current_unicode_row_tracks_stable_publication_and_exact_candidate(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
