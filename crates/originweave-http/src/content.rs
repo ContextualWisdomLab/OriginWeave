@@ -2,7 +2,7 @@
 
 use std::io::{self, Read};
 
-use flate2::bufread::{DeflateDecoder, GzDecoder, ZlibDecoder};
+use flate2::bufread::{DeflateDecoder, MultiGzDecoder, ZlibDecoder};
 
 use crate::field::{FieldBlock, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
@@ -64,15 +64,8 @@ pub(crate) fn decode_content(
 }
 
 fn decode_gzip(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
-    let mut decoder = GzDecoder::new(encoded);
-    let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
-    if !decoder.into_inner().is_empty() {
-        return Err(content_decoding_error(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "unexpected bytes after the first gzip member",
-        )));
-    }
-    Ok(decoded)
+    let mut decoder = MultiGzDecoder::new(encoded);
+    decode_reader(&mut decoder, encoded.len(), policy)
 }
 
 fn decode_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<DecodedContent, HttpError> {
@@ -356,21 +349,29 @@ mod tests {
     }
 
     #[test]
-    fn gzip_rejects_concatenated_members_and_trailing_bytes() {
+    fn gzip_accepts_concatenated_members_and_rejects_trailing_bytes() {
         let first = gzip(b"first member");
         let second = gzip(b"second member");
-        for suffix in [second, b"trailing bytes".to_vec()] {
-            let mut encoded = first.clone();
-            encoded.extend_from_slice(&suffix);
-            assert!(matches!(
-                decode_content(
-                    &encoded,
-                    &fields(&[("content-encoding", b"gzip")]),
-                    &policy(1_024, 1_024, 32),
-                ),
-                Err(HttpError::ContentDecodingFailed { .. })
-            ));
-        }
+        let mut concatenated = first.clone();
+        concatenated.extend_from_slice(&second);
+        let decoded = decode_content(
+            &concatenated,
+            &fields(&[("content-encoding", b"gzip")]),
+            &policy(1_024, 1_024, 32),
+        )
+        .expect("RFC 1952 concatenated gzip members");
+        assert_eq!(decoded.bytes, b"first membersecond member");
+
+        let mut trailing = first;
+        trailing.extend_from_slice(b"trailing bytes");
+        assert!(matches!(
+            decode_content(
+                &trailing,
+                &fields(&[("content-encoding", b"gzip")]),
+                &policy(1_024, 1_024, 32),
+            ),
+            Err(HttpError::ContentDecodingFailed { .. })
+        ));
     }
 
     #[test]
