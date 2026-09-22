@@ -65,7 +65,7 @@ Body framing follows RFC 9110 and RFC 9112 with these product constraints:
 
 The strict policy bounds request bytes, target bytes, status line, field counts/names/values/section, interim responses, chunk count/line size, trailer count/section, encoded and decoded content, decoded-to-encoded expansion, and one monotonic total exchange timeout. The unfinished chunked wire prefix has an independent derived memory bound checked before retained-buffer growth.
 
-Supported content coding is identity, one gzip layer, or one zlib-wrapped deflate layer. Unsupported or stacked coding fails closed. RFC 9530 `Content-Digest` and `Repr-Digest` support SHA-256 and SHA-512 using the RFC 8941 Structured Fields grammar to which RFC 9530 was originally bound. RFC 9651 now obsoletes RFC 8941; this first slice intentionally remains on the RFC 8941 baseline and rejects RFC 9651-only Date and Display String bare-item syntax until a separate reviewed compatibility change updates the parser and its evidence contract. Integrity remains corruption evidence, not authentication.
+Supported content coding is absent/identity, one gzip coding, or one deflate coding. Gzip accepts concatenated RFC 1952 members as one gzip representation; malformed bytes after the valid member series fail decoding. Deflate first attempts the RFC 9110 zlib-wrapped form and only an ordinary decoding-format failure can enter the bounded raw RFC 1951 DEFLATE compatibility fallback; decoded-size or expansion-ratio failures do not trigger fallback, and raw-fallback success is explicit `DeflateRawCompatibility` evidence. Stacked content codings are rejected as an explicit product interoperability restriction even though RFC 9110 permits an ordered list of codings. Unsupported coding fails closed. RFC 9530 `Content-Digest` and `Repr-Digest` support SHA-256 and SHA-512 using the RFC 8941 Structured Fields grammar to which RFC 9530 was originally bound. RFC 9651 now obsoletes RFC 8941; this first slice intentionally remains on the RFC 8941 baseline and rejects RFC 9651-only Date and Display String bare-item syntax until a separate reviewed compatibility change updates the parser and its evidence contract. Integrity remains corruption evidence, not authentication.
 
 MIME handling records supplied type separately from a conservative versioned observed classification. `Content-Disposition` may yield only bounded portable metadata; it does not create a file. Redirect handling returns bounded/hash-oriented metadata and never follows the redirect. Network-path redirect references that could carry an authority are never collapsed into same-origin path metadata.
 
@@ -85,6 +85,7 @@ MIME handling records supplied type separately from a conservative versioned obs
 
 - HTTP/1.1 only and `Connection: close` reduce performance and compatibility.
 - Strict parsing rejects some legacy-but-tolerated messages.
+- Stacked content codings are standards-valid but remain an explicit unsupported interoperability case in this bounded slice.
 - The first slice materializes a bounded decoded body in memory.
 - Authentication, cookies, proxying, caching, HTTP/2/3, streaming downloads, and browser integration remain separate future work.
 
@@ -109,6 +110,7 @@ The crate is additive. No caller should replace a previously trusted HTTP path u
 - Reconcile current canonical architecture/PRD/TRD/ADR index after the HTTP branch incorporates current main.
 - Add adapter-level browser navigation only after a real pinned Chromium vertical slice proves the same authority chain.
 - Design separately authorized streaming download sinks for content larger than the in-memory first-slice budget.
+- Evaluate bounded stacked content-coding support with a maximum coding depth, reverse-order decoding, cumulative expansion accounting, evidence-schema coverage, and realistic loopback fixtures.
 - Evaluate HTTP/2 and HTTP/3 as separate protocol authorities rather than silently widening this implementation.
 
 ## Supersession / reversal conditions
@@ -117,11 +119,15 @@ Supersede this ADR if OriginWeave adopts a different transport abstraction, conn
 
 ## References
 
+Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
+
+Deutsch, L. P. (1996). *DEFLATE compressed data format specification version 1.3* (RFC 1951). Internet Engineering Task Force. https://doi.org/10.17487/RFC1951
+
+Deutsch, L. P. (1996). *GZIP file format specification version 4.3* (RFC 1952). Internet Engineering Task Force. https://doi.org/10.17487/RFC1952
+
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110; STD 97). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112; STD 99). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
-
-Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
 Nottingham, M., & Kamp, P.-H. (2021). *Structured field values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
 
