@@ -458,3 +458,54 @@ fn authenticated_tls_exchange_rejects_cumulative_stack_expansion_against_origina
         )),
     }
 }
+
+/// Proves malformed bytes in the outermost supported layer reach decoding rather than parser rejection.
+#[test]
+fn authenticated_tls_exchange_reports_malformed_outer_stack_as_decoding_failure()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-malformed-outer",
+        &["gzip, deflate"],
+        b"not-a-valid-deflate-stream",
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current single-coding parser rejects the supported stack before the malformed outer `deflate` layer can be diagnosed"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "malformed outer stacked coding failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "malformed outer stacked coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves a valid outer layer exposing malformed inner gzip bytes fails at content decoding.
+#[test]
+fn authenticated_tls_exchange_reports_malformed_inner_stack_as_decoding_failure()
+-> Result<(), String> {
+    let wire_body = zlib_deflate(b"not-a-valid-gzip-stream")?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-malformed-inner",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current single-coding parser rejects the supported stack before the valid outer `deflate` layer can expose the malformed inner `gzip` layer"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "malformed inner stacked coding failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "malformed inner stacked coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
