@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used)]
-
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
@@ -35,8 +33,9 @@ struct CertificateMaterial {
     private_key: PrivateKeyDer<'static>,
 }
 
-fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
-    let mut parameters = CertificateParams::new(Vec::new()).expect("empty CA SAN list");
+fn certificate_authority() -> Result<(Vec<u8>, Issuer<'static, KeyPair>), String> {
+    let mut parameters = CertificateParams::new(Vec::new())
+        .map_err(|error| format!("empty CA SAN list rejected: {error:?}"))?;
     parameters.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     parameters.key_usages = vec![
         KeyUsagePurpose::DigitalSignature,
@@ -46,55 +45,58 @@ fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
     parameters
         .distinguished_name
         .push(DnType::CommonName, "OriginWeave HTTP content-coding test root");
-    let key_pair = KeyPair::generate().expect("test CA key generation");
+    let key_pair = KeyPair::generate().map_err(|error| format!("CA key generation: {error:?}"))?;
     let certificate = parameters
         .self_signed(&key_pair)
-        .expect("test CA certificate generation");
-    (
+        .map_err(|error| format!("CA certificate generation: {error:?}"))?;
+    Ok((
         certificate.der().to_vec(),
         Issuer::new(parameters, key_pair),
-    )
+    ))
 }
 
-fn certificate_material() -> CertificateMaterial {
-    let (root_der, issuer) = certificate_authority();
-    let mut parameters =
-        CertificateParams::new(vec!["localhost".to_owned()]).expect("localhost SAN");
+fn certificate_material() -> Result<CertificateMaterial, String> {
+    let (root_der, issuer) = certificate_authority()?;
+    let mut parameters = CertificateParams::new(vec!["localhost".to_owned()])
+        .map_err(|error| format!("localhost SAN rejected: {error:?}"))?;
     parameters.not_before = rcgen::date_time_ymd(2025, 1, 1);
     parameters.not_after = rcgen::date_time_ymd(2030, 1, 1);
     parameters.key_usages = vec![KeyUsagePurpose::DigitalSignature];
     parameters.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
     parameters.use_authority_key_identifier_extension = true;
-    let key_pair = KeyPair::generate().expect("test leaf key generation");
+    let key_pair = KeyPair::generate().map_err(|error| format!("leaf key generation: {error:?}"))?;
     let certificate: Certificate = parameters
         .signed_by(&key_pair, &issuer)
-        .expect("test leaf certificate generation");
-    CertificateMaterial {
+        .map_err(|error| format!("leaf certificate generation: {error:?}"))?;
+    Ok(CertificateMaterial {
         root_der,
         certificate_chain: vec![certificate.der().clone()],
         private_key: PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_pair.serialize_der())),
-    }
+    })
 }
 
-fn server_config(material: CertificateMaterial) -> (Vec<u8>, Arc<ServerConfig>) {
+fn server_config(material: CertificateMaterial) -> Result<(Vec<u8>, Arc<ServerConfig>), String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let builder = ServerConfig::builder_with_provider(provider)
         .with_protocol_versions(&[&rustls::version::TLS13, &rustls::version::TLS12])
-        .expect("test protocol versions");
+        .map_err(|error| format!("test protocol versions: {error:?}"))?;
     let mut config = builder
         .with_no_client_auth()
         .with_single_cert(material.certificate_chain, material.private_key)
-        .expect("test certificate and key must match");
+        .map_err(|error| format!("test certificate and key mismatch: {error:?}"))?;
     config.alpn_protocols = vec![b"http/1.1".to_vec()];
-    (material.root_der, Arc::new(config))
+    Ok((material.root_der, Arc::new(config)))
 }
 
 fn spawn_http_server(
     config: Arc<ServerConfig>,
     response: Vec<u8>,
-) -> (SocketAddr, JoinHandle<ServerResult>) {
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("loopback listener");
-    let socket_address = listener.local_addr().expect("listener address");
+) -> Result<(SocketAddr, JoinHandle<ServerResult>), String> {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .map_err(|error| format!("loopback listener bind: {error:?}"))?;
+    let socket_address = listener
+        .local_addr()
+        .map_err(|error| format!("loopback listener address: {error:?}"))?;
     let handle = thread::spawn(move || {
         let (stream, _peer) = listener.accept().map_err(|error| error.to_string())?;
         stream
@@ -120,73 +122,83 @@ fn spawn_http_server(
         let _ = tls.flush();
         Ok(request)
     });
-    (socket_address, handle)
+    Ok((socket_address, handle))
 }
 
-fn origin_for(socket_address: SocketAddr) -> Origin {
-    Origin::parse(&format!("https://localhost:{}", socket_address.port())).expect("test origin")
+fn origin_for(socket_address: SocketAddr) -> Result<Origin, String> {
+    Origin::parse(&format!("https://localhost:{}", socket_address.port()))
+        .map_err(|error| format!("test origin rejected: {error:?}"))
 }
 
-fn direct_connection(origin: &Origin, socket_address: SocketAddr) -> DirectTcpConnection {
+fn direct_connection(
+    origin: &Origin,
+    socket_address: SocketAddr,
+) -> Result<DirectTcpConnection, String> {
     let snapshot = ResolutionSnapshot::approve(
         origin.clone(),
         [IpAddr::V4(Ipv4Addr::LOCALHOST)],
         &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
     )
-    .expect("managed loopback resolution");
-    ConnectionPlan::new(&snapshot, socket_address, Duration::from_secs(2), 1)
-        .expect("direct connection plan")
-        .connect()
-        .expect("loopback TCP connection")
+    .map_err(|error| format!("managed loopback resolution rejected: {error:?}"))?;
+    let plan = ConnectionPlan::new(&snapshot, socket_address, Duration::from_secs(2), 1)
+        .map_err(|error| format!("direct connection plan rejected: {error:?}"))?;
+    plan.connect()
+        .map_err(|error| format!("loopback TCP connection failed: {error:?}"))
 }
 
 fn authenticated_connection(
     origin: &Origin,
     socket_address: SocketAddr,
     root_der: Vec<u8>,
-) -> originweave_tls::AuthenticatedTlsConnection {
-    let roots = TrustRootBundle::new(
-        TrustBundleIdentifier::parse("http_content_coding_loopback:v1")
-            .expect("trust identifier"),
-        vec![root_der],
-    )
-    .expect("test root bundle");
+) -> Result<originweave_tls::AuthenticatedTlsConnection, String> {
+    let trust_identifier = TrustBundleIdentifier::parse("http_content_coding_loopback:v1")
+        .map_err(|error| format!("trust identifier rejected: {error:?}"))?;
+    let roots = TrustRootBundle::new(trust_identifier, vec![root_der])
+        .map_err(|error| format!("test root bundle rejected: {error:?}"))?;
     let policy = TlsClientPolicy::new(
         UnixTime::since_unix_epoch(Duration::from_secs(TRUSTED_TIME_SECONDS)),
         TEST_TIMEOUT,
         vec![b"http/1.1".to_vec()],
         AlpnRequirement::Required,
     )
-    .expect("TLS client policy");
-    TlsHandshakePlan::new(
+    .map_err(|error| format!("TLS client policy rejected: {error:?}"))?;
+    let plan = TlsHandshakePlan::new(
         origin.clone(),
-        direct_connection(origin, socket_address),
+        direct_connection(origin, socket_address)?,
         roots,
         policy,
     )
-    .expect("TLS handshake plan")
-    .authenticate()
-    .expect("authenticated loopback TLS")
+    .map_err(|error| format!("TLS handshake plan rejected: {error:?}"))?;
+    plan.authenticate()
+        .map_err(|error| format!("authenticated loopback TLS failed: {error:?}"))
 }
 
-fn gzip(input: &[u8]) -> Vec<u8> {
+fn gzip(input: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(input).expect("gzip input");
-    encoder.finish().expect("gzip finish")
+    encoder
+        .write_all(input)
+        .map_err(|error| format!("gzip input: {error:?}"))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("gzip finish: {error:?}"))
 }
 
-fn zlib_deflate(input: &[u8]) -> Vec<u8> {
+fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(input).expect("deflate input");
-    encoder.finish().expect("deflate finish")
+    encoder
+        .write_all(input)
+        .map_err(|error| format!("deflate input: {error:?}"))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("deflate finish: {error:?}"))
 }
 
 #[test]
 fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order(
 ) -> Result<(), String> {
     let original = b"standards-valid stacked content coding";
-    let gzip_applied_first = gzip(original);
-    let wire_body = zlib_deflate(&gzip_applied_first);
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
     let mut wire_response = format!(
         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Encoding: gzip, deflate\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n",
         wire_body.len()
@@ -194,12 +206,13 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
     .into_bytes();
     wire_response.extend_from_slice(&wire_body);
 
-    let material = certificate_material();
-    let (root_der, config) = server_config(material);
-    let (socket_address, server) = spawn_http_server(config, wire_response);
-    let origin = origin_for(socket_address);
-    let connection = authenticated_connection(&origin, socket_address, root_der);
-    let target = HttpRequestTarget::parse(origin, "/stacked-content-coding").expect("target");
+    let material = certificate_material()?;
+    let (root_der, config) = server_config(material)?;
+    let (socket_address, server) = spawn_http_server(config, wire_response)?;
+    let origin = origin_for(socket_address)?;
+    let connection = authenticated_connection(&origin, socket_address, root_der)?;
+    let target = HttpRequestTarget::parse(origin, "/stacked-content-coding")
+        .map_err(|error| format!("request target rejected: {error:?}"))?;
 
     let result = HttpExchangePlan::new(
         connection,
@@ -208,23 +221,21 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         &[],
         HttpClientPolicy::strict_defaults(),
     )
-    .expect("HTTP plan")
+    .map_err(|error| format!("HTTP plan construction failed: {error:?}"))?
     .execute();
 
     let request = server
         .join()
-        .expect("server thread")
-        .expect("server exchange");
-    assert!(
-        request.starts_with(b"GET /stacked-content-coding HTTP/1.1\r\n"),
-        "fixture must prove the expected request reached the authenticated TLS peer"
-    );
-    assert!(
-        request
-            .windows(b"\r\nAccept-Encoding: gzip, deflate\r\n".len())
-            .any(|window| window == b"\r\nAccept-Encoding: gzip, deflate\r\n"),
-        "fixture must prove the client advertised both supported response codings"
-    );
+        .map_err(|_panic| "server thread panicked".to_owned())??;
+    if !request.starts_with(b"GET /stacked-content-coding HTTP/1.1\r\n") {
+        return Err("fixture did not deliver the expected request to the TLS peer".to_owned());
+    }
+    if !request
+        .windows(b"\r\nAccept-Encoding: gzip, deflate\r\n".len())
+        .any(|window| window == b"\r\nAccept-Encoding: gzip, deflate\r\n")
+    {
+        return Err("fixture did not observe the advertised gzip/deflate codings".to_owned());
+    }
 
     match result {
         Ok(response) => {
