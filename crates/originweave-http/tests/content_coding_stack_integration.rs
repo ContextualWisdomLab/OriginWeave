@@ -218,6 +218,12 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         request.starts_with(b"GET /stacked-content-coding HTTP/1.1\r\n"),
         "fixture must prove the expected request reached the authenticated TLS peer"
     );
+    assert!(
+        request
+            .windows(b"\r\nAccept-Encoding: gzip, deflate\r\n".len())
+            .any(|window| window == b"\r\nAccept-Encoding: gzip, deflate\r\n"),
+        "fixture must prove the client advertised both supported response codings"
+    );
 
     match result {
         Ok(response) => assert_eq!(response.content(), original),
