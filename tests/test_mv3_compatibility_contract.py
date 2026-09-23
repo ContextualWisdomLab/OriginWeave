@@ -178,6 +178,14 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertNotIn("NVIDIA_NIM_API_KEY", workflow)
         self.assertNotIn("COPILOT_GITHUB_TOKEN", workflow)
         self.assertNotIn("contents: write", workflow)
+        self.assertIn("${{ github.workflow }}-${{ github.repository }}", workflow)
+        self.assertIn("${{ github.event.pull_request.number || github.run_id }}", workflow)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        self.assertIn(
+            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]",
+            workflow,
+        )
+        self.assertIn("github.event.pull_request.draft == false", workflow)
 
     def test_doctoring_records_primary_chromium_evidence(self) -> None:
         """The exact browser baseline and non-compatibility claims must be documented."""
