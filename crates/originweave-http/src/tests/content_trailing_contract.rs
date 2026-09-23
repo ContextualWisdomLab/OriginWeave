@@ -8,9 +8,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 
 use crate::content::decode_content;
 use crate::field::{FieldBlock, FieldLine};
-use crate::{
-    AlpnHttp11Policy, ContentCoding, HttpClientPolicy, HttpError, IntegrityRequirement,
-};
+use crate::{AlpnHttp11Policy, ContentCoding, HttpClientPolicy, HttpError, IntegrityRequirement};
 
 fn policy(maximum_encoded_bytes: usize) -> HttpClientPolicy {
     HttpClientPolicy::new(
