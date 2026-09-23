@@ -337,6 +337,26 @@ fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order
     )
 }
 
+/// Proves repeated field lines preserve the opposite valid order instead of normalizing by codec name.
+#[test]
+fn authenticated_tls_exchange_preserves_opposite_repeated_content_encoding_field_order(
+) -> Result<(), String> {
+    let original = b"stacked content coding across reversed repeated field lines";
+    let deflate_applied_first = zlib_deflate(original)?;
+    let wire_body = gzip(&deflate_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-repeated-fields-opposite-order",
+        &["deflate", "gzip"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects or reorders repeated `Content-Encoding` field lines in the valid `deflate` then `gzip` order",
+    )
+}
+
 /// Proves RFC 9110 empty list elements are ignored without changing the non-empty coding order.
 #[test]
 fn authenticated_tls_exchange_ignores_empty_content_coding_list_elements() -> Result<(), String> {
