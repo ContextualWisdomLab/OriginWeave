@@ -43,9 +43,10 @@ fn certificate_authority() -> Result<(Vec<u8>, Issuer<'static, KeyPair>), String
         KeyUsagePurpose::KeyCertSign,
         KeyUsagePurpose::CrlSign,
     ];
-    parameters
-        .distinguished_name
-        .push(DnType::CommonName, "OriginWeave HTTP content-coding test root");
+    parameters.distinguished_name.push(
+        DnType::CommonName,
+        "OriginWeave HTTP content-coding test root",
+    );
     let key_pair = KeyPair::generate().map_err(|error| format!("CA key generation: {error:?}"))?;
     let certificate = parameters
         .self_signed(&key_pair)
@@ -66,7 +67,8 @@ fn certificate_material() -> Result<CertificateMaterial, String> {
     parameters.key_usages = vec![KeyUsagePurpose::DigitalSignature];
     parameters.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
     parameters.use_authority_key_identifier_extension = true;
-    let key_pair = KeyPair::generate().map_err(|error| format!("leaf key generation: {error:?}"))?;
+    let key_pair =
+        KeyPair::generate().map_err(|error| format!("leaf key generation: {error:?}"))?;
     let certificate: Certificate = parameters
         .signed_by(&key_pair, &issuer)
         .map_err(|error| format!("leaf certificate generation: {error:?}"))?;
@@ -120,7 +122,8 @@ fn spawn_http_server(
                 Err(error) => return Err(error.to_string()),
             }
         }
-        tls.write_all(&response).map_err(|error| error.to_string())?;
+        tls.write_all(&response)
+            .map_err(|error| error.to_string())?;
         tls.flush().map_err(|error| error.to_string())?;
         tls.conn.send_close_notify();
         let _ = tls.flush();
@@ -208,19 +211,14 @@ fn execute_content_coding_fixture(
     content_encoding_fields: &[&str],
     wire_body: &[u8],
 ) -> Result<Result<Vec<u8>, HttpError>, String> {
-    let mut wire_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n",
-        wire_body.len()
-    )
-    .into_bytes();
+    let mut wire_response =
+        format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n", wire_body.len()).into_bytes();
     for field_value in content_encoding_fields {
         wire_response.extend_from_slice(b"Content-Encoding: ");
         wire_response.extend_from_slice(field_value.as_bytes());
         wire_response.extend_from_slice(b"\r\n");
     }
-    wire_response.extend_from_slice(
-        b"Content-Type: text/plain\r\nConnection: close\r\n\r\n",
-    );
+    wire_response.extend_from_slice(b"Content-Type: text/plain\r\nConnection: close\r\n\r\n");
     wire_response.extend_from_slice(wire_body);
 
     let material = certificate_material()?;
@@ -279,16 +277,13 @@ fn require_decoded_content(
 
 /// Proves the advertised two-coding negotiation and requires reverse-order decoding over real TLS.
 #[test]
-fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order(
-) -> Result<(), String> {
+fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order()
+-> Result<(), String> {
     let original = b"standards-valid stacked content coding";
     let gzip_applied_first = gzip(original)?;
     let wire_body = zlib_deflate(&gzip_applied_first)?;
-    let result = execute_content_coding_fixture(
-        "/stacked-content-coding",
-        &["gzip, deflate"],
-        &wire_body,
-    )?;
+    let result =
+        execute_content_coding_fixture("/stacked-content-coding", &["gzip, deflate"], &wire_body)?;
 
     require_decoded_content(
         result,
@@ -299,8 +294,8 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
 
 /// Proves reverse-order decoding is derived from the declared chain, not hard-coded to one order.
 #[test]
-fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_order(
-) -> Result<(), String> {
+fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_order()
+-> Result<(), String> {
     let original = b"standards-valid stacked content coding in opposite order";
     let deflate_applied_first = zlib_deflate(original)?;
     let wire_body = gzip(&deflate_applied_first)?;
@@ -319,8 +314,8 @@ fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_or
 
 /// Proves content-coding tokens remain case-insensitive when the parser admits a stacked chain.
 #[test]
-fn authenticated_tls_exchange_decodes_stacked_content_coding_names_case_insensitively(
-) -> Result<(), String> {
+fn authenticated_tls_exchange_decodes_stacked_content_coding_names_case_insensitively()
+-> Result<(), String> {
     let original = b"stacked content coding with mixed-case token names";
     let gzip_applied_first = gzip(original)?;
     let wire_body = zlib_deflate(&gzip_applied_first)?;
@@ -339,8 +334,8 @@ fn authenticated_tls_exchange_decodes_stacked_content_coding_names_case_insensit
 
 /// Proves repeated list field lines retain encounter order before reverse-order decoding.
 #[test]
-fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order(
-) -> Result<(), String> {
+fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order()
+-> Result<(), String> {
     let original = b"stacked content coding across repeated field lines";
     let gzip_applied_first = gzip(original)?;
     let wire_body = zlib_deflate(&gzip_applied_first)?;
@@ -359,8 +354,8 @@ fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order
 
 /// Proves repeated field lines preserve the opposite valid order instead of normalizing by codec name.
 #[test]
-fn authenticated_tls_exchange_preserves_opposite_repeated_content_encoding_field_order(
-) -> Result<(), String> {
+fn authenticated_tls_exchange_preserves_opposite_repeated_content_encoding_field_order()
+-> Result<(), String> {
     let original = b"stacked content coding across reversed repeated field lines";
     let deflate_applied_first = zlib_deflate(original)?;
     let wire_body = gzip(&deflate_applied_first)?;
@@ -398,14 +393,11 @@ fn authenticated_tls_exchange_ignores_empty_content_coding_list_elements() -> Re
 
 /// Proves an all-empty Content-Encoding list contributes zero codings and leaves content unchanged.
 #[test]
-fn authenticated_tls_exchange_treats_all_empty_content_coding_list_as_no_coding(
-) -> Result<(), String> {
+fn authenticated_tls_exchange_treats_all_empty_content_coding_list_as_no_coding()
+-> Result<(), String> {
     let original = b"content with an all-empty Content-Encoding list";
-    let result = execute_content_coding_fixture(
-        "/all-empty-content-coding-list",
-        &[", ,"],
-        original,
-    )?;
+    let result =
+        execute_content_coding_fixture("/all-empty-content-coding-list", &[", ,"], original)?;
 
     require_decoded_content(
         result,
