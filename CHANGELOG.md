@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Active PR #327 adds a bounded depth-2 `gzip`/`deflate` `Content-Encoding` successor over the canonical HTTP lane: whole-list admission, reverse-order decoding, original-coded cumulative expansion accounting, exact-layer raw-DEFLATE compatibility, RFC 9530 pre-decode integrity byte-domain preservation, and ordered per-layer decoder evidence. This remains active-PR evidence until unchanged exact-head repository/security/review gates and protected integration complete.
 - Corrected bounded HTTP response semantics so `205 Reset Content` follows HTTP/1.1 wire framing before any non-empty content is rejected, including content delayed beyond the response head.
 - Corrected bounded HTTP `Content-Length` handling so a complete response returns at the declared message boundary without waiting for transport EOF, while already-buffered surplus remains fail closed.
 - Hardened bounded HTTP MIME and Content-Disposition parameter parsing with local minimum-length checks before quoted-value slicing, with regression coverage for lone quotes.
