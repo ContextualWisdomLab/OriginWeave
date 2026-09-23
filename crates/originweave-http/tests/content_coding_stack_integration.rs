@@ -317,6 +317,26 @@ fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_or
     )
 }
 
+/// Proves content-coding tokens remain case-insensitive when the parser admits a stacked chain.
+#[test]
+fn authenticated_tls_exchange_decodes_stacked_content_coding_names_case_insensitively(
+) -> Result<(), String> {
+    let original = b"stacked content coding with mixed-case token names";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-case-insensitive",
+        &["GZip, DeFlAtE"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the mixed-case standards-valid stacked coding chain",
+    )
+}
+
 /// Proves repeated list field lines retain encounter order before reverse-order decoding.
 #[test]
 fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order(
