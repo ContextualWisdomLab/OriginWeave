@@ -146,6 +146,10 @@ fn node_handle_errors_are_standard_and_deterministic_for_adapters() {
             },
             "observed node document epoch 7 is stale; current epoch is 8".to_owned(),
         ),
+        (
+            NodeHandleError::DocumentEpochOverflow,
+            "document epoch cannot wrap after a same-document mutation".to_owned(),
+        ),
     ];
 
     for (error, expected) in cases {

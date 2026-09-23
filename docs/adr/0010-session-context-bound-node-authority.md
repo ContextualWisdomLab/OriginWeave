@@ -21,7 +21,7 @@ OriginWeave represents actionable observed-node authority with five explicit val
 
 `ObservedNodeHandle` stores all five values. Immediately before acting, an adapter must compare the handle with the current session, browsing context, canonical origin, and document epoch. Any mismatch fails closed before the adapter issues a browser action.
 
-The numeric identifiers are internal opaque registry identities. They are not raw WebDriver, WebDriver BiDi, CDP, renderer, process, frame-tree, or DOM identifiers, and they are not durable across process restarts. A protocol adapter must translate external identifiers through a validated, session-scoped registry and allocate collision-free internal identities. It must rotate the document epoch whenever the actionable document lifetime changes, including navigation or document replacement that invalidates earlier node references.
+The numeric identifiers are internal opaque registry identities. They are not raw WebDriver, WebDriver BiDi, CDP, renderer, process, frame-tree, or DOM identifiers, and they are not durable across process restarts. A protocol adapter must translate external identifiers through a validated, session-scoped registry and allocate collision-free internal identities. It must rotate the document epoch whenever the actionable document lifetime changes, including navigation, document replacement, or a same-document mutation classified by `SameDocumentMutationKind` as able to change the target's identity or user-visible action semantics.
 
 ## Consequences
 
