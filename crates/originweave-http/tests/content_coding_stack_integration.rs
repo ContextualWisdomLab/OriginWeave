@@ -33,6 +33,7 @@ struct CertificateMaterial {
     private_key: PrivateKeyDer<'static>,
 }
 
+/// Creates the fixture-only trust anchor so the client trusts no ambient host roots.
 fn certificate_authority() -> Result<(Vec<u8>, Issuer<'static, KeyPair>), String> {
     let mut parameters = CertificateParams::new(Vec::new())
         .map_err(|error| format!("empty CA SAN list rejected: {error:?}"))?;
@@ -55,6 +56,7 @@ fn certificate_authority() -> Result<(Vec<u8>, Issuer<'static, KeyPair>), String
     ))
 }
 
+/// Issues a localhost server certificate whose validity encloses the fixture's pinned trusted time.
 fn certificate_material() -> Result<CertificateMaterial, String> {
     let (root_der, issuer) = certificate_authority()?;
     let mut parameters = CertificateParams::new(vec!["localhost".to_owned()])
@@ -75,6 +77,7 @@ fn certificate_material() -> Result<CertificateMaterial, String> {
     })
 }
 
+/// Restricts the loopback TLS peer to the HTTP/1.1 ALPN contract exercised by the client.
 fn server_config(material: CertificateMaterial) -> Result<(Vec<u8>, Arc<ServerConfig>), String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let builder = ServerConfig::builder_with_provider(provider)
@@ -88,6 +91,7 @@ fn server_config(material: CertificateMaterial) -> Result<(Vec<u8>, Arc<ServerCo
     Ok((material.root_der, Arc::new(config)))
 }
 
+/// Runs one bounded authenticated peer and returns the exact request head for wire-contract checks.
 fn spawn_http_server(
     config: Arc<ServerConfig>,
     response: Vec<u8>,
@@ -125,11 +129,13 @@ fn spawn_http_server(
     Ok((socket_address, handle))
 }
 
+/// Binds the request origin to the dynamically allocated loopback TLS endpoint.
 fn origin_for(socket_address: SocketAddr) -> Result<Origin, String> {
     Origin::parse(&format!("https://localhost:{}", socket_address.port()))
         .map_err(|error| format!("test origin rejected: {error:?}"))
 }
 
+/// Authorizes only the fixture's loopback destination before opening the TCP connection.
 fn direct_connection(
     origin: &Origin,
     socket_address: SocketAddr,
@@ -146,6 +152,7 @@ fn direct_connection(
         .map_err(|error| format!("loopback TCP connection failed: {error:?}"))
 }
 
+/// Authenticates the loopback transport against only the generated root and requires HTTP/1.1 ALPN.
 fn authenticated_connection(
     origin: &Origin,
     socket_address: SocketAddr,
@@ -173,6 +180,7 @@ fn authenticated_connection(
         .map_err(|error| format!("authenticated loopback TLS failed: {error:?}"))
 }
 
+/// Applies one RFC 1952 gzip layer for the inner content-coding fixture.
 fn gzip(input: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder
@@ -183,6 +191,7 @@ fn gzip(input: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("gzip finish: {error:?}"))
 }
 
+/// Applies the RFC 9110 deflate coding using its standards-defined zlib wrapper.
 fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder
@@ -193,6 +202,7 @@ fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("deflate finish: {error:?}"))
 }
 
+/// Proves the advertised two-coding negotiation and requires reverse-order decoding over real TLS.
 #[test]
 fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order(
 ) -> Result<(), String> {
