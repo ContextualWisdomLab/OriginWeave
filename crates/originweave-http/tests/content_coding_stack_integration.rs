@@ -4,6 +4,8 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use flate2::Compression;
 use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 use originweave_core::Origin;
@@ -21,6 +23,7 @@ use rcgen::{
 };
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, UnixTime};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use sha2::{Digest, Sha256};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
@@ -216,16 +219,37 @@ fn raw_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("raw deflate finish: {error:?}"))
 }
 
+/// Produces the RFC 9530 SHA-256 dictionary value for the exact byte domain under test.
+fn sha256_digest_field_value(input: &[u8]) -> String {
+    format!("sha-256=:{}:", STANDARD.encode(Sha256::digest(input)))
+}
+
 /// Executes one authenticated response fixture while proving the advertised request codings on wire.
 fn execute_content_coding_fixture(
     path: &str,
     content_encoding_fields: &[&str],
     wire_body: &[u8],
 ) -> Result<Result<Vec<u8>, HttpError>, String> {
+    execute_content_coding_fixture_with_fields(path, content_encoding_fields, &[], wire_body)
+}
+
+/// Adds explicit response fields without changing the fixture's TLS or request-negotiation proof.
+fn execute_content_coding_fixture_with_fields(
+    path: &str,
+    content_encoding_fields: &[&str],
+    additional_response_fields: &[(&str, &str)],
+    wire_body: &[u8],
+) -> Result<Result<Vec<u8>, HttpError>, String> {
     let mut wire_response =
         format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n", wire_body.len()).into_bytes();
     for field_value in content_encoding_fields {
         wire_response.extend_from_slice(b"Content-Encoding: ");
+        wire_response.extend_from_slice(field_value.as_bytes());
+        wire_response.extend_from_slice(b"\r\n");
+    }
+    for (field_name, field_value) in additional_response_fields {
+        wire_response.extend_from_slice(field_name.as_bytes());
+        wire_response.extend_from_slice(b": ");
         wire_response.extend_from_slice(field_value.as_bytes());
         wire_response.extend_from_slice(b"\r\n");
     }
@@ -301,6 +325,64 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         original,
         "current single-coding parser rejects the standards-valid `gzip, deflate` chain",
     )
+}
+
+/// Proves RFC 9530 integrity stays bound to coded representation bytes before stack decoding.
+#[test]
+fn authenticated_tls_exchange_validates_digests_on_still_coded_bytes_before_stack_decoding()
+-> Result<(), String> {
+    let original = b"stacked content whose integrity is bound to coded bytes";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let coded_digest = sha256_digest_field_value(&wire_body);
+    let digest_fields = [
+        ("Content-Digest", coded_digest.as_str()),
+        ("Repr-Digest", coded_digest.as_str()),
+    ];
+    let result = execute_content_coding_fixture_with_fields(
+        "/stacked-content-coding-coded-byte-digests",
+        &["gzip, deflate"],
+        &digest_fields,
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the stack after coded-byte Content-Digest/Repr-Digest validation",
+    )
+}
+
+/// Proves a digest over decoded bytes is rejected before a supported stack reaches content decoding.
+#[test]
+fn authenticated_tls_exchange_rejects_decoded_byte_digest_before_stack_decoding()
+-> Result<(), String> {
+    let original = b"stacked content with a digest from the wrong byte domain";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let decoded_digest = sha256_digest_field_value(original);
+    let digest_fields = [("Content-Digest", decoded_digest.as_str())];
+    let result = execute_content_coding_fixture_with_fields(
+        "/stacked-content-coding-decoded-byte-digest",
+        &["gzip, deflate"],
+        &digest_fields,
+        &wire_body,
+    )?;
+
+    match result {
+        Err(HttpError::DigestMismatch { algorithm: "sha-256" }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "stack parser rejected the chain before the wrong-domain Content-Digest was checked"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "wrong-domain Content-Digest failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "wrong-domain Content-Digest unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
 }
 
 /// Proves reverse-order decoding is derived from the declared chain, not hard-coded to one order.
