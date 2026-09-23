@@ -110,7 +110,11 @@ fn unverified_or_rejected_post_condition_cannot_be_recorded_as_success() -> Resu
 
 #[test]
 fn post_condition_observation_cannot_predate_action_dispatch() -> Result<(), String> {
-    let outcome = PostConditionObservation::new(2_000, 1_999, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS);
+    let outcome = PostConditionObservation::new(
+        2_000,
+        1_999,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
+    );
     let Err(error) = outcome else {
         return Err("pre-dispatch observation admitted action-success evidence".to_owned());
     };
@@ -150,7 +154,11 @@ fn zero_observation_delay_budget_is_rejected() -> Result<(), String> {
 
 #[test]
 fn post_condition_observation_cannot_outlive_delay_budget() -> Result<(), String> {
-    let outcome = PostConditionObservation::new(5_000, 5_251, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS);
+    let outcome = PostConditionObservation::new(
+        5_000,
+        5_251,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
+    );
     let Err(error) = outcome else {
         return Err("stale observation admitted action-success evidence".to_owned());
     };
