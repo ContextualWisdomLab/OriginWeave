@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used)]
-
 use originweave_core::{ActionIntentDigest, BrowserSessionId, BrowsingContextId, DocumentEpoch};
 use originweave_evidence::{
     BrowserTaskInterruptionEvidence, BrowserTaskInterruptionKind, ExternalEffectDisposition,
@@ -19,19 +17,19 @@ fn browser_authority() -> Result<(BrowserSessionId, BrowsingContextId, DocumentE
     ))
 }
 
-fn action_intent() -> ActionIntentDigest {
-    ActionIntentDigest::parse(ACTION_INTENT).expect("valid action-intent digest")
+fn action_intent() -> Result<ActionIntentDigest, String> {
+    ActionIntentDigest::parse(ACTION_INTENT).map_err(|error| format!("{error:?}"))
 }
 
-fn other_action_intent() -> ActionIntentDigest {
-    ActionIntentDigest::parse(OTHER_ACTION_INTENT).expect("valid alternate action-intent digest")
+fn other_action_intent() -> Result<ActionIntentDigest, String> {
+    ActionIntentDigest::parse(OTHER_ACTION_INTENT).map_err(|error| format!("{error:?}"))
 }
 
 #[test]
 fn interruption_before_external_effect_is_retryable_after_complete_cleanup() -> Result<(), String> {
     let browser_authority = browser_authority()?;
     let (session_id, context_id, document_epoch) = browser_authority;
-    let intent = action_intent();
+    let intent = action_intent()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
         browser_authority,
         intent.clone(),
@@ -68,7 +66,7 @@ fn interruption_before_external_effect_is_retryable_after_complete_cleanup() -> 
 #[test]
 fn recovery_evidence_for_another_action_intent_cannot_authorize_retry() -> Result<(), String> {
     let browser_authority = browser_authority()?;
-    let intent = action_intent();
+    let intent = action_intent()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
         browser_authority,
         intent,
@@ -80,7 +78,7 @@ fn recovery_evidence_for_another_action_intent_cannot_authorize_retry() -> Resul
     );
 
     assert_eq!(
-        evidence.retry_disposition(browser_authority, &other_action_intent()),
+        evidence.retry_disposition(browser_authority, &other_action_intent()?),
         RetryDisposition::QuarantineRequired
     );
     Ok(())
@@ -90,7 +88,7 @@ fn recovery_evidence_for_another_action_intent_cannot_authorize_retry() -> Resul
 fn recovery_evidence_for_another_browser_authority_cannot_authorize_retry() -> Result<(), String> {
     let browser_authority = browser_authority()?;
     let (session_id, context_id, document_epoch) = browser_authority;
-    let intent = action_intent();
+    let intent = action_intent()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
         browser_authority,
         intent.clone(),
@@ -123,7 +121,7 @@ fn recovery_evidence_for_another_browser_authority_cannot_authorize_retry() -> R
 #[test]
 fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<(), String> {
     let browser_authority = browser_authority()?;
-    let intent = action_intent();
+    let intent = action_intent()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
         browser_authority,
         intent.clone(),
@@ -145,7 +143,7 @@ fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<
 #[test]
 fn forced_context_close_is_recorded_without_inventing_external_effect() -> Result<(), String> {
     let browser_authority = browser_authority()?;
-    let intent = action_intent();
+    let intent = action_intent()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
         browser_authority,
         intent.clone(),
@@ -170,7 +168,7 @@ fn forced_context_close_is_recorded_without_inventing_external_effect() -> Resul
 #[test]
 fn incomplete_cleanup_requires_quarantine_even_before_an_external_effect() -> Result<(), String> {
     let browser_authority = browser_authority()?;
-    let intent = action_intent();
+    let intent = action_intent()?;
     for evidence in [
         BrowserTaskInterruptionEvidence::new(
             browser_authority,
