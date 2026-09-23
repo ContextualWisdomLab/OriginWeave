@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::chunked::{ChunkParseResult, ChunkedDecoder};
 use crate::{AlpnHttp11Policy, HttpClientPolicy, HttpError, IntegrityRequirement};
 
-fn policy() -> HttpClientPolicy {
+fn policy() -> Result<HttpClientPolicy, HttpError> {
     HttpClientPolicy::new(
         Duration::from_secs(1),
         1_024,
@@ -22,17 +22,14 @@ fn policy() -> HttpClientPolicy {
         AlpnHttp11Policy::RequireHttp11,
         IntegrityRequirement::Optional,
     )
-    .expect("chunk policy")
 }
 
 #[test]
-fn incremental_decoder_rejects_mutated_committed_prefix() {
-    let policy = policy();
+fn incremental_decoder_rejects_mutated_committed_prefix() -> Result<(), HttpError> {
+    let policy = policy()?;
     let mut decoder = ChunkedDecoder::new();
     assert_eq!(
-        decoder
-            .parse(b"1\r\na\r\n", &policy)
-            .expect("first complete chunk"),
+        decoder.parse(b"1\r\na\r\n", &policy)?,
         ChunkParseResult::Incomplete
     );
 
@@ -41,26 +38,27 @@ fn incremental_decoder_rejects_mutated_committed_prefix() {
         decoder.parse(mutated_committed_prefix, &policy),
         Err(HttpError::MalformedChunkedBody)
     ));
+    Ok(())
 }
 
 #[test]
-fn incremental_decoder_accepts_append_only_growth() {
-    let policy = policy();
+fn incremental_decoder_accepts_append_only_growth() -> Result<(), HttpError> {
+    let policy = policy()?;
     let mut decoder = ChunkedDecoder::new();
     assert_eq!(
-        decoder
-            .parse(b"1\r\na\r\n", &policy)
-            .expect("first complete chunk"),
+        decoder.parse(b"1\r\na\r\n", &policy)?,
         ChunkParseResult::Incomplete
     );
 
     let append_only = b"1\r\na\r\n1\r\nb\r\n0\r\n\r\n";
-    let ChunkParseResult::Complete(result) = decoder
-        .parse(append_only, &policy)
-        .expect("append-only continuation")
-    else {
-        panic!("append-only continuation must complete");
-    };
-    assert_eq!(result.content, b"ab");
-    assert_eq!(result.consumed, append_only.len());
+    let result = decoder.parse(append_only, &policy)?;
+    assert!(
+        matches!(result, ChunkParseResult::Complete(_)),
+        "append-only continuation must complete"
+    );
+    if let ChunkParseResult::Complete(result) = result {
+        assert_eq!(result.content, b"ab");
+        assert_eq!(result.consumed, append_only.len());
+    }
+    Ok(())
 }
