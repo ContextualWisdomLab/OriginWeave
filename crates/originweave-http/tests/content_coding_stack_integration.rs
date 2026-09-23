@@ -202,26 +202,25 @@ fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("deflate finish: {error:?}"))
 }
 
-/// Proves the advertised two-coding negotiation and requires reverse-order decoding over real TLS.
-#[test]
-fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order(
-) -> Result<(), String> {
-    let original = b"standards-valid stacked content coding";
-    let gzip_applied_first = gzip(original)?;
-    let wire_body = zlib_deflate(&gzip_applied_first)?;
+/// Executes one authenticated response fixture while proving the advertised request codings on wire.
+fn execute_content_coding_fixture(
+    path: &str,
+    content_encoding: &str,
+    wire_body: &[u8],
+) -> Result<Result<Vec<u8>, HttpError>, String> {
     let mut wire_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Encoding: gzip, deflate\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Encoding: {content_encoding}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n",
         wire_body.len()
     )
     .into_bytes();
-    wire_response.extend_from_slice(&wire_body);
+    wire_response.extend_from_slice(wire_body);
 
     let material = certificate_material()?;
     let (root_der, config) = server_config(material)?;
     let (socket_address, server) = spawn_http_server(config, wire_response)?;
     let origin = origin_for(socket_address)?;
     let connection = authenticated_connection(&origin, socket_address, root_der)?;
-    let target = HttpRequestTarget::parse(origin, "/stacked-content-coding")
+    let target = HttpRequestTarget::parse(origin, path)
         .map_err(|error| format!("request target rejected: {error:?}"))?;
 
     let result = HttpExchangePlan::new(
@@ -232,12 +231,14 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         HttpClientPolicy::strict_defaults(),
     )
     .map_err(|error| format!("HTTP plan construction failed: {error:?}"))?
-    .execute();
+    .execute()
+    .map(|response| response.content().to_vec());
 
     let request = server
         .join()
         .map_err(|_panic| "server thread panicked".to_owned())??;
-    if !request.starts_with(b"GET /stacked-content-coding HTTP/1.1\r\n") {
+    let expected_request_line = format!("GET {path} HTTP/1.1\r\n");
+    if !request.starts_with(expected_request_line.as_bytes()) {
         return Err("fixture did not deliver the expected request to the TLS peer".to_owned());
     }
     if !request
@@ -247,23 +248,80 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         return Err("fixture did not observe the advertised gzip/deflate codings".to_owned());
     }
 
+    Ok(result)
+}
+
+/// Converts the expected parser RED into a test failure while preserving unrelated error diagnoses.
+fn require_decoded_content(
+    result: Result<Vec<u8>, HttpError>,
+    expected: &[u8],
+    unsupported_red: &str,
+) -> Result<(), String> {
     match result {
-        Ok(response) => {
-            if response.content() == original {
-                Ok(())
-            } else {
-                Err(format!(
-                    "stacked decoding returned unexpected content: {:?}",
-                    response.content()
-                ))
-            }
-        }
-        Err(HttpError::UnsupportedContentCoding) => Err(
-            "current single-coding parser rejects the standards-valid `gzip, deflate` chain"
-                .to_owned(),
-        ),
+        Ok(content) if content == expected => Ok(()),
+        Ok(content) => Err(format!(
+            "content-coding fixture returned unexpected content: {content:?}"
+        )),
+        Err(HttpError::UnsupportedContentCoding) => Err(unsupported_red.to_owned()),
         Err(error) => Err(format!(
-            "stacked-coding fixture failed before the intended RED: {error:?}"
+            "content-coding fixture failed before the intended RED: {error:?}"
         )),
     }
+}
+
+/// Proves the advertised two-coding negotiation and requires reverse-order decoding over real TLS.
+#[test]
+fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order(
+) -> Result<(), String> {
+    let original = b"standards-valid stacked content coding";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding",
+        "gzip, deflate",
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the standards-valid `gzip, deflate` chain",
+    )
+}
+
+/// Proves RFC 9110 empty list elements are ignored without changing the non-empty coding order.
+#[test]
+fn authenticated_tls_exchange_ignores_empty_content_coding_list_elements() -> Result<(), String> {
+    let original = b"stacked content coding with empty list elements";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-empty-elements",
+        "gzip, , deflate,",
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects RFC 9110 empty list elements instead of ignoring them",
+    )
+}
+
+/// Proves an all-empty Content-Encoding list contributes zero codings and leaves content unchanged.
+#[test]
+fn authenticated_tls_exchange_treats_all_empty_content_coding_list_as_no_coding(
+) -> Result<(), String> {
+    let original = b"content with an all-empty Content-Encoding list";
+    let result = execute_content_coding_fixture(
+        "/all-empty-content-coding-list",
+        ", ,",
+        original,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects an all-empty RFC 9110 content-coding list instead of treating it as zero codings",
+    )
 }
