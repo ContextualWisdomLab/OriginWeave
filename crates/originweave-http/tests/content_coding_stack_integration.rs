@@ -509,3 +509,129 @@ fn authenticated_tls_exchange_reports_malformed_inner_stack_as_decoding_failure(
         )),
     }
 }
+
+/// Proves a truncated inner gzip member remains a decoding failure after a valid outer layer.
+#[test]
+fn authenticated_tls_exchange_rejects_truncated_inner_gzip_member() -> Result<(), String> {
+    let mut truncated_inner = gzip(b"truncated inner gzip member")?;
+    let truncated_length = truncated_inner
+        .len()
+        .checked_sub(4)
+        .ok_or_else(|| "gzip fixture is too short to truncate".to_owned())?;
+    truncated_inner.truncate(truncated_length);
+    let wire_body = zlib_deflate(&truncated_inner)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-truncated-inner",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current parser rejects the supported stack before the truncated inner gzip member can be diagnosed"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "truncated inner gzip member failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "truncated inner gzip member unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves non-coding bytes trailing an inner gzip member are rejected after outer decoding.
+#[test]
+fn authenticated_tls_exchange_rejects_trailing_bytes_after_inner_gzip_member()
+-> Result<(), String> {
+    let mut inner = gzip(b"inner gzip with forbidden trailing bytes")?;
+    inner.extend_from_slice(b"trailing-non-coding-bytes");
+    let wire_body = zlib_deflate(&inner)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-inner-trailing-bytes",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current parser rejects the supported stack before trailing inner bytes can be diagnosed"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "trailing inner bytes failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "trailing inner bytes unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves supported coding depth overflow is rejected before any decoder sees hostile bytes.
+#[test]
+fn authenticated_tls_exchange_rejects_content_coding_depth_overflow_before_decoding()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-depth-overflow",
+        &["gzip, deflate, gzip"],
+        b"hostile-bytes-that-must-not-reach-a-decoder",
+    )?;
+    match result {
+        Err(HttpError::UnsupportedContentCoding) => Ok(()),
+        Err(error) => Err(format!(
+            "content-coding depth overflow reached the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "content-coding depth overflow unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves an unsupported non-empty coding is rejected before supported-prefix decoding begins.
+#[test]
+fn authenticated_tls_exchange_rejects_unsupported_non_empty_coding_before_decoding()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-unsupported-member",
+        &["gzip, br"],
+        b"hostile-bytes-that-must-not-reach-a-decoder",
+    )?;
+    match result {
+        Err(HttpError::UnsupportedContentCoding) => Ok(()),
+        Err(error) => Err(format!(
+            "unsupported content coding reached the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "unsupported content coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves a zero-byte coded body reaches decoding safely and fails without division or parser bypass.
+#[test]
+fn authenticated_tls_exchange_handles_zero_length_stacked_coded_body_without_bypass()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-zero-length-body",
+        &["gzip, deflate"],
+        b"",
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current parser rejects the supported stack before the zero-length coded body reaches bounded decoding"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "zero-length stacked coded body failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "zero-length stacked coded body unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
