@@ -205,14 +205,22 @@ fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
 /// Executes one authenticated response fixture while proving the advertised request codings on wire.
 fn execute_content_coding_fixture(
     path: &str,
-    content_encoding: &str,
+    content_encoding_fields: &[&str],
     wire_body: &[u8],
 ) -> Result<Result<Vec<u8>, HttpError>, String> {
     let mut wire_response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Encoding: {content_encoding}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n",
         wire_body.len()
     )
     .into_bytes();
+    for field_value in content_encoding_fields {
+        wire_response.extend_from_slice(b"Content-Encoding: ");
+        wire_response.extend_from_slice(field_value.as_bytes());
+        wire_response.extend_from_slice(b"\r\n");
+    }
+    wire_response.extend_from_slice(
+        b"Content-Type: text/plain\r\nConnection: close\r\n\r\n",
+    );
     wire_response.extend_from_slice(wire_body);
 
     let material = certificate_material()?;
@@ -278,7 +286,7 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
     let wire_body = zlib_deflate(&gzip_applied_first)?;
     let result = execute_content_coding_fixture(
         "/stacked-content-coding",
-        "gzip, deflate",
+        &["gzip, deflate"],
         &wire_body,
     )?;
 
@@ -286,6 +294,26 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
         result,
         original,
         "current single-coding parser rejects the standards-valid `gzip, deflate` chain",
+    )
+}
+
+/// Proves repeated list field lines retain encounter order before reverse-order decoding.
+#[test]
+fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order(
+) -> Result<(), String> {
+    let original = b"stacked content coding across repeated field lines";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-repeated-fields",
+        &["gzip", "deflate"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects repeated `Content-Encoding` field lines instead of combining them in encounter order",
     )
 }
 
@@ -297,7 +325,7 @@ fn authenticated_tls_exchange_ignores_empty_content_coding_list_elements() -> Re
     let wire_body = zlib_deflate(&gzip_applied_first)?;
     let result = execute_content_coding_fixture(
         "/stacked-content-coding-empty-elements",
-        "gzip, , deflate,",
+        &["gzip, , deflate,"],
         &wire_body,
     )?;
 
@@ -315,7 +343,7 @@ fn authenticated_tls_exchange_treats_all_empty_content_coding_list_as_no_coding(
     let original = b"content with an all-empty Content-Encoding list";
     let result = execute_content_coding_fixture(
         "/all-empty-content-coding-list",
-        ", ,",
+        &[", ,"],
         original,
     )?;
 
