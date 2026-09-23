@@ -297,6 +297,26 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
     )
 }
 
+/// Proves reverse-order decoding is derived from the declared chain, not hard-coded to one order.
+#[test]
+fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_order(
+) -> Result<(), String> {
+    let original = b"standards-valid stacked content coding in opposite order";
+    let deflate_applied_first = zlib_deflate(original)?;
+    let wire_body = gzip(&deflate_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-opposite-order",
+        &["deflate, gzip"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the standards-valid `deflate, gzip` chain",
+    )
+}
+
 /// Proves repeated list field lines retain encounter order before reverse-order decoding.
 #[test]
 fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order(
