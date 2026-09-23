@@ -182,7 +182,8 @@ fn zlib_deflate(input: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order() {
+fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order(
+) -> Result<(), String> {
     let original = b"standards-valid stacked content coding";
     let gzip_applied_first = gzip(original);
     let wire_body = zlib_deflate(&gzip_applied_first);
@@ -226,10 +227,22 @@ fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_rever
     );
 
     match result {
-        Ok(response) => assert_eq!(response.content(), original),
-        Err(HttpError::UnsupportedContentCoding) => panic!(
+        Ok(response) => {
+            if response.content() == original {
+                Ok(())
+            } else {
+                Err(format!(
+                    "stacked decoding returned unexpected content: {:?}",
+                    response.content()
+                ))
+            }
+        }
+        Err(HttpError::UnsupportedContentCoding) => Err(
             "current single-coding parser rejects the standards-valid `gzip, deflate` chain"
+                .to_owned(),
         ),
-        Err(error) => panic!("stacked-coding fixture failed before the intended RED: {error:?}"),
+        Err(error) => Err(format!(
+            "stacked-coding fixture failed before the intended RED: {error:?}"
+        )),
     }
 }
