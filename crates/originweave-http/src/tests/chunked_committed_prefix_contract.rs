@@ -53,7 +53,7 @@ fn incremental_decoder_accepts_append_only_growth() -> Result<(), HttpError> {
     let append_only = b"1\r\na\r\n1\r\nb\r\n0\r\n\r\n";
     let result = decoder.parse(append_only, &policy)?;
     assert!(
-        matches!(result, ChunkParseResult::Complete(_)),
+        matches!(&result, ChunkParseResult::Complete(_)),
         "append-only continuation must complete"
     );
     if let ChunkParseResult::Complete(result) = result {
