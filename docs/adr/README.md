@@ -30,7 +30,7 @@ An Accepted ADR is **design authority, not implementation evidence**. Protected-
 
 ## Proposed architecture decisions
 
-Proposed ADR files are reviewable target architecture without becoming Accepted or shipped behavior. The provenance subsections distinguish files already present in the protected-main baseline from decisions introduced by this documentation reconciliation. Provenance never changes lifecycle: file presence on an active branch is not protected-main truth, and later integration does not itself promote a Proposed ADR to Accepted.
+Proposed ADR files are reviewable target architecture without becoming Accepted or shipped behavior. The provenance subsections distinguish files already present in the protected-main baseline from decisions introduced by active feature work and documentation reconciliation. Provenance never changes lifecycle: file presence on an active branch is not protected-main truth, and later integration does not itself promote a Proposed ADR to Accepted.
 
 ### Protected-main baseline proposed decisions
 
@@ -47,6 +47,15 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0107](0107-browser-protocol-adapter-strategy.md) | Versioned browser and agent protocol adapters | Proposed | WebDriver BiDi, CDP, WebMCP, MCP and OriginWeave Protocol boundaries |
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
 | [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
+
+### Proposed feature decisions carried by this branch
+
+| ADR | Decision | Status | Governs |
+|---|---|---|---|
+| [0011](0011-bounded-http11-semantics.md) | Bounded HTTP/1.1 semantics over authenticated TLS | Proposed | request/response framing, resource bounds, integrity, MIME, disposition, redirect evidence and single-stream authority |
+| [0012](0012-http-reason-phrase-diagnostics.md) | Bounded HTTP/1.1 reason-phrase diagnostics | Proposed | exact diagnostic octets without semantic, policy or credential-evidence authority |
+
+ADR 0011 and ADR 0012 remain active-branch evidence until this HTTP replacement integrates. Their index rows make lifecycle and ownership discoverable without promoting either decision to protected-main implementation truth.
 
 ### Proposed decisions introduced by documentation reconciliation
 

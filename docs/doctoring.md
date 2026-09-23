@@ -82,6 +82,22 @@ Credential-free TLS evidence records the canonical origin, TCP peers, reference 
 
 The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certificate-policy scenarios. It is not part of production arithmetic or trust. Tests cover trusted DNS identity, Common Name non-fallback, wrong name, untrusted root, expired and not-yet-valid validity, exact IPv4 and IPv6 SAN identity, TLS 1.2 and TLS 1.3, required and optional ALPN, and equality between TLS origin and TCP authority.
 
+### Bounded HTTP semantics and digest-field interoperability
+
+RFC 9110 and RFC 9112 separate HTTP semantics from HTTP/1.1 framing. OriginWeave therefore consumes one authenticated TLS stream under strict request, response, framing, and resource budgets rather than treating TLS success as HTTP completeness.
+
+RFC 9530 defines `Content-Digest` and `Repr-Digest` as Structured Fields Dictionaries using RFC 8941. RFC 8941 permits Item parameters, requires same-name field lines to be combined, applies last-occurrence-wins to duplicate dictionary and parameter keys, and permits SP or HTAB optional whitespace around dictionary commas. RFC 9530 also permits a digest trailer to be merged into the corresponding header field. OriginWeave therefore processes bounded header members before bounded trailer members, validates Byte Sequence member values, validates but otherwise ignores RFC 8941 parameters, and verifies every supported surviving `sha-256` or `sha-512` member.
+
+RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, but its versioning contract preserves definitions written against the earlier RFC. Therefore OriginWeave does not accept RFC 9651-only Date or Display String parameter values for RFC 9530 unless a future field-definition update authorizes them. Regression tests cover duplicate keys, repeated field lines, SP/HTAB OWS, trailer merge and override, valid RFC 8941 parameters, invalid newer-version bare items, malformed dictionaries, and digest known-answer vectors. This distinction prevents both the original overly strict parser and a later accidental over-upgrade of the field grammar.
+
+### HTTP observed MIME text/binary boundary
+
+The WHATWG MIME Sniffing Standard defines binary-data bytes as `0x00..=0x08`, `0x0B`, `0x0E..=0x1A`, and `0x1C..=0x1F`. Its unknown-MIME algorithm treats a resource header containing none of those bytes as `text/plain`; valid UTF-8 is not a prerequisite. Bytes in `0x80..=0xFF` therefore do not become binary solely because the bounded sniff prefix is not valid UTF-8.
+
+OriginWeave applies that byte-level text/binary predicate only after its higher-priority reviewed signatures for PDF, images, archives, SVG, XML, HTML, and supplied JavaScript metadata. The classifier still reads only the bounded prefix, and downstream active-content handling remains fail-closed. Regression tests require non-UTF-8 high bytes without binary controls to remain passive `text/plain`, while binary control bytes retain `application/octet-stream`. This keeps observed evidence aligned with browser MIME-sniffing semantics without treating text decoding as authorization.
+
+The same WHATWG unknown-MIME signature table computes `text/xml` for the exact `<?xml` signature. OriginWeave preserves that computed essence in observed evidence rather than normalizing it to `application/xml`, so supplied `text/xml` metadata compares as an exact match. Because this changes persisted classifier evidence, the version advances to `originweave-mime-signatures-2`; regression tests bind both the computed essence and the resulting `MimeMismatch::Match` state.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -138,6 +154,8 @@ Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
+Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112; STD 99). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
+
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
@@ -164,6 +182,12 @@ Nottingham, M. (2014). *URI design and ownership* (RFC 7320). Internet Engineeri
 
 Nottingham, M. (2020). *URI design and ownership* (RFC 8820; BCP 190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8820
 
+Nottingham, M., & Kamp, P.-H. (2021). *Structured Field Values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
+
+Nottingham, M., & Kamp, P.-H. (2024). *Structured Field Values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
+
+Polli, R., & Pardue, L. (2024). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
+
 Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
 
 Rustls Project Developers. (2026). *rustls 0.23.42* [Computer software]. https://docs.rs/rustls/0.23.42/rustls/
@@ -187,6 +211,8 @@ The Unicode Consortium. (2025). *DerivedCoreProperties-17.0.0.txt* [Data file]. 
 The Unicode Consortium. (2025, July 30). *Unicode Standard Annex #15: Unicode normalization forms* (Revision 57, Unicode 17.0.0). https://www.unicode.org/reports/tr15/
 
 Unicode-RS Project Developers. (2025). *unicode-normalization 0.1.25* [Computer software]. https://docs.rs/unicode-normalization/0.1.25/unicode_normalization/
+
+Web Hypertext Application Technology Working Group. (2026). *MIME Sniffing Standard*. https://mimesniff.spec.whatwg.org/
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 

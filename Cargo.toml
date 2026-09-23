@@ -8,6 +8,7 @@ members = [
     "crates/originweave-destination",
     "crates/originweave-network",
     "crates/originweave-tls",
+    "crates/originweave-http",
 ]
 resolver = "3"
 
@@ -22,6 +23,7 @@ homepage = "https://github.com/ContextualWisdomLab/OriginWeave"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage_nightly)"] }
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
