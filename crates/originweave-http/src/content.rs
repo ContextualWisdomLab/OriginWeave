@@ -28,27 +28,36 @@ pub enum ContentDecoderOutcome {
 }
 
 /// Immutable audit evidence for one non-empty content-coding layer.
+///
+/// The variants deliberately make an impossible `gzip` + raw-DEFLATE combination
+/// unrepresentable while accessors keep declared coding and decoder outcome separate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ContentCodingLayerEvidence {
-    coding: ContentCodingName,
-    outcome: ContentDecoderOutcome,
+pub enum ContentCodingLayerEvidence {
+    /// A gzip layer completed through its standards-defined decoder.
+    Gzip,
+    /// A deflate layer completed through its standards-defined zlib wrapper.
+    Deflate,
+    /// A declared deflate layer required the bounded raw RFC 1951 compatibility fallback.
+    DeflateRawCompatibility,
 }
 
 impl ContentCodingLayerEvidence {
-    const fn new(coding: ContentCodingName, outcome: ContentDecoderOutcome) -> Self {
-        Self { coding, outcome }
-    }
-
     /// Return the normalized coding declared for this wire-order layer.
     #[must_use]
     pub const fn coding(self) -> ContentCodingName {
-        self.coding
+        match self {
+            Self::Gzip => ContentCodingName::Gzip,
+            Self::Deflate | Self::DeflateRawCompatibility => ContentCodingName::Deflate,
+        }
     }
 
     /// Return the decoder path that actually completed this layer.
     #[must_use]
     pub const fn outcome(self) -> ContentDecoderOutcome {
-        self.outcome
+        match self {
+            Self::Gzip | Self::Deflate => ContentDecoderOutcome::Standard,
+            Self::DeflateRawCompatibility => ContentDecoderOutcome::RawDeflateCompatibility,
+        }
     }
 }
 
@@ -86,18 +95,11 @@ impl ContentCoding {
     #[must_use]
     pub const fn layer(self, index: usize) -> Option<ContentCodingLayerEvidence> {
         match (self, index) {
-            (Self::Gzip, 0) => Some(ContentCodingLayerEvidence::new(
-                ContentCodingName::Gzip,
-                ContentDecoderOutcome::Standard,
-            )),
-            (Self::Deflate, 0) => Some(ContentCodingLayerEvidence::new(
-                ContentCodingName::Deflate,
-                ContentDecoderOutcome::Standard,
-            )),
-            (Self::DeflateRawCompatibility, 0) => Some(ContentCodingLayerEvidence::new(
-                ContentCodingName::Deflate,
-                ContentDecoderOutcome::RawDeflateCompatibility,
-            )),
+            (Self::Gzip, 0) => Some(ContentCodingLayerEvidence::Gzip),
+            (Self::Deflate, 0) => Some(ContentCodingLayerEvidence::Deflate),
+            (Self::DeflateRawCompatibility, 0) => {
+                Some(ContentCodingLayerEvidence::DeflateRawCompatibility)
+            }
             (Self::Stacked(first, _), 0) => Some(first),
             (Self::Stacked(_, second), 1) => Some(second),
             _ => None,
@@ -105,15 +107,10 @@ impl ContentCoding {
     }
 
     const fn from_single_layer(layer: ContentCodingLayerEvidence) -> Self {
-        match (layer.coding, layer.outcome) {
-            (ContentCodingName::Gzip, ContentDecoderOutcome::Standard) => Self::Gzip,
-            (ContentCodingName::Deflate, ContentDecoderOutcome::Standard) => Self::Deflate,
-            (ContentCodingName::Deflate, ContentDecoderOutcome::RawDeflateCompatibility) => {
-                Self::DeflateRawCompatibility
-            }
-            (ContentCodingName::Gzip, ContentDecoderOutcome::RawDeflateCompatibility) => {
-                Self::Gzip
-            }
+        match layer {
+            ContentCodingLayerEvidence::Gzip => Self::Gzip,
+            ContentCodingLayerEvidence::Deflate => Self::Deflate,
+            ContentCodingLayerEvidence::DeflateRawCompatibility => Self::DeflateRawCompatibility,
         }
     }
 }
@@ -203,10 +200,7 @@ fn decode_one_content_coding(
     match coding {
         SelectedContentCoding::Gzip => Ok(DecodedLayer {
             bytes: decode_gzip(encoded, original_encoded_bytes, policy)?,
-            evidence: ContentCodingLayerEvidence::new(
-                ContentCodingName::Gzip,
-                ContentDecoderOutcome::Standard,
-            ),
+            evidence: ContentCodingLayerEvidence::Gzip,
         }),
         SelectedContentCoding::Deflate => {
             decode_deflate(encoded, original_encoded_bytes, policy)
@@ -232,10 +226,7 @@ fn decode_deflate(
         Ok(bytes) => {
             return Ok(DecodedLayer {
                 bytes,
-                evidence: ContentCodingLayerEvidence::new(
-                    ContentCodingName::Deflate,
-                    ContentDecoderOutcome::Standard,
-                ),
+                evidence: ContentCodingLayerEvidence::Deflate,
             });
         }
         Err(HttpError::ContentDecodingFailed { source }) => source,
@@ -245,10 +236,7 @@ fn decode_deflate(
     match decode_raw_deflate(encoded, original_encoded_bytes, policy) {
         Ok(bytes) => Ok(DecodedLayer {
             bytes,
-            evidence: ContentCodingLayerEvidence::new(
-                ContentCodingName::Deflate,
-                ContentDecoderOutcome::RawDeflateCompatibility,
-            ),
+            evidence: ContentCodingLayerEvidence::DeflateRawCompatibility,
         }),
         Err(HttpError::ContentDecodingFailed { .. }) => {
             Err(HttpError::ContentDecodingFailed { source: zlib_error })
@@ -474,6 +462,7 @@ mod tests {
             assert_eq!(decoded.bytes, input);
             assert_eq!(decoded.coding, ContentCoding::Identity);
             assert_eq!(decoded.coding.layer_count(), 0);
+            assert_eq!(decoded.coding.layer(0), None);
         }
         Ok(())
     }
@@ -481,12 +470,18 @@ mod tests {
     #[test]
     fn gzip_and_zlib_deflate_decode_known_content() -> Result<(), String> {
         let input = b"deterministic compressed content";
-        for (encoded, name, expected_coding) in [
-            (gzip(input)?, b"gzip".as_slice(), ContentCoding::Gzip),
+        for (encoded, name, expected_coding, expected_layer) in [
+            (
+                gzip(input)?,
+                b"gzip".as_slice(),
+                ContentCoding::Gzip,
+                ContentCodingLayerEvidence::Gzip,
+            ),
             (
                 deflate(input)?,
                 b"DEFLATE".as_slice(),
                 ContentCoding::Deflate,
+                ContentCodingLayerEvidence::Deflate,
             ),
         ] {
             let decoded = decode_content(
@@ -498,6 +493,8 @@ mod tests {
             assert_eq!(decoded.bytes, input);
             assert_eq!(decoded.coding, expected_coding);
             assert_eq!(decoded.coding.layer_count(), 1);
+            assert_eq!(decoded.coding.layer(0), Some(expected_layer));
+            assert_eq!(expected_layer.outcome(), ContentDecoderOutcome::Standard);
         }
         Ok(())
     }
@@ -517,18 +514,13 @@ mod tests {
         assert_eq!(decoded.coding.layer_count(), 2);
         assert_eq!(
             decoded.coding.layer(0),
-            Some(ContentCodingLayerEvidence::new(
-                ContentCodingName::Gzip,
-                ContentDecoderOutcome::Standard,
-            ))
+            Some(ContentCodingLayerEvidence::Gzip)
         );
         assert_eq!(
             decoded.coding.layer(1),
-            Some(ContentCodingLayerEvidence::new(
-                ContentCodingName::Deflate,
-                ContentDecoderOutcome::Standard,
-            ))
+            Some(ContentCodingLayerEvidence::Deflate)
         );
+        assert_eq!(decoded.coding.layer(2), None);
         Ok(())
     }
 
@@ -544,9 +536,14 @@ mod tests {
         .map_err(|error| format!("raw deflate compatibility: {error:?}"))?;
         assert_eq!(decoded.bytes, input);
         assert_eq!(decoded.coding, ContentCoding::DeflateRawCompatibility);
+        let layer = decoded
+            .coding
+            .layer(0)
+            .ok_or_else(|| "raw deflate evidence layer was missing".to_owned())?;
+        assert_eq!(layer.coding(), ContentCodingName::Deflate);
         assert_eq!(
-            decoded.coding.layer(0).map(ContentCodingLayerEvidence::outcome),
-            Some(ContentDecoderOutcome::RawDeflateCompatibility)
+            layer.outcome(),
+            ContentDecoderOutcome::RawDeflateCompatibility
         );
         Ok(())
     }
