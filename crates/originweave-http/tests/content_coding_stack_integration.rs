@@ -5,7 +5,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use flate2::Compression;
-use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_http::{
@@ -205,6 +205,17 @@ fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("deflate finish: {error:?}"))
 }
 
+/// Applies raw RFC 1951 DEFLATE for the bounded legacy-compatibility fixtures.
+fn raw_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
+    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(input)
+        .map_err(|error| format!("raw deflate input: {error:?}"))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("raw deflate finish: {error:?}"))
+}
+
 /// Executes one authenticated response fixture while proving the advertised request codings on wire.
 fn execute_content_coding_fixture(
     path: &str,
@@ -309,6 +320,46 @@ fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_or
         result,
         original,
         "current single-coding parser rejects the standards-valid `deflate, gzip` chain",
+    )
+}
+
+/// Proves bounded raw-DEFLATE compatibility is scoped to an outer `deflate` layer in a chain.
+#[test]
+fn authenticated_tls_exchange_decodes_raw_deflate_compatibility_in_outer_stack_layer()
+-> Result<(), String> {
+    let original = b"stacked content coding with raw deflate compatibility in the outer layer";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = raw_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-raw-deflate-outer",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the stack before bounded raw-DEFLATE compatibility can be applied to the outer `deflate` layer",
+    )
+}
+
+/// Proves bounded raw-DEFLATE compatibility can apply to the exact inner `deflate` layer only.
+#[test]
+fn authenticated_tls_exchange_decodes_raw_deflate_compatibility_in_inner_stack_layer()
+-> Result<(), String> {
+    let original = b"stacked content coding with raw deflate compatibility in the inner layer";
+    let raw_deflate_applied_first = raw_deflate(original)?;
+    let wire_body = gzip(&raw_deflate_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-raw-deflate-inner",
+        &["deflate, gzip"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the stack before bounded raw-DEFLATE compatibility can be applied to the inner `deflate` layer",
     )
 }
 
@@ -585,6 +636,26 @@ fn authenticated_tls_exchange_rejects_content_coding_depth_overflow_before_decod
         )),
         Ok(content) => Err(format!(
             "content-coding depth overflow unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves explicit identity cannot be mixed into a non-empty coding chain and rejection precedes decoding.
+#[test]
+fn authenticated_tls_exchange_rejects_mixed_identity_before_decoding() -> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-mixed-identity",
+        &["gzip, identity"],
+        b"hostile-bytes-that-must-not-reach-a-decoder",
+    )?;
+    match result {
+        Err(HttpError::UnsupportedContentCoding) => Ok(()),
+        Err(error) => Err(format!(
+            "mixed identity content coding reached the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "mixed identity content coding unexpectedly returned {} decoded bytes",
             content.len()
         )),
     }
