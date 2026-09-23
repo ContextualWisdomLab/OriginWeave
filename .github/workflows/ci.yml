@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
   push:
     branches: [main]
 
@@ -9,11 +10,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   rust:
+    if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     name: Rust contracts
     runs-on: ubuntu-24.04
     steps:
@@ -52,8 +54,6 @@ jobs:
           path: rustfmt-output
           if-no-files-found: error
           retention-days: 3
-      - name: Check workspace
-        run: cargo check --locked --workspace --all-targets
       - name: Run tests
         run: cargo test --locked --workspace --all-targets
       - name: Run Clippy
@@ -64,6 +64,7 @@ jobs:
         run: cargo doc --locked --workspace --no-deps
 
   coverage:
+    if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     name: Production coverage
     runs-on: ubuntu-24.04
     steps:
