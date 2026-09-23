@@ -405,3 +405,56 @@ fn authenticated_tls_exchange_treats_all_empty_content_coding_list_as_no_coding(
         "current parser rejects an all-empty RFC 9110 content-coding list instead of treating it as zero codings",
     )
 }
+
+/// Proves the expansion-ratio denominator remains the original coded body across every coding layer.
+#[test]
+fn authenticated_tls_exchange_rejects_cumulative_stack_expansion_against_original_coded_length()
+-> Result<(), String> {
+    let block: Vec<u8> = (0_u8..64).cycle().take(1_024).collect();
+    let gzip_member = gzip(&block)?;
+    let gzip_members = gzip_member.repeat(8);
+    let original = block.repeat(8);
+    let wire_body = zlib_deflate(&gzip_members)?;
+    let maximum_ratio = originweave_http::DEFAULT_MAX_CONTENT_EXPANSION_RATIO;
+    let outer_limit = wire_body.len().saturating_mul(maximum_ratio);
+    let inner_reset_limit = gzip_members.len().saturating_mul(maximum_ratio);
+
+    if gzip_members.len() > outer_limit {
+        return Err("fixture outer deflate layer independently exceeds the expansion ratio".to_owned());
+    }
+    if original.len() > inner_reset_limit {
+        return Err("fixture inner gzip layer independently exceeds the expansion ratio".to_owned());
+    }
+    if original.len() <= outer_limit {
+        return Err("fixture does not exceed the cumulative original-coded expansion ratio".to_owned());
+    }
+
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-cumulative-expansion",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentExpansionRatioExceeded {
+            decoded_bytes,
+            encoded_bytes,
+            maximum_ratio: actual_ratio,
+        }) if encoded_bytes == wire_body.len()
+            && actual_ratio == maximum_ratio
+            && decoded_bytes > outer_limit =>
+        {
+            Ok(())
+        }
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current single-coding parser rejects the stack before cumulative expansion can be enforced"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "stacked expansion fixture failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "stacked expansion fixture bypassed the cumulative ratio and returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
