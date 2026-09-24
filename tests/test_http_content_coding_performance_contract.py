@@ -11,7 +11,7 @@ SOURCE = ROOT / "crates/originweave-http/examples/content_coding_stack_performan
 
 
 class HttpContentCodingPerformanceContractTests(unittest.TestCase):
-    """Prevent buyer-path latency receipts from excluding governed transport setup."""
+    """Prevent buyer-path receipts from omitting governed transport or evidence authority."""
 
     def test_timer_covers_destination_tcp_tls_and_http_exchange(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
@@ -45,6 +45,20 @@ class HttpContentCodingPerformanceContractTests(unittest.TestCase):
             source,
             "benchmark must retain authenticated TLS before HTTP execution",
         )
+
+    def test_caller_produced_receipt_cannot_claim_authenticated_evidence_acceptance(self) -> None:
+        source = SOURCE.read_text(encoding="utf-8")
+        for marker in [
+            "evidence_authority",
+            "caller_produced_unattested_receipt",
+            "evidence_acceptance_status",
+            "UNACCEPTED_UNATTESTED_RECEIPT",
+        ]:
+            self.assertIn(
+                marker,
+                source,
+                f"performance receipt must expose fail-closed evidence authority marker: {marker}",
+            )
 
 
 if __name__ == "__main__":
