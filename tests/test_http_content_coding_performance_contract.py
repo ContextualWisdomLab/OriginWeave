@@ -60,6 +60,29 @@ class HttpContentCodingPerformanceContractTests(unittest.TestCase):
                 f"performance receipt must expose fail-closed evidence authority marker: {marker}",
             )
 
+    def test_source_acceptance_is_independent_of_latency_budget(self) -> None:
+        source = SOURCE.read_text(encoding="utf-8")
+        self.assertIn(
+            "const fn acceptance_status(self) -> &'static str",
+            source,
+            "source provenance acceptance must not take latency-budget state as input",
+        )
+        self.assertNotIn(
+            "acceptance_status(self, budget_passed",
+            source,
+            "latency failure must not be reclassified as source-provenance failure",
+        )
+        self.assertIn(
+            "Self::Explicit => \"PASS\"",
+            source,
+            "an explicit exact source revision remains provenance-accepted independently of p95",
+        )
+        self.assertIn(
+            "else {\n        budget_status\n    };",
+            source,
+            "final commercial acceptance must evaluate budget separately after authority gates",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
