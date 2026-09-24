@@ -1,3 +1,4 @@
+use std::env;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
@@ -25,6 +26,10 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(3);
 const SAMPLE_COUNT: usize = 31;
 const P95_BUDGET_MICROSECONDS: u128 = 20_000;
 const SEED_BLOCK_BYTES: usize = 64 * 1024;
+const SOURCE_REVISION_ENV: &str = "ORIGINWEAVE_PERFORMANCE_SOURCE_REVISION";
+const ENVIRONMENT_ID_ENV: &str = "ORIGINWEAVE_PERFORMANCE_ENVIRONMENT_ID";
+const GITHUB_SHA_ENV: &str = "GITHUB_SHA";
+const MAX_ENVIRONMENT_ID_BYTES: usize = 128;
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -50,6 +55,76 @@ struct PerformanceReceipt {
     p50_microseconds: u128,
     p95_microseconds: u128,
     maximum_microseconds: u128,
+}
+
+struct PerformanceProvenance {
+    source_revision: String,
+    source_revision_source: &'static str,
+    environment_id: String,
+    runtime_os: &'static str,
+    runtime_arch: &'static str,
+    runtime_parallelism: usize,
+}
+
+fn parse_source_revision(value: &str) -> Result<String, String> {
+    if value.len() != 40
+        || !value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return Err("performance source revision must be an exact lowercase 40-hex Git object id"
+            .to_owned());
+    }
+    Ok(value.to_owned())
+}
+
+fn parse_environment_id(value: &str) -> Result<String, String> {
+    if value.is_empty() || value.len() > MAX_ENVIRONMENT_ID_BYTES {
+        return Err(format!(
+            "performance environment id must contain 1..={MAX_ENVIRONMENT_ID_BYTES} bytes"
+        ));
+    }
+    if !value.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric()
+            || matches!(byte, b'.' | b'_' | b':' | b'/' | b'@' | b'+' | b'-')
+    }) {
+        return Err("performance environment id contains unsupported characters".to_owned());
+    }
+    Ok(value.to_owned())
+}
+
+fn performance_provenance() -> Result<PerformanceProvenance, String> {
+    let (source_revision, source_revision_source) = match env::var(SOURCE_REVISION_ENV) {
+        Ok(value) => (parse_source_revision(&value)?, "explicit"),
+        Err(env::VarError::NotPresent) => {
+            let github_sha = env::var(GITHUB_SHA_ENV).map_err(|error| {
+                format!(
+                    "{SOURCE_REVISION_ENV} must be set when {GITHUB_SHA_ENV} is unavailable: {error:?}"
+                )
+            })?;
+            (parse_source_revision(&github_sha)?, "github_sha")
+        }
+        Err(error) => {
+            return Err(format!(
+                "{SOURCE_REVISION_ENV} is not valid Unicode and cannot identify the measured source: {error:?}"
+            ));
+        }
+    };
+    let environment_id = env::var(ENVIRONMENT_ID_ENV)
+        .map_err(|error| format!("{ENVIRONMENT_ID_ENV} must identify the benchmark host: {error:?}"))?;
+    let environment_id = parse_environment_id(&environment_id)?;
+    let runtime_parallelism = thread::available_parallelism()
+        .map_err(|error| format!("runtime parallelism unavailable: {error:?}"))?
+        .get();
+
+    Ok(PerformanceProvenance {
+        source_revision,
+        source_revision_source,
+        environment_id,
+        runtime_os: env::consts::OS,
+        runtime_arch: env::consts::ARCH,
+        runtime_parallelism,
+    })
 }
 
 fn certificate_authority() -> Result<(Vec<u8>, Issuer<'static, KeyPair>), String> {
@@ -348,14 +423,20 @@ fn measure_profile(
     })
 }
 
-fn write_receipt(receipt: &PerformanceReceipt) -> Result<(), String> {
+fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance) -> String {
     let status = if receipt.p95_microseconds <= P95_BUDGET_MICROSECONDS {
         "PASS"
     } else {
         "FAIL"
     };
-    let line = format!(
-        "profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} status={}\n",
+    format!(
+        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} status={}\n",
+        provenance.source_revision,
+        provenance.source_revision_source,
+        provenance.environment_id,
+        provenance.runtime_os,
+        provenance.runtime_arch,
+        provenance.runtime_parallelism,
         receipt.profile,
         receipt.decoded_bytes,
         receipt.coded_bytes,
@@ -365,7 +446,14 @@ fn write_receipt(receipt: &PerformanceReceipt) -> Result<(), String> {
         receipt.maximum_microseconds,
         P95_BUDGET_MICROSECONDS,
         status
-    );
+    )
+}
+
+fn write_receipt(
+    receipt: &PerformanceReceipt,
+    provenance: &PerformanceProvenance,
+) -> Result<(), String> {
+    let line = receipt_line(receipt, provenance);
     std::io::stdout()
         .lock()
         .write_all(line.as_bytes())
@@ -373,6 +461,7 @@ fn write_receipt(receipt: &PerformanceReceipt) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
+    let provenance = performance_provenance()?;
     let material = certificate_material()?;
     let (root_der, config) = server_config(material)?;
     let profiles = [
@@ -383,7 +472,7 @@ fn main() -> Result<(), String> {
     let mut p95_failure = false;
     for current in &profiles {
         let receipt = measure_profile(&root_der, &config, current)?;
-        write_receipt(&receipt)?;
+        write_receipt(&receipt, &provenance)?;
         if receipt.p95_microseconds > P95_BUDGET_MICROSECONDS {
             p95_failure = true;
         }
@@ -396,4 +485,78 @@ fn main() -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        PerformanceProvenance, PerformanceReceipt, parse_environment_id, parse_source_revision,
+        receipt_line,
+    };
+
+    const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+
+    #[test]
+    fn source_revision_requires_exact_lowercase_git_object_id() -> Result<(), String> {
+        if parse_source_revision(SOURCE_REVISION)? != SOURCE_REVISION {
+            return Err("valid exact source revision was not preserved".to_owned());
+        }
+        if parse_source_revision("0123456789ABCDEF0123456789ABCDEF01234567").is_ok() {
+            return Err("uppercase source revision must fail closed".to_owned());
+        }
+        if parse_source_revision("0123456789abcdef").is_ok() {
+            return Err("short source revision must fail closed".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn environment_id_is_bounded_and_single_token() -> Result<(), String> {
+        let environment_id = "gh-ubuntu-24.04/x64@runner-4";
+        if parse_environment_id(environment_id)? != environment_id {
+            return Err("valid environment identity was not preserved".to_owned());
+        }
+        if parse_environment_id("runner identity with spaces").is_ok() {
+            return Err("whitespace-bearing environment identity must fail closed".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn receipt_binds_source_and_runtime_identity() -> Result<(), String> {
+        let receipt = PerformanceReceipt {
+            profile: "gzip-deflate-256k",
+            decoded_bytes: 262_144,
+            coded_bytes: 65_536,
+            samples: 31,
+            p50_microseconds: 1_000,
+            p95_microseconds: 2_000,
+            maximum_microseconds: 3_000,
+        };
+        let provenance = PerformanceProvenance {
+            source_revision: SOURCE_REVISION.to_owned(),
+            source_revision_source: "explicit",
+            environment_id: "gh-ubuntu-24.04/x64@runner-4".to_owned(),
+            runtime_os: "linux",
+            runtime_arch: "x86_64",
+            runtime_parallelism: 4,
+        };
+        let line = receipt_line(&receipt, &provenance);
+        for expected in [
+            "source_revision=0123456789abcdef0123456789abcdef01234567",
+            "source_revision_source=explicit",
+            "environment_id=gh-ubuntu-24.04/x64@runner-4",
+            "runtime_os=linux",
+            "runtime_arch=x86_64",
+            "runtime_parallelism=4",
+            "samples=31",
+            "budget_us=20000",
+            "status=PASS",
+        ] {
+            if !line.contains(expected) {
+                return Err(format!("performance receipt omitted {expected}"));
+            }
+        }
+        Ok(())
+    }
 }
