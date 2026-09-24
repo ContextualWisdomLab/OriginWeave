@@ -8,6 +8,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "crates/originweave-http/examples/content_coding_stack_performance.rs"
+EVIDENCE_PACKAGER = (
+    ROOT / "crates/originweave-http/examples/content_coding_performance_evidence.rs"
+)
 
 
 class HttpContentCodingPerformanceContractTests(unittest.TestCase):
@@ -81,6 +84,31 @@ class HttpContentCodingPerformanceContractTests(unittest.TestCase):
             "else {\n        budget_status\n    };",
             source,
             "final commercial acceptance must evaluate budget separately after authority gates",
+        )
+
+    def test_leaf_evidence_can_be_materialized_for_central_attestation_intake(self) -> None:
+        source = EVIDENCE_PACKAGER.read_text(encoding="utf-8")
+        for marker in [
+            'const SELECTED_PROFILE: &str = "stacked-content-coding";',
+            'const RESULT_FILENAME: &str = "content-coding-result.json";',
+            'const RUNTIME_FILENAME: &str = "content-coding-runtime.json";',
+            'const FIXTURE_FILENAME: &str = "content-coding-fixture.json";',
+            '"selected_profile"',
+            '"candidate_sha"',
+            'create_new(true)',
+            'result_sha256=',
+            'runtime_evidence_sha256=',
+            'fixture_sha256=',
+        ]:
+            self.assertIn(
+                marker,
+                source,
+                f"leaf performance evidence packager must expose central-intake marker: {marker}",
+            )
+        self.assertNotIn(
+            "product-performance-attestation.yml@",
+            source,
+            "product evidence shaping must not consume a mutable central workflow reference",
         )
 
 
