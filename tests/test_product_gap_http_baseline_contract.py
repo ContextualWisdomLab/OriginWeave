@@ -34,16 +34,18 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
         for marker in (
             "#37",
             "#326/#327",
-            "0c256a9739222fceea000f75193cdda8270e2a33",
-            "24 ahead / 0 behind",
+            "0731ccabbc3498d60a43ecd831d0e2aedc5e265b",
+            "26 ahead / 0 behind",
             "p95 **20,000 µs**",
             "not an accepted performance receipt",
-            "identified-environment performance receipt",
+            "source/environment-bound receipt",
+            "ORIGINWEAVE_PERFORMANCE_SOURCE_REVISION",
+            "ORIGINWEAVE_PERFORMANCE_ENVIRONMENT_ID",
             "OPEN — ACTIVE SUCCESSOR",
         ):
             self.assertIn(marker, row)
 
-        self.assertIn("CI `35936872235` is still pre-step queued", row)
+        self.assertIn("CI `35945874758` is still pre-step queued", row)
         self.assertIn("no ≤20 ms claim is made", row)
         self.assertNotIn("**CLOSED**", row)
         self.assertNotIn("shipped", row.lower())
