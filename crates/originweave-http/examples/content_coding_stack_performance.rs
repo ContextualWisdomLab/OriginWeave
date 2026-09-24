@@ -400,6 +400,11 @@ fn measure_profile(
     for sample_index in 0..SAMPLE_COUNT {
         let (socket_address, server) = spawn_http_server(Arc::clone(config), response.clone())?;
         let origin = origin_for(socket_address)?;
+
+        // Fixture creation stays outside the receipt, but the governed buyer transaction begins
+        // before destination-authorized TCP connection and TLS authentication. This prevents a
+        // nominal buyer-path p95 from silently excluding transport setup.
+        let started = Instant::now();
         let connection = authenticated_connection(&origin, socket_address, root_der.to_vec())?;
         let path = format!("/content-coding-performance/{}/{}", profile.name, sample_index);
         let target = HttpRequestTarget::parse(origin, &path)
@@ -412,10 +417,6 @@ fn measure_profile(
             HttpClientPolicy::strict_defaults(),
         )
         .map_err(|error| format!("HTTP plan construction failed: {error:?}"))?;
-
-        // Start after TLS authentication so this receipt measures the governed HTTP exchange,
-        // response parsing and stacked decoding path rather than certificate setup/handshake cost.
-        let started = Instant::now();
         let response = plan
             .execute()
             .map_err(|error| format!("HTTP performance exchange failed: {error:?}"))?;
