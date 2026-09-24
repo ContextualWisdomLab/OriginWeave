@@ -34,8 +34,9 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
         for marker in (
             "#37",
             "#326/#327",
-            "2b44db8392e2c3de4dd4f15b98f77dddc2a2c5ea",
-            "38 ahead / 0 behind",
+            "a3f7ba3c76ef47fe7ae2299a7fb4460a13f7a6d8",
+            "40 ahead / 0 behind",
+            "495e616ac08440c3687cf76db5afe18caa2ce199",
             "p95 **20,000 µs**",
             "TCP/TLS transport setup",
             "not an accepted performance receipt",
@@ -46,6 +47,8 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
             "network_acceptance_status",
             "evidence_acceptance_status",
             "acceptance_status",
+            "source_acceptance_status=PASS",
+            "budget_status=FAIL",
             "UNACCEPTED_SOURCE_FALLBACK",
             "parent_untimed_connection_plan",
             "UNACCEPTED_PARENT_NETWORK_AUTHORITY",
@@ -63,7 +66,7 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, row)
 
-        self.assertIn("CI `36003567161` is queued", row)
+        self.assertIn("CI `36010906706` is queued", row)
         self.assertIn("no ≤20 ms claim is made", row)
         self.assertNotIn("**CLOSED**", row)
         self.assertNotIn("shipped", row.lower())
