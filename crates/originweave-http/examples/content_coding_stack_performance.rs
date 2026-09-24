@@ -32,6 +32,8 @@ const GITHUB_SHA_ENV: &str = "GITHUB_SHA";
 const MAX_ENVIRONMENT_ID_BYTES: usize = 128;
 const NETWORK_AUTHORITY_SOURCE: NetworkAuthoritySource =
     NetworkAuthoritySource::ParentUntimedConnectionPlan;
+const FIXTURE_AUTHORITY_SOURCE: FixtureAuthoritySource =
+    FixtureAuthoritySource::DeterministicSyntheticNoExternalDataset;
 const EVIDENCE_AUTHORITY_SOURCE: EvidenceAuthoritySource =
     EvidenceAuthoritySource::CallerProducedUnattestedReceipt;
 
@@ -102,6 +104,31 @@ impl NetworkAuthoritySource {
     const fn acceptance_status(self) -> &'static str {
         match self {
             Self::ParentUntimedConnectionPlan => "UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+        }
+    }
+
+    const fn acceptance_eligible(self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FixtureAuthoritySource {
+    DeterministicSyntheticNoExternalDataset,
+}
+
+impl FixtureAuthoritySource {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::DeterministicSyntheticNoExternalDataset => {
+                "deterministic_synthetic_no_external_dataset"
+            }
+        }
+    }
+
+    const fn acceptance_status(self) -> &'static str {
+        match self {
+            Self::DeterministicSyntheticNoExternalDataset => "UNACCEPTED_SYNTHETIC_FIXTURE",
         }
     }
 
@@ -509,9 +536,12 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
     let budget_status = if budget_passed { "PASS" } else { "FAIL" };
     let source_acceptance_status = provenance.source_revision_source.acceptance_status();
     let network_acceptance_status = NETWORK_AUTHORITY_SOURCE.acceptance_status();
+    let fixture_acceptance_status = FIXTURE_AUTHORITY_SOURCE.acceptance_status();
     let evidence_acceptance_status = EVIDENCE_AUTHORITY_SOURCE.acceptance_status();
     let acceptance_status = if !NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
         network_acceptance_status
+    } else if !FIXTURE_AUTHORITY_SOURCE.acceptance_eligible() {
+        fixture_acceptance_status
     } else if !EVIDENCE_AUTHORITY_SOURCE.acceptance_eligible() {
         evidence_acceptance_status
     } else if !provenance.source_revision_source.acceptance_eligible() {
@@ -520,7 +550,7 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
         budget_status
     };
     format!(
-        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} network_authority={} network_acceptance_status={} evidence_authority={} evidence_acceptance_status={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} source_acceptance_status={} acceptance_status={}\n",
+        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} network_authority={} network_acceptance_status={} fixture_authority={} fixture_acceptance_status={} evidence_authority={} evidence_acceptance_status={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} source_acceptance_status={} acceptance_status={}\n",
         provenance.source_revision,
         provenance.source_revision_source.label(),
         provenance.environment_id,
@@ -529,6 +559,8 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
         provenance.runtime_parallelism,
         NETWORK_AUTHORITY_SOURCE.label(),
         network_acceptance_status,
+        FIXTURE_AUTHORITY_SOURCE.label(),
+        fixture_acceptance_status,
         EVIDENCE_AUTHORITY_SOURCE.label(),
         evidence_acceptance_status,
         receipt.profile,
@@ -580,6 +612,12 @@ fn main() -> Result<(), String> {
                 .to_owned(),
         );
     }
+    if !FIXTURE_AUTHORITY_SOURCE.acceptance_eligible() {
+        return Err(
+            "commercial performance acceptance requires a realistic governed buyer-path fixture; the current deterministic synthetic fixture is acceptance-ineligible"
+                .to_owned(),
+        );
+    }
     if !EVIDENCE_AUTHORITY_SOURCE.acceptance_eligible() {
         return Err(
             "commercial performance acceptance requires released/pinned authenticated evidence attestation; the current receipt is caller-produced and unattested"
@@ -603,9 +641,10 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        EVIDENCE_AUTHORITY_SOURCE, EvidenceAuthoritySource, NETWORK_AUTHORITY_SOURCE,
-        NetworkAuthoritySource, PerformanceProvenance, PerformanceReceipt, SourceRevisionSource,
-        parse_environment_id, parse_source_revision, receipt_line,
+        EVIDENCE_AUTHORITY_SOURCE, EvidenceAuthoritySource, FIXTURE_AUTHORITY_SOURCE,
+        FixtureAuthoritySource, NETWORK_AUTHORITY_SOURCE, NetworkAuthoritySource,
+        PerformanceProvenance, PerformanceReceipt, SourceRevisionSource, parse_environment_id,
+        parse_source_revision, receipt_line,
     };
 
     const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -672,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn receipt_binds_source_runtime_network_evidence_and_acceptance_identity() -> Result<(), String> {
+    fn receipt_binds_source_runtime_network_fixture_evidence_and_acceptance_identity() -> Result<(), String> {
         let line = receipt_line(&receipt(2_000), &provenance(SourceRevisionSource::Explicit));
         for expected in [
             "source_revision=0123456789abcdef0123456789abcdef01234567",
@@ -683,6 +722,8 @@ mod tests {
             "runtime_parallelism=4",
             "network_authority=parent_untimed_connection_plan",
             "network_acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+            "fixture_authority=deterministic_synthetic_no_external_dataset",
+            "fixture_acceptance_status=UNACCEPTED_SYNTHETIC_FIXTURE",
             "evidence_authority=caller_produced_unattested_receipt",
             "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "samples=31",
@@ -718,6 +759,22 @@ mod tests {
     }
 
     #[test]
+    fn deterministic_synthetic_fixture_blocks_commercial_acceptance() -> Result<(), String> {
+        if FIXTURE_AUTHORITY_SOURCE
+            != FixtureAuthoritySource::DeterministicSyntheticNoExternalDataset
+        {
+            return Err("unexpected performance fixture authority source".to_owned());
+        }
+        if FIXTURE_AUTHORITY_SOURCE.acceptance_eligible() {
+            return Err("deterministic synthetic fixture must not be acceptance eligible".to_owned());
+        }
+        if FIXTURE_AUTHORITY_SOURCE.acceptance_status() != "UNACCEPTED_SYNTHETIC_FIXTURE" {
+            return Err("synthetic performance fixture must remain explicitly unaccepted".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
     fn caller_produced_evidence_blocks_commercial_acceptance() -> Result<(), String> {
         if EVIDENCE_AUTHORITY_SOURCE != EvidenceAuthoritySource::CallerProducedUnattestedReceipt {
             return Err("unexpected performance evidence authority source".to_owned());
@@ -741,6 +798,7 @@ mod tests {
             "source_revision_source=github_sha",
             "budget_status=PASS",
             "source_acceptance_status=UNACCEPTED_SOURCE_FALLBACK",
+            "fixture_acceptance_status=UNACCEPTED_SYNTHETIC_FIXTURE",
             "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
@@ -763,6 +821,7 @@ mod tests {
         for expected in [
             "budget_status=FAIL",
             "source_acceptance_status=PASS",
+            "fixture_acceptance_status=UNACCEPTED_SYNTHETIC_FIXTURE",
             "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
