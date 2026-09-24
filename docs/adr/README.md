@@ -12,7 +12,7 @@ This directory contains durable architecture decisions for OriginWeave. A pull-r
 
 Current contributor/review authority is defined by protected-main [`../../AGENTS.md`](../../AGENTS.md) together with live GitHub repository policy. [ADR 0014](0014-architecture-decision-governance.md) records the proposed durable ADR-acceptance model, including reviewer eligibility, the solo-maintainer hold, re-enablement conditions, and the prohibition on synthetic approval. While ADR 0014 is Proposed, it does not override those live authorities. COMMENTED reviews, check/status results, model verdicts, reactions, author approval, predecessor-head approval, or dismissed reviews never substitute for a review that current policy actually requires.
 
-An Accepted ADR is **design authority, not implementation evidence**. Protected-main source, executable tests, built/released artifacts, migrations/configuration, and protected-main operational evidence appropriate to the claim establish current implemented behavior. An ADR may intentionally describe an accepted target that is only partially implemented; product documents must label implementation status separately.
+An Accepted ADR is **design authority, not implementation evidence**. Protected-main source, executable tests, built/released artifacts, migrations/configuration, and protected-main operational evidence appropriate to the claim establish current implemented behavior. Conversely, protected-main implementation can exist while its describing ADR remains Proposed; implementation evidence does not silently promote architecture lifecycle.
 
 ## Accepted protected-main decisions
 
@@ -30,13 +30,14 @@ An Accepted ADR is **design authority, not implementation evidence**. Protected-
 
 ## Proposed architecture decisions
 
-Proposed ADR files are reviewable target architecture without becoming Accepted or shipped behavior. The provenance subsections distinguish files already present in the protected-main baseline from decisions introduced by this documentation reconciliation. Provenance never changes lifecycle: file presence on an active branch is not protected-main truth, and later integration does not itself promote a Proposed ADR to Accepted.
+Proposed ADR files are reviewable target architecture without becoming Accepted merely because the file or related implementation reaches protected `main`. Provenance never changes lifecycle: a protected-main Proposed ADR stays Proposed until an explicit policy-compliant lifecycle transition changes its metadata and both indexes.
 
 ### Protected-main baseline proposed decisions
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0009](0009-hourly-agent-credential-boundary.md) | Hourly agent credential boundary | Proposed | deterministic gates, NVIDIA credential materialization, local broker and publication separation |
+| [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
 | [0100](0100-rust-control-plane-boundary.md) | Rust control-plane boundary | Proposed | Rust-owned product authority versus Chromium compatibility kernel |
 | [0101](0101-isolated-execution-profile-modes.md) | Isolated execution/profile modes | Proposed | Human, Assist, Agent Task and Crawler session/profile isolation |
 | [0102](0102-typed-actions-and-arbitrary-js.md) | Typed actions over arbitrary JavaScript authority | Proposed | action API, script escape hatches, risk/policy semantics |
@@ -48,6 +49,8 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
 | [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
 
+ADR 0016 remains Proposed, but its in-memory `originweave-bap` lifecycle kernel is protected-main implementation through merged PR #208. The implementation and lifecycle status are intentionally separate facts: the kernel provides typed transitions, recovery validation and monotonic receipts, while durable task persistence, idempotency, authenticated runtime transport, browser cancellation and commercial crash recovery remain outside that protected slice.
+
 ### Proposed decisions introduced by documentation reconciliation
 
 | ADR | Decision | Status | Governs |
@@ -56,16 +59,6 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
 
 ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
-
-### Proposed decisions introduced by active feature work
-
-| ADR | Decision | Status | Governs |
-|---|---|---|---|
-| [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
-
-ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
-
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
@@ -79,6 +72,7 @@ The machine-checkable documentation contract should fail when:
 - this index claims `Accepted` while the ADR metadata says `Proposed`, or the reverse;
 - a superseded ADR lacks a discoverable successor;
 - branch provenance is presented as lifecycle status or protected-main implementation evidence;
+- protected-main implementation is described as active-PR-only evidence;
 - an active-PR ADR is presented as protected-main implementation evidence; or
 - a stale PR number, SHA, run ID, automation prompt, or conversation statement is used as timeless architecture authority.
 

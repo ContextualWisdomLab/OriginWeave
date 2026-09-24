@@ -64,11 +64,12 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 
 ## Proposed architecture decisions
 
-Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted because their files are present in a branch or later reach protected `main`. The provenance headings below distinguish the protected-main baseline from decisions introduced by this documentation reconciliation without changing either decision's lifecycle status.
+Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted because their files or related implementation are present on protected `main`. Provenance and lifecycle are separate: protected-main code can partially implement a proposed design without turning the ADR itself into governing Accepted authority.
 
 ### Protected-main baseline proposed decisions
 
 - [ADR 0009: Hourly agent credential boundary](adr/0009-hourly-agent-credential-boundary.md)
+- [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
 - [ADR 0100: Rust control-plane boundary](adr/0100-rust-control-plane-boundary.md)
 - [ADR 0101: Isolated execution/profile modes](adr/0101-isolated-execution-profile-modes.md)
 - [ADR 0102: Typed actions over arbitrary JavaScript](adr/0102-typed-actions-and-arbitrary-js.md)
@@ -80,6 +81,8 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0108: Crawler policy](adr/0108-crawler-policy.md)
 - [ADR 0109: Hourly automation secret ordering and operational closure](adr/0109-hourly-automation-operational-closure.md)
 
+ADR 0016 remains **Proposed**. Its in-memory `originweave-bap` task-lifecycle kernel reached protected `main` through merged PR #208, so it is no longer active-branch or non-protected-main implementation evidence. That protected implementation does not itself Accept the ADR: an explicit policy-compliant lifecycle transition is still required, and the durable transport, persistence, idempotency, browser cancellation, authentication and external runtime surfaces remain separate work.
+
 ### Proposed decisions introduced by this documentation reconciliation
 
 - [ADR 0013: Manifest V3 compatibility and extension-to-Agent authority](adr/0013-manifest-v3-extension-authority.md)
@@ -87,12 +90,4 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 
 The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
 
-### Proposed decisions introduced by active feature work
-
-- [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
-
-ADR 0016 is owned by this active BAP lifecycle feature branch and remains Proposed. Its presence here makes the branch documentation graph complete without presenting the decision or implementation as protected-main truth before integration.
-
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
-
-See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
+See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and protected-main Proposed ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.

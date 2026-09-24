@@ -11,6 +11,8 @@ OriginWeave needs a deterministic lifecycle primitive for governed browser-agent
 
 The `originweave-bap` crate therefore introduces a typed in-memory state machine with monotonic transition receipts and fail-closed recovery validation. The crate deliberately owns no browser, network, model, secret, approval, persistence, tenant-authentication, or protocol authority. External protocols may project lifecycle intent into this kernel, but protocol metadata cannot bypass its transition rules or upgrade a task's authority.
 
+The in-memory lifecycle kernel is now present on protected `main` through merged PR #208. That is implementation evidence for the bounded kernel, not an implicit lifecycle transition for this ADR. **Proposed lifecycle does not erase protected-main implementation evidence**, and protected-main implementation does not silently promote this ADR to Accepted. An explicit policy-compliant ADR status change remains a separate decision.
+
 ## Decision drivers
 
 - Keep task-state authority explicit and deterministic rather than distributed across protocol adapters.
@@ -64,9 +66,9 @@ If Accepted, OriginWeave applies these lifecycle rules:
 
 ## Consequences
 
-OriginWeave gains one reviewable state authority that later transport, idempotency, persistence, and recovery slices can compose without duplicating transition semantics. Invalid transitions and unreachable recovery snapshots have deterministic typed failures, while terminal and reconciliation states have explicit closure behavior.
+OriginWeave has a protected-main, reviewable state kernel that later transport, idempotency, persistence, and recovery slices can compose without duplicating transition semantics. Invalid transitions and unreachable recovery snapshots have deterministic typed failures, while terminal and reconciliation states have explicit closure behavior.
 
-The trade-off is that adapters and durable stores must perform explicit mapping and validation instead of assigning state directly. The current slice also cannot claim commercial crash recovery until durable authenticated evidence and side-effect reconciliation are implemented separately.
+The trade-off is that adapters and durable stores must perform explicit mapping and validation instead of assigning state directly. The current protected slice also cannot claim commercial crash recovery until durable authenticated evidence and side-effect reconciliation are implemented separately. Because this ADR remains Proposed, the implementation is current product evidence but not yet binding Accepted architecture authority.
 
 ## Failure and degraded behavior
 
@@ -81,9 +83,11 @@ The trade-off is that adapters and durable stores must perform explicit mapping 
 
 This decision narrows authority. It prevents external protocol metadata, stale snapshots, or arbitrary state assignment from becoming execution authority and keeps lifecycle state separate from sensitive-data, secret, browser, network, model, approval, and tenant boundaries. The lifecycle stores no secret values or personal-data payloads by itself. Any future persistent representation must independently satisfy OriginWeave data-governance, retention, tenant-isolation, integrity, and evidence requirements.
 
+Keeping implementation maturity separate from ADR lifecycle also prevents a merged implementation from being misrepresented as an Accepted design decision without the explicit governance transition required by the repository.
+
 ## Tests and acceptance evidence
 
-The owning branch must keep executable evidence for:
+Protected-main executable evidence must cover:
 
 - the reviewed created/admitted/running/waiting/checkpointed/reconciliation/terminal transition paths;
 - fail-closed invalid transitions with no sequence advancement;
@@ -94,13 +98,13 @@ The owning branch must keep executable evidence for:
 - recovery acceptance for reachable snapshots and rejection for unreachable snapshots; and
 - deterministic public Rust error contracts.
 
-Repository contracts must also require this ADR so the `originweave-bap` control-plane boundary cannot remain undocumented while the crate is present. Exact protected-main acceptance still depends on current-head CI, exact owned-production coverage, rustdoc, security evidence, review, live governance, and integration state; ADR presence does not substitute for those gates.
+Repository contracts must also require this ADR so the `originweave-bap` control-plane boundary cannot remain undocumented while the crate is present. Current protected-main source establishes that the bounded in-memory kernel is implemented. ADR acceptance remains a separate governance action requiring an explicit status transition; neither ADR presence nor implementation evidence substitutes for that transition or for future durable-runtime acceptance gates.
 
 ## Migration and rollback
 
-No database migration is introduced. Existing callers on this branch construct the typed lifecycle directly. A future durable task repository should persist state and transition evidence in an authenticated form that can be validated by this kernel rather than introducing a second transition authority.
+No database migration is introduced. Protected-main callers construct the typed lifecycle directly. A future durable task repository should persist state and transition evidence in an authenticated form that can be validated by this kernel rather than introducing a second transition authority.
 
-Rollback before acceptance is removal of the active BAP lifecycle branch and its Proposed ADR. After acceptance, rollback or replacement must preserve fail-closed terminal/recovery semantics or explicitly supersede this ADR with a reviewed migration for any persisted lifecycle representation.
+Because the kernel is already on protected `main`, rollback is no longer “remove an active feature branch.” Removing or materially replacing the protected lifecycle kernel must preserve fail-closed terminal/recovery semantics and update implementation documentation; changing this ADR from Proposed requires a separate explicit lifecycle decision. Once durable state exists, any rollback or replacement must also provide a reviewed migration for persisted lifecycle representations.
 
 ## Open follow-ups
 
@@ -109,6 +113,7 @@ Rollback before acceptance is removal of the active BAP lifecycle branch and its
 - Define crash-recovery classification and reconciliation for ambiguous external side effects.
 - Map authenticated BAP/MCP transport messages into typed lifecycle requests without ambient protocol authority.
 - Propagate cancellation and expiry into real browser/process supervision only after the corresponding runtime authority exists.
+- Decide ADR 0016 acceptance explicitly under live repository governance rather than inferring it from PR #208 integration.
 
 ## Supersession / reversal conditions
 
