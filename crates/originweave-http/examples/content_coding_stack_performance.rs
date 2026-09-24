@@ -32,6 +32,8 @@ const GITHUB_SHA_ENV: &str = "GITHUB_SHA";
 const MAX_ENVIRONMENT_ID_BYTES: usize = 128;
 const NETWORK_AUTHORITY_SOURCE: NetworkAuthoritySource =
     NetworkAuthoritySource::ParentUntimedConnectionPlan;
+const EVIDENCE_AUTHORITY_SOURCE: EvidenceAuthoritySource =
+    EvidenceAuthoritySource::CallerProducedUnattestedReceipt;
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -101,6 +103,29 @@ impl NetworkAuthoritySource {
     const fn acceptance_status(self) -> &'static str {
         match self {
             Self::ParentUntimedConnectionPlan => "UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+        }
+    }
+
+    const fn acceptance_eligible(self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EvidenceAuthoritySource {
+    CallerProducedUnattestedReceipt,
+}
+
+impl EvidenceAuthoritySource {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::CallerProducedUnattestedReceipt => "caller_produced_unattested_receipt",
+        }
+    }
+
+    const fn acceptance_status(self) -> &'static str {
+        match self {
+            Self::CallerProducedUnattestedReceipt => "UNACCEPTED_UNATTESTED_RECEIPT",
         }
     }
 
@@ -487,13 +512,16 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
         .source_revision_source
         .acceptance_status(budget_passed);
     let network_acceptance_status = NETWORK_AUTHORITY_SOURCE.acceptance_status();
-    let acceptance_status = if NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
-        source_acceptance_status
-    } else {
+    let evidence_acceptance_status = EVIDENCE_AUTHORITY_SOURCE.acceptance_status();
+    let acceptance_status = if !NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
         network_acceptance_status
+    } else if !EVIDENCE_AUTHORITY_SOURCE.acceptance_eligible() {
+        evidence_acceptance_status
+    } else {
+        source_acceptance_status
     };
     format!(
-        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} network_authority={} network_acceptance_status={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} source_acceptance_status={} acceptance_status={}\n",
+        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} network_authority={} network_acceptance_status={} evidence_authority={} evidence_acceptance_status={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} source_acceptance_status={} acceptance_status={}\n",
         provenance.source_revision,
         provenance.source_revision_source.label(),
         provenance.environment_id,
@@ -502,6 +530,8 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
         provenance.runtime_parallelism,
         NETWORK_AUTHORITY_SOURCE.label(),
         network_acceptance_status,
+        EVIDENCE_AUTHORITY_SOURCE.label(),
+        evidence_acceptance_status,
         receipt.profile,
         receipt.decoded_bytes,
         receipt.coded_bytes,
@@ -551,6 +581,12 @@ fn main() -> Result<(), String> {
                 .to_owned(),
         );
     }
+    if !EVIDENCE_AUTHORITY_SOURCE.acceptance_eligible() {
+        return Err(
+            "commercial performance acceptance requires released/pinned authenticated evidence attestation; the current receipt is caller-produced and unattested"
+                .to_owned(),
+        );
+    }
     if !provenance.source_revision_source.acceptance_eligible() {
         return Err(format!(
             "{SOURCE_REVISION_ENV} must be set explicitly for an acceptance-eligible performance receipt; {GITHUB_SHA_ENV} fallback is informational only"
@@ -568,9 +604,9 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        NETWORK_AUTHORITY_SOURCE, NetworkAuthoritySource, PerformanceProvenance,
-        PerformanceReceipt, SourceRevisionSource, parse_environment_id, parse_source_revision,
-        receipt_line,
+        EVIDENCE_AUTHORITY_SOURCE, EvidenceAuthoritySource, NETWORK_AUTHORITY_SOURCE,
+        NetworkAuthoritySource, PerformanceProvenance, PerformanceReceipt, SourceRevisionSource,
+        parse_environment_id, parse_source_revision, receipt_line,
     };
 
     const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -637,7 +673,7 @@ mod tests {
     }
 
     #[test]
-    fn receipt_binds_source_runtime_network_and_acceptance_identity() -> Result<(), String> {
+    fn receipt_binds_source_runtime_network_evidence_and_acceptance_identity() -> Result<(), String> {
         let line = receipt_line(&receipt(2_000), &provenance(SourceRevisionSource::Explicit));
         for expected in [
             "source_revision=0123456789abcdef0123456789abcdef01234567",
@@ -648,6 +684,8 @@ mod tests {
             "runtime_parallelism=4",
             "network_authority=parent_untimed_connection_plan",
             "network_acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+            "evidence_authority=caller_produced_unattested_receipt",
+            "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "samples=31",
             "budget_us=20000",
             "budget_status=PASS",
@@ -681,6 +719,20 @@ mod tests {
     }
 
     #[test]
+    fn caller_produced_evidence_blocks_commercial_acceptance() -> Result<(), String> {
+        if EVIDENCE_AUTHORITY_SOURCE != EvidenceAuthoritySource::CallerProducedUnattestedReceipt {
+            return Err("unexpected performance evidence authority source".to_owned());
+        }
+        if EVIDENCE_AUTHORITY_SOURCE.acceptance_eligible() {
+            return Err("caller-produced unattested receipt must not be acceptance eligible".to_owned());
+        }
+        if EVIDENCE_AUTHORITY_SOURCE.acceptance_status() != "UNACCEPTED_UNATTESTED_RECEIPT" {
+            return Err("unattested performance evidence must remain explicitly unaccepted".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
     fn fallback_source_can_measure_but_never_claim_source_acceptance() -> Result<(), String> {
         let line = receipt_line(
             &receipt(2_000),
@@ -690,6 +742,7 @@ mod tests {
             "source_revision_source=github_sha",
             "budget_status=PASS",
             "source_acceptance_status=UNACCEPTED_SOURCE_FALLBACK",
+            "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
             if !line.contains(expected) {
@@ -711,6 +764,7 @@ mod tests {
         for expected in [
             "budget_status=FAIL",
             "source_acceptance_status=FAIL",
+            "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
             if !line.contains(expected) {
