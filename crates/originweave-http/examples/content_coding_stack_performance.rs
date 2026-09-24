@@ -75,11 +75,10 @@ impl SourceRevisionSource {
         }
     }
 
-    const fn acceptance_status(self, budget_passed: bool) -> &'static str {
-        match (self, budget_passed) {
-            (Self::Explicit, true) => "PASS",
-            (Self::Explicit, false) => "FAIL",
-            (Self::GithubShaFallback, _) => "UNACCEPTED_SOURCE_FALLBACK",
+    const fn acceptance_status(self) -> &'static str {
+        match self {
+            Self::Explicit => "PASS",
+            Self::GithubShaFallback => "UNACCEPTED_SOURCE_FALLBACK",
         }
     }
 
@@ -508,17 +507,17 @@ fn measure_profile(
 fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance) -> String {
     let budget_passed = receipt.p95_microseconds <= P95_BUDGET_MICROSECONDS;
     let budget_status = if budget_passed { "PASS" } else { "FAIL" };
-    let source_acceptance_status = provenance
-        .source_revision_source
-        .acceptance_status(budget_passed);
+    let source_acceptance_status = provenance.source_revision_source.acceptance_status();
     let network_acceptance_status = NETWORK_AUTHORITY_SOURCE.acceptance_status();
     let evidence_acceptance_status = EVIDENCE_AUTHORITY_SOURCE.acceptance_status();
     let acceptance_status = if !NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
         network_acceptance_status
     } else if !EVIDENCE_AUTHORITY_SOURCE.acceptance_eligible() {
         evidence_acceptance_status
-    } else {
+    } else if !provenance.source_revision_source.acceptance_eligible() {
         source_acceptance_status
+    } else {
+        budget_status
     };
     format!(
         "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} network_authority={} network_acceptance_status={} evidence_authority={} evidence_acceptance_status={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} source_acceptance_status={} acceptance_status={}\n",
@@ -756,14 +755,14 @@ mod tests {
     }
 
     #[test]
-    fn explicit_source_still_records_budget_failure_under_network_blocker() -> Result<(), String> {
+    fn explicit_source_budget_failure_preserves_source_acceptance_under_network_blocker() -> Result<(), String> {
         let line = receipt_line(
             &receipt(super::P95_BUDGET_MICROSECONDS + 1),
             &provenance(SourceRevisionSource::Explicit),
         );
         for expected in [
             "budget_status=FAIL",
-            "source_acceptance_status=FAIL",
+            "source_acceptance_status=PASS",
             "evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT",
             "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
