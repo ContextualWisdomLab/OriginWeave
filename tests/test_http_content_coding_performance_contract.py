@@ -63,6 +63,35 @@ class HttpContentCodingPerformanceContractTests(unittest.TestCase):
                 f"performance receipt must expose fail-closed evidence authority marker: {marker}",
             )
 
+    def test_synthetic_fixture_cannot_claim_commercial_acceptance(self) -> None:
+        source = SOURCE.read_text(encoding="utf-8")
+        for marker in [
+            "fixture_authority",
+            "deterministic_synthetic_no_external_dataset",
+            "fixture_acceptance_status",
+            "UNACCEPTED_SYNTHETIC_FIXTURE",
+            "FIXTURE_AUTHORITY_SOURCE.acceptance_eligible()",
+        ]:
+            self.assertIn(
+                marker,
+                source,
+                f"synthetic buyer-path fixture must remain explicit and fail closed: {marker}",
+            )
+
+        packager = EVIDENCE_PACKAGER.read_text(encoding="utf-8")
+        for marker in [
+            "fixture_authority",
+            "fixture_acceptance_status",
+            '"fixture_kind"',
+            "deterministic_synthetic_no_external_dataset",
+            "UNACCEPTED_SYNTHETIC_FIXTURE",
+        ]:
+            self.assertIn(
+                marker,
+                packager,
+                f"attestable fixture document must preserve fixture authority: {marker}",
+            )
+
     def test_source_acceptance_is_independent_of_latency_budget(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
         self.assertIn(
