@@ -30,6 +30,8 @@ const SOURCE_REVISION_ENV: &str = "ORIGINWEAVE_PERFORMANCE_SOURCE_REVISION";
 const ENVIRONMENT_ID_ENV: &str = "ORIGINWEAVE_PERFORMANCE_ENVIRONMENT_ID";
 const GITHUB_SHA_ENV: &str = "GITHUB_SHA";
 const MAX_ENVIRONMENT_ID_BYTES: usize = 128;
+const NETWORK_AUTHORITY_SOURCE: NetworkAuthoritySource =
+    NetworkAuthoritySource::ParentUntimedConnectionPlan;
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -81,6 +83,29 @@ impl SourceRevisionSource {
 
     const fn acceptance_eligible(self) -> bool {
         matches!(self, Self::Explicit)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NetworkAuthoritySource {
+    ParentUntimedConnectionPlan,
+}
+
+impl NetworkAuthoritySource {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::ParentUntimedConnectionPlan => "parent_untimed_connection_plan",
+        }
+    }
+
+    const fn acceptance_status(self) -> &'static str {
+        match self {
+            Self::ParentUntimedConnectionPlan => "UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+        }
+    }
+
+    const fn acceptance_eligible(self) -> bool {
+        false
     }
 }
 
@@ -401,9 +426,10 @@ fn measure_profile(
         let (socket_address, server) = spawn_http_server(Arc::clone(config), response.clone())?;
         let origin = origin_for(socket_address)?;
 
-        // Fixture creation stays outside the receipt, but the governed buyer transaction begins
-        // before destination-authorized TCP connection and TLS authentication. This prevents a
-        // nominal buyer-path p95 from silently excluding transport setup.
+        // Fixture creation stays outside the receipt. The measured parent path includes TCP/TLS,
+        // but that parent still exposes only the untimed ConnectionPlan. Commercial buyer-path
+        // acceptance therefore stays fail-closed until a released freshness-authorized network
+        // owner is adopted instead of treating this timing sample as full network authority.
         let started = Instant::now();
         let connection = authenticated_connection(&origin, socket_address, root_der.to_vec())?;
         let path = format!("/content-coding-performance/{}/{}", profile.name, sample_index);
@@ -457,17 +483,25 @@ fn measure_profile(
 fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance) -> String {
     let budget_passed = receipt.p95_microseconds <= P95_BUDGET_MICROSECONDS;
     let budget_status = if budget_passed { "PASS" } else { "FAIL" };
-    let acceptance_status = provenance
+    let source_acceptance_status = provenance
         .source_revision_source
         .acceptance_status(budget_passed);
+    let network_acceptance_status = NETWORK_AUTHORITY_SOURCE.acceptance_status();
+    let acceptance_status = if NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
+        source_acceptance_status
+    } else {
+        network_acceptance_status
+    };
     format!(
-        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} acceptance_status={}\n",
+        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} network_authority={} network_acceptance_status={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} source_acceptance_status={} acceptance_status={}\n",
         provenance.source_revision,
         provenance.source_revision_source.label(),
         provenance.environment_id,
         provenance.runtime_os,
         provenance.runtime_arch,
         provenance.runtime_parallelism,
+        NETWORK_AUTHORITY_SOURCE.label(),
+        network_acceptance_status,
         receipt.profile,
         receipt.decoded_bytes,
         receipt.coded_bytes,
@@ -477,6 +511,7 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
         receipt.maximum_microseconds,
         P95_BUDGET_MICROSECONDS,
         budget_status,
+        source_acceptance_status,
         acceptance_status
     )
 }
@@ -510,6 +545,12 @@ fn main() -> Result<(), String> {
         }
     }
 
+    if !NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
+        return Err(
+            "commercial performance acceptance requires a released freshness-authorized network planner; the current parent exposes only an untimed connection plan"
+                .to_owned(),
+        );
+    }
     if !provenance.source_revision_source.acceptance_eligible() {
         return Err(format!(
             "{SOURCE_REVISION_ENV} must be set explicitly for an acceptance-eligible performance receipt; {GITHUB_SHA_ENV} fallback is informational only"
@@ -527,8 +568,9 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        PerformanceProvenance, PerformanceReceipt, SourceRevisionSource, parse_environment_id,
-        parse_source_revision, receipt_line,
+        NETWORK_AUTHORITY_SOURCE, NetworkAuthoritySource, PerformanceProvenance,
+        PerformanceReceipt, SourceRevisionSource, parse_environment_id, parse_source_revision,
+        receipt_line,
     };
 
     const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -595,7 +637,7 @@ mod tests {
     }
 
     #[test]
-    fn receipt_binds_source_runtime_and_acceptance_identity() -> Result<(), String> {
+    fn receipt_binds_source_runtime_network_and_acceptance_identity() -> Result<(), String> {
         let line = receipt_line(&receipt(2_000), &provenance(SourceRevisionSource::Explicit));
         for expected in [
             "source_revision=0123456789abcdef0123456789abcdef01234567",
@@ -604,23 +646,42 @@ mod tests {
             "runtime_os=linux",
             "runtime_arch=x86_64",
             "runtime_parallelism=4",
+            "network_authority=parent_untimed_connection_plan",
+            "network_acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
             "samples=31",
             "budget_us=20000",
             "budget_status=PASS",
-            "acceptance_status=PASS",
+            "source_acceptance_status=PASS",
+            "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
             if !line.contains(expected) {
                 return Err(format!("performance receipt omitted {expected}"));
             }
         }
         if !SourceRevisionSource::Explicit.acceptance_eligible() {
-            return Err("explicit source revision must be acceptance eligible".to_owned());
+            return Err("explicit source revision must be source-acceptance eligible".to_owned());
         }
         Ok(())
     }
 
     #[test]
-    fn fallback_source_can_measure_but_never_claim_acceptance() -> Result<(), String> {
+    fn parent_untimed_network_authority_blocks_commercial_acceptance() -> Result<(), String> {
+        if NETWORK_AUTHORITY_SOURCE != NetworkAuthoritySource::ParentUntimedConnectionPlan {
+            return Err("unexpected benchmark network authority source".to_owned());
+        }
+        if NETWORK_AUTHORITY_SOURCE.acceptance_eligible() {
+            return Err("untimed parent connection plan must not be commercial-acceptance eligible".to_owned());
+        }
+        if NETWORK_AUTHORITY_SOURCE.acceptance_status()
+            != "UNACCEPTED_PARENT_NETWORK_AUTHORITY"
+        {
+            return Err("untimed network authority must remain explicitly unaccepted".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn fallback_source_can_measure_but_never_claim_source_acceptance() -> Result<(), String> {
         let line = receipt_line(
             &receipt(2_000),
             &provenance(SourceRevisionSource::GithubShaFallback),
@@ -628,25 +689,30 @@ mod tests {
         for expected in [
             "source_revision_source=github_sha",
             "budget_status=PASS",
-            "acceptance_status=UNACCEPTED_SOURCE_FALLBACK",
+            "source_acceptance_status=UNACCEPTED_SOURCE_FALLBACK",
+            "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
         ] {
             if !line.contains(expected) {
                 return Err(format!("fallback performance receipt omitted {expected}"));
             }
         }
         if SourceRevisionSource::GithubShaFallback.acceptance_eligible() {
-            return Err("GitHub SHA fallback must not be acceptance eligible".to_owned());
+            return Err("GitHub SHA fallback must not be source-acceptance eligible".to_owned());
         }
         Ok(())
     }
 
     #[test]
-    fn explicit_source_still_fails_acceptance_when_budget_fails() -> Result<(), String> {
+    fn explicit_source_still_records_budget_failure_under_network_blocker() -> Result<(), String> {
         let line = receipt_line(
             &receipt(super::P95_BUDGET_MICROSECONDS + 1),
             &provenance(SourceRevisionSource::Explicit),
         );
-        for expected in ["budget_status=FAIL", "acceptance_status=FAIL"] {
+        for expected in [
+            "budget_status=FAIL",
+            "source_acceptance_status=FAIL",
+            "acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+        ] {
             if !line.contains(expected) {
                 return Err(format!("failing performance receipt omitted {expected}"));
             }
