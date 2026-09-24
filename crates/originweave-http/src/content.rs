@@ -7,8 +7,6 @@ use flate2::bufread::{DeflateDecoder, MultiGzDecoder, ZlibDecoder};
 use crate::field::{FieldBlock, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
 
-const MAX_CONTENT_CODING_DEPTH: usize = 2;
-
 /// A normalized non-empty HTTP content-coding name admitted by OriginWeave.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentCodingName {
@@ -123,6 +121,14 @@ enum SelectedContentCoding {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ContentCodingChain {
+    Identity,
+    One(SelectedContentCoding),
+    Two(SelectedContentCoding, SelectedContentCoding),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ContentCodingSelection {
+    Empty,
     Identity,
     One(SelectedContentCoding),
     Two(SelectedContentCoding, SelectedContentCoding),
@@ -278,9 +284,7 @@ fn decode_raw_deflate(
 }
 
 fn select_content_coding_chain(values: &[&[u8]]) -> Result<ContentCodingChain, HttpError> {
-    let mut codings = [SelectedContentCoding::Gzip; MAX_CONTENT_CODING_DEPTH];
-    let mut coding_count = 0_usize;
-    let mut explicit_identity = false;
+    let mut selection = ContentCodingSelection::Empty;
 
     for value in values {
         for member in value.split(|byte| *byte == b',') {
@@ -289,10 +293,14 @@ fn select_content_coding_chain(values: &[&[u8]]) -> Result<ContentCodingChain, H
                 continue;
             }
             if member.eq_ignore_ascii_case(b"identity") {
-                if explicit_identity || coding_count != 0 {
-                    return Err(HttpError::UnsupportedContentCoding);
-                }
-                explicit_identity = true;
+                selection = match selection {
+                    ContentCodingSelection::Empty => ContentCodingSelection::Identity,
+                    ContentCodingSelection::Identity
+                    | ContentCodingSelection::One(_)
+                    | ContentCodingSelection::Two(_, _) => {
+                        return Err(HttpError::UnsupportedContentCoding);
+                    }
+                };
                 continue;
             }
             let coding = if member.eq_ignore_ascii_case(b"gzip") {
@@ -302,20 +310,23 @@ fn select_content_coding_chain(values: &[&[u8]]) -> Result<ContentCodingChain, H
             } else {
                 return Err(HttpError::UnsupportedContentCoding);
             };
-            if explicit_identity || coding_count == MAX_CONTENT_CODING_DEPTH {
-                return Err(HttpError::UnsupportedContentCoding);
-            }
-            codings[coding_count] = coding;
-            coding_count += 1;
+            selection = match selection {
+                ContentCodingSelection::Empty => ContentCodingSelection::One(coding),
+                ContentCodingSelection::One(first) => ContentCodingSelection::Two(first, coding),
+                ContentCodingSelection::Identity | ContentCodingSelection::Two(_, _) => {
+                    return Err(HttpError::UnsupportedContentCoding);
+                }
+            };
         }
     }
 
-    match (explicit_identity, coding_count) {
-        (true, 0) | (false, 0) => Ok(ContentCodingChain::Identity),
-        (false, 1) => Ok(ContentCodingChain::One(codings[0])),
-        (false, 2) => Ok(ContentCodingChain::Two(codings[0], codings[1])),
-        _ => Err(HttpError::UnsupportedContentCoding),
-    }
+    Ok(match selection {
+        ContentCodingSelection::Empty | ContentCodingSelection::Identity => {
+            ContentCodingChain::Identity
+        }
+        ContentCodingSelection::One(coding) => ContentCodingChain::One(coding),
+        ContentCodingSelection::Two(first, second) => ContentCodingChain::Two(first, second),
+    })
 }
 
 fn decode_reader<R: Read>(
