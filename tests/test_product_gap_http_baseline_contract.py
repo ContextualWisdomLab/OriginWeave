@@ -65,6 +65,8 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
             "#50",
             "ad87cfea59db711cb29ef90559790ba77e22029f",
             "FreshConnectionPlan",
+            "#203",
+            "benchmark corpus",
             "released/pinned",
             "ContextualWisdomLab/.github#2162",
             "#2166",
