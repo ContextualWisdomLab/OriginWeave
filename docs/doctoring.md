@@ -86,7 +86,13 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 RFC 9110 and RFC 9112 separate HTTP semantics from HTTP/1.1 framing. OriginWeave therefore consumes one authenticated TLS stream under strict request, response, framing, and resource budgets rather than treating TLS success as HTTP completeness.
 
+RFC 9110 defines `Content-Encoding` as `#content-coding` and requires a sender to list applied codings in application order. Its generic list-recipient rule also requires recipients to parse and ignore a reasonable number of empty list elements; empty members do not contribute to cardinality. The bounded stacked-coding successor therefore parses the complete repeated/combined list before decoder work, counts only non-empty codings, preserves encounter order, admits at most two supported non-empty layers while the fixed request advertisement is `gzip, deflate`, and decodes in reverse application order. Unknown coding, mixed `identity`, or non-empty depth above two fails before decoder invocation. This depth is an OriginWeave resource decision, not an RFC maximum.
+
+Decompression budgets remain whole-chain rather than per-layer permissions. Every intermediate output is checked against the original transfer-decoded coded-body length, so a layer boundary cannot reset the expansion denominator into an effective `ratio^depth` allowance. RFC 9110 defines `deflate` as the zlib-wrapped RFC 1951 form while noting non-conforming peers that send raw DEFLATE; OriginWeave keeps that path as bounded compatibility for the exact declared `deflate` layer and never retries it after a decoded-size or expansion failure. The current active implementation uses bounded in-memory intermediates, with a coarse strict-default payload-buffer ceiling of about 80 MiB (16 MiB original coded content + 32 MiB prior intermediate + 32 MiB new output), excluding allocator, decoder, and TLS overhead. It is not described as streaming.
+
 RFC 9530 defines `Content-Digest` and `Repr-Digest` as Structured Fields Dictionaries using RFC 8941. RFC 8941 permits Item parameters, requires same-name field lines to be combined, applies last-occurrence-wins to duplicate dictionary and parameter keys, and permits SP or HTAB optional whitespace around dictionary commas. RFC 9530 also permits a digest trailer to be merged into the corresponding header field. OriginWeave therefore processes bounded header members before bounded trailer members, validates Byte Sequence member values, validates but otherwise ignores RFC 8941 parameters, and verifies every supported surviving `sha-256` or `sha-512` member.
+
+RFC 9530 ties integrity fields to HTTP content/representation semantics and `Content-Encoding`. The active stacked-coding contract deliberately leaves integrity verification on transfer-decoded, still-content-coded bytes before content decoding. Audit evidence separately retains the exact admitted non-empty coding order and the actual decoder outcome of each layer; raw-DEFLATE compatibility is a decoder outcome for a declared `deflate` layer, not a new wire coding. Active PR source and predecessor RED are review evidence only until unchanged exact-head repository/security/review gates execute; they do not change protected-main HTTP maturity.
 
 RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, but its versioning contract preserves definitions written against the earlier RFC. Therefore OriginWeave does not accept RFC 9651-only Date or Display String parameter values for RFC 9530 unless a future field-definition update authorizes them. Regression tests cover duplicate keys, repeated field lines, SP/HTAB OWS, trailer merge and override, valid RFC 8941 parameters, invalid newer-version bare items, malformed dictionaries, and digest known-answer vectors. This distinction prevents both the original overly strict parser and a later accidental over-upgrade of the field grammar.
 
@@ -148,11 +154,15 @@ Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP a
 
 Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., & Su, Y. (2023). *Mind2Web: Towards a generalist agent for the web*. arXiv. https://doi.org/10.48550/arXiv.2306.06070
 
+Deutsch, P. (1996). *DEFLATE compressed data format specification version 1.3* (RFC 1951). Internet Engineering Task Force. https://doi.org/10.17487/RFC1951
+
+Deutsch, P. (1996). *GZIP file format specification version 4.3* (RFC 1952). Internet Engineering Task Force. https://doi.org/10.17487/RFC1952
+
 Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Internet Engineering Task Force. https://doi.org/10.17487/RFC9293
 
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
-Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
+Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110; STD 97). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112; STD 99). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 

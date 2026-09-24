@@ -10,13 +10,14 @@ OriginWeave separates canonical origin, approved resolved destination, exact ope
 
 A general-purpose client would also introduce connector, DNS, proxy, redirect, pooling, cookie, credential, retry, and runtime behavior that is outside the authority already proven by the destination, network, and TLS crates. The HTTP boundary therefore must consume one existing `AuthenticatedTlsConnection` and must not create a second path to the network.
 
-PR #11 established the original HTTP design and TDD evidence, but it diverged from protected-main work. PR #37 reconstructs that unique behavior on current OriginWeave lineage without transferring predecessor checks or approvals. This ADR records the decision under an unused current-main number rather than colliding with the accepted sensitive-data ADR 0007.
+PR #11 established the original HTTP design and TDD evidence, but it diverged from protected-main work. PR #37 reconstructs that unique behavior on current OriginWeave lineage without transferring predecessor checks or approvals. Stacked content-coding support is being developed as the ordinary-forward successor #327 under issue #326. This ADR remains Proposed until the HTTP lineage reaches protected-main review and implementation evidence; active-PR source is not shipped truth.
 
 ## Decision drivers
 
 - Preserve the exact origin -> destination -> TCP peer -> TLS identity authority chain.
 - Reject request smuggling and ambiguous HTTP/1.1 framing.
 - Bound all attacker-controlled retained bytes and decode expansion.
+- Interoperate with standards-valid ordered `Content-Encoding` lists without allowing layer count or expansion accounting to become an amplification primitive.
 - Keep redirects as metadata requiring a fresh authority chain.
 - Keep download persistence, rendering, cookies, authentication, proxy/PAC, DNS, Chromium, and model execution outside this crate.
 - Emit useful credential-free evidence without retaining arbitrary field values or response bodies in audit metadata.
@@ -42,6 +43,18 @@ Rejected. HTTP/1.1 chunked transfer coding is self-delimiting; a valid persisten
 
 Rejected. Declared lengths, chunk metadata, trailers, and compressed content are peer-controlled. The implementation must enforce limits before growth where possible and before returning content in all cases.
 
+### Reject every stacked content coding
+
+Rejected for the successor interoperability contract. RFC 9110 defines `Content-Encoding` as an ordered list and requires codings to be listed in application order. OriginWeave already advertises `Accept-Encoding: gzip, deflate`; accepting either coding alone while rejecting a standards-valid two-layer composition is an avoidable buyer-visible mismatch once a bounded implementation and evidence model exist.
+
+### Unbounded or caller-configurable coding depth
+
+Rejected. RFC list syntax is not a product resource budget. The first stacked slice admits at most two non-empty codings, matching the two fixed advertised codings. Increasing that maximum or making it independently caller-lowerable while the advertisement remains fixed would create a separate negotiation/resource decision.
+
+### Reset expansion accounting at each coding layer
+
+Rejected. A per-layer denominator would permit effective amplification approaching `ratio^depth`. Every layer output is therefore checked against the original transfer-decoded, still-content-coded byte count.
+
 ### Follow redirects internally
 
 Rejected. A redirected target may alter origin, DNS results, route, TCP peer, TLS identity, capability, sensitive-data scope, and policy. It requires a new complete authority evaluation.
@@ -65,11 +78,19 @@ Body framing follows RFC 9110 and RFC 9112 with these product constraints:
 
 The strict policy bounds request bytes, target bytes, status line, field counts/names/values/section, interim responses, chunk count/line size, trailer count/section, encoded and decoded content, decoded-to-encoded expansion, and one monotonic total exchange timeout. The unfinished chunked wire prefix has an independent derived memory bound checked before retained-buffer growth.
 
-Supported content coding is absent/identity, one gzip coding, or one deflate coding. Gzip accepts concatenated RFC 1952 members as one gzip representation; malformed bytes after the valid member series fail decoding. Deflate first attempts the RFC 9110 zlib-wrapped form and only an ordinary decoding-format failure can enter the bounded raw RFC 1951 DEFLATE compatibility fallback; decoded-size or expansion-ratio failures do not trigger fallback, and raw-fallback success is explicit `DeflateRawCompatibility` evidence. Stacked content codings are rejected as an explicit product interoperability restriction even though RFC 9110 permits an ordered list of codings. Unsupported coding fails closed. RFC 9530 `Content-Digest` and `Repr-Digest` support SHA-256 and SHA-512 using the RFC 8941 Structured Fields grammar to which RFC 9530 was originally bound. RFC 9651 now obsoletes RFC 8941; this first slice intentionally remains on the RFC 8941 baseline and rejects RFC 9651-only Date and Display String bare-item syntax until a separate reviewed compatibility change updates the parser and its evidence contract. Integrity remains corruption evidence, not authentication.
+Content-coding admission parses the complete repeated/combined `Content-Encoding` list before decoder work. Empty list elements are ignored within the existing bounded header bytes, as RFC 9110 requires recipients to tolerate a reasonable number of them; they do not count toward coding depth or create decoder invocations. Missing, all-empty, and the retained sole explicit `identity` compatibility form mean no transform. `identity` mixed with another non-empty coding, unknown codings, and more than two non-empty codings fail before decoding.
+
+The admitted non-empty coding chain contains only `gzip` and `deflate`, preserves exact field/member encounter order, and has fixed maximum depth two. Decoding runs in reverse application order. Gzip accepts concatenated RFC 1952 members inside one HTTP coding layer. Deflate first attempts the RFC 9110 zlib-wrapped form; only an ordinary decoding-format failure may enter the bounded raw RFC 1951 compatibility path for that exact declared `deflate` layer. Size or expansion failures never trigger fallback, and nested layers do not introduce combinatorial retries.
+
+Every decoder output is checked against the existing decoded-byte ceiling and against the original transfer-decoded coded-body byte count. The ratio denominator never resets at a layer boundary. The current implementation materializes bounded `Vec<u8>` intermediates rather than streaming them; under the strict defaults its coarse payload-buffer peak is approximately 80 MiB: at most 16 MiB of original coded content plus one prior intermediate up to 32 MiB plus one new output up to 32 MiB, excluding allocator, decoder, and TLS overhead. This is a documented first-slice bound, not a streaming claim.
+
+`HttpExchangeEvidence` retains the exact admitted non-empty wire/application-order coding sequence and the decoder outcome for each layer without retaining response content. A standards gzip layer, standards zlib-wrapped deflate layer, and raw-DEFLATE-compatible declared deflate layer are distinct typed evidence states, so an impossible gzip/raw-DEFLATE combination cannot be constructed. Compatibility outcome is not rewritten into a synthetic wire coding and wire order is not reconstructed from the terminal decoder result.
+
+RFC 9530 integrity validation remains on the existing byte-domain boundary: transfer coding has been removed, but content coding has not. Stacked decoding does not move `Content-Digest` or `Repr-Digest` verification to final plaintext and does not collapse their distinct HTTP content/representation semantics. RFC 9530 Structured Fields parsing remains on the RFC 8941 definition to which that field specification was bound; RFC 9651-only Date and Display String bare-item syntax remains outside this slice.
 
 MIME handling records supplied type separately from a conservative versioned observed classification. `Content-Disposition` may yield only bounded portable metadata; it does not create a file. Redirect handling returns bounded/hash-oriented metadata and never follows the redirect. Network-path redirect references that could carry an authority are never collapsed into same-origin path metadata.
 
-`HttpExchangeEvidence` records the inherited origin/peer/TLS summary plus method, bounded/hash-oriented target information, status, response field names and byte counts, framing, content coding, byte budgets, chunk/trailer decisions, integrity status, MIME/disposition/redirect classifications, completeness, elapsed time, and configured resource limits. It does not retain credentials, cookies, arbitrary request/response field values, response content, query values, unsafe filenames, certificates, or raw redirect locations.
+`HttpExchangeEvidence` records the inherited origin/peer/TLS summary plus method, bounded/hash-oriented target information, status, response field names and byte counts, framing, ordered content-coding/decoder evidence, byte budgets, chunk/trailer decisions, integrity status, MIME/disposition/redirect classifications, completeness, elapsed time, and configured resource limits. It does not retain credentials, cookies, arbitrary request/response field values, response content, query values, unsafe filenames, certificates, or raw redirect locations.
 
 ## Consequences
 
@@ -78,6 +99,8 @@ MIME handling records supplied type separately from a conservative versioned obs
 - One authenticated stream yields one deterministic bounded HTTP result.
 - HTTP framing cannot silently create a second network authority path.
 - Persistent peers are interoperable for completed chunked messages without weakening close-delimited completeness.
+- Standards-valid two-layer `gzip`/`deflate` compositions can be represented without unbounded decoder depth or per-layer expansion-budget reset.
+- Coding audit evidence preserves declared wire order and actual compatibility outcome independently.
 - Resource limits and evidence are explicit and testable.
 - Redirect and download metadata return to later policy/persistence authorities rather than bypassing them.
 
@@ -85,45 +108,48 @@ MIME handling records supplied type separately from a conservative versioned obs
 
 - HTTP/1.1 only and `Connection: close` reduce performance and compatibility.
 - Strict parsing rejects some legacy-but-tolerated messages.
-- Stacked content codings are standards-valid but remain an explicit unsupported interoperability case in this bounded slice.
-- The first slice materializes a bounded decoded body in memory.
+- Content-coding depth is intentionally capped at two; Brotli and Zstandard remain unsupported.
+- The first stacked slice materializes bounded intermediate buffers. Its approximate 80 MiB strict-default payload-buffer ceiling excludes allocator, decoder, and TLS overhead and therefore is not a complete process-RSS bound.
 - Authentication, cookies, proxying, caching, HTTP/2/3, streaming downloads, and browser integration remain separate future work.
 
 ## Failure and degraded behavior
 
-Any malformed syntax, framing conflict, limit breach, incomplete response, timeout, unclean close where EOF is semantic, decoder failure, integrity mismatch, unsafe metadata, or timeout-restoration failure returns a typed error and withholds a successful response. The single-use authenticated stream is consumed on success or failure and is never reused after ambiguous state.
+Any malformed syntax, framing conflict, unknown/mixed/excess content coding, limit breach, incomplete response, timeout, unclean close where EOF is semantic, decoder failure, integrity mismatch, unsafe metadata, or timeout-restoration failure returns a typed error and withholds a successful response. Parser-level coding rejection occurs before decoder work. Resource-limit failures do not activate raw-DEFLATE fallback. The single-use authenticated stream is consumed on success or failure and is never reused after ambiguous state.
 
 ## Security / privacy / governance impact
 
-The decision reduces request-smuggling, decompression, SSRF-authority-confusion, redirect, unsafe-download-name, and accidental evidence-disclosure risk. It does not replace upstream destination/TLS authority or downstream content/rendering/business authorization. No model credential or protected value belongs in this layer.
+The decision reduces request-smuggling, decompression-amplification, SSRF-authority-confusion, redirect, unsafe-download-name, and accidental evidence-disclosure risk. Fixed coding depth, original-coded expansion accounting, exact-layer fallback, and content-free typed evidence make the added interoperability auditable without transferring policy authority to a codec. It does not replace upstream destination/TLS authority or downstream content/rendering/business authorization. No model credential or protected value belongs in this layer.
 
 ## Tests and acceptance evidence
 
-Acceptance requires deterministic parser/boundary tests, real loopback TLS integration, persistent-peer chunked completion, truncation and unclean-close failures, total-deadline tests, exact retained-wire budget tests, MIME/disposition/redirect hostile cases, known-answer digest vectors, current Rust formatting/Clippy/rustdoc, exact owned production function/line/region/branch coverage, Security Scan, SAST, current review cleanup, and current branch policy on one unchanged head.
+Acceptance requires deterministic parser/boundary tests and real authenticated loopback TLS integration. For stacked content coding that includes both coding orders, repeated-field and comma-list forms, ignored/all-empty list members, mixed identity, unknown/depth-overflow rejection before decoder work, malformed outer and inner layers, truncated members, trailing bytes, cumulative expansion against the original coded length, zero-byte coded input, raw-DEFLATE fallback on the exact declared layer, coded-byte digest semantics, and exact wire-order decoder evidence. The captured request must prove the client actually advertised `Accept-Encoding: gzip, deflate`.
+
+The causal predecessor RED is #327 exact `dc68914cd4721ebd4e65e1f7034a665c39042dfb`, where hosted Production coverage run `35901066797` executed the authenticated-TLS matrix and exposed the old single-coding rejection. Current source repair is active-PR evidence only until the unchanged exact head completes repository contracts, formatting, Clippy, rustdoc, exact owned production function/line/region/branch coverage, applicable Security/SAST/CodeQL, independent review, and the live protected-branch ruleset. Queued, skipped, predecessor, or status-only evidence is not acceptance.
 
 ## Migration and rollback
 
-The crate is additive. No caller should replace a previously trusted HTTP path until its adapter explicitly consumes this authority. Rollback removes the new crate/adapters and leaves origin, destination, network, and TLS authorities unchanged. A rollback must not restore a convenience client inside a privileged authority boundary without a superseding ADR.
+The crate and the stacked-coding successor are additive within the still-unshipped HTTP lineage. Consumers do not gain a second network path or new persistence authority. Rollback of the stacked successor restores the bounded single-coding behavior while leaving origin, destination, network, TLS, framing, digest, MIME, redirect, and evidence authorities unchanged. Rollback must not increase coding depth, expansion limits, advertised codings, or reintroduce a convenience client. If the fixed advertisement changes later, coding admission and request negotiation must be reviewed as one policy rather than drift independently.
 
 ## Open follow-ups
 
 - Reconcile current canonical architecture/PRD/TRD/ADR index after the HTTP branch incorporates current main.
 - Add adapter-level browser navigation only after a real pinned Chromium vertical slice proves the same authority chain.
-- Design separately authorized streaming download sinks for content larger than the in-memory first-slice budget.
-- Evaluate bounded stacked content-coding support with a maximum coding depth, reverse-order decoding, cumulative expansion accounting, evidence-schema coverage, and realistic loopback fixtures.
-- Evaluate HTTP/2 and HTTP/3 as separate protocol authorities rather than silently widening this implementation.
+- Replace the bounded intermediate-buffer pipeline with a streaming decoder only after equivalent size/ratio, integrity-byte-domain, decoder-outcome evidence, cancellation, and recovery behavior are proven.
+- Measure representative compressed buyer payloads and retain exact p95/resource evidence before making performance claims about stacked decoding.
+- Add separately authorized streaming download sinks for content larger than the in-memory first-slice budget.
+- Evaluate Brotli, Zstandard, coding depth above two, and HTTP/2 or HTTP/3 only as separate interoperability/resource decisions rather than silently widening this implementation.
 
 ## Supersession / reversal conditions
 
-Supersede this ADR if OriginWeave adopts a different transport abstraction, connection-reuse authority, proxy-integrated HTTP path, or protocol-unified HTTP/1.1-2-3 kernel that preserves equivalent or stronger explicit authority and evidence contracts.
+Supersede this ADR if OriginWeave adopts a different transport abstraction, connection-reuse authority, proxy-integrated HTTP path, content-decoding pipeline, or protocol-unified HTTP/1.1-2-3 kernel that preserves equivalent or stronger explicit authority, resource, integrity-byte-domain, and evidence contracts.
 
 ## References
 
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
-Deutsch, L. P. (1996). *DEFLATE compressed data format specification version 1.3* (RFC 1951). Internet Engineering Task Force. https://doi.org/10.17487/RFC1951
+Deutsch, P. (1996). *DEFLATE compressed data format specification version 1.3* (RFC 1951). Internet Engineering Task Force. https://doi.org/10.17487/RFC1951
 
-Deutsch, L. P. (1996). *GZIP file format specification version 4.3* (RFC 1952). Internet Engineering Task Force. https://doi.org/10.17487/RFC1952
+Deutsch, P. (1996). *GZIP file format specification version 4.3* (RFC 1952). Internet Engineering Task Force. https://doi.org/10.17487/RFC1952
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110; STD 97). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 

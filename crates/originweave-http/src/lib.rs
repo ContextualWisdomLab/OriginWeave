@@ -85,7 +85,9 @@ mod target;
 #[path = "tests/trailer_error_contract.rs"]
 mod trailer_error_contract;
 
-pub use content::ContentCoding;
+pub use content::{
+    ContentCoding, ContentCodingLayerEvidence, ContentCodingName, ContentDecoderOutcome,
+};
 pub use disposition::{
     DispositionKind, ExtensionMimeRelation, RedirectMetadata, SafeContentDisposition,
 };

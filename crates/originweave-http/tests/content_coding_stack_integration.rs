@@ -1,0 +1,790 @@
+use std::io::{Read, Write};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
+
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use flate2::Compression;
+use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
+use originweave_core::Origin;
+use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
+use originweave_http::{
+    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+};
+use originweave_network::{ConnectionPlan, DirectTcpConnection};
+use originweave_tls::{
+    AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
+};
+use rcgen::{
+    BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
+    Issuer, KeyPair, KeyUsagePurpose,
+};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, UnixTime};
+use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use sha2::{Digest, Sha256};
+
+const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
+const TEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+type ServerResult = Result<Vec<u8>, String>;
+
+struct CertificateMaterial {
+    root_der: Vec<u8>,
+    certificate_chain: Vec<CertificateDer<'static>>,
+    private_key: PrivateKeyDer<'static>,
+}
+
+/// Creates the fixture-only trust anchor so the client trusts no ambient host roots.
+fn certificate_authority() -> Result<(Vec<u8>, Issuer<'static, KeyPair>), String> {
+    let mut parameters = CertificateParams::new(Vec::new())
+        .map_err(|error| format!("empty CA SAN list rejected: {error:?}"))?;
+    parameters.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    parameters.key_usages = vec![
+        KeyUsagePurpose::DigitalSignature,
+        KeyUsagePurpose::KeyCertSign,
+        KeyUsagePurpose::CrlSign,
+    ];
+    parameters.distinguished_name.push(
+        DnType::CommonName,
+        "OriginWeave HTTP content-coding test root",
+    );
+    let key_pair = KeyPair::generate().map_err(|error| format!("CA key generation: {error:?}"))?;
+    let certificate = parameters
+        .self_signed(&key_pair)
+        .map_err(|error| format!("CA certificate generation: {error:?}"))?;
+    Ok((
+        certificate.der().to_vec(),
+        Issuer::new(parameters, key_pair),
+    ))
+}
+
+/// Issues a localhost server certificate whose validity encloses the fixture's pinned trusted time.
+fn certificate_material() -> Result<CertificateMaterial, String> {
+    let (root_der, issuer) = certificate_authority()?;
+    let mut parameters = CertificateParams::new(vec!["localhost".to_owned()])
+        .map_err(|error| format!("localhost SAN rejected: {error:?}"))?;
+    parameters.not_before = rcgen::date_time_ymd(2025, 1, 1);
+    parameters.not_after = rcgen::date_time_ymd(2030, 1, 1);
+    parameters.key_usages = vec![KeyUsagePurpose::DigitalSignature];
+    parameters.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+    parameters.use_authority_key_identifier_extension = true;
+    let key_pair =
+        KeyPair::generate().map_err(|error| format!("leaf key generation: {error:?}"))?;
+    let certificate: Certificate = parameters
+        .signed_by(&key_pair, &issuer)
+        .map_err(|error| format!("leaf certificate generation: {error:?}"))?;
+    Ok(CertificateMaterial {
+        root_der,
+        certificate_chain: vec![certificate.der().clone()],
+        private_key: PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_pair.serialize_der())),
+    })
+}
+
+/// Restricts the loopback TLS peer to the HTTP/1.1 ALPN contract exercised by the client.
+fn server_config(material: CertificateMaterial) -> Result<(Vec<u8>, Arc<ServerConfig>), String> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let builder = ServerConfig::builder_with_provider(provider)
+        .with_protocol_versions(&[&rustls::version::TLS13, &rustls::version::TLS12])
+        .map_err(|error| format!("test protocol versions: {error:?}"))?;
+    let mut config = builder
+        .with_no_client_auth()
+        .with_single_cert(material.certificate_chain, material.private_key)
+        .map_err(|error| format!("test certificate and key mismatch: {error:?}"))?;
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    Ok((material.root_der, Arc::new(config)))
+}
+
+/// Runs one bounded authenticated peer and returns the exact request head for wire-contract checks.
+fn spawn_http_server(
+    config: Arc<ServerConfig>,
+    response: Vec<u8>,
+) -> Result<(SocketAddr, JoinHandle<ServerResult>), String> {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .map_err(|error| format!("loopback listener bind: {error:?}"))?;
+    let socket_address = listener
+        .local_addr()
+        .map_err(|error| format!("loopback listener address: {error:?}"))?;
+    let handle = thread::spawn(move || {
+        let (stream, _peer) = listener.accept().map_err(|error| error.to_string())?;
+        stream
+            .set_read_timeout(Some(TEST_TIMEOUT))
+            .map_err(|error| error.to_string())?;
+        stream
+            .set_write_timeout(Some(TEST_TIMEOUT))
+            .map_err(|error| error.to_string())?;
+        let connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
+        let mut tls = StreamOwned::new(connection, stream);
+        let mut request = Vec::new();
+        let mut scratch = [0_u8; 512];
+        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+            match tls.read(&mut scratch) {
+                Ok(0) => break,
+                Ok(count) => request.extend_from_slice(&scratch[..count]),
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+        tls.write_all(&response)
+            .map_err(|error| error.to_string())?;
+        tls.flush().map_err(|error| error.to_string())?;
+        tls.conn.send_close_notify();
+        let _ = tls.flush();
+        Ok(request)
+    });
+    Ok((socket_address, handle))
+}
+
+/// Binds the request origin to the dynamically allocated loopback TLS endpoint.
+fn origin_for(socket_address: SocketAddr) -> Result<Origin, String> {
+    Origin::parse(&format!("https://localhost:{}", socket_address.port()))
+        .map_err(|error| format!("test origin rejected: {error:?}"))
+}
+
+/// Authorizes only the fixture's loopback destination before opening the TCP connection.
+fn direct_connection(
+    origin: &Origin,
+    socket_address: SocketAddr,
+) -> Result<DirectTcpConnection, String> {
+    let snapshot = ResolutionSnapshot::approve(
+        origin.clone(),
+        [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+    )
+    .map_err(|error| format!("managed loopback resolution rejected: {error:?}"))?;
+    let plan = ConnectionPlan::new(&snapshot, socket_address, Duration::from_secs(2), 1)
+        .map_err(|error| format!("direct connection plan rejected: {error:?}"))?;
+    plan.connect()
+        .map_err(|error| format!("loopback TCP connection failed: {error:?}"))
+}
+
+/// Authenticates the loopback transport against only the generated root and requires HTTP/1.1 ALPN.
+fn authenticated_connection(
+    origin: &Origin,
+    socket_address: SocketAddr,
+    root_der: Vec<u8>,
+) -> Result<originweave_tls::AuthenticatedTlsConnection, String> {
+    let trust_identifier = TrustBundleIdentifier::parse("http_content_coding_loopback:v1")
+        .map_err(|error| format!("trust identifier rejected: {error:?}"))?;
+    let roots = TrustRootBundle::new(trust_identifier, vec![root_der])
+        .map_err(|error| format!("test root bundle rejected: {error:?}"))?;
+    let policy = TlsClientPolicy::new(
+        UnixTime::since_unix_epoch(Duration::from_secs(TRUSTED_TIME_SECONDS)),
+        TEST_TIMEOUT,
+        vec![b"http/1.1".to_vec()],
+        AlpnRequirement::Required,
+    )
+    .map_err(|error| format!("TLS client policy rejected: {error:?}"))?;
+    let plan = TlsHandshakePlan::new(
+        origin.clone(),
+        direct_connection(origin, socket_address)?,
+        roots,
+        policy,
+    )
+    .map_err(|error| format!("TLS handshake plan rejected: {error:?}"))?;
+    plan.authenticate()
+        .map_err(|error| format!("authenticated loopback TLS failed: {error:?}"))
+}
+
+/// Applies one RFC 1952 gzip layer for the inner content-coding fixture.
+fn gzip(input: &[u8]) -> Result<Vec<u8>, String> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(input)
+        .map_err(|error| format!("gzip input: {error:?}"))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("gzip finish: {error:?}"))
+}
+
+/// Applies the RFC 9110 deflate coding using its standards-defined zlib wrapper.
+fn zlib_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(input)
+        .map_err(|error| format!("deflate input: {error:?}"))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("deflate finish: {error:?}"))
+}
+
+/// Applies raw RFC 1951 DEFLATE for the bounded legacy-compatibility fixtures.
+fn raw_deflate(input: &[u8]) -> Result<Vec<u8>, String> {
+    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(input)
+        .map_err(|error| format!("raw deflate input: {error:?}"))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("raw deflate finish: {error:?}"))
+}
+
+/// Produces the RFC 9530 SHA-256 dictionary value for the exact byte domain under test.
+fn sha256_digest_field_value(input: &[u8]) -> String {
+    format!("sha-256=:{}:", STANDARD.encode(Sha256::digest(input)))
+}
+
+/// Executes one authenticated response fixture while proving the advertised request codings on wire.
+fn execute_content_coding_fixture(
+    path: &str,
+    content_encoding_fields: &[&str],
+    wire_body: &[u8],
+) -> Result<Result<Vec<u8>, HttpError>, String> {
+    execute_content_coding_fixture_with_fields(path, content_encoding_fields, &[], wire_body)
+}
+
+/// Adds explicit response fields without changing the fixture's TLS or request-negotiation proof.
+fn execute_content_coding_fixture_with_fields(
+    path: &str,
+    content_encoding_fields: &[&str],
+    additional_response_fields: &[(&str, &str)],
+    wire_body: &[u8],
+) -> Result<Result<Vec<u8>, HttpError>, String> {
+    let mut wire_response =
+        format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n", wire_body.len()).into_bytes();
+    for field_value in content_encoding_fields {
+        wire_response.extend_from_slice(b"Content-Encoding: ");
+        wire_response.extend_from_slice(field_value.as_bytes());
+        wire_response.extend_from_slice(b"\r\n");
+    }
+    for (field_name, field_value) in additional_response_fields {
+        wire_response.extend_from_slice(field_name.as_bytes());
+        wire_response.extend_from_slice(b": ");
+        wire_response.extend_from_slice(field_value.as_bytes());
+        wire_response.extend_from_slice(b"\r\n");
+    }
+    wire_response.extend_from_slice(b"Content-Type: text/plain\r\nConnection: close\r\n\r\n");
+    wire_response.extend_from_slice(wire_body);
+
+    let material = certificate_material()?;
+    let (root_der, config) = server_config(material)?;
+    let (socket_address, server) = spawn_http_server(config, wire_response)?;
+    let origin = origin_for(socket_address)?;
+    let connection = authenticated_connection(&origin, socket_address, root_der)?;
+    let target = HttpRequestTarget::parse(origin, path)
+        .map_err(|error| format!("request target rejected: {error:?}"))?;
+
+    let result = HttpExchangePlan::new(
+        connection,
+        HttpMethod::Get,
+        target,
+        &[],
+        HttpClientPolicy::strict_defaults(),
+    )
+    .map_err(|error| format!("HTTP plan construction failed: {error:?}"))?
+    .execute()
+    .map(|response| response.content().to_vec());
+
+    let request = server
+        .join()
+        .map_err(|_panic| "server thread panicked".to_owned())??;
+    let expected_request_line = format!("GET {path} HTTP/1.1\r\n");
+    if !request.starts_with(expected_request_line.as_bytes()) {
+        return Err("fixture did not deliver the expected request to the TLS peer".to_owned());
+    }
+    if !request
+        .windows(b"\r\nAccept-Encoding: gzip, deflate\r\n".len())
+        .any(|window| window == b"\r\nAccept-Encoding: gzip, deflate\r\n")
+    {
+        return Err("fixture did not observe the advertised gzip/deflate codings".to_owned());
+    }
+
+    Ok(result)
+}
+
+/// Converts the expected parser RED into a test failure while preserving unrelated error diagnoses.
+fn require_decoded_content(
+    result: Result<Vec<u8>, HttpError>,
+    expected: &[u8],
+    unsupported_red: &str,
+) -> Result<(), String> {
+    match result {
+        Ok(content) if content == expected => Ok(()),
+        Ok(content) => Err(format!(
+            "content-coding fixture returned unexpected content: {content:?}"
+        )),
+        Err(HttpError::UnsupportedContentCoding) => Err(unsupported_red.to_owned()),
+        Err(error) => Err(format!(
+            "content-coding fixture failed before the intended RED: {error:?}"
+        )),
+    }
+}
+
+/// Proves the advertised two-coding negotiation and requires reverse-order decoding over real TLS.
+#[test]
+fn authenticated_tls_exchange_decodes_supported_stacked_content_codings_in_reverse_order()
+-> Result<(), String> {
+    let original = b"standards-valid stacked content coding";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result =
+        execute_content_coding_fixture("/stacked-content-coding", &["gzip, deflate"], &wire_body)?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the standards-valid `gzip, deflate` chain",
+    )
+}
+
+/// Proves RFC 9530 integrity stays bound to coded representation bytes before stack decoding.
+#[test]
+fn authenticated_tls_exchange_validates_digests_on_still_coded_bytes_before_stack_decoding()
+-> Result<(), String> {
+    let original = b"stacked content whose integrity is bound to coded bytes";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let coded_digest = sha256_digest_field_value(&wire_body);
+    let digest_fields = [
+        ("Content-Digest", coded_digest.as_str()),
+        ("Repr-Digest", coded_digest.as_str()),
+    ];
+    let result = execute_content_coding_fixture_with_fields(
+        "/stacked-content-coding-coded-byte-digests",
+        &["gzip, deflate"],
+        &digest_fields,
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the stack after coded-byte Content-Digest/Repr-Digest validation",
+    )
+}
+
+/// Proves a digest over decoded bytes is rejected before a supported stack reaches content decoding.
+#[test]
+fn authenticated_tls_exchange_rejects_decoded_byte_digest_before_stack_decoding()
+-> Result<(), String> {
+    let original = b"stacked content with a digest from the wrong byte domain";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let decoded_digest = sha256_digest_field_value(original);
+    let digest_fields = [("Content-Digest", decoded_digest.as_str())];
+    let result = execute_content_coding_fixture_with_fields(
+        "/stacked-content-coding-decoded-byte-digest",
+        &["gzip, deflate"],
+        &digest_fields,
+        &wire_body,
+    )?;
+
+    match result {
+        Err(HttpError::DigestMismatch { algorithm: "sha-256" }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "stack parser rejected the chain before the wrong-domain Content-Digest was checked"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "wrong-domain Content-Digest failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "wrong-domain Content-Digest unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves reverse-order decoding is derived from the declared chain, not hard-coded to one order.
+#[test]
+fn authenticated_tls_exchange_decodes_supported_stack_in_opposite_application_order()
+-> Result<(), String> {
+    let original = b"standards-valid stacked content coding in opposite order";
+    let deflate_applied_first = zlib_deflate(original)?;
+    let wire_body = gzip(&deflate_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-opposite-order",
+        &["deflate, gzip"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the standards-valid `deflate, gzip` chain",
+    )
+}
+
+/// Proves bounded raw-DEFLATE compatibility is scoped to an outer `deflate` layer in a chain.
+#[test]
+fn authenticated_tls_exchange_decodes_raw_deflate_compatibility_in_outer_stack_layer()
+-> Result<(), String> {
+    let original = b"stacked content coding with raw deflate compatibility in the outer layer";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = raw_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-raw-deflate-outer",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the stack before bounded raw-DEFLATE compatibility can be applied to the outer `deflate` layer",
+    )
+}
+
+/// Proves bounded raw-DEFLATE compatibility can apply to the exact inner `deflate` layer only.
+#[test]
+fn authenticated_tls_exchange_decodes_raw_deflate_compatibility_in_inner_stack_layer()
+-> Result<(), String> {
+    let original = b"stacked content coding with raw deflate compatibility in the inner layer";
+    let raw_deflate_applied_first = raw_deflate(original)?;
+    let wire_body = gzip(&raw_deflate_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-raw-deflate-inner",
+        &["deflate, gzip"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the stack before bounded raw-DEFLATE compatibility can be applied to the inner `deflate` layer",
+    )
+}
+
+/// Proves content-coding tokens remain case-insensitive when the parser admits a stacked chain.
+#[test]
+fn authenticated_tls_exchange_decodes_stacked_content_coding_names_case_insensitively()
+-> Result<(), String> {
+    let original = b"stacked content coding with mixed-case token names";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-case-insensitive",
+        &["GZip, DeFlAtE"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current single-coding parser rejects the mixed-case standards-valid stacked coding chain",
+    )
+}
+
+/// Proves repeated list field lines retain encounter order before reverse-order decoding.
+#[test]
+fn authenticated_tls_exchange_combines_repeated_content_encoding_fields_in_order()
+-> Result<(), String> {
+    let original = b"stacked content coding across repeated field lines";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-repeated-fields",
+        &["gzip", "deflate"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects repeated `Content-Encoding` field lines instead of combining them in encounter order",
+    )
+}
+
+/// Proves repeated field lines preserve the opposite valid order instead of normalizing by codec name.
+#[test]
+fn authenticated_tls_exchange_preserves_opposite_repeated_content_encoding_field_order()
+-> Result<(), String> {
+    let original = b"stacked content coding across reversed repeated field lines";
+    let deflate_applied_first = zlib_deflate(original)?;
+    let wire_body = gzip(&deflate_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-repeated-fields-opposite-order",
+        &["deflate", "gzip"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects or reorders repeated `Content-Encoding` field lines in the valid `deflate` then `gzip` order",
+    )
+}
+
+/// Proves RFC 9110 empty list elements are ignored without changing the non-empty coding order.
+#[test]
+fn authenticated_tls_exchange_ignores_empty_content_coding_list_elements() -> Result<(), String> {
+    let original = b"stacked content coding with empty list elements";
+    let gzip_applied_first = gzip(original)?;
+    let wire_body = zlib_deflate(&gzip_applied_first)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-empty-elements",
+        &["gzip, , deflate,"],
+        &wire_body,
+    )?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects RFC 9110 empty list elements instead of ignoring them",
+    )
+}
+
+/// Proves an all-empty Content-Encoding list contributes zero codings and leaves content unchanged.
+#[test]
+fn authenticated_tls_exchange_treats_all_empty_content_coding_list_as_no_coding()
+-> Result<(), String> {
+    let original = b"content with an all-empty Content-Encoding list";
+    let result =
+        execute_content_coding_fixture("/all-empty-content-coding-list", &[", ,"], original)?;
+
+    require_decoded_content(
+        result,
+        original,
+        "current parser rejects an all-empty RFC 9110 content-coding list instead of treating it as zero codings",
+    )
+}
+
+/// Proves the expansion-ratio denominator remains the original coded body across every coding layer.
+#[test]
+fn authenticated_tls_exchange_rejects_cumulative_stack_expansion_against_original_coded_length()
+-> Result<(), String> {
+    let block: Vec<u8> = (0_u8..64).cycle().take(1_024).collect();
+    let gzip_member = gzip(&block)?;
+    let gzip_members = gzip_member.repeat(8);
+    let original = block.repeat(8);
+    let wire_body = zlib_deflate(&gzip_members)?;
+    let maximum_ratio = originweave_http::DEFAULT_MAX_CONTENT_EXPANSION_RATIO;
+    let outer_limit = wire_body.len().saturating_mul(maximum_ratio);
+    let inner_reset_limit = gzip_members.len().saturating_mul(maximum_ratio);
+
+    if gzip_members.len() > outer_limit {
+        return Err("fixture outer deflate layer independently exceeds the expansion ratio".to_owned());
+    }
+    if original.len() > inner_reset_limit {
+        return Err("fixture inner gzip layer independently exceeds the expansion ratio".to_owned());
+    }
+    if original.len() <= outer_limit {
+        return Err("fixture does not exceed the cumulative original-coded expansion ratio".to_owned());
+    }
+
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-cumulative-expansion",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentExpansionRatioExceeded {
+            decoded_bytes,
+            encoded_bytes,
+            maximum_ratio: actual_ratio,
+        }) if encoded_bytes == wire_body.len()
+            && actual_ratio == maximum_ratio
+            && decoded_bytes > outer_limit =>
+        {
+            Ok(())
+        }
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current single-coding parser rejects the stack before cumulative expansion can be enforced"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "stacked expansion fixture failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "stacked expansion fixture bypassed the cumulative ratio and returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves malformed bytes in the outermost supported layer reach decoding rather than parser rejection.
+#[test]
+fn authenticated_tls_exchange_reports_malformed_outer_stack_as_decoding_failure()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-malformed-outer",
+        &["gzip, deflate"],
+        b"not-a-valid-deflate-stream",
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current single-coding parser rejects the supported stack before the malformed outer `deflate` layer can be diagnosed"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "malformed outer stacked coding failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "malformed outer stacked coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves a valid outer layer exposing malformed inner gzip bytes fails at content decoding.
+#[test]
+fn authenticated_tls_exchange_reports_malformed_inner_stack_as_decoding_failure()
+-> Result<(), String> {
+    let wire_body = zlib_deflate(b"not-a-valid-gzip-stream")?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-malformed-inner",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current single-coding parser rejects the supported stack before the valid outer `deflate` layer can expose the malformed inner `gzip` layer"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "malformed inner stacked coding failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "malformed inner stacked coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves a truncated inner gzip member remains a decoding failure after a valid outer layer.
+#[test]
+fn authenticated_tls_exchange_rejects_truncated_inner_gzip_member() -> Result<(), String> {
+    let mut truncated_inner = gzip(b"truncated inner gzip member")?;
+    let truncated_length = truncated_inner
+        .len()
+        .checked_sub(4)
+        .ok_or_else(|| "gzip fixture is too short to truncate".to_owned())?;
+    truncated_inner.truncate(truncated_length);
+    let wire_body = zlib_deflate(&truncated_inner)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-truncated-inner",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current parser rejects the supported stack before the truncated inner gzip member can be diagnosed"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "truncated inner gzip member failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "truncated inner gzip member unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves non-coding bytes trailing an inner gzip member are rejected after outer decoding.
+#[test]
+fn authenticated_tls_exchange_rejects_trailing_bytes_after_inner_gzip_member()
+-> Result<(), String> {
+    let mut inner = gzip(b"inner gzip with forbidden trailing bytes")?;
+    inner.extend_from_slice(b"trailing-non-coding-bytes");
+    let wire_body = zlib_deflate(&inner)?;
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-inner-trailing-bytes",
+        &["gzip, deflate"],
+        &wire_body,
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current parser rejects the supported stack before trailing inner bytes can be diagnosed"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "trailing inner bytes failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "trailing inner bytes unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves supported coding depth overflow is rejected before any decoder sees hostile bytes.
+#[test]
+fn authenticated_tls_exchange_rejects_content_coding_depth_overflow_before_decoding()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-depth-overflow",
+        &["gzip, deflate, gzip"],
+        b"hostile-bytes-that-must-not-reach-a-decoder",
+    )?;
+    match result {
+        Err(HttpError::UnsupportedContentCoding) => Ok(()),
+        Err(error) => Err(format!(
+            "content-coding depth overflow reached the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "content-coding depth overflow unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves explicit identity cannot be mixed into a non-empty coding chain and rejection precedes decoding.
+#[test]
+fn authenticated_tls_exchange_rejects_mixed_identity_before_decoding() -> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-mixed-identity",
+        &["gzip, identity"],
+        b"hostile-bytes-that-must-not-reach-a-decoder",
+    )?;
+    match result {
+        Err(HttpError::UnsupportedContentCoding) => Ok(()),
+        Err(error) => Err(format!(
+            "mixed identity content coding reached the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "mixed identity content coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves an unsupported non-empty coding is rejected before supported-prefix decoding begins.
+#[test]
+fn authenticated_tls_exchange_rejects_unsupported_non_empty_coding_before_decoding()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-unsupported-member",
+        &["gzip, br"],
+        b"hostile-bytes-that-must-not-reach-a-decoder",
+    )?;
+    match result {
+        Err(HttpError::UnsupportedContentCoding) => Ok(()),
+        Err(error) => Err(format!(
+            "unsupported content coding reached the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "unsupported content coding unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
+
+/// Proves a zero-byte coded body reaches decoding safely and fails without division or parser bypass.
+#[test]
+fn authenticated_tls_exchange_handles_zero_length_stacked_coded_body_without_bypass()
+-> Result<(), String> {
+    let result = execute_content_coding_fixture(
+        "/stacked-content-coding-zero-length-body",
+        &["gzip, deflate"],
+        b"",
+    )?;
+    match result {
+        Err(HttpError::ContentDecodingFailed { .. }) => Ok(()),
+        Err(HttpError::UnsupportedContentCoding) => Err(
+            "current parser rejects the supported stack before the zero-length coded body reaches bounded decoding"
+                .to_owned(),
+        ),
+        Err(error) => Err(format!(
+            "zero-length stacked coded body failed through the wrong boundary: {error:?}"
+        )),
+        Ok(content) => Err(format!(
+            "zero-length stacked coded body unexpectedly returned {} decoded bytes",
+            content.len()
+        )),
+    }
+}
