@@ -57,9 +57,36 @@ struct PerformanceReceipt {
     maximum_microseconds: u128,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SourceRevisionSource {
+    Explicit,
+    GithubShaFallback,
+}
+
+impl SourceRevisionSource {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Explicit => "explicit",
+            Self::GithubShaFallback => "github_sha",
+        }
+    }
+
+    const fn acceptance_status(self, budget_passed: bool) -> &'static str {
+        match (self, budget_passed) {
+            (Self::Explicit, true) => "PASS",
+            (Self::Explicit, false) => "FAIL",
+            (Self::GithubShaFallback, _) => "UNACCEPTED_SOURCE_FALLBACK",
+        }
+    }
+
+    const fn acceptance_eligible(self) -> bool {
+        matches!(self, Self::Explicit)
+    }
+}
+
 struct PerformanceProvenance {
     source_revision: String,
-    source_revision_source: &'static str,
+    source_revision_source: SourceRevisionSource,
     environment_id: String,
     runtime_os: &'static str,
     runtime_arch: &'static str,
@@ -95,14 +122,17 @@ fn parse_environment_id(value: &str) -> Result<String, String> {
 
 fn performance_provenance() -> Result<PerformanceProvenance, String> {
     let (source_revision, source_revision_source) = match env::var(SOURCE_REVISION_ENV) {
-        Ok(value) => (parse_source_revision(&value)?, "explicit"),
+        Ok(value) => (parse_source_revision(&value)?, SourceRevisionSource::Explicit),
         Err(env::VarError::NotPresent) => {
             let github_sha = env::var(GITHUB_SHA_ENV).map_err(|error| {
                 format!(
                     "{SOURCE_REVISION_ENV} must be set when {GITHUB_SHA_ENV} is unavailable: {error:?}"
                 )
             })?;
-            (parse_source_revision(&github_sha)?, "github_sha")
+            (
+                parse_source_revision(&github_sha)?,
+                SourceRevisionSource::GithubShaFallback,
+            )
         }
         Err(error) => {
             return Err(format!(
@@ -424,15 +454,15 @@ fn measure_profile(
 }
 
 fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance) -> String {
-    let status = if receipt.p95_microseconds <= P95_BUDGET_MICROSECONDS {
-        "PASS"
-    } else {
-        "FAIL"
-    };
+    let budget_passed = receipt.p95_microseconds <= P95_BUDGET_MICROSECONDS;
+    let budget_status = if budget_passed { "PASS" } else { "FAIL" };
+    let acceptance_status = provenance
+        .source_revision_source
+        .acceptance_status(budget_passed);
     format!(
-        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} status={}\n",
+        "source_revision={} source_revision_source={} environment_id={} runtime_os={} runtime_arch={} runtime_parallelism={} profile={} decoded_bytes={} coded_bytes={} samples={} p50_us={} p95_us={} max_us={} budget_us={} budget_status={} acceptance_status={}\n",
         provenance.source_revision,
-        provenance.source_revision_source,
+        provenance.source_revision_source.label(),
         provenance.environment_id,
         provenance.runtime_os,
         provenance.runtime_arch,
@@ -445,7 +475,8 @@ fn receipt_line(receipt: &PerformanceReceipt, provenance: &PerformanceProvenance
         receipt.p95_microseconds,
         receipt.maximum_microseconds,
         P95_BUDGET_MICROSECONDS,
-        status
+        budget_status,
+        acceptance_status
     )
 }
 
@@ -478,6 +509,11 @@ fn main() -> Result<(), String> {
         }
     }
 
+    if !provenance.source_revision_source.acceptance_eligible() {
+        return Err(format!(
+            "{SOURCE_REVISION_ENV} must be set explicitly for an acceptance-eligible performance receipt; {GITHUB_SHA_ENV} fallback is informational only"
+        ));
+    }
     if p95_failure {
         return Err(format!(
             "stacked content-coding buyer path exceeded the {} us p95 budget",
@@ -490,11 +526,34 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        PerformanceProvenance, PerformanceReceipt, parse_environment_id, parse_source_revision,
-        receipt_line,
+        PerformanceProvenance, PerformanceReceipt, SourceRevisionSource, parse_environment_id,
+        parse_source_revision, receipt_line,
     };
 
     const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+
+    fn receipt(p95_microseconds: u128) -> PerformanceReceipt {
+        PerformanceReceipt {
+            profile: "gzip-deflate-256k",
+            decoded_bytes: 262_144,
+            coded_bytes: 65_536,
+            samples: 31,
+            p50_microseconds: 1_000,
+            p95_microseconds,
+            maximum_microseconds: 3_000,
+        }
+    }
+
+    fn provenance(source_revision_source: SourceRevisionSource) -> PerformanceProvenance {
+        PerformanceProvenance {
+            source_revision: SOURCE_REVISION.to_owned(),
+            source_revision_source,
+            environment_id: "gh-ubuntu-24.04/x64@runner-4".to_owned(),
+            runtime_os: "linux",
+            runtime_arch: "x86_64",
+            runtime_parallelism: 4,
+        }
+    }
 
     #[test]
     fn source_revision_requires_exact_lowercase_git_object_id() -> Result<(), String> {
@@ -507,6 +566,9 @@ mod tests {
         if parse_source_revision("0123456789abcdef").is_ok() {
             return Err("short source revision must fail closed".to_owned());
         }
+        if parse_source_revision("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz").is_ok() {
+            return Err("non-hex source revision must fail closed".to_owned());
+        }
         Ok(())
     }
 
@@ -516,32 +578,24 @@ mod tests {
         if parse_environment_id(environment_id)? != environment_id {
             return Err("valid environment identity was not preserved".to_owned());
         }
+        if parse_environment_id("").is_ok() {
+            return Err("empty environment identity must fail closed".to_owned());
+        }
+        if parse_environment_id(&"a".repeat(129)).is_ok() {
+            return Err("oversized environment identity must fail closed".to_owned());
+        }
         if parse_environment_id("runner identity with spaces").is_ok() {
             return Err("whitespace-bearing environment identity must fail closed".to_owned());
+        }
+        if parse_environment_id("runner#4").is_ok() {
+            return Err("unsafe environment identity character must fail closed".to_owned());
         }
         Ok(())
     }
 
     #[test]
-    fn receipt_binds_source_and_runtime_identity() -> Result<(), String> {
-        let receipt = PerformanceReceipt {
-            profile: "gzip-deflate-256k",
-            decoded_bytes: 262_144,
-            coded_bytes: 65_536,
-            samples: 31,
-            p50_microseconds: 1_000,
-            p95_microseconds: 2_000,
-            maximum_microseconds: 3_000,
-        };
-        let provenance = PerformanceProvenance {
-            source_revision: SOURCE_REVISION.to_owned(),
-            source_revision_source: "explicit",
-            environment_id: "gh-ubuntu-24.04/x64@runner-4".to_owned(),
-            runtime_os: "linux",
-            runtime_arch: "x86_64",
-            runtime_parallelism: 4,
-        };
-        let line = receipt_line(&receipt, &provenance);
+    fn receipt_binds_source_runtime_and_acceptance_identity() -> Result<(), String> {
+        let line = receipt_line(&receipt(2_000), &provenance(SourceRevisionSource::Explicit));
         for expected in [
             "source_revision=0123456789abcdef0123456789abcdef01234567",
             "source_revision_source=explicit",
@@ -551,10 +605,49 @@ mod tests {
             "runtime_parallelism=4",
             "samples=31",
             "budget_us=20000",
-            "status=PASS",
+            "budget_status=PASS",
+            "acceptance_status=PASS",
         ] {
             if !line.contains(expected) {
                 return Err(format!("performance receipt omitted {expected}"));
+            }
+        }
+        if !SourceRevisionSource::Explicit.acceptance_eligible() {
+            return Err("explicit source revision must be acceptance eligible".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn fallback_source_can_measure_but_never_claim_acceptance() -> Result<(), String> {
+        let line = receipt_line(
+            &receipt(2_000),
+            &provenance(SourceRevisionSource::GithubShaFallback),
+        );
+        for expected in [
+            "source_revision_source=github_sha",
+            "budget_status=PASS",
+            "acceptance_status=UNACCEPTED_SOURCE_FALLBACK",
+        ] {
+            if !line.contains(expected) {
+                return Err(format!("fallback performance receipt omitted {expected}"));
+            }
+        }
+        if SourceRevisionSource::GithubShaFallback.acceptance_eligible() {
+            return Err("GitHub SHA fallback must not be acceptance eligible".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_source_still_fails_acceptance_when_budget_fails() -> Result<(), String> {
+        let line = receipt_line(
+            &receipt(P95_BUDGET_MICROSECONDS + 1),
+            &provenance(SourceRevisionSource::Explicit),
+        );
+        for expected in ["budget_status=FAIL", "acceptance_status=FAIL"] {
+            if !line.contains(expected) {
+                return Err(format!("failing performance receipt omitted {expected}"));
             }
         }
         Ok(())
