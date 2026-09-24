@@ -642,7 +642,7 @@ mod tests {
     #[test]
     fn explicit_source_still_fails_acceptance_when_budget_fails() -> Result<(), String> {
         let line = receipt_line(
-            &receipt(P95_BUDGET_MICROSECONDS + 1),
+            &receipt(super::P95_BUDGET_MICROSECONDS + 1),
             &provenance(SourceRevisionSource::Explicit),
         );
         for expected in ["budget_status=FAIL", "acceptance_status=FAIL"] {
