@@ -34,9 +34,9 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
         for marker in (
             "#37",
             "#326/#327",
-            "c881bac13b202d3a5fff4c85c38f7c7d177e9482",
-            "42 ahead / 0 behind",
-            "aad07d21dce2a8534917432dda56fadc141eee47",
+            "0d3911e558188db805a0affbe50e53ed02b481d0",
+            "46 ahead / 0 behind",
+            "cac5e1619770123d6d2b78e3ef58b9ac18647df3",
             "p95 **20,000 µs**",
             "TCP/TLS transport setup",
             "not an accepted performance receipt",
@@ -45,6 +45,7 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
             "budget_status",
             "source_acceptance_status",
             "network_acceptance_status",
+            "fixture_acceptance_status",
             "evidence_acceptance_status",
             "acceptance_status",
             "source_acceptance_status=PASS",
@@ -52,6 +53,8 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
             "UNACCEPTED_SOURCE_FALLBACK",
             "parent_untimed_connection_plan",
             "UNACCEPTED_PARENT_NETWORK_AUTHORITY",
+            "deterministic_synthetic_no_external_dataset",
+            "UNACCEPTED_SYNTHETIC_FIXTURE",
             "caller_produced_unattested_receipt",
             "UNACCEPTED_UNATTESTED_RECEIPT",
             "stacked-content-coding",
@@ -67,11 +70,12 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
             "#2166",
             "authenticated attestation",
             "origin/integrity",
+            "realistic governed buyer-path fixture",
             "OPEN — ACTIVE SUCCESSOR",
         ):
             self.assertIn(marker, row)
 
-        self.assertIn("CI `36018130049` is queued", row)
+        self.assertIn("CI `36025189411` is queued", row)
         self.assertIn("no ≤20 ms claim is made", row)
         self.assertNotIn("**CLOSED**", row)
         self.assertNotIn("shipped", row.lower())
