@@ -44,6 +44,11 @@ class ProductGapHttpBaselineContractTests(unittest.TestCase):
             "budget_status",
             "acceptance_status",
             "UNACCEPTED_SOURCE_FALLBACK",
+            "ContextualWisdomLab/.github#2162",
+            "#2166",
+            "authenticated attestation",
+            "origin/integrity",
+            "released/pinned",
             "OPEN — ACTIVE SUCCESSOR",
         ):
             self.assertIn(marker, row)
