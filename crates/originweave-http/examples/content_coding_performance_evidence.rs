@@ -15,6 +15,8 @@ const RUNTIME_FILENAME: &str = "content-coding-runtime.json";
 const FIXTURE_FILENAME: &str = "content-coding-fixture.json";
 const SAMPLE_COUNT: usize = 31;
 const P95_BUDGET_MICROSECONDS: u128 = 20_000;
+const SYNTHETIC_FIXTURE_AUTHORITY: &str = "deterministic_synthetic_no_external_dataset";
+const SYNTHETIC_FIXTURE_ACCEPTANCE_STATUS: &str = "UNACCEPTED_SYNTHETIC_FIXTURE";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Receipt {
@@ -26,6 +28,8 @@ struct Receipt {
     runtime_parallelism: usize,
     network_authority: String,
     network_acceptance_status: String,
+    fixture_authority: String,
+    fixture_acceptance_status: String,
     evidence_authority: String,
     evidence_acceptance_status: String,
     profile: String,
@@ -124,6 +128,14 @@ fn parse_receipt_line(line: &str) -> Result<Receipt, String> {
             &take(&mut fields, "network_acceptance_status")?,
             "network_acceptance_status",
         )?,
+        fixture_authority: safe_token(
+            &take(&mut fields, "fixture_authority")?,
+            "fixture_authority",
+        )?,
+        fixture_acceptance_status: safe_token(
+            &take(&mut fields, "fixture_acceptance_status")?,
+            "fixture_acceptance_status",
+        )?,
         evidence_authority: safe_token(
             &take(&mut fields, "evidence_authority")?,
             "evidence_authority",
@@ -182,6 +194,14 @@ fn validate_receipt(receipt: &Receipt, candidate_sha: &str) -> Result<(), String
     if receipt.source_revision_source != "explicit" || receipt.source_acceptance_status != "PASS" {
         return Err("attestable evidence requires explicit accepted source provenance".to_owned());
     }
+    if receipt.fixture_authority != SYNTHETIC_FIXTURE_AUTHORITY
+        || receipt.fixture_acceptance_status != SYNTHETIC_FIXTURE_ACCEPTANCE_STATUS
+    {
+        return Err(
+            "current evidence packager requires the governed synthetic fixture to remain explicitly acceptance-ineligible"
+                .to_owned(),
+        );
+    }
     let expected_decoded = expected_decoded_bytes(&receipt.profile)
         .ok_or_else(|| format!("unexpected performance profile {}", receipt.profile))?;
     if receipt.decoded_bytes != expected_decoded || receipt.coded_bytes == 0 {
@@ -234,6 +254,8 @@ fn parse_receipts(text: &str, candidate_sha: &str) -> Result<Vec<Receipt>, Strin
             || receipt.runtime_parallelism != first.runtime_parallelism
             || receipt.network_authority != first.network_authority
             || receipt.network_acceptance_status != first.network_acceptance_status
+            || receipt.fixture_authority != first.fixture_authority
+            || receipt.fixture_acceptance_status != first.fixture_acceptance_status
             || receipt.evidence_authority != first.evidence_authority
             || receipt.evidence_acceptance_status != first.evidence_acceptance_status
         {
@@ -283,9 +305,11 @@ fn runtime_document(candidate_sha: &str, receipt: &Receipt) -> String {
     )
 }
 
-fn fixture_document(candidate_sha: &str) -> String {
+fn fixture_document(candidate_sha: &str, receipt: &Receipt) -> String {
     format!(
-        "{{\"candidate_sha\":\"{candidate_sha}\",\"fixture_kind\":\"deterministic_synthetic_no_external_dataset\",\"p95_budget_microseconds\":{P95_BUDGET_MICROSECONDS},\"profiles\":[{{\"content_encoding\":\"gzip, deflate\",\"decoded_bytes\":262144,\"name\":\"gzip-deflate-256k\"}},{{\"content_encoding\":\"deflate, gzip\",\"decoded_bytes\":1048576,\"name\":\"deflate-gzip-1m\"}}],\"sample_count\":{SAMPLE_COUNT},\"schema_version\":\"1.0\",\"seed_block_bytes\":65536,\"seed_initial_state\":\"9e3779b9\",\"selected_profile\":\"{SELECTED_PROFILE}\",\"transport\":\"authenticated_loopback_tls\"}}\n"
+        "{{\"candidate_sha\":\"{candidate_sha}\",\"fixture_acceptance_status\":\"{}\",\"fixture_authority\":\"{}\",\"fixture_kind\":\"deterministic_synthetic_no_external_dataset\",\"p95_budget_microseconds\":{P95_BUDGET_MICROSECONDS},\"profiles\":[{{\"content_encoding\":\"gzip, deflate\",\"decoded_bytes\":262144,\"name\":\"gzip-deflate-256k\"}},{{\"content_encoding\":\"deflate, gzip\",\"decoded_bytes\":1048576,\"name\":\"deflate-gzip-1m\"}}],\"sample_count\":{SAMPLE_COUNT},\"schema_version\":\"1.0\",\"seed_block_bytes\":65536,\"seed_initial_state\":\"9e3779b9\",\"selected_profile\":\"{SELECTED_PROFILE}\",\"transport\":\"authenticated_loopback_tls\"}}\n",
+        receipt.fixture_acceptance_status,
+        receipt.fixture_authority
     )
 }
 
@@ -360,7 +384,7 @@ fn main() -> Result<(), String> {
     let receipts = parse_receipts(&receipt_text, &candidate_sha)?;
     let result = result_document(&candidate_sha, &receipts);
     let runtime = runtime_document(&candidate_sha, &receipts[0]);
-    let fixture = fixture_document(&candidate_sha);
+    let fixture = fixture_document(&candidate_sha, &receipts[0]);
     let digests = materialize_evidence(&output_dir, &result, &runtime, &fixture)?;
 
     println!(
@@ -374,7 +398,8 @@ fn main() -> Result<(), String> {
 mod tests {
     use super::{
         EVIDENCE_DIR_ENV, FIXTURE_FILENAME, P95_BUDGET_MICROSECONDS, RECEIPT_PATH_ENV,
-        RESULT_FILENAME, RUNTIME_FILENAME, SAMPLE_COUNT, SELECTED_PROFILE, fixture_document,
+        RESULT_FILENAME, RUNTIME_FILENAME, SAMPLE_COUNT, SELECTED_PROFILE,
+        SYNTHETIC_FIXTURE_ACCEPTANCE_STATUS, SYNTHETIC_FIXTURE_AUTHORITY, fixture_document,
         parse_candidate_sha, parse_receipts, result_document, runtime_document, sha256_hex,
     };
 
@@ -387,7 +412,7 @@ mod tests {
             "FAIL"
         };
         format!(
-            "source_revision={SHA} source_revision_source=explicit environment_id=gh-ubuntu-24.04/x64@runner-4 runtime_os=linux runtime_arch=x86_64 runtime_parallelism=4 network_authority=parent_untimed_connection_plan network_acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY evidence_authority=caller_produced_unattested_receipt evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT profile={profile} decoded_bytes={decoded_bytes} coded_bytes=65536 samples={SAMPLE_COUNT} p50_us=1000 p95_us={p95_us} max_us=30000 budget_us={P95_BUDGET_MICROSECONDS} budget_status={budget_status} source_acceptance_status=PASS acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY"
+            "source_revision={SHA} source_revision_source=explicit environment_id=gh-ubuntu-24.04/x64@runner-4 runtime_os=linux runtime_arch=x86_64 runtime_parallelism=4 network_authority=parent_untimed_connection_plan network_acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY fixture_authority={SYNTHETIC_FIXTURE_AUTHORITY} fixture_acceptance_status={SYNTHETIC_FIXTURE_ACCEPTANCE_STATUS} evidence_authority=caller_produced_unattested_receipt evidence_acceptance_status=UNACCEPTED_UNATTESTED_RECEIPT profile={profile} decoded_bytes={decoded_bytes} coded_bytes=65536 samples={SAMPLE_COUNT} p50_us=1000 p95_us={p95_us} max_us=30000 budget_us={P95_BUDGET_MICROSECONDS} budget_status={budget_status} source_acceptance_status=PASS acceptance_status=UNACCEPTED_PARENT_NETWORK_AUTHORITY"
         )
     }
 
@@ -412,6 +437,11 @@ mod tests {
         assert_eq!(receipts.len(), 2);
         assert_eq!(receipts[0].profile, "gzip-deflate-256k");
         assert_eq!(receipts[1].profile, "deflate-gzip-1m");
+        assert_eq!(receipts[0].fixture_authority, SYNTHETIC_FIXTURE_AUTHORITY);
+        assert_eq!(
+            receipts[0].fixture_acceptance_status,
+            SYNTHETIC_FIXTURE_ACCEPTANCE_STATUS
+        );
         assert_eq!(receipts[0].budget_status, "PASS");
         assert_eq!(receipts[1].budget_status, "FAIL");
         Ok(())
@@ -422,7 +452,7 @@ mod tests {
         let receipts = parse_receipts(&receipts_text(), SHA)?;
         let result = result_document(SHA, &receipts);
         let runtime = runtime_document(SHA, &receipts[0]);
-        let fixture = fixture_document(SHA);
+        let fixture = fixture_document(SHA, &receipts[0]);
         for document in [&result, &runtime] {
             assert!(document.contains(&format!("\"candidate_sha\":\"{SHA}\"")));
             assert!(document.contains(&format!(
@@ -430,6 +460,7 @@ mod tests {
             )));
         }
         assert!(fixture.contains("deterministic_synthetic_no_external_dataset"));
+        assert!(fixture.contains("UNACCEPTED_SYNTHETIC_FIXTURE"));
         assert!(fixture.contains("authenticated_loopback_tls"));
         assert!(fixture.contains(&format!("\"candidate_sha\":\"{SHA}\"")));
         assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
@@ -458,6 +489,12 @@ mod tests {
             "source_revision_source=github_sha",
         );
         assert!(parse_receipts(&fallback, SHA).is_err());
+
+        let accepted_synthetic_fixture = receipts_text().replace(
+            SYNTHETIC_FIXTURE_ACCEPTANCE_STATUS,
+            "PASS",
+        );
+        assert!(parse_receipts(&accepted_synthetic_fixture, SHA).is_err());
 
         let mixed_runtime = receipts_text().replacen(
             "runtime_arch=x86_64",
