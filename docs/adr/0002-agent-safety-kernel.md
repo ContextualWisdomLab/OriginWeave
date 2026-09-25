@@ -30,3 +30,9 @@ Web content is always an untrusted observation. Raw secret values are rejected. 
 - Some otherwise convenient cross-origin workflows must be decomposed into separately granted steps.
 - Model prompting can add defense in depth but cannot expand authority.
 - Future policy extensions must preserve fail-closed behavior when evidence is missing or malformed.
+
+## References
+
+National Institute of Standards and Technology. (2015). *Secure hash standard (SHS)* (FIPS PUB 180-4). U.S. Department of Commerce. https://doi.org/10.6028/NIST.FIPS.180-4
+
+WHATWG. (n.d.). *URL Standard*. Retrieved August 25, 2026, from https://url.spec.whatwg.org/
