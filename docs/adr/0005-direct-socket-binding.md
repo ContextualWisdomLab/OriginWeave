@@ -139,4 +139,4 @@ RFC 9293 defines the current Standards Track TCP specification and identifies a 
 
 ## References
 
-Eddy, W. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). RFC Editor. https://doi.org/10.17487/RFC9293 · https://www.rfc-editor.org/rfc/rfc9293
+Eddy, W. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). RFC Editor. https://doi.org/10.17487/RFC9293
