@@ -148,6 +148,42 @@ impl ResourceSnapshot {
             cpu_threads_in_use,
         }
     }
+
+    /// Return the observed RAM use in mebibytes.
+    #[must_use]
+    pub const fn ram_mebibytes(self) -> u64 {
+        self.ram_mebibytes
+    }
+
+    /// Return the observed VRAM use in mebibytes.
+    #[must_use]
+    pub const fn vram_mebibytes(self) -> u64 {
+        self.vram_mebibytes
+    }
+
+    /// Return the observed local-agent batch size.
+    #[must_use]
+    pub const fn agent_batch_size(self) -> u32 {
+        self.agent_batch_size
+    }
+
+    /// Return whether a local model is resident for this observation.
+    #[must_use]
+    pub const fn local_model_loaded(self) -> bool {
+        self.local_model_loaded
+    }
+
+    /// Return the observed compositor frame time in milliseconds.
+    #[must_use]
+    pub const fn frame_time_milliseconds(self) -> u16 {
+        self.frame_time_milliseconds
+    }
+
+    /// Return the CPU workers currently reserved by this task.
+    #[must_use]
+    pub const fn cpu_threads_in_use(self) -> u16 {
+        self.cpu_threads_in_use
+    }
 }
 
 /// Independent mitigations that a platform adapter applies to one workload.
