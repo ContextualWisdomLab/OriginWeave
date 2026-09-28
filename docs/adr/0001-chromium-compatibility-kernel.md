@@ -79,7 +79,7 @@ Chromium. (n.d.-d). *Threat model and defenses against compromised renderers*. C
 
 Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol — latest (tip-of-tree)*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
 
-World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 ## Related documents
 

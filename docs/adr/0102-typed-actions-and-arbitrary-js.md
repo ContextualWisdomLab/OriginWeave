@@ -65,7 +65,7 @@ Supersede only if a more expressive action representation preserves equivalent p
 
 Chrome DevTools Protocol. (2026). *Runtime domain*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/Runtime/
 
-World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 ## Related documents
 

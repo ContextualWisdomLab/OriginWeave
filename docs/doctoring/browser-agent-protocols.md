@@ -8,7 +8,7 @@ This addendum complements the main doctoring record. The main record already car
 
 ## WebDriver BiDi
 
-The W3C publication reviewed for this baseline is the 1 June 2026 **Working Draft**, not a Recommendation. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
+The W3C publication reviewed for this baseline is the 9 September 2026 **Working Draft**, not a Recommendation. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
 
 Primary source: World Wide Web Consortium, *WebDriver BiDi*.
 
@@ -80,6 +80,6 @@ Model Context Protocol. (2026). *Model Context Protocol specification (2026-07-2
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
-World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
