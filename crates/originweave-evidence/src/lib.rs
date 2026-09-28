@@ -104,6 +104,21 @@ pub enum EvidenceError {
     InvalidSourceUrl,
 }
 
+impl std::fmt::Display for EvidenceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Self::InvalidPath => "evidence path is invalid",
+            Self::LimitExceeded => "evidence limit exceeded",
+            Self::EmptyLocator => "evidence locator is empty",
+            Self::InvalidHash => "evidence hash is invalid",
+            Self::InvalidSourceUrl => "evidence source URL is invalid",
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for EvidenceError {}
+
 /// A redacted network observation suitable for audit logging.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NetworkEvidence {
