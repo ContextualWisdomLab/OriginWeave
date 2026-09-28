@@ -8,7 +8,7 @@ This addendum exists because product-level documentation introduced explicit int
 
 ## WebDriver BiDi
 
-The W3C latest published WebDriver BiDi document reviewed for this baseline is a **Working Draft dated 29 June 2026**. It defines a bidirectional browser automation protocol and links to an implementation report and Web Platform Tests. Because it is still a Working Draft, OriginWeave keeps it behind a versioned adapter and conformance tests instead of making its object identifiers or protocol semantics the core authority model.
+The W3C latest published WebDriver BiDi document reviewed for this baseline is the **Working Draft dated 9 September 2026**. It defines a bidirectional browser automation protocol and links to an implementation report and Web Platform Tests. Because it is still a Working Draft, OriginWeave keeps it behind a versioned adapter and conformance tests instead of making its object identifiers or protocol semantics the core authority model.
 
 **Product implication:** `OriginWeave Protocol` remains the internal stable boundary; WebDriver BiDi is a replaceable/versioned adapter.
 
@@ -88,4 +88,4 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 
 World Wide Web Consortium. (2025, October 21). *W3C Web Content Accessibility Guidelines 2.2 approved as ISO/IEC international standard*. https://www.w3.org/press-releases/2025/wcag22-iso-pas/
 
-World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/

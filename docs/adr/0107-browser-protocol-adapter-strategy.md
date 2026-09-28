@@ -84,7 +84,7 @@ Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://mo
 
 Parra, D. S., & Delimarsky, D. (2026, July 28). *The 2026-07-28 specification*. Model Context Protocol Blog. https://blog.modelcontextprotocol.io/posts/2026-07-28/
 
-World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+World Wide Web Consortium. (2026, September 9). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260909/
 
 ## Related documents
 
