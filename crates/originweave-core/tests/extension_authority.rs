@@ -76,6 +76,19 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
     let no_grant = evaluate_extension_access(&exact, None);
     assert_eq!(no_grant, ExtensionAccessDecision::DenyMissingGrant);
 
+    let missing_grant_with_hostile_fields = ExtensionAccessRequest::new(
+        other_extension.clone(),
+        session(u64::MAX),
+        context(u64::MAX),
+        origin("https://other.example"),
+        u64::MAX,
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+    assert_eq!(
+        evaluate_extension_access(&missing_grant_with_hostile_fields, None),
+        ExtensionAccessDecision::DenyMissingGrant
+    );
+
     let wrong_extension = ExtensionAccessRequest::new(
         other_extension,
         session(7),
@@ -254,6 +267,259 @@ fn expired_origin_bound_grant_cannot_be_reused_after_exclusive_deadline() {
     );
     assert_eq!(
         evaluate_extension_access(&after_deadline, Some(&grant)),
+        ExtensionAccessDecision::DenyExpired
+    );
+}
+
+#[test]
+fn extension_grants_accept_the_maximum_representable_expiry_boundary() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let granted_origin = origin("https://maximum.example");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(u64::MAX),
+        context(u64::MAX),
+        granted_origin.clone(),
+        u64::MAX,
+        [ExtensionAgentCapability::ObserveCurrentContext],
+    );
+
+    let before_expiry = ExtensionAccessRequest::new(
+        id.clone(),
+        session(u64::MAX),
+        context(u64::MAX),
+        granted_origin.clone(),
+        u64::MAX - 1,
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+    assert_eq!(
+        evaluate_extension_access(&before_expiry, Some(&grant)),
+        ExtensionAccessDecision::Allow
+    );
+
+    let at_expiry = ExtensionAccessRequest::new(
+        id,
+        session(u64::MAX),
+        context(u64::MAX),
+        granted_origin,
+        u64::MAX,
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+    assert_eq!(
+        evaluate_extension_access(&at_expiry, Some(&grant)),
+        ExtensionAccessDecision::DenyExpired
+    );
+}
+
+#[test]
+fn extension_grants_with_no_capabilities_fail_closed() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let granted_origin = origin("https://empty-grant.example");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(1),
+        context(1),
+        granted_origin.clone(),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
+        std::iter::empty(),
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(1),
+        context(1),
+        granted_origin,
+        UNEXPIRED_NOW_EPOCH_SECONDS,
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::DenyCapabilityNotGranted
+    );
+}
+
+#[test]
+fn extension_grants_deduplicate_repeated_capabilities() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let origin = origin("https://dedupe.example");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(5),
+        context(6),
+        origin.clone(),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
+        [
+            ExtensionAgentCapability::ObserveCurrentContext,
+            ExtensionAgentCapability::ObserveCurrentContext,
+        ],
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(5),
+        context(6),
+        origin,
+        UNEXPIRED_NOW_EPOCH_SECONDS,
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::Allow
+    );
+}
+
+#[test]
+fn extension_grants_compare_canonical_equivalent_origins() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(9),
+        context(10),
+        origin("https://app.example"),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
+        [ExtensionAgentCapability::ObserveCurrentContext],
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(9),
+        context(10),
+        origin("HTTPS://APP.EXAMPLE:443"),
+        UNEXPIRED_NOW_EPOCH_SECONDS,
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::Allow
+    );
+}
+
+#[test]
+fn extension_identity_mismatch_precedes_expiry_and_capability_checks() {
+    let grant = ExtensionAgentGrant::new(
+        extension_id("abcdefghijklmnopabcdefghijklmnop"),
+        session(21),
+        context(22),
+        origin("https://precedence.example"),
+        10,
+        std::iter::empty(),
+    );
+    let request = ExtensionAccessRequest::new(
+        extension_id("bcdefghijklmnopabcdefghijklmnopa"),
+        session(21),
+        context(22),
+        origin("https://precedence.example"),
+        10,
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::DenyExtensionMismatch
+    );
+}
+
+#[test]
+fn extension_session_mismatch_precedes_context_origin_expiry_and_capability_checks() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(21),
+        context(22),
+        origin("https://precedence.example"),
+        10,
+        std::iter::empty(),
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(23),
+        context(24),
+        origin("https://other.example"),
+        10,
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::DenyBrowserSessionMismatch
+    );
+}
+
+#[test]
+fn extension_context_mismatch_precedes_origin_expiry_and_capability_checks() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(21),
+        context(22),
+        origin("https://precedence.example"),
+        10,
+        std::iter::empty(),
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(21),
+        context(23),
+        origin("https://other.example"),
+        10,
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::DenyBrowsingContextMismatch
+    );
+}
+
+#[test]
+fn extension_origin_mismatch_precedes_expiry_and_capability_checks() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(21),
+        context(22),
+        origin("https://precedence.example"),
+        10,
+        std::iter::empty(),
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(21),
+        context(22),
+        origin("https://other.example"),
+        10,
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
+        ExtensionAccessDecision::DenyOriginMismatch
+    );
+}
+
+#[test]
+fn extension_expiry_precedes_capability_denial() {
+    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let origin = origin("https://expiry-precedence.example");
+    let grant = ExtensionAgentGrant::new(
+        id.clone(),
+        session(31),
+        context(32),
+        origin.clone(),
+        10,
+        std::iter::empty(),
+    );
+    let request = ExtensionAccessRequest::new(
+        id,
+        session(31),
+        context(32),
+        origin,
+        10,
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+
+    assert_eq!(
+        evaluate_extension_access(&request, Some(&grant)),
         ExtensionAccessDecision::DenyExpired
     );
 }
