@@ -70,6 +70,10 @@ fn ordinary_http_and_ipv6_proxies_are_not_forced_through_web_origin_policy() {
         .expect("canonical IPv6 proxy must be representable");
     assert_eq!(ipv6.as_str(), "socks5://[2001:db8::1]");
 
+    let ipv6_https = ProxyServer::parse("https://[2001:db8::1]:443")
+        .expect("HTTPS default-port IPv6 proxy must be representable");
+    assert_eq!(ipv6_https.as_str(), "https://[2001:db8::1]");
+
     let ipv6_nondefault = ProxyServer::parse("https://[2001:db8::1]:8443")
         .expect("non-default IPv6 proxy port must be preserved");
     assert_eq!(ipv6_nondefault.as_str(), "https://[2001:db8::1]:8443");

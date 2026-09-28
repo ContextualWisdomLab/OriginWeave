@@ -191,6 +191,34 @@ fn redirect_guard_rejects_https_downgrade_cycles_and_excess_hops() {
 }
 
 #[test]
+fn redirect_guard_accepts_the_exact_maximum_and_walks_every_hop() {
+    let initial = origin("https://start.example");
+    let target = origin("https://target.example");
+    let resolution = public_resolution(&target, [8, 8, 8, 8]);
+    let grants = BTreeSet::from([target.clone()]);
+
+    let mut guard = RedirectGuard::new(initial, digest(DIGEST_A), MAX_REDIRECT_HOPS)
+        .expect("exact maximum redirect bound is accepted");
+    assert_eq!(guard.maximum_hops(), MAX_REDIRECT_HOPS);
+
+    for hop_number in 1..=MAX_REDIRECT_HOPS {
+        let hop_digest = digest(&format!("sha256:{hop_number:064x}"));
+        let evidence = guard
+            .authorize_redirect(target.clone(), hop_digest, &resolution, &grants)
+            .expect("every hop within the exact maximum must authorize");
+        assert_eq!(evidence.hop_number(), hop_number);
+    }
+    assert_eq!(guard.hop_count(), MAX_REDIRECT_HOPS);
+
+    let final_digest = digest(&format!("sha256:{:064x}", MAX_REDIRECT_HOPS + 1));
+    assert_eq!(
+        guard.authorize_redirect(target, final_digest, &resolution, &grants),
+        Err(RedirectError::RedirectLimitExceeded)
+    );
+    assert_eq!(guard.hop_count(), MAX_REDIRECT_HOPS);
+}
+
+#[test]
 fn explicitly_managed_http_loopback_redirects_do_not_trigger_downgrade_logic() {
     let initial = origin("http://localhost");
     let target = origin("http://localhost:8080");

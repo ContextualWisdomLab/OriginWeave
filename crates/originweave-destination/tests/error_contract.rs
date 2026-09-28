@@ -2,11 +2,12 @@
 
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
+use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{
-    AddressClass, DestinationError, MAX_REDIRECT_HOPS, MAX_RESOLUTION_ADDRESS_COUNT, RedirectError,
-    RedirectTargetDigest, RedirectTargetDigestError,
+    AddressClass, DestinationError, MAX_REDIRECT_HOPS, MAX_RESOLUTION_ADDRESS_COUNT,
+    MAX_RESOLUTION_VALIDITY, RedirectError, RedirectTargetDigest, RedirectTargetDigestError,
 };
 
 const DIGEST: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -127,6 +128,37 @@ fn destination_errors_implement_display_and_error() {
         (
             DestinationError::ResolutionSetExpanded { address: other },
             format!("refreshed DNS answer introduced unapproved address {other}"),
+        ),
+        (
+            DestinationError::InvalidResolutionValidity {
+                validity: Duration::ZERO,
+                maximum_validity: MAX_RESOLUTION_VALIDITY,
+            },
+            format!("resolution validity 0ns is outside 1ns..={MAX_RESOLUTION_VALIDITY:?}"),
+        ),
+        (
+            DestinationError::ResolutionValidityOverflow {
+                approved_at: Duration::MAX,
+                validity: Duration::from_nanos(1),
+            },
+            format!(
+                "resolution validity 1ns overflows approval time {:?}",
+                Duration::MAX
+            ),
+        ),
+        (
+            DestinationError::ResolutionUseBeforeApproval {
+                approved_at: Duration::from_secs(10),
+                current_time: Duration::from_secs(9),
+            },
+            "resolution use time 9s precedes approval time 10s".to_owned(),
+        ),
+        (
+            DestinationError::ResolutionApprovalExpired {
+                valid_until: Duration::from_secs(15),
+                current_time: Duration::from_secs(15),
+            },
+            "resolution approval expired at 15s; current time is 15s".to_owned(),
         ),
     ];
 
