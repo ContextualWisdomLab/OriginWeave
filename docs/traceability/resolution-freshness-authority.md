@@ -2,7 +2,7 @@
 
 - **Documentation status:** Active-PR traceability
 - **Protected-main capability status:** **PARTIAL**
-- **Primitive implementation lane:** PR #47, `feat/resolution-freshness-authority-main`
+- **Primitive implementation lane:** merged PR #47, `feat/resolution-freshness-authority-main`
 - **First-party planning consumer lane:** PR #50, `feat/network-consume-resolution-freshness`
 - **Socket-use freshness lane:** PR #54, `fix/network-resolution-freshness-at-use`
 - **Governing existing decision boundary:** ADR 0004 and the protected-main destination/rebinding authority model
@@ -10,15 +10,15 @@
 
 ## Truth boundary
 
-Protected `main` already classifies, approves, pins, and non-expansively revalidates resolved destination addresses. It does **not** yet require a time-bounded resolution authority through the entire first-party direct-socket path.
+Protected `main` already classifies, approves, pins, and non-expansively revalidates resolved destination addresses, including the time-bounded `FreshResolutionSnapshot` primitive merged through PR #47. It does **not** yet require that fresh authority through the entire first-party direct-socket path.
 
-PR #47 exact head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` contains the reusable production `FreshResolutionSnapshot` primitive and has terminal successful CI/security/SAST/exact-coverage evidence. That primitive is therefore **IMPLEMENTED_ON_ACTIVE_PR** evidence only; it is not protected-main truth.
+PR #47 exact head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` contains the reusable production `FreshResolutionSnapshot` primitive and has terminal successful CI/security/SAST/exact-coverage evidence. PR #47 is merged, so this bounded primitive is **IMPLEMENTED_ON_PROTECTED_MAIN**; its presence does not close the later planning or socket-use gap.
 
 PR #50 exact head `f8b43bc94444986ab23aa4ef3086e446a0b39295` implements the dependent first-party planning boundary. It keeps the untimed `ConnectionPlan` internal to `originweave-network`, exposes `FreshConnectionPlan` as the ordinary direct-socket planner, requires a `FreshResolutionSnapshot` plus caller-supplied trusted monotonic current time, rejects expired authority at plan authorization, and migrates existing TLS integration helpers through that same fresh boundary. Exact-head CI run `31408474576` passes repository contracts, formatting, workspace check/tests, strict Clippy, rustdoc and exact owned production function/line/region/branch coverage; CodeRabbit exact-head status is success.
 
-PR #54 exact head `ec81031c537f2b662910c1ce78c7ae0e0bfc9c1e` closes a later plan-to-connect TOCTOU discovered after #50: freshness checked only when the plan was created could expire before socket I/O. The active lane retains the exact `FreshResolutionSnapshot` in the single-use plan, exposes `connect_at(current_time)` to re-run freshness immediately before socket use under the caller's trusted monotonic clock domain, and keeps the legacy `connect()` surface fail-closed by adding process-local monotonic elapsed time to the original authorization checkpoint before delegating to `connect_at`. CI run `31418337788` passes repository contracts, formatting, workspace checks/tests, strict Clippy, rustdoc and exact owned production function/line/region/branch coverage; CodeRabbit exact-head status is successful.
+PR #54 exact head `ec81031c537f2b662910c1ce78c7ae0e0bfc9c1e` proposed closing a later plan-to-connect TOCTOU discovered after #50: freshness checked only when the plan was created could expire before socket I/O. The closed, unmerged lane retained the exact `FreshResolutionSnapshot` in the single-use plan, exposed `connect_at(current_time)` to re-run freshness immediately before socket use under the caller's trusted monotonic clock domain, and kept the legacy `connect()` surface fail-closed by adding process-local monotonic elapsed time to the original authorization checkpoint before delegating to `connect_at`. CI run `31418337788` passed repository contracts, formatting, workspace checks/tests, strict Clippy, rustdoc and exact owned production function/line/region/branch coverage; this remains branch evidence only.
 
-PRs #47, #50 and #54 remain **IMPLEMENTED_ON_ACTIVE_PR**, not shipped. #50 remains dependency-gated on #47 and #54 remains dependency-gated on #50. The overall protected-main resolution-to-socket interval therefore remains **PARTIAL** until dependency-ordered integration and fresh protected-main acceptance prove the same authority chain without an untimed planning or delayed-use bypass.
+PR #47 is **IMPLEMENTED_ON_PROTECTED_MAIN** for the bounded freshness primitive. PR #50 remains open and dependency-gated on that primitive, while #54 is closed without merge and therefore supplies no protected-main implementation. The overall protected-main resolution-to-socket interval remains **PARTIAL** until the planning and delayed-use boundaries are integrated and receive fresh protected-main acceptance without an untimed planning or delayed-use bypass.
 
 ## Current exact-head RCA
 
@@ -28,7 +28,7 @@ The first production-complete PR #47 head reached all ordinary Rust contracts an
 
 That was a realistic DNS-rebinding case rather than an impossible instrumentation artifact. The branch added a focused one-address expansion regression requiring `ResolutionSetExpanded`, retained the two-address expansion case, and exact head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` subsequently passed CI including exact production function/line/region/branch coverage, Security Scan, and SAST Semgrep.
 
-The freshness ceiling is executable active-PR evidence rather than an aspirational requirement. `crates/originweave-destination/src/resolution.rs` owns `MAX_RESOLUTION_VALIDITY: Duration = Duration::from_secs(30)`. `FreshResolutionSnapshot::approve` rejects `Duration::ZERO` and any interval above that constant with `DestinationError::InvalidResolutionValidity`; `crates/originweave-destination/tests/resolution_freshness.rs::fresh_resolution_rejects_invalid_or_overflowing_validity` verifies both the zero and greater-than-30-second boundaries plus approval-time overflow. This evidence remains active-PR-only until PR #47 integrates.
+The freshness ceiling is executable protected-main evidence rather than an aspirational requirement. `crates/originweave-destination/src/resolution.rs` owns `MAX_RESOLUTION_VALIDITY: Duration = Duration::from_secs(30)`. `FreshResolutionSnapshot::approve` rejects `Duration::ZERO` and any interval above that constant with `DestinationError::InvalidResolutionValidity`; `crates/originweave-destination/tests/resolution_freshness.rs::fresh_resolution_rejects_invalid_or_overflowing_validity` verifies both the zero and greater-than-30-second boundaries plus approval-time overflow. The first-party planning and socket-use consumers remain active-PR-only.
 
 ### PR #50 planning consumer
 
@@ -46,9 +46,9 @@ The accepted remedy is therefore realized on the active branch: ordinary first-p
 
 PR #54 follows #50 because a plan authorized within the resolution window could be retained until that window expired and then connected. The first failing boundary was therefore no longer public planner construction; it was the time between plan authorization and the exact operating-system connect operation.
 
-The accepted active-branch remedy keeps the admitted freshness snapshot with the non-cloneable single-use plan and revalidates it at the socket-use boundary. `connect_at(current_time)` is the explicit deterministic path and rejects both expiry and an authorization-time regression using the existing destination error taxonomy. The compatibility `connect()` path does not freeze the old authorization timestamp: it anchors a process-local monotonic `Instant` at plan construction, adds actual elapsed time to the admitted authorization time, and delegates to `connect_at`, so delayed legacy callers cannot replay stale authority indefinitely.
+The proposed active-branch remedy keeps the admitted freshness snapshot with the non-cloneable single-use plan and revalidates it at the socket-use boundary. `connect_at(current_time)` is the explicit deterministic path and rejects both expiry and an authorization-time regression using the existing destination error taxonomy. The compatibility `connect()` path does not freeze the old authorization timestamp: it anchors a process-local monotonic `Instant` at plan construction, adds actual elapsed time to the admitted authorization time, and delegates to `connect_at`, so delayed legacy callers cannot replay stale authority indefinitely.
 
-The regression suite proves explicit success, deadline expiry, trusted-time regression, unchanged connection-parameter validation, and expiry of the compatibility path with a deliberately short real monotonic interval. Current exact head `ec81031c537f2b662910c1ce78c7ae0e0bfc9c1e` passes CI run `31418337788`. This remains active-PR evidence and does not add DNS lookup, a wall-clock authority, proxy/PAC, or a resolver service.
+The regression suite proves explicit success, deadline expiry, trusted-time regression, unchanged connection-parameter validation, and expiry of the compatibility path with a deliberately short real monotonic interval. Current exact head `ec81031c537f2b662910c1ce78c7ae0e0bfc9c1e` passed CI run `31418337788`. This remains closed-branch evidence and does not add DNS lookup, a wall-clock authority, proxy/PAC, or a resolver service.
 
 ## Deterministic authority contract
 
@@ -88,9 +88,9 @@ The durable network-authority sequence is now `resolver answer -> destination/or
 
 ## Required follow-through
 
-- keep PR #47 as active/non-shipped evidence until repository governance integrates it;
-- keep PR #50 Draft and dependency-gated while #47 remains active; do not transfer its green evidence to protected main;
-- keep PR #54 Draft and dependency-gated while #50 remains active; do not transfer its green evidence to #50 or protected main;
+- keep the merged PR #47 primitive distinct from the still-unshipped first-party planning and socket-use consumers;
+- keep PR #50 open and dependency-gated while its protected-main consumer integration is absent; do not transfer its green evidence to protected main;
+- keep the closed PR #54 branch evidence separate from protected-main truth; do not transfer its green evidence to #50 or protected main;
 - preserve the structural invariant that ordinary first-party direct planning cannot import an untimed `ConnectionPlan`;
 - preserve the socket-use invariant that a delayed call cannot reuse plan-time freshness without a new trusted monotonic use-time check;
 - keep PRD/TRD/traceability from calling the DNS-rebinding/TOCTOU interval closed while any prerequisite remains active;

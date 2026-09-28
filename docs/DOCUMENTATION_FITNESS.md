@@ -92,13 +92,13 @@ An early audit incorrectly called resource-pressure and hourly-automation views 
 
 ### 3.8 Resolution freshness authority
 
-Active #47 → #50 → #54 progressively binds approved resolution state to first-party network planning and rechecks freshness immediately before socket I/O under trusted monotonic time.
+Merged #47 provides the protected-main freshness primitive; open #50 proposes first-party network planning and closed, unmerged #54 proposed rechecking freshness immediately before socket I/O under trusted monotonic time. The complete resolution-to-socket boundary remains partial.
 
 **Resolution:** this refines Accepted ADR 0004 rather than introducing a resolver service, proxy/PAC authority, wall-clock authority, persistence owner or new deployed component.
 
 ### 3.9 TLS revocation-material freshness
 
-Active #48 provides a bounded freshness primitive for already verified revocation material.
+Merged #48 provides a protected-main bounded freshness primitive for already verified revocation material; acquisition, authenticity, cache, and TLS composition remain unimplemented.
 
 **Resolution:** this is not OCSP/CRL acquisition, signature/path validation, cache operation or an unrevoked-certificate claim. No fictitious revocation-service topology is added.
 
@@ -146,7 +146,7 @@ Active #61 gives the page main world and the MV3 content script the same JavaScr
 
 ### 3.17 Extension proposal authority and secret approval composition
 
-Active #62/#63 exercise two sides of one architectural separator. #62 first proves the exact extension/session/context `ProposeTypedAction` grant is present and then requires ordinary Agent policy to reject origin/capability/instruction/secret widening. #63 gives the Agent context its independent `FillSecret` capability and broker-handle delivery request, but still requires the ordinary high-risk result `RequireApproval(RiskClass::R3)`.
+Merged #62/#63 exercise two sides of one architectural separator. #62 first proves the exact extension/session/context `ProposeTypedAction` grant is present and then requires ordinary Agent policy to reject origin/capability/instruction/secret widening. #63 gives the Agent context its independent `FillSecret` capability and broker-handle delivery request, but still requires the ordinary high-risk result `RequireApproval(RiskClass::R3)`.
 
 **Resolution:** extension proposal permission can neither mint Agent capability/origin/secret authority nor manufacture approval. These are regression proofs over existing boundaries, not a secret broker, browser adapter, approval service or new trust domain. Proposed ADR 0013 already captures the relevant permission-vs-Agent-authority decision.
 
@@ -158,7 +158,7 @@ Active #64 makes a successful action-outcome value require existing verified pro
 
 ### 3.19 Controlled Agent Task fixture
 
-Active #65 supplies a deterministic synthetic local web fixture with a labelled semantic input, submit control, same-document post-condition and explicitly hidden/untrusted prompt-injection text. The fixture contains no credential collection surface and requires no live third-party site.
+Merged #65 supplies a deterministic synthetic local web fixture with a labelled semantic input, submit control, same-document post-condition and explicitly hidden/untrusted prompt-injection text. The fixture contains no credential collection surface and requires no live third-party site.
 
 **Resolution:** the fixture makes the future real Chromium vertical slice reproducible without turning a third-party site into a test dependency. It is not a browser adapter, semantic extractor, input dispatcher, policy engine, trusted clock, process-attribution source or proof of real Chromium execution.
 

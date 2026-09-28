@@ -31,10 +31,19 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
         ):
             text = (TRACEABILITY / filename).read_text(encoding="utf-8")
             with self.subTest(filename=filename):
-                self.assertIn("Active-PR traceability", text)
                 self.assertIn("Protected-main capability status:** **PARTIAL", text)
-                self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", text)
-                self.assertIn("not protected-main truth", text)
+                if filename == "resolution-freshness-authority.md":
+                    self.assertIn("active-PR", text)
+                    self.assertIn(
+                        "first-party planning and socket-use consumers remain active-PR-only",
+                        text,
+                    )
+                else:
+                    self.assertIn("Active-PR traceability", text)
+                    self.assertTrue(
+                        "not protected-main truth" in text
+                        or "protected-main primitive evidence" in text
+                    )
 
     def test_resolution_trace_requires_socket_use_freshness_not_only_plan_time(self) -> None:
         """The DNS freshness trace must retain the delayed-use boundary added by PR #54."""
@@ -44,6 +53,51 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
         self.assertIn("rechecks the retained freshness authority immediately before socket I/O", text)
         self.assertIn("delayed call cannot reuse plan-time freshness", text)
         self.assertIn("#47 + #50 + #54", text)
+
+    def test_resolution_trace_matches_live_pr_maturity(self) -> None:
+        """Merged primitive and unmerged consumers must not share one maturity label."""
+        text = (TRACEABILITY / "resolution-freshness-authority.md").read_text(encoding="utf-8")
+        self.assertIn("merged PR #47", text)
+        self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", text)
+        self.assertIn("PR #50 remains open", text)
+        self.assertIn("#54 is closed without merge", text)
+        self.assertIn("overall protected-main resolution-to-socket interval remains **PARTIAL**", text)
+        self.assertNotIn("PR #47, #50 and #54 remain **IMPLEMENTED_ON_ACTIVE_PR**", text)
+
+    def test_traceability_index_matches_merged_resolution_primitive(self) -> None:
+        """The canonical index must not leave merged PR #47 in active-only status."""
+        index = (TRACEABILITY / "README.md").read_text(encoding="utf-8")
+        self.assertIn("merged PR #47 bounds the lifetime", index)
+        self.assertIn("| Bounded resolution freshness is explicit before destination authority is consumed | IMPLEMENTED_ON_PROTECTED_MAIN |", index)
+        self.assertIn("merged `originweave-destination` primitive from PR #47", index)
+        self.assertIn("ADR 0004 (Accepted); merged PR #47 tightens the existing boundary", index)
+        self.assertIn("the merged resolution-freshness primitive remains distinct from the unshipped socket consumer", index)
+        self.assertNotIn("active `originweave-destination` work in PR #47", index)
+        self.assertNotIn("active PR #47 tightens the existing boundary", index)
+        self.assertNotIn("resolution freshness remains an active lower-layer primitive", index)
+
+    def test_merged_revocation_primitive_matches_live_maturity(self) -> None:
+        """Current TLS freshness docs must distinguish merged #48 from the incomplete path."""
+        trace = (TRACEABILITY / "tls-revocation-freshness-authority.md").read_text(encoding="utf-8")
+        index = (TRACEABILITY / "README.md").read_text(encoding="utf-8")
+        fitness = (ROOT / "docs" / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        self.assertIn("merged PR #48", trace)
+        self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", trace)
+        self.assertIn("Merged PR #48 adds a freshness classifier only", index)
+        self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", index)
+        self.assertIn("Merged #48 provides a protected-main bounded freshness primitive", fitness)
+        self.assertNotIn("active PR #48", index)
+        self.assertNotIn("Active #48 provides", fitness)
+
+    def test_sensitive_disclosure_row_matches_live_maturity(self) -> None:
+        """The current index must distinguish merged evidence from open handle lanes."""
+        index = (TRACEABILITY / "README.md").read_text(encoding="utf-8")
+        self.assertIn("merged PR #45 adds credential-free handle-lifecycle evidence", index)
+        self.assertIn("merged PR #53 adds bounded in-process revocation state", index)
+        self.assertIn("Open PR #46 adds authoritative use reservation", index)
+        self.assertIn("#55 adds audience binding", index)
+        self.assertIn("trusted storage/value resolution/cross-process lifecycle/model-disclosure remain open", index)
+        self.assertNotIn("active PR #45 adds", index)
 
 
 if __name__ == "__main__":

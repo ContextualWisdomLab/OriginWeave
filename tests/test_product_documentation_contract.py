@@ -248,6 +248,58 @@ class ProductDocumentationContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, adr)
 
+    def test_bap_lifecycle_documents_durability_as_future_work(self) -> None:
+        """The in-memory lifecycle must not be presented as durable runtime support."""
+        adr = (ROOT / "docs/adr/0016-bap-task-lifecycle-authority.md").read_text(
+            encoding="utf-8"
+        )
+        api_contract = (ROOT / "docs/API_CONTRACT.md").read_text(encoding="utf-8")
+        for phrase in (
+            "it is not a durable task repository",
+            "does not claim atomic persistence",
+            "Bind durable idempotency receipts",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, adr)
+        self.assertIn("This is a contract baseline, not a claim", api_contract)
+
+    def test_mcp_tools_list_traceability_matches_protected_main(self) -> None:
+        """Maturity documents must not retain stale active-PR status after merge."""
+        traceability = (ROOT / "docs/traceability/mcp-authority-route.md").read_text(
+            encoding="utf-8"
+        )
+        baseline = (ROOT / "docs/product-technical-gap-baseline.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "`tools/list` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`",
+            traceability,
+        )
+        self.assertIn("**Protected-main follow-on:** merged PR #170", traceability)
+        self.assertNotIn("IMPLEMENTED_ON_ACTIVE_PR", traceability)
+        self.assertIn("(#168 and #170 merged)", baseline)
+        self.assertIn("complete transport, OAuth, browser, persistence", baseline)
+        adr = (ROOT / "docs/adr/0107-browser-protocol-adapter-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Merged PR #170", adr)
+        self.assertNotIn("Active PR #170 is", adr)
+
+    def test_browser_vertical_slice_remains_explicitly_unshipped(self) -> None:
+        """Buyer documentation must not promote browser prerequisites into runtime truth."""
+        baseline = (ROOT / "docs/product-technical-gap-baseline.md").read_text(
+            encoding="utf-8"
+        )
+        traceability = (ROOT / "docs/traceability/README.md").read_text(
+            encoding="utf-8"
+        )
+        prd = (ROOT / "docs/PRD.md").read_text(encoding="utf-8")
+        self.assertIn("Phase 1 is **in progress**, not shipped.", baseline)
+        self.assertIn("complete browser action adapter remains Planned", traceability)
+        self.assertIn("| PRD-INT-004 |", prd)
+        self.assertIn("| PRD-INT-004 | MCP integrates", prd)
+        self.assertIn("| Planned |", prd[prd.index("| PRD-INT-004 |") :])
+
     def test_hourly_automation_adr_requires_exit_sweep(self) -> None:
         """Automation closure must re-sweep all actionable lanes instead of stopping after one result."""
         adr = (

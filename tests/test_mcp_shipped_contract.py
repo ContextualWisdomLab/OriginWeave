@@ -40,6 +40,14 @@ class McpShippedContractTests(unittest.TestCase):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertNotIn("Active PR #170", changelog)
 
+    def test_doctoring_does_not_claim_merged_mcp_foundations_are_active_pr_only(self) -> None:
+        """The standards doctoring record must not retain pre-merge MCP maturity wording."""
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        self.assertNotIn("Active PR #168", doctoring)
+        self.assertIn("merged through PR #168", doctoring)
+        self.assertIn("`tools/list` discovery boundary merged through PR #170", doctoring)
+        self.assertNotIn("request-metadata, discovery, OAuth", doctoring)
+
 
 if __name__ == "__main__":
     unittest.main()

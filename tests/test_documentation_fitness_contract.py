@@ -177,6 +177,23 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", traceability)
         self.assertIn("Active-PR behavior is never protected-main truth", traceability)
 
+    def test_resolution_freshness_fitness_matches_live_maturity(self) -> None:
+        """The current fitness baseline must separate merged and unmerged freshness lanes."""
+        assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        self.assertIn("Merged #47 provides the protected-main freshness primitive", assessment)
+        self.assertIn("open #50 proposes first-party network planning", assessment)
+        self.assertIn("closed, unmerged #54 proposed rechecking freshness", assessment)
+        self.assertIn("complete resolution-to-socket boundary remains partial", assessment)
+        self.assertNotIn("Active #47 → #50 → #54", assessment)
+
+    def test_merged_policy_and_fixture_lanes_match_live_maturity(self) -> None:
+        """Merged policy and fixture evidence must not remain labeled active-only."""
+        assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        self.assertIn("Merged #62/#63 exercise two sides", assessment)
+        self.assertIn("Merged #65 supplies a deterministic synthetic local web fixture", assessment)
+        self.assertNotIn("Active #62/#63 exercise two sides", assessment)
+        self.assertNotIn("Active #65 supplies a deterministic synthetic local web fixture", assessment)
+
     def test_semantic_observation_lane_stays_non_shipped_and_provenance_bound(self) -> None:
         """The semantic observation value object must stay active-only and distinct from browser I/O."""
         appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(
