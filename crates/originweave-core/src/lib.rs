@@ -237,6 +237,24 @@ pub enum OriginError {
     InvalidPort,
 }
 
+impl fmt::Display for OriginError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::MissingScheme => "origin must include a scheme",
+            Self::UnsupportedScheme => "origin scheme must be HTTPS or loopback HTTP",
+            Self::InsecureRemoteOrigin => "HTTP origins are restricted to loopback hosts",
+            Self::MissingAuthority => "origin authority is required",
+            Self::UserInfoNotAllowed => "origin user information is not allowed",
+            Self::PathNotAllowed => "origin must not include a path, query, or fragment",
+            Self::InvalidAuthority => "origin authority is invalid",
+            Self::AmbiguousNumericHost => "origin host uses an ambiguous numeric spelling",
+            Self::InvalidPort => "origin port must be within 1..=65535",
+        })
+    }
+}
+
+impl std::error::Error for OriginError {}
+
 /// A nonzero identity for one active browser automation session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BrowserSessionId(u64);
@@ -502,6 +520,16 @@ pub enum ActionIntentDigestError {
     /// The value was not `sha256:` followed by 64 lowercase hexadecimal digits.
     InvalidFormat,
 }
+
+impl fmt::Display for ActionIntentDigestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(
+            "action intent digest must be sha256: followed by 64 lowercase hexadecimal digits",
+        )
+    }
+}
+
+impl std::error::Error for ActionIntentDigestError {}
 
 /// The browser execution mode that owns an action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -954,6 +982,14 @@ pub enum ExtensionIdError {
     /// The value was not exactly 32 lowercase characters from `a` through `p`.
     InvalidExtensionId,
 }
+
+impl fmt::Display for ExtensionIdError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("extension identifier must be 32 lowercase characters from a through p")
+    }
+}
+
+impl std::error::Error for ExtensionIdError {}
 
 /// An OriginWeave Agent capability that a browser extension may request explicitly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
