@@ -33,9 +33,9 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertIn("Protected-main capability status:** **PARTIAL", text)
                 if filename == "resolution-freshness-authority.md":
-                    self.assertIn("active-PR", text)
+                    self.assertIn("PR #50 remains open", text)
                     self.assertIn(
-                        "first-party planning and socket-use consumers remain active-PR-only",
+                        "first-party planning remains on open PR #50; socket-use remains closed, unmerged PR #54 branch evidence",
                         text,
                     )
                 else:

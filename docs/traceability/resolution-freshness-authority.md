@@ -28,7 +28,7 @@ The first production-complete PR #47 head reached all ordinary Rust contracts an
 
 That was a realistic DNS-rebinding case rather than an impossible instrumentation artifact. The branch added a focused one-address expansion regression requiring `ResolutionSetExpanded`, retained the two-address expansion case, and exact head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` subsequently passed CI including exact production function/line/region/branch coverage, Security Scan, and SAST Semgrep.
 
-The freshness ceiling is executable protected-main evidence rather than an aspirational requirement. `crates/originweave-destination/src/resolution.rs` owns `MAX_RESOLUTION_VALIDITY: Duration = Duration::from_secs(30)`. `FreshResolutionSnapshot::approve` rejects `Duration::ZERO` and any interval above that constant with `DestinationError::InvalidResolutionValidity`; `crates/originweave-destination/tests/resolution_freshness.rs::fresh_resolution_rejects_invalid_or_overflowing_validity` verifies both the zero and greater-than-30-second boundaries plus approval-time overflow. The first-party planning and socket-use consumers remain active-PR-only.
+The freshness ceiling is executable protected-main evidence rather than an aspirational requirement. `crates/originweave-destination/src/resolution.rs` owns `MAX_RESOLUTION_VALIDITY: Duration = Duration::from_secs(30)`. `FreshResolutionSnapshot::approve` rejects `Duration::ZERO` and any interval above that constant with `DestinationError::InvalidResolutionValidity`; `crates/originweave-destination/tests/resolution_freshness.rs::fresh_resolution_rejects_invalid_or_overflowing_validity` verifies both the zero and greater-than-30-second boundaries plus approval-time overflow. The first-party planning remains on open PR #50; socket-use remains closed, unmerged PR #54 branch evidence.
 
 ### PR #50 planning consumer
 
@@ -46,13 +46,13 @@ The accepted remedy is therefore realized on the active branch: ordinary first-p
 
 PR #54 follows #50 because a plan authorized within the resolution window could be retained until that window expired and then connected. The first failing boundary was therefore no longer public planner construction; it was the time between plan authorization and the exact operating-system connect operation.
 
-The proposed active-branch remedy keeps the admitted freshness snapshot with the non-cloneable single-use plan and revalidates it at the socket-use boundary. `connect_at(current_time)` is the explicit deterministic path and rejects both expiry and an authorization-time regression using the existing destination error taxonomy. The compatibility `connect()` path does not freeze the old authorization timestamp: it anchors a process-local monotonic `Instant` at plan construction, adds actual elapsed time to the admitted authorization time, and delegates to `connect_at`, so delayed legacy callers cannot replay stale authority indefinitely.
+The closed, unmerged branch's proposed remedy keeps the admitted freshness snapshot with the non-cloneable single-use plan and revalidates it at the socket-use boundary. `connect_at(current_time)` is the explicit deterministic path and rejects both expiry and an authorization-time regression using the existing destination error taxonomy. The compatibility `connect()` path does not freeze the old authorization timestamp: it anchors a process-local monotonic `Instant` at plan construction, adds actual elapsed time to the admitted authorization time, and delegates to `connect_at`, so delayed legacy callers cannot replay stale authority indefinitely.
 
 The regression suite proves explicit success, deadline expiry, trusted-time regression, unchanged connection-parameter validation, and expiry of the compatibility path with a deliberately short real monotonic interval. Current exact head `ec81031c537f2b662910c1ce78c7ae0e0bfc9c1e` passed CI run `31418337788`. This remains closed-branch evidence and does not add DNS lookup, a wall-clock authority, proxy/PAC, or a resolver service.
 
 ## Deterministic authority contract
 
-The active stack proves one continuous destination-to-socket authority chain with all of the following properties:
+The merged primitive, open planning branch, and closed socket-use branch separately provide evidence for the following intended authority chain; they do not prove a continuous protected-main path:
 
 1. approval time is explicit and supplied from one trusted monotonic clock domain;
 2. validity is non-zero and capped by the active implementation's repository-owned `MAX_RESOLUTION_VALIDITY` safety budget (30 seconds on PR #47 exact head), with shorter caller-selected intervals permitted;
@@ -81,7 +81,7 @@ The durable network-authority sequence is now `resolver answer -> destination/or
 | Active PR #50 hides the untimed planner and exact compile evidence finds stale first-party consumers | valid structural remedy with migration still incomplete |
 | Active PR #50 exact head `f8b43bc...` migrates first-party consumers and passes exact CI/coverage | `IMPLEMENTED_ON_ACTIVE_PR` for planning; delayed socket-use freshness still requires #54 |
 | Active PR #54 exact head `ec81031c...` rechecks freshness immediately before socket I/O and passes exact CI/coverage | `IMPLEMENTED_ON_ACTIVE_PR` for socket-use freshness; dependency-gated and non-shipped |
-| PR #47 + #50 + #54 exact heads are individually gate-clean but none are on protected main | active-PR evidence only; no shipped claim |
+| Merged PR #47 and individually gate-clean but unmerged #50/#54 branches | shipped primitive only; planning and socket-use remain branch evidence |
 | Protected-main primitive/planner, but delayed socket use can outlive freshness | `PARTIAL` |
 | Protected-main direct socket path requires exact fresh authority and rechecks it at use, with tests proving pre-approval/expiry/rebinding/delay behavior | `IMPLEMENTED_ON_PROTECTED_MAIN` for the bounded resolution-to-socket interval |
 | Browser/network adapter proves the same clock and authority chain under real navigation | additional integration/release evidence; not implied by lower-layer primitives |

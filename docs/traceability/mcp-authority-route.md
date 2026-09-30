@@ -32,7 +32,7 @@ The following remain outside protected main and must not be inferred from either
 
 ## Version boundary
 
-The protected-main routing foundation and active discovery refinement accept only protocol generation `2026-07-28`. MCP versioning is independent of the OriginWeave Protocol. A later MCP revision does not silently change OriginWeave action, risk, capability, approval, secret, origin, tenant, browser, or evidence semantics.
+The protected-main routing and discovery foundations accept only protocol generation `2026-07-28`. MCP versioning is independent of the OriginWeave Protocol. A later MCP revision does not silently change OriginWeave action, risk, capability, approval, secret, origin, tenant, browser, or evidence semantics.
 
 The reviewed primary source is:
 

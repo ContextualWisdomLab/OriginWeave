@@ -277,6 +277,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
         )
         self.assertIn("**Protected-main follow-on:** merged PR #170", traceability)
         self.assertNotIn("IMPLEMENTED_ON_ACTIVE_PR", traceability)
+        self.assertNotIn("active discovery refinement", traceability)
         self.assertIn("(#168 and #170 merged)", baseline)
         self.assertIn("complete transport, OAuth, browser, persistence", baseline)
         adr = (ROOT / "docs/adr/0107-browser-protocol-adapter-strategy.md").read_text(
@@ -298,7 +299,8 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertIn("complete browser action adapter remains Planned", traceability)
         self.assertIn("| PRD-INT-004 |", prd)
         self.assertIn("| PRD-INT-004 | MCP integrates", prd)
-        self.assertIn("| Planned |", prd[prd.index("| PRD-INT-004 |") :])
+        row = next(row for row in prd.splitlines() if row.startswith("| PRD-INT-004 |"))
+        self.assertEqual("Planned", row.split("|")[3].strip())
 
     def test_hourly_automation_adr_requires_exit_sweep(self) -> None:
         """Automation closure must re-sweep all actionable lanes instead of stopping after one result."""
