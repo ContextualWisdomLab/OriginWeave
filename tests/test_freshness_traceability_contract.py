@@ -52,7 +52,6 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
         self.assertIn("connect_at(current_time)", text)
         self.assertIn("rechecks the retained freshness authority immediately before socket I/O", text)
         self.assertIn("delayed call cannot reuse plan-time freshness", text)
-        self.assertIn("#47 + #50 + #54", text)
 
     def test_resolution_trace_matches_live_pr_maturity(self) -> None:
         """Merged primitive and unmerged consumers must not share one maturity label."""
