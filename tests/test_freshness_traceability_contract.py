@@ -88,6 +88,30 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
         self.assertNotIn("active PR #48", index)
         self.assertNotIn("Active #48 provides", fitness)
 
+    def test_sensitive_requirement_and_open_work_match_merged_lifecycle_evidence(self) -> None:
+        """Each sensitive-data trace must separate merged evidence from open reservation work."""
+        index = (TRACEABILITY / "README.md").read_text(encoding="utf-8")
+        rows = [
+            line
+            for line in index.splitlines()
+            if line.startswith("| Purpose-bound sensitive-data policy/evidence |")
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("merged PR #45 records credential-free handle-lifecycle evidence", rows[0])
+        self.assertIn("open PR #46 adds authoritative use reservation", rows[0])
+        self.assertIn("PARTIAL", rows[0])
+        self.assertNotIn("active lifecycle/reservation work #45/#46", rows[0])
+        open_items = [
+            line
+            for line in index.splitlines()
+            if line.startswith("- **Open:**") and "trusted-broker" in line
+        ]
+        self.assertEqual(len(open_items), 1)
+        self.assertIn("PR #45 lifecycle evidence is on protected main", open_items[0])
+        self.assertIn("PR #46 reservation remains open", open_items[0])
+        self.assertIn("trusted-broker storage/revocation/value-resolution/model-disclosure", open_items[0])
+        self.assertNotIn("after #45/#46 integrate", open_items[0])
+
     def test_sensitive_disclosure_row_matches_live_maturity(self) -> None:
         """The current index must distinguish merged evidence from open handle lanes."""
         index = (TRACEABILITY / "README.md").read_text(encoding="utf-8")

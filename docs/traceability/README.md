@@ -96,7 +96,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | Semantic observation value authority/provenance | active `originweave-core` work in PR #52, stacked on #40 | `semantic_node_observation` tests; PRD-OBS-001/003/005; issue #28 | IMPLEMENTED_ON_ACTIVE_PR |
 | Manifest V3 compatibility evidence | `scripts/ci/run_mv3_compatibility.py` + controlled MV3 fixture; active downloads lane #43 | issue #27; real-browser contracts | PARTIAL |
 | Extension-to-Agent authority | protected-main core authority kernel + Proposed ADR 0013 | issue #27; extension authority UML | PARTIAL |
-| Purpose-bound sensitive-data policy/evidence | `originweave-policy` + evidence foundations; active lifecycle/reservation work #45/#46 | ADR 0007; issue #10 | PARTIAL |
+| Purpose-bound sensitive-data policy/evidence | `originweave-policy` + evidence foundations; merged PR #45 records credential-free handle-lifecycle evidence; open PR #46 adds authoritative use reservation | ADR 0007; issue #10 | PARTIAL |
 | Trusted sensitive-data broker/storage/lifecycle | future bounded service/crate | issue #10; PRD/TRD/data governance | PLANNED |
 | BiDi/CDP/WebMCP/MCP | future/versioned adapter crates; registry prerequisite active in #40 | protocol compatibility tests required | PLANNED |
 | WARC/PROV persistence | persistence/export adapters | doctoring + future conformance tests | PLANNED |
@@ -183,7 +183,7 @@ Repository contracts should fail when canonical PRD/TRD/ADR/UML/ERD/traceability
 - **Open:** after #43 integrates, move bounded MV3 downloads from `IMPLEMENTED_ON_ACTIVE_PR` into the protected-main compatibility evidence inventory while issue #27 remains open for the complete matrix.
 - **Open:** after #40 stabilizes/integrates, map its registry API and tests without presenting raw BiDi/CDP identifiers as durable authority.
 - **Open:** after stacked #52 stabilizes/integrates behind #40, reclassify only its bounded semantic-observation value/provenance primitive; keep real browser observation I/O, action dispatch, mutation invalidation and post-condition evidence under issue #28 until implemented.
-- **Open:** after #45/#46 integrate, reclassify their narrow lifecycle/reservation primitives while keeping durable trusted-broker storage/revocation/value-resolution/model-disclosure boundaries under issue #10 until implemented.
+- **Open:** PR #45 lifecycle evidence is on protected main; PR #46 reservation remains open. Reclassify only the reservation primitive after #46 integrates, while keeping durable trusted-broker storage/revocation/value-resolution/model-disclosure boundaries under issue #10 until implemented.
 - **Open:** attach concrete release profiles and quantitative benchmark thresholds after reproducible benchmark evidence exists.
 - **Open:** map every future public OriginWeave Protocol operation to risk/capability/authority and conformance tests.
 - **Open:** map enterprise controls to exact SOC 2/CSAP-oriented control evidence without claiming certification.
