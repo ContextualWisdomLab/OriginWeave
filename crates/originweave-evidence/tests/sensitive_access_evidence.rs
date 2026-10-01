@@ -168,6 +168,7 @@ fn exact_maximum_authority_identifiers_are_accepted() -> TestResult {
 
 #[test]
 fn exact_maximum_field_set_is_accepted() -> TestResult {
+    assert_eq!(MAX_SENSITIVE_FIELD_COUNT, 64);
     let mut input = valid_input()?;
     input.field_ids = (0..MAX_SENSITIVE_FIELD_COUNT)
         .map(|index| format!("field:{index}"))

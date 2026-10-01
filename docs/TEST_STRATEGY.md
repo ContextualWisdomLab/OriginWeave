@@ -212,7 +212,7 @@ A representative sensitive flow must prove the approved value is usable where th
 
 Test wrong tenant/task/field/purpose/origin/audience, expired/revoked handle, max-use/replay, concurrent-use race, break-glass lifecycle and provider-region mismatch.
 
-Sensitive-access evidence regressions accept the documented exact 128-byte authority-identifier limit and 64 distinct protected-field identifiers. Keep the existing oversized, empty, malformed, and duplicate rejection cases; these receipts contain authority metadata, not protected values or disclosure authority.
+Sensitive-access evidence regressions accept the documented exact 128-byte authority-identifier limit and 64 distinct protected-field identifiers. Assert the field-count constant independently against the documented literal 64 so a changed production limit cannot silently resize the accepted fixture. Keep the existing oversized, empty, malformed, and duplicate rejection cases; these receipts contain authority metadata, not protected values or disclosure authority.
 
 ## 8. Resource and performance tests
 
