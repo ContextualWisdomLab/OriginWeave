@@ -1,9 +1,9 @@
 # MCP 2026-07-28 authority-route traceability
 
 - **`tools/call` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`
-- **`tools/list` capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+- **`tools/list` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`
 - **Protected-main owning work:** merged PR #168 `feat(mcp): bind stateless tool routing to typed actions`
-- **Active follow-on:** PR #170 `feat(mcp): expose conservative tools list cache contract`
+- **Protected-main follow-on:** merged PR #170 `feat(mcp): expose conservative tools list cache contract`
 - **Complete MCP adapter status:** `PLANNED`
 - **Governing decision:** ADR 0107
 
@@ -13,13 +13,13 @@ Protected main at `b05d5acca82b9d916ada2c8e82f59f92a89817e1` contains the bounde
 
 A successful `ValidatedMcpToolCall` proves routing integrity only. It grants no capability, origin, approval, secret, browser, tenant, persistence, network, or evidence authority. `originweave_policy::evaluate_mcp` still delegates to the ordinary policy evaluator after the route/action match.
 
-Active PR #170 builds on that protected-main catalog with a conservative typed `tools/list` request/result boundary. Its current branch requires matching MCP protocol metadata, required client-capability presence, bounded and syntax-validated routing/body methods, exact `tools/list` routing, and no caller-supplied cursor because the fixed catalog issues none. Its result is one complete page with zero freshness, private cache scope, and no continuation cursor. This active-PR slice remains non-shipped until it reaches protected main and does not grant any OriginWeave action authority.
+Protected main now also contains the conservative typed `tools/list` request/result boundary merged through PR #170. It requires matching MCP protocol metadata, required client-capability presence, bounded and syntax-validated routing/body methods, exact `tools/list` routing, and no caller-supplied cursor because the fixed catalog issues none. Its result is one complete page with zero freshness, private cache scope, and no continuation cursor. It does not grant any OriginWeave action authority.
 
 ## Product-status reconciliation
 
-`docs/PRD.md` PRD-INT-004 and `docs/TRD.md` Section 12 intentionally remain **Planned** at the complete-adapter level. That status is not contradicted by the bounded `tools/call` foundation now on protected main or by active PR #170: both are reusable control-plane contracts below the complete product adapter. `README.md` and `CHANGELOG.md` distinguish protected-main routing from the active discovery refinement, and ADR 0107 records the protocol/version and authority boundary.
+`docs/PRD.md` PRD-INT-004 and `docs/TRD.md` Section 12 intentionally remain **Planned** at the complete-adapter level. That status is not contradicted by the bounded `tools/call` and `tools/list` foundations now on protected main: both are reusable control-plane contracts below the complete product adapter. `README.md` and `CHANGELOG.md` distinguish these shipped foundations from the complete adapter, and ADR 0107 records the protocol/version and authority boundary.
 
-The following remain outside protected main and PR #170 and must not be inferred from either:
+The following remain outside protected main and must not be inferred from either shipped foundation:
 
 - Streamable HTTP transport parsing and header materialization;
 - JSON-RPC/HTTP response serialization of the typed discovery page;
@@ -32,7 +32,7 @@ The following remain outside protected main and PR #170 and must not be inferred
 
 ## Version boundary
 
-The protected-main routing foundation and active discovery refinement accept only protocol generation `2026-07-28`. MCP versioning is independent of the OriginWeave Protocol. A later MCP revision does not silently change OriginWeave action, risk, capability, approval, secret, origin, tenant, browser, or evidence semantics.
+The protected-main routing and discovery foundations accept only protocol generation `2026-07-28`. MCP versioning is independent of the OriginWeave Protocol. A later MCP revision does not silently change OriginWeave action, risk, capability, approval, secret, origin, tenant, browser, or evidence semantics.
 
 The reviewed primary source is:
 
@@ -49,10 +49,10 @@ Protected-main PR #168 production/test surfaces include:
 - `crates/originweave-policy/src/lib.rs` — `evaluate_mcp` route/action guard before normal policy evaluation; and
 - `crates/originweave-policy/tests/mcp_route_binding.rs` — confused-deputy and policy-preservation evidence.
 
-Active PR #170 additionally exercises its discovery contract in `crates/originweave-core/tests/mcp_tools_list_cache.rs`, including result/cache semantics, required protocol/client metadata, bounded protocol and method validation, routing correlation, cursor rejection, and public error contracts.
+Protected-main PR #170 additionally exercises its discovery contract in `crates/originweave-core/tests/mcp_tools_list_cache.rs`, including result/cache semantics, required protocol/client metadata, bounded protocol and method validation, routing correlation, cursor rejection, and public error contracts.
 
-Exact current-head CI/security/review evidence must be regenerated after every branch mutation. Protected-main evidence proves only the merged `tools/call` foundation; predecessor or protected-main results are not current-head proof for active PR #170.
+Protected-main evidence proves the merged `tools/call` and `tools/list` foundations only; it does not prove the complete MCP adapter or any future branch behavior.
 
 ## Promotion rule
 
-The bounded `tools/call` routing foundation is already `IMPLEMENTED_ON_PROTECTED_MAIN`. The `tools/list` discovery refinement may change to `IMPLEMENTED_ON_PROTECTED_MAIN` only after PR #170 reaches protected `main` under live governance and exact-head acceptance. Neither promotion makes the complete MCP adapter implemented; each remaining transport/runtime boundary requires its own integrated evidence.
+The bounded `tools/call` and `tools/list` foundations are `IMPLEMENTED_ON_PROTECTED_MAIN`. Neither promotion makes the complete MCP adapter implemented; each remaining transport/runtime boundary requires its own integrated evidence.
