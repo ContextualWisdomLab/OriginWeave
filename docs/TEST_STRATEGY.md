@@ -212,6 +212,8 @@ A representative sensitive flow must prove the approved value is usable where th
 
 Test wrong tenant/task/field/purpose/origin/audience, expired/revoked handle, max-use/replay, concurrent-use race, break-glass lifecycle and provider-region mismatch.
 
+Opaque-handle policy regression tests deny a foreign-scope request even when expiry and exhaustion also apply. They do not prescribe which denial reason takes precedence. A zero-use allowance rejects the first attempted use. These tests cover existing denial behavior, not a production behavior change or broker-integration evidence.
+
 ## 8. Resource and performance tests
 
 ### 8.1 Deterministic governor
