@@ -173,7 +173,7 @@ This rule intentionally prevents chat history from becoming a shadow architectur
 
 ## 9. Documentation drift checks
 
-Repository contracts should fail when canonical PRD/TRD/ADR/UML/ERD/traceability artifacts disappear, lifecycle/index status diverges, an active PR is promoted to protected-main truth, or core maturity/authority vocabulary is removed. Active freshness dossiers must remain discoverable from this index so lower-layer primitives cannot silently become over-broad shipped claims. More semantic checks should be added when a specific drift has caused a real defect; avoid brittle tests that merely duplicate prose.
+Repository contracts should fail when canonical PRD/TRD/ADR/UML/ERD/traceability artifacts disappear, lifecycle/index status diverges, an active PR is promoted to protected-main truth, or core maturity/authority vocabulary is removed. Active freshness dossiers must remain discoverable from this index so lower-layer primitives cannot silently become over-broad shipped claims. Maturity assertions must select exactly one current decision row: missing or duplicate rows and false shipment labels must fail even when the correct historical wording appears elsewhere. More semantic checks should be added when a specific drift has caused a real defect; avoid brittle tests that merely duplicate prose.
 
 ## 10. Open traceability work
 
