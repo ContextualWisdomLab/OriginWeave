@@ -92,7 +92,9 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
         """The current index must distinguish merged evidence from open handle lanes."""
         index = (TRACEABILITY / "README.md").read_text(encoding="utf-8")
         self.assertIn("merged PR #45 adds credential-free handle-lifecycle evidence", index)
-        self.assertIn("merged PR #53 adds bounded in-process revocation state", index)
+        self.assertIn("PR #53 merged into the #46 stack, not protected main", index)
+        self.assertIn("authoritative revocation remains unshipped", index)
+        self.assertNotIn("merged PR #53 adds bounded in-process revocation state", index)
         self.assertIn("Open PR #46 adds authoritative use reservation", index)
         self.assertIn("#55 adds audience binding", index)
         self.assertIn("trusted storage/value resolution/cross-process lifecycle/model-disclosure remain open", index)
