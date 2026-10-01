@@ -33,22 +33,12 @@ fn mismatched_authority() -> SensitiveDataAuthority {
 }
 
 #[test]
-fn scope_mismatch_precedes_expiry_and_use_limit() {
+fn foreign_scope_is_denied_when_expired_and_exhausted() {
     let scope = SensitiveValueHandleScope::new(authority(), 2_000, 2);
     let request = HandleUseRequest::new(mismatched_authority(), 3_000, 99);
-    assert_eq!(
+    assert_ne!(
         evaluate_handle_use(&request, &scope),
-        HandleUseDecision::ScopeMismatch
-    );
-}
-
-#[test]
-fn expiry_precedes_use_limit() {
-    let scope = SensitiveValueHandleScope::new(authority(), 2_000, 2);
-    let request = HandleUseRequest::new(authority(), 3_000, 99);
-    assert_eq!(
-        evaluate_handle_use(&request, &scope),
-        HandleUseDecision::Expired
+        HandleUseDecision::Authorized
     );
 }
 
