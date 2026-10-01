@@ -94,6 +94,7 @@ Include:
 - private/link-local/metadata/platform/reserved/documentation/benchmark ranges;
 - empty/oversized resolver answer;
 - hostname/IP/localhost origin constraints;
+- exact accepted 63-byte DNS labels, 253-byte DNS hosts, and port 65535 on DNS and IPv6 authorities, paired with over-limit rejection; these regressions lock existing parser behavior without granting destination or network authority;
 - DNS contraction vs expansion/rebinding;
 - redirect downgrade, cycle, hop limit and new destination authorization.
 
