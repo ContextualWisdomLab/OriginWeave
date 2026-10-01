@@ -40,6 +40,8 @@ Use deterministic unit/property tests for:
 - resource budgets and cumulative mitigation decisions;
 - evidence locator/digest/value-redaction rules.
 
+Sensitive-data disclosure and opaque-handle use each exercise all 36 ordered pairs of the six current data classifications: six exact matches remain permitted within an otherwise valid scope, and 30 mismatches fail closed. These matrices expand regression coverage of existing exact-classification authority; they do not introduce a sensitivity hierarchy or change production behavior.
+
 ### 3.2 Stateful boundary tests
 
 Use deterministic state-transition and concurrency tests for:
