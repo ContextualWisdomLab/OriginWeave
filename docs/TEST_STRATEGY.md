@@ -172,6 +172,8 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+Observed-node identity regressions admit and preserve both `1` and `u64::MAX` for browser-session, browsing-context, document-epoch and node identifiers. They assert exact identity values, origin preservation and successful validation against the same session, context, origin and epoch. Isolated constructor mutations must reject these valid boundaries and fail the new tests while the existing zero-denial tests remain intact. This verifies already-correct value-object admission; it does not increment a document epoch, execute a browser adapter or grant browser authority.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.
