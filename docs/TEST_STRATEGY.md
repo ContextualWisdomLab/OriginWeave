@@ -172,6 +172,8 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+International release-limitation regressions use independently constructed UTF-8 inputs of exactly 1024 and 1025 bytes for both the unsupported claim and buyer consequence. Accepted text must be retained byte-for-byte, and each oversized field must return its exact length-error variant. The tests assert the fixed 1024-byte contract independently of the production constant and preserve existing ASCII and canonical-text tests. Isolated international boundary mutations must fail these regressions. This verifies already-correct limitation metadata validation, not benchmark execution or release authorization.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.
