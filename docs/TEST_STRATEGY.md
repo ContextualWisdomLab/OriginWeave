@@ -172,6 +172,8 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+Extraction source-channel regressions check all 120 permutations of the five reviewed channels against an explicit canonical order: semantic node, structured data, table cell, network response, and model interpretation. Every permutation must preserve all five channels and produce the same field identity. Isolated ordering and omission mutations must fail this regression. These assertions verify already-correct schema metadata; they do not execute extraction or grant evidence-channel authority.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.
