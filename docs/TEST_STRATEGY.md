@@ -101,6 +101,8 @@ Include:
 
 Include direct-only default, unauthorized proxy/PAC origin, PAC-selected DIRECT vs proxy authority, exact address set membership, port/timeout/attempt bounds, permission/input/address errors, transient retry allow-list, exact peer mismatch and single-use plan replay.
 
+Proxy/PAC route-policy regressions independently assert the fixed limits of 32 proxy servers and 16 PAC origins. They authorize every retained entry, preserve the target and selected route metadata, reject an unlisted entry, and reject adjacent 33-server/17-origin input with exact count errors. Isolated limit-drift and later-entry omission mutations must fail the regressions. These tests verify already-correct route-policy admission; they do not resolve a destination, evaluate PAC, open a socket, or grant TCP/TLS authority.
+
 ### 4.3 TLS
 
 Use real loopback certificates/roots for:

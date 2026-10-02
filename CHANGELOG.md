@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 - Destination policy now has executable evidence for the exact proxy and PAC authority ceilings, the maximum redirect hop walk, and the freshness bounds that stay fail-closed at the published limits.
+- Added independent literal proxy/PAC limit regressions that retain and authorize all 32 proxy servers and 16 PAC origins, preserve route metadata, and reject unlisted entries and adjacent overflow. Isolated mutations verify sensitivity; production route policy and network authority are unchanged.
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
 - Refreshed the product and technical gap baseline onto the 2026-08-26 live inventory: 126 open pull requests (54 ready, 72 draft), protected-main promotion of #168/#194/#196/#216/#151, a verified maintenance-loop record (supersession closure of #153, conflict reconciliations on #37/#149/#152/#173/#175, issue #212 option-(b) authorization on #43, Strix vuln-0001 homoglyph remediation on #124), provider-rerun outcome evidence, an organization review-pipeline congestion record, and refreshed merge-order queue guidance. Documentation evidence contracts were aligned to the same snapshot so the baseline, its dated markers, and the pinned exact-head rows cannot silently diverge.
 
