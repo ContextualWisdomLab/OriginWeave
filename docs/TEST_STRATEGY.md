@@ -172,6 +172,8 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+Opaque-handle lifecycle regression tests preserve one-second lifetimes, maximum `u64` epoch values, zero observed resolutions, maximum `u32` use counters and revocation exactly at issuance. Existing zero/invalid lifetime, overuse and out-of-window revocation denials remain intact. Isolated archive mutations must fail the named boundary regressions; these test already-correct receipt validation and do not implement a broker, extend handle authority or disclose protected values.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.
