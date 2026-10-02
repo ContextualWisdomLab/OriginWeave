@@ -172,6 +172,8 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+Extraction normalization regressions exercise all 15 pairs of five value types and three declared rules. The independent test matrix admits verbatim values for every type, whitespace trimming only for text, and RFC 3339 UTC normalization only for timestamps. Accepted fields retain their exact type and rule; incompatible pairs return `InvalidNormalizationRule`. Isolated compatibility mutations must fail the matrix test. This verifies already-correct schema validation, not an execution engine that transforms extracted values.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.
