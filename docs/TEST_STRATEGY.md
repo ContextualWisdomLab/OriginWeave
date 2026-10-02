@@ -172,6 +172,8 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+Extraction-schema regression tests independently fix the documented maxima at 128 bytes for field/version identifiers and 256 distinct fields. They prove exact-limit acceptance, retained identifier bytes, field order and lookup, and adjacent 129-byte/257-field rejection. Isolated mutations of the inclusive comparisons and constants must fail these tests; production validation is not modified by the regression slice.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.
