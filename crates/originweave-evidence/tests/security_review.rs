@@ -125,6 +125,35 @@ fn capture_enforces_path_count_and_value_boundaries() {
 }
 
 #[test]
+fn exact_query_field_limit_preserves_names_and_redacts_values() {
+    assert_eq!(MAX_QUERY_FIELD_COUNT, 128);
+    let query = (0..128)
+        .map(|index| {
+            (
+                format!("field-{index}"),
+                format!("synthetic-private-{index}"),
+            )
+        })
+        .collect();
+    let evidence = NetworkEvidence::capture(HttpMethod::Get, origin(), "/", BTreeMap::new(), query)
+        .expect("exactly 128 query fields are accepted");
+    assert_eq!(evidence.query().len(), 128);
+    for index in 0..128 {
+        assert_eq!(
+            evidence.query().get(&format!("field-{index}")),
+            Some(&"[REDACTED]".to_owned()),
+        );
+    }
+    let oversized = (0..129)
+        .map(|index| (format!("field-{index}"), "synthetic-private".to_owned()))
+        .collect();
+    assert_eq!(
+        NetworkEvidence::capture(HttpMethod::Get, origin(), "/", BTreeMap::new(), oversized),
+        Err(EvidenceError::LimitExceeded),
+    );
+}
+
+#[test]
 fn capture_rejects_invalid_or_oversized_metadata_names() {
     for invalid_name in [
         String::new(),

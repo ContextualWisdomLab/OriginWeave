@@ -148,6 +148,39 @@ fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() -> TestRes
 }
 
 #[test]
+fn exact_maximum_authority_identifiers_are_accepted() -> TestResult {
+    let mut input = valid_input()?;
+    input.request_id = "a".repeat(128);
+    input.decision_id = "a".repeat(128);
+    input.tenant_id = "a".repeat(128);
+    input.actor_id = "a".repeat(128);
+    input.task_id = "a".repeat(128);
+    input.purpose_id = "a".repeat(128);
+    input.policy_version = "a".repeat(128);
+    input.approval_reference = Some("a".repeat(128));
+    input.field_ids = vec!["a".repeat(128)];
+    assert!(
+        SensitiveAccessEvidence::try_from(input).is_ok(),
+        "all authority identifiers accept the documented 128-byte maximum"
+    );
+    Ok(())
+}
+
+#[test]
+fn exact_maximum_field_set_is_accepted() -> TestResult {
+    assert_eq!(MAX_SENSITIVE_FIELD_COUNT, 64);
+    let mut input = valid_input()?;
+    input.field_ids = (0..MAX_SENSITIVE_FIELD_COUNT)
+        .map(|index| format!("field:{index}"))
+        .collect();
+    assert!(
+        SensitiveAccessEvidence::try_from(input).is_ok(),
+        "64 distinct field identifiers are the documented accepted maximum"
+    );
+    Ok(())
+}
+
+#[test]
 fn disclosure_and_retention_times_fail_closed_when_semantics_are_impossible() -> TestResult {
     let mut zero_decision = valid_input()?;
     zero_decision.decision_epoch_seconds = 0;
