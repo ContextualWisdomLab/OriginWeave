@@ -81,6 +81,20 @@ fn fresh_resolution_rejects_invalid_or_overflowing_validity() {
     let address = ipv4(8, 8, 8, 8);
     let policy = DestinationPolicy::public_web();
 
+    let exact_maximum = FreshResolutionSnapshot::approve(
+        target.clone(),
+        [address],
+        &policy,
+        Duration::from_secs(1),
+        MAX_RESOLUTION_VALIDITY,
+    )
+    .expect("the documented maximum freshness interval is accepted");
+    assert_eq!(exact_maximum.validity(), MAX_RESOLUTION_VALIDITY);
+    assert_eq!(
+        exact_maximum.valid_until(),
+        Duration::from_secs(1) + MAX_RESOLUTION_VALIDITY
+    );
+
     for validity in [
         Duration::ZERO,
         MAX_RESOLUTION_VALIDITY + Duration::from_nanos(1),
