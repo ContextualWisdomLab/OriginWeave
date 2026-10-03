@@ -703,6 +703,7 @@ mod tests {
         assert!(error.to_string().contains("peer mismatch"));
     }
 
+    /// Verify admitted maxima and typed rejection across the planner validation boundary.
     #[test]
     fn validation_errors_cover_every_public_contract() {
         let snapshot = loopback_snapshot();
@@ -804,8 +805,10 @@ mod tests {
         }
     }
 
+    /// Check standard error traits and readable metadata for source-free planning failures.
     #[test]
     fn network_errors_have_a_stable_standard_error_contract() {
+        /// Require thread-safe standard error compatibility at compile time without constructing a value.
         fn assert_standard_error_contract<E: std::error::Error + Send + Sync + 'static>() {}
 
         assert_standard_error_contract::<NetworkError>();

@@ -7,6 +7,7 @@ use super::{ConnectionPlan, NetworkError};
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 
+/// Approve one canonical loopback address under an explicit test-only destination policy.
 fn approved_loopback(ip: IpAddr, origin: &str) -> ResolutionSnapshot {
     ResolutionSnapshot::approve(
         Origin::parse(origin).expect("canonical loopback origin"),
@@ -16,6 +17,7 @@ fn approved_loopback(ip: IpAddr, origin: &str) -> ResolutionSnapshot {
     .expect("explicitly approved loopback snapshot")
 }
 
+/// Validate literal timeout admission and typed adjacent-overflow rejection without opening a socket.
 #[test]
 fn literal_thirty_second_deadline_admits_exact_input_and_rejects_adjacent_overflow() {
     for (ip, origin) in [
@@ -43,6 +45,7 @@ fn literal_thirty_second_deadline_admits_exact_input_and_rejects_adjacent_overfl
     }
 }
 
+/// Validate every literal attempt budget and typed overflow rejection without executing retries.
 #[test]
 fn literal_four_attempt_budget_admits_every_count_and_rejects_adjacent_overflow() {
     for (ip, origin) in [
