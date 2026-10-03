@@ -117,7 +117,7 @@ Use real loopback certificates/roots for:
 - certificate/trust/ALPN/deadline bounds;
 - task-horizon safety policy if shipped.
 
-Pure TLS policy regressions also use independent literal limits: a 30-second handshake deadline, 604,800-second leaf horizon, eight ALPN identifiers, 255 bytes per identifier, and 1,024 total ALPN bytes. Each exact boundary is admitted and its adjacent overflow is rejected with the corresponding error and reported limit. Tests compare every retained identifier, including opaque non-ASCII ALPN bytes, without network access or certificate-policy changes. Isolated reductions of these five production constants demonstrate regression sensitivity; mutation results are not production-defect or TLS-handshake acceptance evidence.
+Pure TLS policy regressions also use independent literal limits: a 30-second handshake deadline, 604,800-second leaf horizon, eight ALPN identifiers, 255 bytes per identifier, and 1,024 total ALPN bytes. Each exact boundary is admitted and its adjacent overflow is rejected with the corresponding error and reported limit. Tests compare every retained identifier, including opaque non-ASCII ALPN bytes, without network access or certificate-policy changes. Trust-root count coverage additionally distinguishes 256 duplicate inputs (one canonical root) from 256 independently generated certificates retained after canonicalization, checks their exact total encoded bytes and order-independent bundle hash, and rejects 257 inputs. Isolated reductions of the policy constants demonstrate regression sensitivity; mutation results are not production-defect or TLS-handshake acceptance evidence.
 
 ### 4.4 HTTP
 

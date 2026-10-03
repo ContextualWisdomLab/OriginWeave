@@ -261,12 +261,61 @@ fn tls_policy_accepts_every_exact_maximum_bound() {
     );
 
     let root = root_der();
+    let duplicate_bundle = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("duplicate_roots:v1").expect("identifier"),
+        std::iter::repeat_n(root, 256).collect(),
+    )
+    .expect("256 input roots are accepted before canonical deduplication");
+    assert_eq!(duplicate_bundle.root_count(), 1);
+
+    let roots: Vec<Vec<u8>> = (0..256)
+        .map(|index| {
+            rcgen::generate_simple_self_signed(vec![format!("root-{index}.example")])
+                .expect("distinct test root generation")
+                .cert
+                .der()
+                .to_vec()
+        })
+        .collect();
+    assert_eq!(
+        roots
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        256
+    );
+    let encoded_bytes: usize = roots.iter().map(Vec::len).sum();
     let boundary_bundle = TrustRootBundle::new(
         TrustBundleIdentifier::parse("boundary_roots:v1").expect("identifier"),
-        std::iter::repeat_n(root, MAX_TRUST_ROOT_COUNT).collect(),
+        roots.clone(),
     )
-    .expect("maximum trust root count is accepted before canonical deduplication");
-    assert_eq!(boundary_bundle.root_count(), 1);
+    .expect("256 distinct roots are retained at the literal count limit");
+    assert_eq!(boundary_bundle.root_count(), 256);
+    assert_eq!(boundary_bundle.encoded_byte_count(), encoded_bytes);
+
+    let mut reversed_roots = roots.clone();
+    reversed_roots.reverse();
+    let reversed_bundle = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("boundary_roots:v1").expect("identifier"),
+        reversed_roots,
+    )
+    .expect("reversed root input retains the same canonical bundle");
+    assert_eq!(reversed_bundle.root_count(), 256);
+    assert_eq!(reversed_bundle.encoded_byte_count(), encoded_bytes);
+    assert_eq!(reversed_bundle.bundle_hash(), boundary_bundle.bundle_hash());
+
+    let mut oversized_roots = roots;
+    oversized_roots.push(root_der());
+    assert!(matches!(
+        TrustRootBundle::new(
+            TrustBundleIdentifier::parse("overflow_roots:v1").expect("identifier"),
+            oversized_roots,
+        ),
+        Err(TlsError::InvalidTrustRootCount {
+            root_count: 257,
+            maximum_count: 256,
+        })
+    ));
 }
 
 #[test]
