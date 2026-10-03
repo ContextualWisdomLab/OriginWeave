@@ -26,6 +26,10 @@ For OriginWeave-owned production code:
 
 Coverage is necessary but not sufficient. Generated, unreachable, exclusion-heavy or assertion-light coverage does not replace behavioral proof.
 
+Repository-local Rust CI, production coverage, and MV3 compatibility jobs require the explicit `[self-hosted, Linux, X64, cwlab-ci-isolated]` selector. Source contracts check those three jobs and retain explicit credential-free checkout checks. These assertions do not establish runner availability or isolation: the operator must verify repository/group/workflow eligibility and a pristine per-job environment with no protected-host or shared privileged-state access. Do not substitute existing control, scanner, inference, or GPU runners. Acceptance additionally requires exact-head Actions evidence of the intended workflow revision, a real runner identity, executed steps, and terminal gate success. Missing capacity does not waive coverage, security, review, or protection.
+
+The existing scheduled product-development workflow is unchanged and its migration remains deferred. Source review finding `OW-SH-001` identifies candidate-code verification running with the same filesystem/process authority as a later token-bearing publisher. A pristine environment at job start does not separate these within-job authorities. Verification must execute in a credential-free isolated environment, with inert exact-source artifacts and source-bound verification receipts transferred to a separately pristine publisher that never executes candidate code. Until that boundary and runner provisioning are independently verified, neither scheduled migration nor organization-wide normalization is complete.
+
 ## 3. Test pyramid by authority layer
 
 ### 3.1 Pure value and policy contracts

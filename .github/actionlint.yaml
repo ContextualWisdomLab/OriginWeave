@@ -1,0 +1,4 @@
+# Declare the routing contract; this does not provision a runner.
+self-hosted-runner:
+  labels:
+    - cwlab-ci-isolated

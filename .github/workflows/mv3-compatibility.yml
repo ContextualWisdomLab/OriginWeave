@@ -23,7 +23,8 @@ jobs:
   chrome-for-testing:
     if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     name: Pinned Chrome for Testing MV3 fixture
-    runs-on: ubuntu-24.04
+    # Operator-provisioned clean per-job isolation; no hosted/control fallback.
+    runs-on: [self-hosted, Linux, X64, cwlab-ci-isolated]
     timeout-minutes: 20
     steps:
       - name: Harden runner and block undeclared egress
