@@ -703,10 +703,20 @@ mod tests {
         assert!(error.to_string().contains("peer mismatch"));
     }
 
+    /// Verify admitted maxima and typed rejection across the planner validation boundary.
     #[test]
     fn validation_errors_cover_every_public_contract() {
         let snapshot = loopback_snapshot();
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
+
+        ConnectionPlan::new(
+            &snapshot,
+            socket,
+            MAX_CONNECT_TIMEOUT,
+            MAX_CONNECTION_ATTEMPTS,
+        )
+        .expect("exact connection timeout and attempt maxima must be accepted");
+
         let validation_errors = [
             ConnectionPlan::new(
                 &snapshot,
@@ -795,6 +805,40 @@ mod tests {
         }
     }
 
+    /// Check standard error traits and readable metadata for source-free planning failures.
+    #[test]
+    fn network_errors_have_a_stable_standard_error_contract() {
+        /// Require thread-safe standard error compatibility at compile time without constructing a value.
+        fn assert_standard_error_contract<E: std::error::Error + Send + Sync + 'static>() {}
+
+        assert_standard_error_contract::<NetworkError>();
+        let errors = [
+            NetworkError::InvalidPort,
+            NetworkError::InvalidConnectTimeout {
+                connect_timeout: Duration::ZERO,
+                maximum_timeout: MAX_CONNECT_TIMEOUT,
+            },
+            NetworkError::InvalidAttemptCount {
+                attempt_count: 0,
+                maximum_attempts: MAX_CONNECTION_ATTEMPTS,
+            },
+            NetworkError::NonCanonicalSocketAddress {
+                socket_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 443),
+                canonical_address: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            },
+            NetworkError::PeerMismatch {
+                socket_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 443),
+                observed_peer: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8443),
+                attempt_number: 1,
+            },
+        ];
+
+        for error in errors {
+            assert!(!error.to_string().is_empty());
+            assert!(error.source().is_none());
+        }
+    }
+
     #[test]
     fn public_destination_policy_denies_loopback_before_network_authority() {
         let error = ResolutionSnapshot::approve(
@@ -863,3 +907,7 @@ mod tests {
         assert!(error.to_string().contains("failed after 3 attempts"));
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/support/connection_literal_bounds.rs"]
+mod literal_bounds;
