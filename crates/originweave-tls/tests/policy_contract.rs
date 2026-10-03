@@ -35,6 +35,21 @@ fn trust_bundle_identifier_is_bounded_and_ascii() {
         TrustBundleIdentifier::parse(&"a".repeat(129)),
         Err(TlsError::InvalidTrustBundleIdentifier)
     ));
+
+    let exact_maximum = "a".repeat(128);
+    assert_eq!(
+        TrustBundleIdentifier::parse(&exact_maximum)
+            .expect("128-byte identifier is the accepted maximum")
+            .as_str(),
+        exact_maximum
+    );
+    let full_alphabet = "Az09._:-az09._:-";
+    assert_eq!(
+        TrustBundleIdentifier::parse(full_alphabet)
+            .expect("every admitted identifier byte is accepted")
+            .as_str(),
+        full_alphabet
+    );
 }
 
 #[test]
@@ -73,6 +88,14 @@ fn trust_root_bundle_is_nonempty_bounded_deduplicated_and_hashed() {
         ),
         Err(TlsError::InvalidTrustRootBytes { .. })
     ));
+    let exact_maximum_bytes = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("at_limit:v1").expect("identifier"),
+        vec![vec![0_u8; MAX_TRUST_ROOT_BYTES]],
+    );
+    assert!(
+        matches!(exact_maximum_bytes, Err(TlsError::InvalidTrustRoot { .. })),
+        "exactly MAX_TRUST_ROOT_BYTES must pass the byte-count gate and fail later at DER parsing",
+    );
     assert!(matches!(
         TrustRootBundle::new(
             TrustBundleIdentifier::parse("malformed:v1").expect("identifier"),
@@ -100,6 +123,13 @@ fn tls_policy_bounds_timeouts_and_alpn() {
         [b"h2".as_slice(), b"http/1.1".as_slice()]
     );
     assert_eq!(policy.alpn_requirement(), AlpnRequirement::Required);
+    assert_eq!(policy.minimum_leaf_validity(), Duration::ZERO);
+
+    let horizon = Duration::from_secs(3_600);
+    let policy_with_horizon = policy
+        .with_minimum_leaf_validity(horizon)
+        .expect("valid delegated-task leaf horizon");
+    assert_eq!(policy_with_horizon.minimum_leaf_validity(), horizon);
 
     assert!(matches!(
         TlsClientPolicy::new(
@@ -129,6 +159,13 @@ fn tls_policy_bounds_timeouts_and_alpn() {
         ));
     }
 
+    assert!(matches!(
+        policy_with_horizon.with_minimum_leaf_validity(
+            originweave_tls::MAX_MINIMUM_LEAF_VALIDITY + Duration::from_nanos(1),
+        ),
+        Err(TlsError::InvalidMinimumLeafValidity { .. })
+    ));
+
     let cumulative_overflow: Vec<Vec<u8>> = (0_u8..5)
         .map(|index| vec![b'a' + index; MAX_ALPN_PROTOCOL_LENGTH])
         .collect();
@@ -151,6 +188,134 @@ fn tls_policy_bounds_timeouts_and_alpn() {
             .is_err()
         );
     }
+}
+
+#[test]
+fn tls_policy_accepts_every_exact_maximum_bound() {
+    let trusted_time = UnixTime::since_unix_epoch(Duration::from_secs(1_800_000_000));
+
+    let boundary_timeout = TlsClientPolicy::new(
+        trusted_time,
+        MAX_TLS_HANDSHAKE_TIMEOUT,
+        vec![b"h2".to_vec()],
+        AlpnRequirement::Required,
+    )
+    .expect("maximum handshake timeout is accepted");
+    assert_eq!(
+        boundary_timeout.handshake_timeout(),
+        MAX_TLS_HANDSHAKE_TIMEOUT
+    );
+
+    let optional_without_alpn = TlsClientPolicy::new(
+        trusted_time,
+        Duration::from_secs(1),
+        Vec::new(),
+        AlpnRequirement::Optional,
+    )
+    .expect("optional ALPN admits an empty allow-list");
+    assert!(optional_without_alpn.alpn_protocols().is_empty());
+
+    let maximum_protocol_count: Vec<Vec<u8>> = (0..MAX_ALPN_PROTOCOL_COUNT)
+        .map(|index| format!("p{index}").into_bytes())
+        .collect();
+    TlsClientPolicy::new(
+        trusted_time,
+        Duration::from_secs(1),
+        maximum_protocol_count,
+        AlpnRequirement::Required,
+    )
+    .expect("maximum distinct ALPN protocol count is accepted");
+
+    TlsClientPolicy::new(
+        trusted_time,
+        Duration::from_secs(1),
+        vec![vec![b'a'; MAX_ALPN_PROTOCOL_LENGTH]],
+        AlpnRequirement::Required,
+    )
+    .expect("maximum ALPN protocol length is accepted");
+
+    let mut maximum_total_bytes = vec![
+        vec![b'a'; MAX_ALPN_PROTOCOL_LENGTH],
+        vec![b'b'; MAX_ALPN_PROTOCOL_LENGTH],
+        vec![b'c'; MAX_ALPN_PROTOCOL_LENGTH],
+        vec![b'd'; MAX_ALPN_PROTOCOL_LENGTH],
+    ];
+    maximum_total_bytes.push(vec![
+        b'e';
+        MAX_ALPN_TOTAL_BYTES - 4 * MAX_ALPN_PROTOCOL_LENGTH
+    ]);
+    TlsClientPolicy::new(
+        trusted_time,
+        Duration::from_secs(1),
+        maximum_total_bytes,
+        AlpnRequirement::Required,
+    )
+    .expect("exact maximum ALPN total bytes is accepted");
+
+    let boundary_horizon = boundary_timeout
+        .with_minimum_leaf_validity(originweave_tls::MAX_MINIMUM_LEAF_VALIDITY)
+        .expect("maximum leaf validity horizon is accepted");
+    assert_eq!(
+        boundary_horizon.minimum_leaf_validity(),
+        originweave_tls::MAX_MINIMUM_LEAF_VALIDITY
+    );
+
+    let root = root_der();
+    let duplicate_bundle = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("duplicate_roots:v1").expect("identifier"),
+        std::iter::repeat_n(root, 256).collect(),
+    )
+    .expect("256 input roots are accepted before canonical deduplication");
+    assert_eq!(duplicate_bundle.root_count(), 1);
+
+    let roots: Vec<Vec<u8>> = (0..256)
+        .map(|index| {
+            rcgen::generate_simple_self_signed(vec![format!("root-{index}.example")])
+                .expect("distinct test root generation")
+                .cert
+                .der()
+                .to_vec()
+        })
+        .collect();
+    assert_eq!(
+        roots
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        256
+    );
+    let encoded_bytes: usize = roots.iter().map(Vec::len).sum();
+    let boundary_bundle = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("boundary_roots:v1").expect("identifier"),
+        roots.clone(),
+    )
+    .expect("256 distinct roots are retained at the literal count limit");
+    assert_eq!(boundary_bundle.root_count(), 256);
+    assert_eq!(boundary_bundle.encoded_byte_count(), encoded_bytes);
+
+    let mut reversed_roots = roots.clone();
+    reversed_roots.reverse();
+    let reversed_bundle = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("boundary_roots:v1").expect("identifier"),
+        reversed_roots,
+    )
+    .expect("reversed root input retains the same canonical bundle");
+    assert_eq!(reversed_bundle.root_count(), 256);
+    assert_eq!(reversed_bundle.encoded_byte_count(), encoded_bytes);
+    assert_eq!(reversed_bundle.bundle_hash(), boundary_bundle.bundle_hash());
+
+    let mut oversized_roots = roots;
+    oversized_roots.push(root_der());
+    assert!(matches!(
+        TrustRootBundle::new(
+            TrustBundleIdentifier::parse("overflow_roots:v1").expect("identifier"),
+            oversized_roots,
+        ),
+        Err(TlsError::InvalidTrustRootCount {
+            root_count: 257,
+            maximum_count: 256,
+        })
+    ));
 }
 
 #[test]

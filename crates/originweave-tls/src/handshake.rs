@@ -956,6 +956,15 @@ mod tests {
     fn certificate_bounds_are_fail_closed() {
         let valid = vec![CertificateDer::from(vec![1_u8])];
         validate_certificate_bounds(&valid).expect("bounded certificate");
+        let exact_count = vec![CertificateDer::from(vec![1_u8]); MAX_SERVER_CERTIFICATE_COUNT];
+        validate_certificate_bounds(&exact_count)
+            .expect("exact certificate count maximum must be accepted");
+        let exact_bytes = vec![CertificateDer::from(vec![
+            1_u8;
+            MAX_SERVER_CERTIFICATE_BYTES
+        ])];
+        validate_certificate_bounds(&exact_bytes)
+            .expect("exact certificate byte maximum must be accepted");
         let missing = validate_certificate_bounds(&[]).expect_err("missing certificate");
         assert_error_variant(&missing, &TlsError::MissingPeerCertificates);
 
