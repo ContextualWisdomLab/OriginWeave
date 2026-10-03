@@ -16,17 +16,22 @@ from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
-SELECTOR = "[self-hosted, Linux, X64, cwlab-ci-isolated]"
+SELECTOR = (
+    "\n      group: CWL CI isolated"
+    "\n      labels: [self-hosted, Linux, X64, cwlab-ci-isolated]"
+)
 
 
 class SelfHostedRunnerContractTests(unittest.TestCase):
     """Reject hosted fallback and credential persistence in local job routing."""
 
     def assert_isolated_jobs(self, filename: str, count: int) -> str:
-        """Require every declared job to have the exact isolated label set."""
+        """Require the block-format group and labels for every declared local job."""
         workflow = (WORKFLOWS / filename).read_text(encoding="utf-8")
         jobs = re.findall(r"^  [A-Za-z0-9_-]+:\s*$", workflow.split("\njobs:\n", 1)[1], re.MULTILINE)
-        selectors = re.findall(r"^    runs-on: (.+)$", workflow, re.MULTILINE)
+        selectors = re.findall(
+            r"^    runs-on:([^\n]*(?:\n {6,}[^\n]*)*)", workflow, re.MULTILINE
+        )
         self.assertEqual(len(jobs), count, filename)
         self.assertEqual(selectors, [SELECTOR] * count, filename)
         return workflow
@@ -38,6 +43,44 @@ class SelfHostedRunnerContractTests(unittest.TestCase):
     def test_mv3_uses_only_isolated_self_hosted_jobs(self) -> None:
         """Browser fixtures require the same explicitly isolated Linux capacity."""
         self.assert_isolated_jobs("mv3-compatibility.yml", 1)
+
+    def runner_fixture_result(self, selector: str) -> unittest.TestResult:
+        """Run the real native-CI routing contract against two fixture-owned jobs."""
+        with tempfile.TemporaryDirectory() as directory:
+            workflows = pathlib.Path(directory)
+            workflow = "name: fixture\njobs:\n"
+            for job in ("rust", "coverage"):
+                workflow += f"  {job}:\n    runs-on:{selector}\n    steps: []\n"
+            (workflows / "ci.yml").write_text(workflow, encoding="utf-8")
+            case = SelfHostedRunnerContractTests(
+                "test_native_ci_uses_only_isolated_self_hosted_jobs"
+            )
+            result = unittest.TestResult()
+            with mock.patch(__name__ + ".WORKFLOWS", workflows):
+                case.run(result)
+            return result
+
+    def test_runner_group_rejects_label_only_or_untrusted_group_mappings(self) -> None:
+        """Matching labels cannot replace a dedicated group or hide duplicate keys."""
+        labels = "[self-hosted, Linux, X64, cwlab-ci-isolated]"
+        selectors = [
+            " " + labels,
+            "\n      labels: " + labels,
+            "\n      group: Default\n      labels: " + labels,
+            SELECTOR + "\n      group: Default",
+            SELECTOR + "\n      labels: [self-hosted]",
+            "\n      group: |\n        CWL CI isolated\n      labels: " + labels,
+        ]
+        for selector in selectors:
+            with self.subTest(selector=selector):
+                self.assert_fixture_rejected(self.runner_fixture_result(selector))
+
+    def test_runner_group_accepts_the_exact_isolated_mapping(self) -> None:
+        """The dedicated group and all four retained labels are admitted together."""
+        result = self.runner_fixture_result(SELECTOR)
+        self.assertTrue(result.wasSuccessful(), result.failures + result.errors)
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(result.skipped, [])
 
     def test_deferred_scheduled_workflow_is_unchanged(self) -> None:
         """Keep the reviewed scheduled authority finding outside this routing slice."""
