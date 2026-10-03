@@ -126,6 +126,32 @@ class SelfHostedRunnerContractTests(unittest.TestCase):
         step = "uses: actions/checkout@fixture\n        with:\n          persist-credentials: true\n"
         self.assert_fixture_rejected(self.checkout_fixture_result(step, ".yaml"))
 
+    def test_quoted_checkout_after_safe_checkout_is_still_checked(self) -> None:
+        """A safe checkout cannot hide an unsafe checkout with a quoted uses value."""
+        for quote in ('"', "'"):
+            for suffix in (".yml", ".yaml"):
+                step = (
+                    "uses: actions/checkout@fixture\n        with:\n"
+                    "          persist-credentials: false\n"
+                    f"      - uses: {quote}actions/checkout@fixture{quote}\n"
+                )
+                with self.subTest(quote=quote, suffix=suffix):
+                    self.assert_fixture_rejected(self.checkout_fixture_result(step, suffix))
+
+    def test_quoted_checkout_with_explicit_false_is_accepted(self) -> None:
+        """Both valid YAML quote forms preserve the explicit false checkout control."""
+        for quote in ('"', "'"):
+            step = (
+                f"uses: {quote}actions/checkout@fixture{quote}\n        with:\n"
+                "          persist-credentials: false\n"
+            )
+            with self.subTest(quote=quote):
+                result = self.checkout_fixture_result(step)
+                self.assertTrue(result.wasSuccessful(), result.failures + result.errors)
+                self.assertEqual(result.errors, [])
+                self.assertEqual(result.skipped, [])
+                self.assertEqual(result.testsRun, 1)
+
     def assert_checkout_credential_not_persisted(self, step: str, path: pathlib.Path) -> None:
         """Require the checkout step's effective with mapping to set false."""
         headers = re.findall(r"^        with:[ \t]*(?:#.*)?$", step, re.MULTILINE)
@@ -153,7 +179,11 @@ class SelfHostedRunnerContractTests(unittest.TestCase):
             steps = re.split(r"^      - ", text, flags=re.MULTILINE)[1:]
             blocks = [
                 step for step in steps
-                if re.search(r"^(?:        )?uses: actions/checkout@", step, re.MULTILINE)
+                if re.search(
+                    r'''^(?:        )?uses: (?:actions/checkout@[^\s'"#]+|"actions/checkout@[^"\n]+"|'actions/checkout@[^'\n]+')[ \t]*(?:#.*)?$''',
+                    step,
+                    re.MULTILINE,
+                )
             ]
             with self.subTest(workflow=path.name):
                 self.assertGreater(len(blocks), 0)
