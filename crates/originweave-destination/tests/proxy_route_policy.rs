@@ -155,6 +155,43 @@ fn pac_selected_direct_requires_pac_and_direct_authority() {
 }
 
 #[test]
+fn policy_accepts_exact_maximum_proxy_and_pac_authority_sets() {
+    let proxies = (0..MAX_PROXY_SERVER_COUNT)
+        .map(|index| proxy(&format!("http://proxy-{index}.example:8080")))
+        .collect::<Vec<_>>();
+    let pacs = (0..MAX_PAC_ORIGIN_COUNT)
+        .map(|index| origin(&format!("https://pac-{index}.example")))
+        .collect::<Vec<_>>();
+    let first_proxy = proxies
+        .first()
+        .cloned()
+        .expect("boundary set must contain proxies");
+
+    let policy = ProxyRoutePolicy::new(true, proxies, pacs)
+        .expect("exact maximum proxy and PAC authority sets are accepted");
+    let target = origin("https://target.example");
+    let first_pac = origin("https://pac-0.example");
+    let proxy_route = policy
+        .authorize(
+            &target,
+            &ProxyRoute::ExplicitProxy {
+                proxy_server: first_proxy,
+            },
+        )
+        .expect("authorized boundary proxy must route");
+    assert_eq!(proxy_route.route_kind(), ProxyRouteKind::ExplicitProxy);
+    let pac_route = policy
+        .authorize(
+            &target,
+            &ProxyRoute::PacDirect {
+                pac_origin: first_pac,
+            },
+        )
+        .expect("authorized boundary PAC origin must route");
+    assert_eq!(pac_route.route_kind(), ProxyRouteKind::PacDirect);
+}
+
+#[test]
 fn policy_rejects_unbounded_authority_sets_before_authorization() {
     let proxies = (0..=MAX_PROXY_SERVER_COUNT)
         .map(|index| proxy(&format!("http://proxy-{index}.example:8080")))

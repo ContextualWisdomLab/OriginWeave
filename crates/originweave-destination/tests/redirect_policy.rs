@@ -5,8 +5,8 @@ use std::net::{IpAddr, Ipv4Addr};
 
 use originweave_core::Origin;
 use originweave_destination::{
-    AddressClass, DestinationPolicy, MAX_REDIRECT_HOPS, RedirectError, RedirectGuard,
-    RedirectTargetDigest, RedirectTargetDigestError, ResolutionSnapshot,
+    AddressClass, DestinationPolicy, RedirectError, RedirectGuard, RedirectTargetDigest,
+    RedirectTargetDigestError, ResolutionSnapshot,
 };
 
 const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -62,10 +62,8 @@ fn redirect_guard_validates_bounds_and_reports_state() {
         Err(RedirectError::InvalidMaximumHops { maximum_hops: 0 })
     );
     assert_eq!(
-        RedirectGuard::new(initial.clone(), digest(DIGEST_A), MAX_REDIRECT_HOPS + 1,),
-        Err(RedirectError::InvalidMaximumHops {
-            maximum_hops: MAX_REDIRECT_HOPS + 1,
-        })
+        RedirectGuard::new(initial.clone(), digest(DIGEST_A), 21),
+        Err(RedirectError::InvalidMaximumHops { maximum_hops: 21 })
     );
 
     let guard =
@@ -188,6 +186,34 @@ fn redirect_guard_rejects_https_downgrade_cycles_and_excess_hops() {
         limited.authorize_redirect(target, digest(DIGEST_C), &resolution, &grants),
         Err(RedirectError::RedirectLimitExceeded)
     );
+}
+
+#[test]
+fn redirect_guard_accepts_the_exact_maximum_and_walks_every_hop() {
+    let initial = origin("https://start.example");
+    let target = origin("https://target.example");
+    let resolution = public_resolution(&target, [8, 8, 8, 8]);
+    let grants = BTreeSet::from([target.clone()]);
+
+    let mut guard = RedirectGuard::new(initial, digest(DIGEST_A), 20)
+        .expect("exact maximum redirect bound is accepted");
+    assert_eq!(guard.maximum_hops(), 20);
+
+    for hop_number in 1..=20 {
+        let hop_digest = digest(&format!("sha256:{hop_number:064x}"));
+        let evidence = guard
+            .authorize_redirect(target.clone(), hop_digest, &resolution, &grants)
+            .expect("every hop within the exact maximum must authorize");
+        assert_eq!(evidence.hop_number(), hop_number);
+    }
+    assert_eq!(guard.hop_count(), 20);
+
+    let final_digest = digest(&format!("sha256:{:064x}", 21));
+    assert_eq!(
+        guard.authorize_redirect(target, final_digest, &resolution, &grants),
+        Err(RedirectError::RedirectLimitExceeded)
+    );
+    assert_eq!(guard.hop_count(), 20);
 }
 
 #[test]
