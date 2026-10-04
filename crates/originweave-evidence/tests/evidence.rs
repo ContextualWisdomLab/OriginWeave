@@ -147,6 +147,8 @@ fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
     }
 }
 
+/// Validate source URLs, nonempty locators and lowercase SHA-256 identifiers,
+/// preserving mixed hexadecimal and numeric-only source hashes exactly.
 #[test]
 fn provenance_requires_locator_and_sha256_evidence() {
     let record = ProvenanceRecord::new(
@@ -162,6 +164,17 @@ fn provenance_requires_locator_and_sha256_evidence() {
     assert_eq!(record.source_hash(), VALID_HASH);
     assert_eq!(record.source_kind(), EvidenceSourceKind::NetworkResponse);
     assert_eq!(record.verification_result(), VerificationResult::Verified);
+
+    let numeric_hash = "sha256:0123456789012345678901234567890123456789012345678901234567890123";
+    let numeric_record = ProvenanceRecord::new(
+        "https://example.com",
+        "body",
+        numeric_hash,
+        EvidenceSourceKind::NetworkResponse,
+        VerificationResult::Verified,
+    )
+    .expect("numeric lowercase hexadecimal digest is valid");
+    assert_eq!(numeric_record.source_hash(), numeric_hash);
 
     assert_eq!(
         ProvenanceRecord::new(

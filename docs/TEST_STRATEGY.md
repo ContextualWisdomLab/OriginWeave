@@ -40,6 +40,8 @@ Use deterministic unit/property tests for:
 - resource budgets and cumulative mitigation decisions;
 - evidence locator/digest/value-redaction rules.
 
+The provenance constructor characterization accepts the exact numeric-only identifier `sha256:0123456789012345678901234567890123456789012345678901234567890123` and asserts unchanged `source_hash()` retention, alongside the existing mixed hexadecimal positive and malformed URL, locator and hash negatives. This is a first-GREEN characterization of existing behavior, not a production defect repair. Isolated private mutations requiring at least one `a`–`f` byte or truncating only numeric-only stored hashes establish regression sensitivity; neither mutation is delivered.
+
 ### 3.2 Stateful boundary tests
 
 Use deterministic state-transition and concurrency tests for:
