@@ -1,0 +1,58 @@
+#![allow(clippy::expect_used)]
+
+use originweave_core::Origin;
+use originweave_policy::{
+    DataClassification, HandleUseDecision, HandleUseRequest, SensitiveDataAuthority,
+    SensitiveValueHandleScope, evaluate_handle_use,
+};
+
+/// Return the canonical shipping origin shared by both authority fixtures.
+fn destination() -> Origin {
+    Origin::parse("https://shipping.example").expect("canonical destination")
+}
+
+/// Build tenant_alpha shipping metadata without carrying a protected address value.
+fn authority() -> SensitiveDataAuthority {
+    SensitiveDataAuthority::new(
+        "tenant_alpha",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        destination(),
+        DataClassification::PersonalData,
+    )
+}
+
+/// Change only the tenant to tenant_beta within otherwise identical shipping metadata.
+fn mismatched_authority() -> SensitiveDataAuthority {
+    SensitiveDataAuthority::new(
+        "tenant_beta",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        destination(),
+        DataClassification::PersonalData,
+    )
+}
+
+/// Reject a foreign tenant despite expiry and exhaustion without fixing denial precedence.
+#[test]
+fn foreign_scope_is_denied_when_expired_and_exhausted() {
+    let scope = SensitiveValueHandleScope::new(authority(), 2_000, 2);
+    let request = HandleUseRequest::new(mismatched_authority(), 3_000, 99);
+    assert_ne!(
+        evaluate_handle_use(&request, &scope),
+        HandleUseDecision::Authorized
+    );
+}
+
+/// Return UseLimitReached for zero allowance on the first otherwise valid request.
+#[test]
+fn zero_max_uses_exhausts_the_handle_before_any_use() {
+    let scope = SensitiveValueHandleScope::new(authority(), 2_000, 0);
+    let request = HandleUseRequest::new(authority(), 0, 0);
+    assert_eq!(
+        evaluate_handle_use(&request, &scope),
+        HandleUseDecision::UseLimitReached
+    );
+}

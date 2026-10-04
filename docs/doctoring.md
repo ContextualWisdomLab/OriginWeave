@@ -110,6 +110,10 @@ TRINITY uses a compact learned coordinator to select models and assign Thinker, 
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, destinations, approvals, secrets, or deterministic policy.
 
+### Self-hosted CI placement and isolation
+
+GitHub documents cumulative runner-label matching and additional runner-group eligibility restrictions. Its secure-use guidance warns that self-hosted environments can retain compromise from untrusted workflow code and that even JIT registration needs a clean underlying environment. OriginWeave's repository-local Rust CI, production coverage, and MV3 compatibility jobs therefore require the `CWL CI isolated` runner group together with all four `self-hosted`, `Linux`, `X64`, and `cwlab-ci-isolated` labels, with existing read-only checkout permissions and no persisted checkout credentials. Labels alone cannot enforce the separately scoped group eligibility boundary. The group name and labels are operator provisioning requirements, not evidence that the group exists, has correct repository/workflow access, or provides isolation. Before admitting public-PR code, the operator must establish a clean per-job environment with no inherited PR state and narrowly scoped repository/workflow access. Scheduled product-development migration remains deferred because a clean environment at job start does not separate model-produced verification code from a later credential-bearing publisher within that job. Existing control, scanner, inference, and GPU machines are not substitute capacity. Source conversion, eligible isolated provisioning, and exact-head terminal Actions success are recorded separately; missing capacity does not waive security, coverage, review, or branch protection.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
@@ -139,6 +143,10 @@ Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
+
+GitHub. (n.d.-a). *Secure use reference*. Retrieved October 3, 2026, from https://docs.github.com/en/actions/reference/security/secure-use
+
+GitHub. (n.d.-b). *Using self-hosted runners in a workflow*. Retrieved October 3, 2026, from https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
