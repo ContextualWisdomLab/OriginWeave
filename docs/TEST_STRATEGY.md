@@ -172,6 +172,10 @@ Hostile classes include:
 
 A hostile test must assert the safe failure/result, not merely that the process does not crash.
 
+Extraction-schema regression tests independently fix the documented maxima at 128 bytes for field/version identifiers and 256 distinct fields. They prove exact-limit acceptance, retained identifier bytes, field order and lookup, and adjacent 129-byte/257-field rejection. Isolated mutations of the inclusive comparisons and constants must fail these tests; production validation is not modified by the regression slice.
+
+A field-identifier grammar characterization pairs exact preservation of `a0_z9-a0_z9` with `InvalidIdentifier` for `ProductName`, `product.name`, `product/name`, `product_name ` (trailing space), `_product_name`, `product_name\u{e9}`, and `product\rname`. It guards existing ASCII-only grammar and refusal before identifier normalization, not a production fix or broader Unicode policy. Separate private mutations must expose each missing refusal while keeping the valid positive and existing malformed-input test passing; the delivered production validator remains unchanged. Field and schema constructors share the validator: lengths above 128 bytes produce `LimitExceeded` before first-byte `[a-z]` and remaining-byte `[a-z0-9_-]` checks produce `InvalidIdentifier`. Existing literal boundary and error-contract tests remain unchanged.
+
 ## 6. Prompt-injection and LLM tests
 
 Model behavior is nondeterministic evidence and must be surrounded by deterministic assertions.

@@ -324,3 +324,41 @@ fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overfl
     );
     Ok(())
 }
+
+/// Characterize existing identifier grammar without normalizing admitted field names.
+#[test]
+fn field_identifier_grammar_rejects_uncovered_characters_without_normalization()
+-> Result<(), ExtractionSchemaError> {
+    let valid_identifier = "a0_z9-a0_z9";
+    let accepted = field(
+        valid_identifier,
+        ExtractionValueType::Text,
+        ExtractionCardinality::One,
+        true,
+        &[ExtractionSourceChannel::SemanticNode],
+    )?;
+    assert_eq!(accepted.identifier(), valid_identifier);
+
+    for invalid_identifier in [
+        "ProductName",
+        "product.name",
+        "product/name",
+        "product_name ",
+        "_product_name",
+        "product_name\u{e9}",
+        "product\rname",
+    ] {
+        assert_eq!(
+            field(
+                invalid_identifier,
+                ExtractionValueType::Text,
+                ExtractionCardinality::One,
+                true,
+                &[ExtractionSourceChannel::SemanticNode],
+            ),
+            Err(ExtractionSchemaError::InvalidIdentifier),
+            "{invalid_identifier:?} must not be admitted or normalized",
+        );
+    }
+    Ok(())
+}
