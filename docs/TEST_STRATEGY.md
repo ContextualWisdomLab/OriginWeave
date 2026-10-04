@@ -26,6 +26,14 @@ For OriginWeave-owned production code:
 
 Coverage is necessary but not sufficient. Generated, unreachable, exclusion-heavy or assertion-light coverage does not replace behavioral proof.
 
+Repository-local Rust CI, production coverage, and MV3 compatibility jobs require both the `CWL CI isolated` runner group and the explicit `[self-hosted, Linux, X64, cwlab-ci-isolated]` labels. A matching label outside that group is not eligible. Source contracts check the exact block-format mapping for those three jobs and retain explicit credential-free checkout checks. Temporary fixtures reject label-only routing, absent or different groups, duplicate group or label keys, and scalar group content, while an otherwise-valid exact group-plus-labels mapping passes. The lexical checker guards this repository format; it is not a general YAML semantic parser. These assertions do not establish runner availability or isolation: the operator must verify repository/group/workflow eligibility and a pristine per-job environment with no protected-host or shared privileged-state access. Do not substitute existing control, scanner, inference, or GPU runners. Acceptance additionally requires exact-head Actions evidence of the intended workflow revision, a real runner identity, executed steps, and terminal gate success. Missing capacity does not waive coverage, security, review, or protection.
+
+The checkout credential contract inventories both `.yml` and `.yaml` files and checks the checkout step's own block `with` mapping for one literal `persist-credentials: false`. Temporary workflow fixtures exercise misleading comments, sibling environment values, nested scalar content, duplicate keys and duplicate mappings, alongside valid false controls. Unquoted, single-quoted and double-quoted checkout action references are inspected, including an unsafe quoted checkout after a safe step and otherwise-valid quoted false controls. Negative fixtures require exactly one assertion failure and zero errors or skips, so an unexpected checker exception cannot establish rejection. A separate injected-exception control tests this distinction. The helper supports the repository's current indentation and block-mapping format only; it is not a general semantic YAML parser or a proof of runtime isolation.
+
+Checkout action identification accepts one or more horizontal spaces or tabs after `uses:` within the current block-mapping format. Whitespace regression fixtures pair 18 unsafe extra-spacing cases with 24 valid explicit-false cases across three quote forms and both YAML extensions. Each inner checker must execute one test with zero errors and skips; unsafe cases must produce exactly one assertion failure. A separate retained 48-case matrix includes six ordinary single-space denials. These controls close `OW-CHECKOUT-WS-001` at the source-oracle boundary, not an observed credential leak or runtime isolation boundary.
+
+The existing scheduled product-development workflow is unchanged and its migration remains deferred. Source review finding `OW-SH-001` identifies candidate-code verification running with the same filesystem/process authority as a later token-bearing publisher. A pristine environment at job start does not separate these within-job authorities. Verification must execute in a credential-free isolated environment, with inert exact-source artifacts and source-bound verification receipts transferred to a separately pristine publisher that never executes candidate code. Until that boundary and runner provisioning are independently verified, neither scheduled migration nor organization-wide normalization is complete.
+
 ## 3. Test pyramid by authority layer
 
 ### 3.1 Pure value and policy contracts
@@ -39,6 +47,10 @@ Use deterministic unit/property tests for:
 - route/proxy authority values;
 - resource budgets and cumulative mitigation decisions;
 - evidence locator/digest/value-redaction rules.
+
+Sensitive-data disclosure and opaque-handle use each exercise all 36 ordered pairs of the six current data classifications: six exact matches remain permitted within an otherwise valid scope, and 30 mismatches fail closed. These matrices expand regression coverage of existing exact-classification authority; they do not introduce a sensitivity hierarchy or change production behavior.
+
+Fixture and test descriptions identify the canonical shipping origin, fixed shipment metadata, reclassification denial, and the two ordered-pair admission matrices. Adding these comments must leave every executable test byte unchanged after removal of only the added doc-comment lines. Local description checks and regression execution do not establish that an external review service has remeasured or cleared its documentation-coverage warning.
 
 ### 3.2 Stateful boundary tests
 
