@@ -42,6 +42,8 @@ Use deterministic unit/property tests for:
 
 Sensitive-data disclosure and opaque-handle use each exercise all 36 ordered pairs of the six current data classifications: six exact matches remain permitted within an otherwise valid scope, and 30 mismatches fail closed. These matrices expand regression coverage of existing exact-classification authority; they do not introduce a sensitivity hierarchy or change production behavior.
 
+Fixture and test descriptions identify the canonical shipping origin, fixed shipment metadata, reclassification denial, and the two ordered-pair admission matrices. Adding these comments must leave every executable test byte unchanged after removal of only the added doc-comment lines. Local description checks and regression execution do not establish that an external review service has remeasured or cleared its documentation-coverage warning.
+
 ### 3.2 Stateful boundary tests
 
 Use deterministic state-transition and concurrency tests for:

@@ -7,10 +7,12 @@ use originweave_policy::{
     evaluate_handle_use,
 };
 
+/// Return the canonical shipping origin used by every classification fixture.
 fn destination() -> Origin {
     Origin::parse("https://shipping.example").expect("canonical destination")
 }
 
+/// Build shipment authority metadata with only the supplied classification varying.
 fn authority(classification: DataClassification) -> SensitiveDataAuthority {
     SensitiveDataAuthority::new(
         "tenant_alpha",
@@ -22,6 +24,7 @@ fn authority(classification: DataClassification) -> SensitiveDataAuthority {
     )
 }
 
+/// Verify matching handle authority is admitted and a field reclassification is denied.
 #[test]
 fn opaque_handle_use_requires_the_exact_data_classification() {
     let scope =
@@ -43,6 +46,7 @@ fn opaque_handle_use_requires_the_exact_data_classification() {
     );
 }
 
+/// Check all 36 ordered classification pairs for exact-match handle admission or denial.
 #[test]
 fn every_distinct_classification_pair_fails_closed() {
     let classifications = [
@@ -72,6 +76,7 @@ fn every_distinct_classification_pair_fails_closed() {
     }
 }
 
+/// Check all 36 ordered classification pairs for scoped disclosure or mismatch denial.
 #[test]
 fn every_distinct_classification_pair_denies_disclosure() {
     let classifications = [
