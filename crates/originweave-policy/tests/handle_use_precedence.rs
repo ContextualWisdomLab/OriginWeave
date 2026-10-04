@@ -6,10 +6,12 @@ use originweave_policy::{
     SensitiveValueHandleScope, evaluate_handle_use,
 };
 
+/// Return the canonical shipping origin shared by both authority fixtures.
 fn destination() -> Origin {
     Origin::parse("https://shipping.example").expect("canonical destination")
 }
 
+/// Build tenant_alpha shipping metadata without carrying a protected address value.
 fn authority() -> SensitiveDataAuthority {
     SensitiveDataAuthority::new(
         "tenant_alpha",
@@ -21,6 +23,7 @@ fn authority() -> SensitiveDataAuthority {
     )
 }
 
+/// Change only the tenant to tenant_beta within otherwise identical shipping metadata.
 fn mismatched_authority() -> SensitiveDataAuthority {
     SensitiveDataAuthority::new(
         "tenant_beta",
@@ -32,6 +35,7 @@ fn mismatched_authority() -> SensitiveDataAuthority {
     )
 }
 
+/// Reject a foreign tenant despite expiry and exhaustion without fixing denial precedence.
 #[test]
 fn foreign_scope_is_denied_when_expired_and_exhausted() {
     let scope = SensitiveValueHandleScope::new(authority(), 2_000, 2);
@@ -42,6 +46,7 @@ fn foreign_scope_is_denied_when_expired_and_exhausted() {
     );
 }
 
+/// Return UseLimitReached for zero allowance on the first otherwise valid request.
 #[test]
 fn zero_max_uses_exhausts_the_handle_before_any_use() {
     let scope = SensitiveValueHandleScope::new(authority(), 2_000, 0);

@@ -214,6 +214,8 @@ Test wrong tenant/task/field/purpose/origin/audience, expired/revoked handle, ma
 
 Opaque-handle policy regression tests deny a foreign-scope request even when expiry and exhaustion also apply. They do not prescribe which denial reason takes precedence. A zero-use allowance rejects the first attempted use. These tests cover existing denial behavior, not a production behavior change or broker-integration evidence.
 
+Fixture descriptions identify the canonical shipping origin and the otherwise identical tenant_alpha and tenant_beta authority metadata. Test descriptions distinguish order-independent foreign-scope denial from the exact UseLimitReached result for a zero-use allowance. Removing only the added doc-comment lines must restore the previous executable test bytes. Local prose checks and regression execution do not prove an external review service has remeasured or cleared its documentation-coverage warning.
+
 ## 8. Resource and performance tests
 
 ### 8.1 Deterministic governor
