@@ -50,10 +50,12 @@ fn adversarial_header_and_query_variants_are_redacted_by_default() {
     assert!(evidence.query().values().all(|value| value == "[REDACTED]"));
 }
 
+/// Retain the exact admitted maximum path while rejecting oversized capture inputs.
 #[test]
 fn capture_enforces_path_count_and_value_boundaries() {
-    let maximum_path = format!("/{}", "a".repeat(MAX_PATH_BYTES - 1));
-    NetworkEvidence::capture(
+    assert_eq!(MAX_PATH_BYTES, 4_096);
+    let maximum_path = format!("/{}", "a".repeat(4_095));
+    let maximum_evidence = NetworkEvidence::capture(
         HttpMethod::Get,
         origin(),
         &maximum_path,
@@ -61,6 +63,7 @@ fn capture_enforces_path_count_and_value_boundaries() {
         BTreeMap::new(),
     )
     .expect("path at maximum length");
+    assert_eq!(maximum_evidence.path(), maximum_path);
     assert_eq!(
         NetworkEvidence::capture(
             HttpMethod::Get,
@@ -125,6 +128,36 @@ fn capture_enforces_path_count_and_value_boundaries() {
 }
 
 #[test]
+fn exact_query_field_limit_preserves_names_and_redacts_values() {
+    assert_eq!(MAX_QUERY_FIELD_COUNT, 128);
+    let query = (0..128)
+        .map(|index| {
+            (
+                format!("field-{index}"),
+                format!("synthetic-private-{index}"),
+            )
+        })
+        .collect();
+    let evidence = NetworkEvidence::capture(HttpMethod::Get, origin(), "/", BTreeMap::new(), query)
+        .expect("exactly 128 query fields are accepted");
+    assert_eq!(evidence.query().len(), 128);
+    for index in 0..128 {
+        assert_eq!(
+            evidence.query().get(&format!("field-{index}")),
+            Some(&"[REDACTED]".to_owned()),
+        );
+    }
+    let oversized = (0..129)
+        .map(|index| (format!("field-{index}"), "synthetic-private".to_owned()))
+        .collect();
+    assert_eq!(
+        NetworkEvidence::capture(HttpMethod::Get, origin(), "/", BTreeMap::new(), oversized),
+        Err(EvidenceError::LimitExceeded),
+    );
+}
+
+/// Retain the maximum admitted header name with its maximum input value redacted.
+#[test]
 fn capture_rejects_invalid_or_oversized_metadata_names() {
     for invalid_name in [
         String::new(),
@@ -144,17 +177,21 @@ fn capture_rejects_invalid_or_oversized_metadata_names() {
         );
     }
 
-    NetworkEvidence::capture(
+    assert_eq!(MAX_METADATA_NAME_BYTES, 256);
+    assert_eq!(MAX_METADATA_VALUE_BYTES, 8_192);
+    let exact_name = "x".repeat(256);
+    let exact_evidence = NetworkEvidence::capture(
         HttpMethod::Get,
         origin(),
         "/",
-        BTreeMap::from([(
-            "x".repeat(MAX_METADATA_NAME_BYTES),
-            "x".repeat(MAX_METADATA_VALUE_BYTES),
-        )]),
+        BTreeMap::from([(exact_name.clone(), "x".repeat(8_192))]),
         BTreeMap::new(),
     )
     .expect("metadata exactly at limits");
+    assert_eq!(
+        exact_evidence.headers(),
+        &BTreeMap::from([(exact_name, "[REDACTED]".to_owned())])
+    );
 }
 
 #[test]
@@ -200,8 +237,23 @@ fn capture_rejects_malformed_percent_escapes_and_ambiguous_segments() {
     .expect("unambiguous percent encoding");
 }
 
+/// Retain exact provenance URL and locator bytes at their independently bounded limits.
 #[test]
 fn provenance_text_fields_are_bounded_before_retention() {
+    assert_eq!(MAX_PROVENANCE_TEXT_BYTES, 8_192);
+    let exact_url = format!("https://example.com/{}", "a".repeat(4_095));
+    let exact_locator = "x".repeat(8_192);
+    let exact = ProvenanceRecord::new(
+        &exact_url,
+        &exact_locator,
+        VALID_HASH,
+        EvidenceSourceKind::NetworkResponse,
+        VerificationResult::Verified,
+    )
+    .expect("maximum path and locator are accepted without truncation");
+    assert_eq!(exact.source_url(), exact_url);
+    assert_eq!(exact.source_locator(), exact_locator);
+
     let oversized_url = format!(
         "https://example.com/{}",
         "a".repeat(MAX_PROVENANCE_TEXT_BYTES)

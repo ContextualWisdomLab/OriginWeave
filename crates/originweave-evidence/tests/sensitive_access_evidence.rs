@@ -148,6 +148,86 @@ fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() -> TestRes
 }
 
 #[test]
+fn exact_maximum_authority_identifiers_are_accepted() -> TestResult {
+    let mut input = valid_input()?;
+    input.request_id = "a".repeat(128);
+    input.decision_id = "a".repeat(128);
+    input.tenant_id = "a".repeat(128);
+    input.actor_id = "a".repeat(128);
+    input.task_id = "a".repeat(128);
+    input.purpose_id = "a".repeat(128);
+    input.policy_version = "a".repeat(128);
+    input.approval_reference = Some("a".repeat(128));
+    input.field_ids = vec!["a".repeat(128)];
+    let evidence = validated(input)?;
+    assert_eq!(evidence.request_id(), "a".repeat(128));
+    assert_eq!(evidence.decision_id(), "a".repeat(128));
+    assert_eq!(evidence.tenant_id(), "a".repeat(128));
+    assert_eq!(evidence.actor_id(), "a".repeat(128));
+    assert_eq!(evidence.task_id(), "a".repeat(128));
+    assert_eq!(evidence.purpose_id(), "a".repeat(128));
+    assert_eq!(evidence.policy_version(), "a".repeat(128));
+    let expected_approval = "a".repeat(128);
+    assert_eq!(
+        evidence.approval_reference(),
+        Some(expected_approval.as_str())
+    );
+    assert_eq!(evidence.field_ids(), &["a".repeat(128)]);
+    Ok(())
+}
+
+#[test]
+fn exact_maximum_field_set_is_accepted() -> TestResult {
+    assert_eq!(MAX_SENSITIVE_FIELD_COUNT, 64);
+    let mut input = valid_input()?;
+    input.field_ids = (0..MAX_SENSITIVE_FIELD_COUNT)
+        .map(|index| format!("field:{index}"))
+        .collect();
+    let evidence = validated(input)?;
+    let expected = (0..64)
+        .map(|index| format!("field:{index}"))
+        .collect::<Vec<_>>();
+    assert_eq!(evidence.field_ids(), expected);
+    Ok(())
+}
+
+/// Preserve ordinary and adjacent extreme epochs, including the maximum retention deadline.
+#[test]
+fn maximum_retention_and_adjacent_extreme_epochs_are_retained_exactly() -> TestResult {
+    let mut maximum_retention = valid_input()?;
+    maximum_retention.retention_deadline_epoch_seconds = Some(u64::MAX);
+    let maximum = validated(maximum_retention)?;
+    assert_eq!(maximum.retention_deadline_epoch_seconds(), Some(u64::MAX));
+
+    let mut input = valid_input()?;
+    input.decision_epoch_seconds = u64::MAX - 2;
+    input.disclosure_epoch_seconds = Some(u64::MAX - 1);
+    input.retention_deadline_epoch_seconds = Some(u64::MAX);
+    let evidence = validated(input)?;
+    assert_eq!(evidence.decision_epoch_seconds(), u64::MAX - 2);
+    assert_eq!(evidence.disclosure_epoch_seconds(), Some(u64::MAX - 1));
+    assert_eq!(evidence.retention_deadline_epoch_seconds(), Some(u64::MAX));
+    Ok(())
+}
+
+/// Preserve simultaneous decision and disclosure with the immediately following retention second.
+#[test]
+fn equal_decision_and_disclosure_retain_adjacent_retention() -> TestResult {
+    let mut input = valid_input()?;
+    input.decision_epoch_seconds = 1_786_176_000;
+    input.disclosure_epoch_seconds = Some(1_786_176_000);
+    input.retention_deadline_epoch_seconds = Some(1_786_176_001);
+    let evidence = validated(input)?;
+    assert_eq!(evidence.decision_epoch_seconds(), 1_786_176_000);
+    assert_eq!(evidence.disclosure_epoch_seconds(), Some(1_786_176_000));
+    assert_eq!(
+        evidence.retention_deadline_epoch_seconds(),
+        Some(1_786_176_001)
+    );
+    Ok(())
+}
+
+#[test]
 fn disclosure_and_retention_times_fail_closed_when_semantics_are_impossible() -> TestResult {
     let mut zero_decision = valid_input()?;
     zero_decision.decision_epoch_seconds = 0;
@@ -187,6 +267,7 @@ fn disclosure_and_retention_times_fail_closed_when_semantics_are_impossible() ->
     Ok(())
 }
 
+/// Preserve the exact optional disclosure timestamp for every documented outcome.
 #[test]
 fn every_disclosure_and_control_outcome_has_consistent_lifecycle_semantics() -> TestResult {
     let outcomes = [
@@ -211,8 +292,10 @@ fn every_disclosure_and_control_outcome_has_consistent_lifecycle_semantics() -> 
             | SensitiveAccessOutcome::HumanApprovalRequired
             | SensitiveAccessOutcome::DualControlRequired => None,
         };
+        let expected_disclosure = input.disclosure_epoch_seconds;
         let evidence = validated(input)?;
         assert_eq!(evidence.outcome(), outcome);
+        assert_eq!(evidence.disclosure_epoch_seconds(), expected_disclosure);
     }
     Ok(())
 }
