@@ -97,6 +97,8 @@ Include:
 - DNS contraction vs expansion/rebinding;
 - redirect downgrade, cycle, hop limit and new destination authorization.
 
+The redirect regression independently pins the documented 20-hop maximum: it admits exactly 20 authorized hops, retains the count, rejects the next redirect, and rejects a configured maximum of 21. Its fixture and expectations do not derive the boundary from `MAX_REDIRECT_HOPS`. Isolated 19/21 constant mutations must fail the relevant authorization assertion; otherwise-valid target, grant, digest, and resolution inputs remain. This verifies redirect-guard admission only, not HTTP or network redirects.
+
 ### 4.2 Route / TCP
 
 Include direct-only default, unauthorized proxy/PAC origin, PAC-selected DIRECT vs proxy authority, exact address set membership, port/timeout/attempt bounds, permission/input/address errors, transient retry allow-list, exact peer mismatch and single-use plan replay.
