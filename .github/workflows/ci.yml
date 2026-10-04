@@ -17,7 +17,10 @@ jobs:
   rust:
     if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     name: Rust contracts
-    runs-on: ubuntu-24.04
+    # Operator-provisioned clean per-job isolation; no hosted/control fallback.
+    runs-on:
+      group: CWL CI isolated
+      labels: [self-hosted, Linux, X64, cwlab-ci-isolated]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,7 +69,10 @@ jobs:
   coverage:
     if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     name: Production coverage
-    runs-on: ubuntu-24.04
+    # Operator-provisioned clean per-job isolation; no hosted/control fallback.
+    runs-on:
+      group: CWL CI isolated
+      labels: [self-hosted, Linux, X64, cwlab-ci-isolated]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
