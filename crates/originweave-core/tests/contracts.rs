@@ -46,6 +46,17 @@ fn origin_accepts_secure_and_loopback_origins() {
     );
 }
 
+/// Explicit IPv6 loopback HTTP port 80 must not create a distinct origin receipt.
+#[test]
+fn origin_omits_explicit_ipv6_default_port_from_canonical_receipt() -> Result<(), OriginError> {
+    let explicit_default = Origin::parse("http://[::1]:80")?;
+    let implicit_default = Origin::parse("http://[::1]")?;
+
+    assert_eq!(explicit_default.as_str(), "http://[::1]");
+    assert_eq!(explicit_default, implicit_default);
+    Ok(())
+}
+
 #[test]
 fn origin_rejects_ambiguous_or_insecure_remote_inputs() {
     let cases = [
