@@ -181,6 +181,40 @@ class SelfHostedRunnerContractTests(unittest.TestCase):
                 with self.subTest(quote=quote, suffix=suffix):
                     self.assert_fixture_rejected(self.checkout_fixture_result(step, suffix))
 
+    def test_extra_whitespace_checkout_after_safe_checkout_is_rejected(self) -> None:
+        """Horizontal spacing cannot hide a later checkout without explicit false."""
+        for spacing in ("  ", "\t", " \t "):
+            for quote in ("", "'", '"'):
+                for suffix in (".yml", ".yaml"):
+                    step = (
+                        "uses: actions/checkout@fixture\n        with:\n"
+                        "          persist-credentials: false\n"
+                        f"      - uses:{spacing}{quote}actions/checkout@fixture{quote}\n"
+                    )
+                    with self.subTest(spacing=spacing, quote=quote, suffix=suffix):
+                        result = self.checkout_fixture_result(step, suffix)
+                        self.assertEqual(result.testsRun, 1)
+                        self.assert_fixture_rejected(result)
+
+    def test_horizontal_whitespace_checkout_with_explicit_false_is_accepted(self) -> None:
+        """All supported spacing and quote forms admit otherwise valid false mappings."""
+        for spacing in (" ", "  ", "\t", " \t "):
+            for quote in ("", "'", '"'):
+                for suffix in (".yml", ".yaml"):
+                    step = (
+                        "uses: actions/checkout@fixture\n        with:\n"
+                        "          persist-credentials: false\n"
+                        f"      - uses:{spacing}{quote}actions/checkout@fixture{quote}\n"
+                        "        with:\n          persist-credentials: false\n"
+                    )
+                    with self.subTest(spacing=spacing, quote=quote, suffix=suffix):
+                        result = self.checkout_fixture_result(step, suffix)
+                        self.assertEqual(result.testsRun, 1)
+                        self.assertEqual(result.errors, [])
+                        self.assertEqual(result.failures, [])
+                        self.assertEqual(result.skipped, [])
+                        self.assertTrue(result.wasSuccessful())
+
     def test_quoted_checkout_with_explicit_false_is_accepted(self) -> None:
         """Both valid YAML quote forms preserve the explicit false checkout control."""
         for quote in ('"', "'"):
@@ -223,7 +257,7 @@ class SelfHostedRunnerContractTests(unittest.TestCase):
             blocks = [
                 step for step in steps
                 if re.search(
-                    r'''^(?:        )?uses: (?:actions/checkout@[^\s'"#]+|"actions/checkout@[^"\n]+"|'actions/checkout@[^'\n]+')[ \t]*(?:#.*)?$''',
+                    r'''^(?:        )?uses:[ \t]+(?:actions/checkout@[^\s'"#]+|"actions/checkout@[^"\n]+"|'actions/checkout@[^'\n]+')[ \t]*(?:#.*)?$''',
                     step,
                     re.MULTILINE,
                 )
