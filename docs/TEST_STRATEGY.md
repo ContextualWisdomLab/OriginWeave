@@ -218,6 +218,8 @@ Sensitive-access evidence regressions accept the documented exact 128-byte autho
 
 At those accepted bounds, compare the exact request, decision, tenant, actor, task, purpose, policy-version and optional approval-reference identifiers, the 128-byte field identifier, and the complete ordered 64-field list returned by the receipt. Independent expected literals must detect truncation after valid admission, not merely successful construction. Isolated producer mutations shorten each 128-byte identifier to 127 bytes or omit the last of 64 fields; every mutation must fail the relevant getter assertion while unchanged production passes. These synthetic checks expose a test-oracle gap, not an observed production defect or a disclosure/broker integration result.
 
+Accepted evidence-retention boundaries also compare the exact 4,096-byte request path, the 256-byte header name paired with a redacted 8,192-byte input value, and provenance source URL/path and 8,192-byte locator bytes. The source URL uses the accepted 4,096-byte path budget, not an assumed 8,192-byte URL acceptance limit. Sensitive-access receipts preserve `u64::MAX` retention, adjacent extreme epochs, equal decision/disclosure times with retention one second later, and each documented outcome's optional disclosure timestamp. These are test-only characterizations of existing constructors and accessors. First-GREEN on unchanged production is not a reproduced production defect; private retained-output corruption probes provide separate sensitivity RED evidence, with production bytes restored exactly. They establish neither operational retention/deletion nor broker, disclosure, browser, hosted-CI or release acceptance.
+
 ## 8. Resource and performance tests
 
 ### 8.1 Deterministic governor

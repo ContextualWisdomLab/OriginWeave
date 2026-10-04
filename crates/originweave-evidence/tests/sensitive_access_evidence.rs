@@ -191,6 +191,42 @@ fn exact_maximum_field_set_is_accepted() -> TestResult {
     Ok(())
 }
 
+/// Preserve ordinary and adjacent extreme epochs, including the maximum retention deadline.
+#[test]
+fn maximum_retention_and_adjacent_extreme_epochs_are_retained_exactly() -> TestResult {
+    let mut maximum_retention = valid_input()?;
+    maximum_retention.retention_deadline_epoch_seconds = Some(u64::MAX);
+    let maximum = validated(maximum_retention)?;
+    assert_eq!(maximum.retention_deadline_epoch_seconds(), Some(u64::MAX));
+
+    let mut input = valid_input()?;
+    input.decision_epoch_seconds = u64::MAX - 2;
+    input.disclosure_epoch_seconds = Some(u64::MAX - 1);
+    input.retention_deadline_epoch_seconds = Some(u64::MAX);
+    let evidence = validated(input)?;
+    assert_eq!(evidence.decision_epoch_seconds(), u64::MAX - 2);
+    assert_eq!(evidence.disclosure_epoch_seconds(), Some(u64::MAX - 1));
+    assert_eq!(evidence.retention_deadline_epoch_seconds(), Some(u64::MAX));
+    Ok(())
+}
+
+/// Preserve simultaneous decision and disclosure with the immediately following retention second.
+#[test]
+fn equal_decision_and_disclosure_retain_adjacent_retention() -> TestResult {
+    let mut input = valid_input()?;
+    input.decision_epoch_seconds = 1_786_176_000;
+    input.disclosure_epoch_seconds = Some(1_786_176_000);
+    input.retention_deadline_epoch_seconds = Some(1_786_176_001);
+    let evidence = validated(input)?;
+    assert_eq!(evidence.decision_epoch_seconds(), 1_786_176_000);
+    assert_eq!(evidence.disclosure_epoch_seconds(), Some(1_786_176_000));
+    assert_eq!(
+        evidence.retention_deadline_epoch_seconds(),
+        Some(1_786_176_001)
+    );
+    Ok(())
+}
+
 #[test]
 fn disclosure_and_retention_times_fail_closed_when_semantics_are_impossible() -> TestResult {
     let mut zero_decision = valid_input()?;
@@ -231,6 +267,7 @@ fn disclosure_and_retention_times_fail_closed_when_semantics_are_impossible() ->
     Ok(())
 }
 
+/// Preserve the exact optional disclosure timestamp for every documented outcome.
 #[test]
 fn every_disclosure_and_control_outcome_has_consistent_lifecycle_semantics() -> TestResult {
     let outcomes = [
@@ -255,8 +292,10 @@ fn every_disclosure_and_control_outcome_has_consistent_lifecycle_semantics() -> 
             | SensitiveAccessOutcome::HumanApprovalRequired
             | SensitiveAccessOutcome::DualControlRequired => None,
         };
+        let expected_disclosure = input.disclosure_epoch_seconds;
         let evidence = validated(input)?;
         assert_eq!(evidence.outcome(), outcome);
+        assert_eq!(evidence.disclosure_epoch_seconds(), expected_disclosure);
     }
     Ok(())
 }
