@@ -159,10 +159,20 @@ fn exact_maximum_authority_identifiers_are_accepted() -> TestResult {
     input.policy_version = "a".repeat(128);
     input.approval_reference = Some("a".repeat(128));
     input.field_ids = vec!["a".repeat(128)];
-    assert!(
-        SensitiveAccessEvidence::try_from(input).is_ok(),
-        "all authority identifiers accept the documented 128-byte maximum"
+    let evidence = validated(input)?;
+    assert_eq!(evidence.request_id(), "a".repeat(128));
+    assert_eq!(evidence.decision_id(), "a".repeat(128));
+    assert_eq!(evidence.tenant_id(), "a".repeat(128));
+    assert_eq!(evidence.actor_id(), "a".repeat(128));
+    assert_eq!(evidence.task_id(), "a".repeat(128));
+    assert_eq!(evidence.purpose_id(), "a".repeat(128));
+    assert_eq!(evidence.policy_version(), "a".repeat(128));
+    let expected_approval = "a".repeat(128);
+    assert_eq!(
+        evidence.approval_reference(),
+        Some(expected_approval.as_str())
     );
+    assert_eq!(evidence.field_ids(), &["a".repeat(128)]);
     Ok(())
 }
 
@@ -173,10 +183,11 @@ fn exact_maximum_field_set_is_accepted() -> TestResult {
     input.field_ids = (0..MAX_SENSITIVE_FIELD_COUNT)
         .map(|index| format!("field:{index}"))
         .collect();
-    assert!(
-        SensitiveAccessEvidence::try_from(input).is_ok(),
-        "64 distinct field identifiers are the documented accepted maximum"
-    );
+    let evidence = validated(input)?;
+    let expected = (0..64)
+        .map(|index| format!("field:{index}"))
+        .collect::<Vec<_>>();
+    assert_eq!(evidence.field_ids(), expected);
     Ok(())
 }
 

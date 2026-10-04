@@ -216,6 +216,8 @@ Network evidence regressions accept exactly 128 query fields, retain every admit
 
 Sensitive-access evidence regressions accept the documented exact 128-byte authority-identifier limit and 64 distinct protected-field identifiers. Assert the field-count constant independently against the documented literal 64 so a changed production limit cannot silently resize the accepted fixture. Keep the existing oversized, empty, malformed, and duplicate rejection cases; these receipts contain authority metadata, not protected values or disclosure authority.
 
+At those accepted bounds, compare the exact request, decision, tenant, actor, task, purpose, policy-version and optional approval-reference identifiers, the 128-byte field identifier, and the complete ordered 64-field list returned by the receipt. Independent expected literals must detect truncation after valid admission, not merely successful construction. Isolated producer mutations shorten each 128-byte identifier to 127 bytes or omit the last of 64 fields; every mutation must fail the relevant getter assertion while unchanged production passes. These synthetic checks expose a test-oracle gap, not an observed production defect or a disclosure/broker integration result.
+
 ## 8. Resource and performance tests
 
 ### 8.1 Deterministic governor
