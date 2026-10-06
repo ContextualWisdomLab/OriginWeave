@@ -1,0 +1,19 @@
+[package]
+name = "originweave-runtime"
+description = "OriginWeave agent-task step admission service."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+originweave-bap = { path = "../originweave-bap" }
+originweave-core = { path = "../originweave-core" }
+originweave-policy = { path = "../originweave-policy" }
+
+[lints]
+workspace = true

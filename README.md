@@ -39,6 +39,7 @@ The repository is organized as independently consumable Rust crates:
 - `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
+- `originweave-runtime`: pure agent-task step admission. It joins the BAP task lifecycle, a validated MCP route and the policy decision. A step that policy allows returns a single-use dispatch permit, a step that needs approval moves the task to `WaitingForApproval`, and a task that is not `Running` cannot admit a step. It performs no I/O, browser control or persistence.
 
 Protected main additionally contains an `originweave-core` MCP routing registry and `originweave-policy` binding for the MCP `2026-07-28` `tools/call` boundary. That shipped foundation validates and maps an explicit tool name to an existing typed action while preserving normal OriginWeave policy. Active PR #170 adds non-shipped conservative `tools/list` discovery metadata derived from the same reviewed catalog. Neither boundary implements transport parsing, OAuth, browser control, secret materialization, persistence, or ambient authority.
 

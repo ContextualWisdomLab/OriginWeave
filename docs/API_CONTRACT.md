@@ -248,6 +248,8 @@ Request is a typed action intent, conceptually:
 
 The caller/model cannot self-authorize `risk_class`, capability or approval simply by setting fields; the deterministic control plane computes/revalidates effective policy.
 
+Step admission is the first control-plane gate for an action. `originweave_runtime::admit_step` admits a step only for a task in the `Running` state. It evaluates the validated MCP route and action request through normal policy. An allowed step receives a single-use dispatch permit. A step that requires approval suspends the task in `WaitingForApproval` and receives no permit. A denied step leaves the task state unchanged.
+
 Immediately before dispatch, the runtime revalidates:
 
 - session/context/document/node authority;
