@@ -6,6 +6,8 @@ use originweave_bap::{
     MAX_BAP_TENANT_ID_BYTES,
 };
 
+/// Validate reconstruction in this process and replay exact supplied transition evidence.
+/// This does not exercise authenticated storage or process-loss recovery.
 #[test]
 fn exact_transition_evidence_restores_receipt_replay_without_second_mutation() {
     let mut lifecycle = BapTaskLifecycle::new();
@@ -36,15 +38,17 @@ fn exact_transition_evidence_restores_receipt_replay_without_second_mutation() {
             "task-a",
             BapTaskEvent::Admit,
         )
-        .expect("exact retry must replay after authenticated transition recovery");
+        .expect("exact retry must replay after validated transition reconstruction");
 
     assert_eq!(replay, receipt);
     assert_eq!(restored.state(), BapTaskState::Admitted);
     assert_eq!(restored.transition_sequence(), 1);
 }
 
+/// Reconstruct primitive receipt fields in this process without claiming a crash or storage proof.
+/// The representation can support a caller-owned cross-process boundary, which this test does not run.
 #[test]
-fn persisted_receipt_fields_can_be_reconstructed_for_cross_process_replay() {
+fn primitive_receipt_fields_can_be_reconstructed_for_in_process_replay() {
     let mut lifecycle = BapTaskLifecycle::new();
     let issued = lifecycle
         .apply_with_receipt("retry-1", "tenant-a", "task-a", BapTaskEvent::Admit)
@@ -64,7 +68,7 @@ fn persisted_receipt_fields_can_be_reconstructed_for_cross_process_replay() {
         issued.task_id(),
         restored_transition,
     )
-    .expect("persisted receipt fields must restore after process loss");
+    .expect("supplied primitive receipt fields must reconstruct");
     let mut restored_lifecycle = BapTaskLifecycle::restore_with_transition(
         accepted.current_state(),
         accepted.sequence(),

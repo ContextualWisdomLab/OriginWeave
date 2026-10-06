@@ -355,7 +355,10 @@ impl BapCommandReceipt {
 
     /// Reconstruct one command receipt from persisted retry metadata and validated transition evidence.
     ///
-    /// This revalidates the bounded retry identifiers before reconstructing the immutable receipt.
+    /// This revalidates the bounded retry identifiers and preserves caller-trusted metadata with
+    /// the supplied validated transition. It cannot verify original issuance bindings: different
+    /// valid retry, tenant, or task metadata can reconstruct a different immutable receipt for the
+    /// same transition. The caller must establish the original binding at its trusted boundary.
     /// It does not authenticate the persistence boundary, authorize the tenant or task, or prove that
     /// the supplied transition was durably committed with any external browser or network side effect.
     pub fn restore(
@@ -597,9 +600,11 @@ impl BapTaskLifecycle {
     ///
     /// This remains an in-memory contract: it identifies an exact retry within the caller-supplied
     /// tenant namespace but does not authenticate that namespace, authorize the operation, provide
-    /// durable deduplication, or suppress side effects. Receipts can only be minted at this
-    /// accepted-command boundary; callers cannot rebind an accepted transition to different retry,
-    /// tenant, or task metadata afterward.
+    /// durable deduplication, or suppress side effects. The normal issuance path binds the supplied
+    /// metadata when this call accepts the event; the resulting receipt is immutable.
+    /// [`BapCommandReceipt::restore`] separately reconstructs caller-trusted metadata with a validated
+    /// transition and cannot verify original issuance bindings. Valid different metadata can therefore
+    /// reconstruct a different receipt for the same transition without accepting another event.
     pub fn apply_with_receipt(
         &mut self,
         idempotency_key: &str,
@@ -625,7 +630,10 @@ impl BapTaskLifecycle {
     ///
     /// Exact tenant, idempotency-key, task, and event equality must match the retained receipt, and
     /// that receipt's accepted transition must equal this lifecycle's most recently accepted
-    /// transition. Stale, foreign, divergent-history, or state-only restored lifecycles fail closed.
+    /// transition. Stale position, differing last-transition evidence, or state-only restored snapshots
+    /// fail closed. Equal final tuples can replay across separate instances or convergent histories;
+    /// this comparison does not establish instance identity or earlier-history authentication.
+    /// Receipt metadata is compared as supplied, not checked against an original issuance record.
     /// This validates retry identity and lifecycle position only; it does not authenticate persisted
     /// evidence, authorize redispatch, or suppress browser/network side effects.
     pub fn validate_replay(
@@ -657,8 +665,10 @@ impl BapTaskLifecycle {
     /// A caller that has already looked up a retained receipt may supply it here. Exact tenant,
     /// idempotency-key, task, and event equality plus an exact match between the receipt's accepted
     /// transition and this lifecycle's most recently accepted transition returns that immutable receipt
-    /// without mutating the lifecycle again. Command mismatch or stale/foreign/divergent lifecycle
-    /// history fails closed. `None` follows the normal validation and transition path in
+    /// without mutating the lifecycle again. Command mismatch, stale position, differing last-transition
+    /// evidence, or missing last-transition evidence fails closed. Equal final tuples do not identify
+    /// a unique instance or authenticate earlier history or original metadata bindings.
+    /// `None` follows the normal validation and transition path in
     /// [`Self::apply_with_receipt`]. This helper does not provide receipt storage, concurrent exclusion,
     /// authentication, authorization, or suppression of browser/network side effects; those remain
     /// responsibilities of their owning runtime boundaries.

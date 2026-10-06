@@ -26,8 +26,11 @@ fn receipt_binds_tenant_task_event_and_transition_for_replay_identification() {
     assert!(!receipt.matches("request-1", "tenant-1", "task-1", BapTaskEvent::Start));
 }
 
+/// Keep the receipt API free of the unchecked constructor spelling `pub fn new(`.
+///
+/// This narrow lexical guard does not forbid validated public restoration or metadata rebinding.
 #[test]
-fn receipt_cannot_be_minted_from_an_already_accepted_transition() {
+fn receipt_has_no_unchecked_public_new_constructor() {
     let source = include_str!("../src/lib.rs");
     let receipt_impl = source
         .split("impl BapCommandReceipt {")
@@ -39,7 +42,7 @@ fn receipt_cannot_be_minted_from_an_already_accepted_transition() {
 
     assert!(
         !receipt_impl.contains("pub fn new("),
-        "public receipt construction can rebind an accepted transition to arbitrary retry/task metadata",
+        "unchecked public new constructor must remain absent; validated restore is supported",
     );
 }
 

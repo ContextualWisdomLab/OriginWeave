@@ -116,6 +116,15 @@ accepted transition evidence. It does not define a `task_id` session scope, oper
 kind, or semantic request-contract validation, and the tenant identifier is not
 authentication or authorization evidence. The receipt is not persisted and does not
 claim durable deduplication or suppression of an ambiguous external side effect.
+The normal issuance path binds metadata when `apply_with_receipt` accepts an event.
+`BapCommandReceipt::restore` separately preserves valid caller-trusted metadata with
+supplied validated transition evidence; it cannot verify original issuance bindings.
+Different valid metadata can reconstruct a different receipt for the same transition
+without accepting another event. Replay checks supplied metadata/event equality and
+current state, sequence, and last-transition equality only. Differing last-transition
+evidence or missing evidence is rejected, but equal final tuples do not establish
+instance identity or earlier-history authentication. The trusted caller must establish
+original metadata bindings, instance identity, and persistence integrity separately.
 
 ## 8. Deadline and cancellation
 

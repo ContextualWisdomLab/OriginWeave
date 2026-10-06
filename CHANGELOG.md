@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added
+- Added a test-only BAP in-memory lifecycle matrix: two test functions characterize all 156 current state/event pairs, checking accepted-event receipt fields and sequence advancement, exact rejection errors, and rejected state/sequence nonmutation. This is characterization of existing behavior, not a production repair, durable deduplication, whole-history preservation, or browser/runtime acceptance.
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
 - Refreshed the product and technical gap baseline onto the 2026-08-26 live inventory: 126 open pull requests (54 ready, 72 draft), protected-main promotion of #168/#194/#196/#216/#151, a verified maintenance-loop record (supersession closure of #153, conflict reconciliations on #37/#149/#152/#173/#175, issue #212 option-(b) authorization on #43, Strix vuln-0001 homoglyph remediation on #124), provider-rerun outcome evidence, an organization review-pipeline congestion record, and refreshed merge-order queue guidance. Documentation evidence contracts were aligned to the same snapshot so the baseline, its dated markers, and the pinned exact-head rows cannot silently diverge.
 
@@ -49,7 +50,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
-- Receipt replay now additionally requires the lifecycle's actual most recently accepted transition to equal the retained receipt transition; same-state/same-sequence divergent histories and state-only restored snapshots fail closed instead of replaying ambiguous command evidence.
+- Clarified BAP normal issuance versus caller-trusted receipt reconstruction: validated `restore` preserves supplied metadata but cannot verify original issuance bindings. Added literal contract rejection and public-API characterization with metadata/mismatch controls; production executable behavior and intended unauthenticated recovery remain unchanged.
+
+- Receipt replay now additionally requires the lifecycle's most recently accepted transition to equal the retained receipt transition; differing last-transition evidence at the same state/sequence and state-only restored snapshots fail closed. Equal final tuples do not establish instance identity or authenticate earlier history.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.

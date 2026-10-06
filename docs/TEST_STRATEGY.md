@@ -51,6 +51,26 @@ Use deterministic state-transition and concurrency tests for:
 - tenant/task/profile isolation;
 - resource admission and mitigation sequencing.
 
+#### BAP lifecycle matrix characterization
+
+`crates/originweave-bap/tests/task_transition_matrix.rs` adds a test-only,
+in-memory characterization of the current 12 states and 13 events. Its two
+Cargo test functions iterate 156 state/event pairs: 34 accepted transitions,
+57 invalid non-terminal transitions, and 65 terminal rejections. Accepted
+transitions check the receipt's previous/current state, requested event, and
+sequence, plus the lifecycle's state and single sequence increment. Rejections
+check the exact error and unchanged state/sequence; terminal errors take
+precedence over ordinary transition dispatch.
+
+The literal oracle characterizes existing behavior, not a production repair.
+Private sensitivity evidence separately exercises receipt-event corruption,
+rejected-sequence advancement, and terminal reopening; these are intentional
+corruptions, not observed production defects. The matrix does not prove full
+`last_transition` nonmutation, every sequence-exhaustion precedence combination,
+or automatic completeness after future enum changes. It provides no durable
+storage, authentication, concurrent deduplication, external side-effect,
+browser/runtime, coverage-percentage, or whole-PR acceptance evidence.
+
 ### 3.3 Real protocol integration
 
 Use loopback or hermetic real implementations, not mocks alone, for:
