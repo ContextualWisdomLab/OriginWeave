@@ -80,7 +80,7 @@ Owns stable value contracts without I/O:
 
 ### `originweave-policy`
 
-Owns a pure decision function. It denies human-mode agent control, untrusted instruction promotion, missing capabilities, unauthorized origins, crawler mutation, cross-origin mutation, absent robots evidence, unsafe secret delivery, R5 actions, and mismatched action, target-origin, or intent approvals.
+Owns a pure decision function. It denies human-mode agent control, untrusted instruction promotion, missing capabilities, unauthorized origins, crawler mutation, cross-origin mutation, absent robots evidence, unsafe secret delivery, R5 actions, and mismatched action, target-origin, or intent approvals. It also contains an I/O-free RFC 9309 evaluator that parses a bounded robots body, selects the crawler's groups, applies longest-match precedence, and returns a value-free `RobotsDecision` with its basis; it never fetches or caches robots files.
 
 ### `originweave-destination`
 
