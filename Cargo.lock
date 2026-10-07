@@ -308,6 +308,15 @@ name = "originweave-resource"
 version = "0.1.0"
 
 [[package]]
+name = "originweave-runtime"
+version = "0.1.0"
+dependencies = [
+ "originweave-bap",
+ "originweave-core",
+ "originweave-policy",
+]
+
+[[package]]
 name = "originweave-tls"
 version = "0.1.0"
 dependencies = [

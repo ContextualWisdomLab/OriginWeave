@@ -137,6 +137,20 @@ Owns validated task budgets and deterministic cumulative mitigation plans. Platf
 
 Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. Body capture, typed metadata values, WARC serialization, object storage, retention, encryption, and legal policy remain future bounded modules.
 
+### `originweave-bap`
+
+Owns the in-memory BAP task-lifecycle state machine under Proposed ADR 0016. A lifecycle state grants no execution authority, and the crate performs no persistence.
+
+### `originweave-runtime`
+
+Owns agent-task step admission. `admit_step` joins three existing authorities into one decision for each agent step:
+
+- the BAP lifecycle must be `Running`, or the step is rejected before policy evaluation;
+- the validated MCP route and the action request pass through `originweave-policy` unchanged;
+- `Allow` returns a single-use, non-cloneable `DispatchPermit` bound to the action, MCP tool, target origin, intent digest and task sequence; `RequireApproval` applies `WaitForApproval` and returns the transition; `Deny` leaves the lifecycle unchanged.
+
+The crate is pure. It does not dispatch browser actions, verify post-conditions, persist transitions or resume suspended tasks. Adapters such as a future MCP server or BiDi/CDP adapter must call it instead of joining these authorities themselves.
+
 ## 6. Planned modules
 
 ```text
@@ -176,6 +190,7 @@ user intent
 → canonical complete intent
 → immutable intent digest
 → typed request
+→ agent-task step admission (task must be Running; approval-required steps suspend the task)
 → instruction-source check
 → capability and browser-equivalent origin check
 → resolved-destination approval and pinning
