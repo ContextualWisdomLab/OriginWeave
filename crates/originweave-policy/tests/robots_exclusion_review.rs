@@ -40,11 +40,12 @@ fn non_utf8_user_agent_lines_still_start_their_own_group() {
     let rule = b"User-agent: *\nDisallow: /x # caf\xe9\n";
     assert_eq!(decide(rule, "bot", "/x/y"), RobotsDecision::Disallowed);
 
-    // A rule line with a non-UTF-8 value is ignored but still ends the user-agent run.
+    // A non-UTF-8 rule retains its octets and still ends the user-agent run.
     let split = b"User-agent: a\nDisallow: /bad\xff\nUser-agent: b\nDisallow: /\n";
     assert_eq!(decide(split, "a", "/x"), RobotsDecision::Allowed);
     assert_eq!(decide(split, "b", "/x"), RobotsDecision::Disallowed);
-    assert_eq!(RobotsRules::parse(split).rule_count(), 1);
+    assert_eq!(RobotsRules::parse(split).rule_count(), 2);
+    assert_eq!(decide(split, "a", "/bad%FF"), RobotsDecision::Disallowed);
 }
 
 #[test]
@@ -145,5 +146,44 @@ fn parsed_rules_and_fetch_outcomes_debug_without_values() {
     assert_eq!(
         format!("{:?}", RobotsFetchOutcome::RedirectLimitExceeded),
         "RedirectLimitExceeded"
+    );
+}
+
+#[test]
+fn non_utf8_rule_octets_match_without_discarding_exclusions() {
+    let body = b"User-agent: *\nDisallow: /caf\xe9\nDisallow: /bad\xff$\nAllow: /caf\xe9/public\n";
+    assert_eq!(decide(body, "bot", "/caf%E9"), RobotsDecision::Disallowed);
+    assert_eq!(
+        decide(body, "bot", "/caf%e9/private"),
+        RobotsDecision::Disallowed
+    );
+    assert_eq!(
+        decide(body, "bot", "/caf%E9/public"),
+        RobotsDecision::Allowed
+    );
+    assert_eq!(decide(body, "bot", "/bad%FF"), RobotsDecision::Disallowed);
+    assert_eq!(decide(body, "bot", "/bad%FF/x"), RobotsDecision::Allowed);
+    assert_eq!(decide(body, "bot", "/caf%C3%A9"), RobotsDecision::Allowed);
+    assert_eq!(RobotsRules::parse(body).rule_count(), 3);
+    let spaced = b"User-agent: *\nDisallow: \t /caf\xe9 \t\nDisallow: \t \n";
+    assert_eq!(decide(spaced, "bot", "/caf%E9"), RobotsDecision::Disallowed);
+    assert_eq!(RobotsRules::parse(spaced).rule_count(), 1);
+
+    for invalid in [
+        b"/bad\xff x".as_slice(),
+        b"/bad\xff\x01",
+        b"/bad\xff\x7f",
+        b"/bad\xff\tend",
+        b"relative\xff",
+    ] {
+        let mut body = b"User-agent: *\nDisallow: ".to_vec();
+        body.extend_from_slice(invalid);
+        body.push(b'\n');
+        assert_eq!(RobotsRules::parse(&body).rule_count(), 0);
+    }
+    // A valid UTF-8 C1 control remains rejected even though its bytes are non-ASCII.
+    assert_eq!(
+        RobotsRules::parse(b"User-agent: *\nDisallow: /bad\xc2\x85\n").rule_count(),
+        0
     );
 }

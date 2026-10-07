@@ -247,19 +247,27 @@ struct RulePattern {
 
 impl RulePattern {
     /// Accept a trimmed, non-empty rule value or return `None` to ignore it.
-    fn parse(value: &str) -> Option<Self> {
-        if !value.starts_with(['/', '*']) {
+    fn parse(value: &[u8]) -> Option<Self> {
+        if !matches!(value.first(), Some(b'/' | b'*')) {
             return None;
         }
-        // Only ASCII space/tab delimit records; other Unicode whitespace is
-        // a literal path octet sequence. Controls remain invalid.
-        if value.contains(|character: char| character.is_control() | (character == ' ')) {
+        // Preserve Unicode control rejection for UTF-8. Other encodings retain
+        // their exact octets, without transcoding or replacement characters.
+        let invalid = match std::str::from_utf8(value) {
+            Ok(text) => {
+                text.contains(|character: char| character.is_control() | (character == ' '))
+            }
+            Err(_) => value
+                .iter()
+                .any(|byte| byte.is_ascii_control() | (*byte == b' ')),
+        };
+        if invalid {
             return None;
         }
         let (raw, anchored) = value
-            .strip_suffix('$')
+            .strip_suffix(b"$")
             .map_or((value, false), |raw| (raw, true));
-        let text = normalize(raw.as_bytes(), true);
+        let text = normalize(raw, true);
         Some(Self {
             specificity: text.len() + usize::from(anchored),
             text,
@@ -460,6 +468,21 @@ impl RobotsRules {
     }
 }
 
+/// Trim only RFC 9309 record whitespace, leaving all other control octets for validation.
+fn trim_record_bytes(mut value: &[u8]) -> &[u8] {
+    while let Some((first, rest)) = value.split_first()
+        && matches!(first, b' ' | b'\t')
+    {
+        value = rest;
+    }
+    while let Some((last, rest)) = value.split_last()
+        && matches!(last, b' ' | b'\t')
+    {
+        value = rest;
+    }
+    value
+}
+
 /// Incremental group builder used by [`RobotsRules::parse`].
 #[derive(Default)]
 struct Parser {
@@ -495,10 +518,7 @@ impl Parser {
         } else {
             return;
         };
-        self.in_agent_run = false;
-        if let Ok(value) = std::str::from_utf8(value) {
-            self.rule(kind, line_number, value.trim_matches(RECORD_WHITESPACE));
-        }
+        self.rule(kind, line_number, trim_record_bytes(value));
     }
 
     fn user_agent(&mut self, value: &str) {
@@ -521,7 +541,7 @@ impl Parser {
         group.agents.push(token.to_owned());
     }
 
-    fn rule(&mut self, kind: RobotsRuleKind, line_number: usize, value: &str) {
+    fn rule(&mut self, kind: RobotsRuleKind, line_number: usize, value: &[u8]) {
         self.in_agent_run = false;
         let Some(group) = self.current.as_mut() else {
             return;

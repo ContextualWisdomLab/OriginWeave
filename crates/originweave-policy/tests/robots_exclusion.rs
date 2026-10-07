@@ -255,10 +255,11 @@ fn hostile_formatting_is_parsed_deterministically_and_only_valid_lines_apply() {
     assert_eq!(check("/secret/open"), RobotsDecision::Allowed);
     assert_eq!(check("/orphan"), RobotsDecision::Allowed);
     assert_eq!(check("/bad"), RobotsDecision::Allowed);
+    assert_eq!(check("/bad%FF"), RobotsDecision::Disallowed);
     assert_eq!(check("/nocolon"), RobotsDecision::Allowed);
     assert_eq!(check("/relative"), RobotsDecision::Allowed);
     assert_eq!(check("/ctl"), RobotsDecision::Allowed);
-    assert_eq!(rules.rule_count(), 2);
+    assert_eq!(rules.rule_count(), 3);
     assert!(!rules.body_truncated());
 }
 
