@@ -98,7 +98,7 @@ A typed action may be attempted only after exact current authority is validated.
 
 ### Crawler Mode
 
-**Accepted architecture.** The read-only crawler policy foundation is Implemented, including a deterministic RFC 9309 parser and matcher that turns a caller-fetched robots body into value-free robots evidence. The complete crawler runtime, including robots fetching and caching, is Planned. Robots evidence, rate controls, purpose, privacy, retention and legal/contract policy are distinct checks.
+**Accepted architecture.** The read-only crawler policy foundation is Implemented on protected main. This branch additionally contains a candidate deterministic RFC 9309 parser and matcher for caller-fetched bodies; it is not yet shipped. The complete crawler runtime, including robots fetching and caching, is Planned. Robots evidence, rate controls, purpose, privacy, retention and legal/contract policy are distinct checks.
 
 ## 5. Identifier and lifetime contracts
 

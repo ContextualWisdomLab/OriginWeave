@@ -195,6 +195,8 @@ pub enum RobotsBasis {
     ImplicitRobotsTxt,
     /// The body declared more than [`MAX_ROBOTS_RULES`] rules, so the result is unknown.
     RuleLimitExceeded,
+    /// The body exceeded the parse limit; omitted groups or rules could change the decision.
+    TruncatedBody,
     /// The robots file was unavailable (for example HTTP 4xx).
     Unavailable,
     /// The robots file was unreachable (for example HTTP 5xx or a network error).
@@ -249,8 +251,9 @@ impl RulePattern {
         if !value.starts_with(['/', '*']) {
             return None;
         }
-        // Non-short-circuit `|`: one combined character class, no internal whitespace.
-        if value.contains(|character: char| character.is_control() | character.is_whitespace()) {
+        // Only ASCII space/tab delimit records; other Unicode whitespace is
+        // a literal path octet sequence. Controls remain invalid.
+        if value.contains(|character: char| character.is_control() | (character == ' ')) {
             return None;
         }
         let (raw, anchored) = value
@@ -327,7 +330,7 @@ impl Group {
 }
 
 /// Parsed robots rules for one body.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct RobotsRules {
     groups: Vec<Group>,
     rule_count: usize,
@@ -340,7 +343,8 @@ impl RobotsRules {
     ///
     /// Only the first [`MAX_ROBOTS_BODY_BYTES`] bytes are parsed; when a body is
     /// longer, a final partial line is dropped so that a cut rule can never
-    /// widen into a shorter, broader rule.
+    /// widen into a shorter, broader rule. Decisions on truncated bodies are
+    /// unknown except for the implicit `/robots.txt` allowance.
     #[must_use]
     pub fn parse(body: &[u8]) -> Self {
         let body_truncated = body.len() > MAX_ROBOTS_BODY_BYTES;
@@ -374,7 +378,10 @@ impl RobotsRules {
 
     /// Decide whether `agent` may crawl `path` under these rules.
     ///
-    /// `path` is the request target path including any query string.
+    /// `path` must be the actual request target path including any query string.
+    /// Reserved delimiters retain their identity: `/` and `%2F` are distinct.
+    /// Evaluate the same serialized target that the future transport will send;
+    /// this function does not authorize URL serialization or browser navigation.
     ///
     /// # Errors
     ///
@@ -416,6 +423,9 @@ impl RobotsRules {
     }
 
     fn judge(&self, agent: &RobotsProductToken, path: &str) -> (RobotsDecision, RobotsBasis) {
+        if self.body_truncated {
+            return (RobotsDecision::Unknown, RobotsBasis::TruncatedBody);
+        }
         if self.rule_limit_exceeded {
             return (RobotsDecision::Unknown, RobotsBasis::RuleLimitExceeded);
         }
@@ -462,17 +472,21 @@ struct Parser {
 
 impl Parser {
     fn line(&mut self, line_number: usize, line: &[u8]) {
-        let Ok(line) = std::str::from_utf8(line) else {
+        // Decode values only after classifying the record. Invalid UTF-8 in a
+        // comment cannot discard a group boundary or its preceding rule.
+        let content = line.split(|byte| *byte == b'#').next().unwrap_or_default();
+        let Some(colon) = content.iter().position(|byte| *byte == b':') else {
             return;
         };
-        let content = line.split_once('#').map_or(line, |(before, _)| before);
-        let Some((key, value)) = content.split_once(':') else {
-            return;
-        };
+        let (key, remainder) = content.split_at(colon);
+        let value = remainder.get(1..).unwrap_or_default();
+        let key = String::from_utf8_lossy(key);
         let key = key.trim_matches(RECORD_WHITESPACE);
-        let value = value.trim_matches(RECORD_WHITESPACE);
         let kind = if key.eq_ignore_ascii_case("user-agent") {
-            self.user_agent(value);
+            // Replacement characters are not product-token characters. Even an
+            // invalid name isolates its rules from the preceding group.
+            let value = String::from_utf8_lossy(value);
+            self.user_agent(value.trim_matches(RECORD_WHITESPACE));
             return;
         } else if key.eq_ignore_ascii_case("allow") {
             RobotsRuleKind::Allow
@@ -481,7 +495,10 @@ impl Parser {
         } else {
             return;
         };
-        self.rule(kind, line_number, value);
+        self.in_agent_run = false;
+        if let Ok(value) = std::str::from_utf8(value) {
+            self.rule(kind, line_number, value.trim_matches(RECORD_WHITESPACE));
+        }
     }
 
     fn user_agent(&mut self, value: &str) {
@@ -582,7 +599,7 @@ impl RequestPath {
 }
 
 /// The result of fetching `/robots.txt`, as classified by the caller's transport.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum RobotsFetchOutcome<'a> {
     /// The file was fetched successfully (HTTP 2xx after at most five redirects).
     Success {
@@ -605,6 +622,32 @@ pub enum UnavailableRobotsPolicy {
     AllowPerRfc9309,
     /// Treat the robots decision as unknown, which policy denies.
     TreatAsUnknown,
+}
+
+impl fmt::Debug for RobotsRules {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RobotsRules")
+            .field("group_count", &self.groups.len())
+            .field("rule_count", &self.rule_count)
+            .field("body_truncated", &self.body_truncated)
+            .field("rule_limit_exceeded", &self.rule_limit_exceeded)
+            .finish()
+    }
+}
+
+impl fmt::Debug for RobotsFetchOutcome<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Success { body } => formatter
+                .debug_struct("Success")
+                .field("body_bytes", &body.len())
+                .finish(),
+            Self::Unavailable => formatter.write_str("Unavailable"),
+            Self::Unreachable => formatter.write_str("Unreachable"),
+            Self::RedirectLimitExceeded => formatter.write_str("RedirectLimitExceeded"),
+        }
+    }
 }
 
 impl UnavailableRobotsPolicy {
@@ -703,7 +746,19 @@ fn normalize(raw: &[u8], wildcard: bool) -> String {
                 }
             }
             b'*' if wildcard => out.push('*'),
-            b'*' | b'$' | 0x80..=0xFF => push_percent_encoded(&mut out, byte),
+            b'*'
+            | b'$'
+            | b' '
+            | b'"'
+            | b'<'
+            | b'>'
+            | b'\\'
+            | b'^'
+            | b'`'
+            | b'{'
+            | b'|'
+            | b'}'
+            | 0x80..=0xFF => push_percent_encoded(&mut out, byte),
             _ => out.push(char::from(byte)),
         }
     }

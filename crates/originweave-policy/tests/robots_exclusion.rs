@@ -360,7 +360,7 @@ fn fetch_outcomes_follow_rfc_9309_access_results() {
 }
 
 #[test]
-fn bodies_beyond_the_parse_limit_are_ignored_without_admitting_a_partial_line() {
+fn bodies_beyond_the_parse_limit_fail_closed_without_admitting_a_partial_line() {
     assert_eq!(MAX_ROBOTS_BODY_BYTES, 512_000);
     let prefix = "User-agent: *\n";
     let rule = "Disallow: /late\n";
@@ -376,19 +376,21 @@ fn bodies_beyond_the_parse_limit_are_ignored_without_admitting_a_partial_line() 
         body
     };
 
-    // The rule's newline ends exactly at the limit: it applies, later bytes do not.
+    // The complete rule is retained, but omitted bytes make the overall decision unknown.
     let at_limit = RobotsRules::parse(build(MAX_ROBOTS_BODY_BYTES).as_bytes());
     assert!(at_limit.body_truncated());
     let agent = token("bot");
     let check =
         |rules: &RobotsRules, path: &str| rules.decide(&agent, path).expect("path").decision();
-    assert_eq!(check(&at_limit, "/late"), RobotsDecision::Disallowed);
-    assert_eq!(check(&at_limit, "/after"), RobotsDecision::Allowed);
+    assert_eq!(at_limit.rule_count(), 1);
+    assert_eq!(check(&at_limit, "/late"), RobotsDecision::Unknown);
+    assert_eq!(check(&at_limit, "/after"), RobotsDecision::Unknown);
 
     // One byte later the rule line is cut before its newline and is dropped.
     let over = RobotsRules::parse(build(MAX_ROBOTS_BODY_BYTES + 1).as_bytes());
     assert!(over.body_truncated());
-    assert_eq!(check(&over, "/late"), RobotsDecision::Allowed);
+    assert_eq!(over.rule_count(), 0);
+    assert_eq!(check(&over, "/late"), RobotsDecision::Unknown);
 
     // A truncated `Allow: /public` must not become `Allow: /`.
     let mut widening = String::from("User-agent: *\nDisallow: /\n");
@@ -396,7 +398,8 @@ fn bodies_beyond_the_parse_limit_are_ignored_without_admitting_a_partial_line() 
     widening.push('\n');
     widening.push_str("Allow: /public\n");
     let widening = RobotsRules::parse(widening.as_bytes());
-    assert_eq!(check(&widening, "/private"), RobotsDecision::Disallowed);
+    assert_eq!(widening.rule_count(), 1);
+    assert_eq!(check(&widening, "/private"), RobotsDecision::Unknown);
 
     // Exactly-sized body without a trailing newline is complete, not truncated.
     let mut exact = String::from("User-agent: *\n");
@@ -455,13 +458,15 @@ fn excessive_rule_counts_fail_closed_as_unknown() {
 #[test]
 fn pathological_wildcards_complete_in_bounded_time() {
     let mut body = String::from("User-agent: *\n");
-    let pattern = format!("/{}b", "*a".repeat(2_000));
+    let pattern = format!("/{}b", "*a".repeat(1_200));
     for _ in 0..200 {
         body.push_str("Disallow: ");
         body.push_str(&pattern);
         body.push('\n');
     }
     let rules = RobotsRules::parse(body.as_bytes());
+    assert!(!rules.body_truncated());
+    assert_eq!(rules.rule_count(), 200);
     let path = format!("/{}", "a".repeat(MAX_ROBOTS_PATH_BYTES - 1));
     let started = std::time::Instant::now();
     let evaluation = rules.decide(&token("bot"), &path).expect("path");
