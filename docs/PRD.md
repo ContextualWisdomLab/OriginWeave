@@ -273,7 +273,7 @@ public-crawl purpose
 
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
-| PRD-CRAWL-001 | Crawler mutation is denied and robots policy is explicit | Implemented | Safety-kernel policy foundation |
+| PRD-CRAWL-001 | Crawler mutation is denied and robots policy is explicit | Implemented | Protected-main safety-kernel policy foundation; this branch adds a candidate `originweave_policy::evaluate_robots` parser/matcher, not yet shipped. Fetching, caching and HTTP status classification remain planned crawler-runtime work |
 | PRD-CRAWL-002 | Rate, depth, count, concurrency, retention, purpose and export controls are explicit | Planned | Crawler runtime work required |
 | PRD-CRAWL-003 | CAPTCHA bypass, fingerprint evasion and deliberate access-control circumvention are excluded | Accepted architecture | ADR 0108; capability remains prohibited |
 
