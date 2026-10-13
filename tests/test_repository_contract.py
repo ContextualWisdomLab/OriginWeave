@@ -21,6 +21,7 @@ class RepositoryContractTests(unittest.TestCase):
             {
                 "crates/originweave-core",
                 "crates/originweave-bap",
+                "crates/originweave-mcp",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",

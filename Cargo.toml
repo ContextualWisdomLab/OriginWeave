@@ -2,6 +2,7 @@
 members = [
     "crates/originweave-core",
     "crates/originweave-bap",
+    "crates/originweave-mcp",
     "crates/originweave-policy",
     "crates/originweave-resource",
     "crates/originweave-evidence",
