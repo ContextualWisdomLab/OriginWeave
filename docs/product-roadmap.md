@@ -104,7 +104,7 @@ Commercial proof: one controlled workflow completes repeatedly without selector 
 - incremental diffs and bounded observation cache;
 - WARC and PROV-JSON-LD adapters;
 - schema-bound extraction with field-level source evidence;
-- RFC 9309 crawler policy, rate limits, retention, and purpose records.
+- RFC 9309 crawler policy, rate limits, retention, and purpose records. This branch adds a candidate body parser/matcher with conservative truncation rejection; fetching, caching and the governed crawler runtime remain planned.
 
 Commercial proof: extracted fields meet precision/recall and provenance-completeness thresholds across a versioned benchmark corpus.
 

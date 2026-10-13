@@ -33,7 +33,7 @@ Adapters: HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 The repository is organized as independently consumable Rust crates:
 
 - `originweave-core`: normalized origins, immutable action-intent digests, session modes, typed actions, capabilities, approvals, and policy contexts.
-- `originweave-policy`: deterministic fail-closed action evaluation.
+- `originweave-policy`: deterministic fail-closed action evaluation. This branch adds a candidate, not-yet-shipped RFC 9309 body evaluator; it does not fetch or cache robots files.
 - `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-network`: direct-only, single-use TCP connection plans that bind an approved canonical address to the exact operating-system peer and emit credential-free evidence.
 - `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
