@@ -186,6 +186,46 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertNotIn("TraceWeave", text, relative)
             self.assertNotIn("ProofRail", text, relative)
 
+    def test_verified_tcp_evidence_claim_remains_in_changelog(self) -> None:
+        """Unrelated changes must not erase shipped verified-TCP evidence history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Credential-free verified TCP evidence containing the logical origin, "
+            "requested socket, observed peer, destination class, successful attempt "
+            "number, and per-attempt timeout.",
+            changelog,
+        )
+
+    def test_rust_standard_error_references_live_in_doctoring(self) -> None:
+        """Material Rust API references belong in doctoring, not the changelog."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        rust_api_references = (
+            "https://doc.rust-lang.org/1.97.1/std/fmt/trait.Display.html",
+            "https://doc.rust-lang.org/1.97.1/std/error/trait.Error.html",
+        )
+        for reference in rust_api_references:
+            with self.subTest(reference=reference):
+                self.assertIn(reference, doctoring)
+                self.assertNotIn(reference, changelog)
+
+    def test_rust_network_references_pin_project_toolchain(self) -> None:
+        """Rust network references must resolve to the repository's exact toolchain."""
+
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        for symbol in ("Ipv4Addr", "Ipv6Addr", "TcpStream"):
+            with self.subTest(symbol=symbol):
+                self.assertIn(
+                    f"https://doc.rust-lang.org/1.97.1/std/net/struct.{symbol}.html",
+                    doctoring,
+                )
+                self.assertNotIn(
+                    f"https://doc.rust-lang.org/stable/std/net/struct.{symbol}.html",
+                    doctoring,
+                )
+
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""
 
