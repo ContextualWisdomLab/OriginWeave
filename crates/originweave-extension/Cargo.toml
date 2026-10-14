@@ -1,0 +1,20 @@
+[package]
+name = "originweave-extension"
+description = "OriginWeave Extension Policy bounded context and Chromium extension adapter contracts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+originweave-core = { path = "../originweave-core" }
+
+[lints]
+workspace = true
