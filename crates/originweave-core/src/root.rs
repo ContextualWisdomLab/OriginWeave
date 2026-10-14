@@ -11,6 +11,8 @@ mod contracts;
 
 pub use contracts::*;
 
+/// Deterministic case-level acceptance for the controlled benchmark suite.
+pub mod controlled_benchmark;
 /// Stateless MCP routing validation that maps only explicit tools to typed actions.
 pub mod mcp;
 /// Deterministic fail-closed release benchmark acceptance aggregation.
