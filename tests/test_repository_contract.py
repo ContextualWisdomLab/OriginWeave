@@ -34,7 +34,7 @@ class RepositoryContractTests(unittest.TestCase):
         """Reproducible builds require an explicit Rust patch version."""
 
         data = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))
-        self.assertEqual(data["toolchain"]["channel"], "1.97.1")
+        self.assertEqual(data["toolchain"]["channel"], "1.98.1")
 
     def test_required_architecture_and_governance_documents_exist(self) -> None:
         """A commercial repository must keep binding decisions discoverable."""

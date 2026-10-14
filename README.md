@@ -87,7 +87,7 @@ The example prints only decision fields, rule kind/line number when applicable, 
 
 ## Development
 
-Rust 1.97.1 is pinned in `rust-toolchain.toml`.
+Rust 1.98.1 is pinned in `rust-toolchain.toml`.
 
 ```bash
 cargo fmt --all --check
@@ -97,7 +97,7 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --no-deps
 ```
 
-Production functions, lines, regions, and branches must each be covered at 100%. CI measures branch coverage with a pinned nightly compiler while the supported build remains Rust 1.97.1.
+Production functions, lines, regions, and branches must each be covered at 100%. CI measures branch coverage with a pinned nightly compiler while the supported stable build baseline is Rust 1.98.1.
 
 ## Roadmap
 

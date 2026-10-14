@@ -62,10 +62,11 @@ ADR 0013 and ADR 0014 exist only on this documentation branch until it integrate
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
+| [0115](0115-rust-stable-toolchain-baseline.md) | Rust stable toolchain baseline | Proposed | exact supported stable compiler version, reproducibility, compatibility evidence, and workflow provenance |
 
-ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
+ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0115 belongs to the active Rust `1.98.1` baseline repair lineage. Indexing them makes the branch documentation graph complete while preserving their Proposed lifecycle and active-PR, non-protected-main maturity.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 or ADR 0115 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 

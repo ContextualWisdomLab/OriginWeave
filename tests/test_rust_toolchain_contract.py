@@ -21,7 +21,7 @@ class RustToolchainContractTests(unittest.TestCase):
         """The stable compiler changes only through a reviewable manifest update."""
 
         manifest = tomllib.loads(RUST_TOOLCHAIN.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["toolchain"]["channel"], "1.97.1")
+        self.assertEqual(manifest["toolchain"]["channel"], "1.98.1")
 
         dependabot = DEPENDABOT.read_text(encoding="utf-8")
         self.assertIn('package-ecosystem: "rust-toolchain"', dependabot)
