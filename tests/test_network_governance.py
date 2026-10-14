@@ -46,6 +46,16 @@ class NetworkGovernanceTests(unittest.TestCase):
             self.assertIn("proxy", text.lower())
             self.assertIn("Chromium", text)
 
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        direct_binding = doctoring.split("### Direct TCP peer binding", 1)[1].split(
+            "### TLS service identity", 1
+        )[0]
+        for text in (adr, direct_binding):
+            self.assertIn("FreshConnectionPlan", text)
+            self.assertIn("FreshResolutionSnapshot", text)
+            self.assertIn("trusted monotonic time", text)
+            self.assertIn("connect(current_time)", text)
+
 
 if __name__ == "__main__":
     unittest.main()

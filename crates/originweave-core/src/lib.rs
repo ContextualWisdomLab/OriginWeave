@@ -15,6 +15,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Origin {
     canonical: String,
+    port: u16,
 }
 
 impl Origin {
@@ -54,11 +55,15 @@ impl Origin {
             return Err(OriginError::InsecureRemoteOrigin);
         }
         let normalized_port = normalize_default_port(&scheme, port);
+        let effective_port = normalized_port.unwrap_or(if scheme == "https" { 443 } else { 80 });
         let canonical = match normalized_port {
             Some(port_number) => format!("{scheme}://{host}:{port_number}"),
             None => format!("{scheme}://{host}"),
         };
-        Ok(Self { canonical })
+        Ok(Self {
+            canonical,
+            port: effective_port,
+        })
     }
 
     /// Return the normalized origin string.
@@ -89,6 +94,12 @@ impl Origin {
             authority.find(':').unwrap_or(authority.len())
         };
         &authority[host_start..host_end]
+    }
+
+    /// Return the effective origin port, including the scheme default.
+    #[must_use]
+    pub const fn port(&self) -> u16 {
+        self.port
     }
 }
 

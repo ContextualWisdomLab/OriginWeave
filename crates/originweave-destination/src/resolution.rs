@@ -371,6 +371,17 @@ impl FreshResolutionSnapshot {
         })
     }
 
+    /// Return the validated untimed snapshot underlying this freshness authority.
+    ///
+    /// Callers that use this view must still enforce freshness separately. It is
+    /// exposed so a transport planner can reuse the existing canonical socket
+    /// validation only after [`FreshResolutionSnapshot::authorize_connection`]
+    /// succeeds for the same operation.
+    #[must_use]
+    pub const fn resolution_snapshot(&self) -> &ResolutionSnapshot {
+        &self.snapshot
+    }
+
     /// Return the logical origin whose DNS answer was approved.
     #[must_use]
     pub const fn origin(&self) -> &Origin {

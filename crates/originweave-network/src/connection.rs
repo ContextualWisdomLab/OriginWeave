@@ -52,6 +52,13 @@ impl ConnectionPlan {
         if socket_address.port() == 0 {
             return Err(NetworkError::InvalidPort);
         }
+        let origin_port = resolution.origin().port();
+        if socket_address.port() != origin_port {
+            return Err(NetworkError::OriginPortMismatch {
+                socket_port: socket_address.port(),
+                origin_port,
+            });
+        }
         if connect_timeout.is_zero() || connect_timeout > MAX_CONNECT_TIMEOUT {
             return Err(NetworkError::InvalidConnectTimeout {
                 connect_timeout,
@@ -273,6 +280,13 @@ impl SocketConnectionEvidence {
 pub enum NetworkError {
     /// The requested destination port was zero.
     InvalidPort,
+    /// The requested socket port did not match the approved logical origin.
+    OriginPortMismatch {
+        /// The rejected socket port.
+        socket_port: u16,
+        /// The effective port bound to the logical origin.
+        origin_port: u16,
+    },
     /// The timeout was zero or exceeded [`MAX_CONNECT_TIMEOUT`].
     InvalidConnectTimeout {
         /// The rejected timeout.
@@ -351,6 +365,7 @@ impl NetworkError {
             Self::PeerInspectionFailed { attempt_number, .. }
             | Self::PeerMismatch { attempt_number, .. } => Some(*attempt_number),
             Self::InvalidPort
+            | Self::OriginPortMismatch { .. }
             | Self::InvalidConnectTimeout { .. }
             | Self::InvalidAttemptCount { .. }
             | Self::DestinationNotApproved { .. }
@@ -363,6 +378,13 @@ impl fmt::Display for NetworkError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidPort => formatter.write_str("connection port must be within 1..=65535"),
+            Self::OriginPortMismatch {
+                socket_port,
+                origin_port,
+            } => write!(
+                formatter,
+                "connection port {socket_port} does not match origin port {origin_port}",
+            ),
             Self::InvalidConnectTimeout {
                 connect_timeout,
                 maximum_timeout,
@@ -436,6 +458,7 @@ impl std::error::Error for NetworkError {
             | Self::ConnectionFailed { source, .. }
             | Self::PeerInspectionFailed { source, .. } => Some(source),
             Self::InvalidPort
+            | Self::OriginPortMismatch { .. }
             | Self::InvalidConnectTimeout { .. }
             | Self::InvalidAttemptCount { .. }
             | Self::NonCanonicalSocketAddress { .. }
@@ -533,18 +556,18 @@ mod tests {
         client
     }
 
-    fn loopback_snapshot() -> ResolutionSnapshot {
+    fn loopback_snapshot(port: u16) -> ResolutionSnapshot {
         ResolutionSnapshot::approve(
-            Origin::parse("http://localhost").expect("loopback origin"),
+            Origin::parse(&format!("http://localhost:{port}")).expect("loopback origin"),
             [IpAddr::V4(Ipv4Addr::LOCALHOST)],
             &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
         )
         .expect("managed loopback snapshot")
     }
 
-    fn ipv6_loopback_snapshot() -> ResolutionSnapshot {
+    fn ipv6_loopback_snapshot(port: u16) -> ResolutionSnapshot {
         ResolutionSnapshot::approve(
-            Origin::parse("http://[::1]").expect("IPv6 loopback origin"),
+            Origin::parse(&format!("http://[::1]:{port}")).expect("IPv6 loopback origin"),
             [IpAddr::V6(Ipv6Addr::LOCALHOST)],
             &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
         )
@@ -553,7 +576,7 @@ mod tests {
 
     fn plan(maximum_attempts: u8) -> ConnectionPlan {
         ConnectionPlan::new(
-            &loopback_snapshot(),
+            &loopback_snapshot(requested_socket().port()),
             requested_socket(),
             Duration::from_secs(2),
             maximum_attempts,
@@ -705,7 +728,7 @@ mod tests {
 
     #[test]
     fn validation_errors_cover_every_public_contract() {
-        let snapshot = loopback_snapshot();
+        let snapshot = loopback_snapshot(80);
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
         let validation_errors = [
             ConnectionPlan::new(
@@ -733,6 +756,13 @@ mod tests {
                 MAX_CONNECTION_ATTEMPTS + 1,
             )
             .expect_err("excessive attempts must fail"),
+            ConnectionPlan::new(
+                &snapshot,
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 81),
+                Duration::from_secs(1),
+                1,
+            )
+            .expect_err("origin-port mismatch must fail"),
         ];
         for error in validation_errors {
             assert!(!error.to_string().is_empty());
@@ -740,7 +770,7 @@ mod tests {
             assert_eq!(error.attempt_count(), None);
         }
 
-        let denied_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443);
+        let denied_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 80);
         let denied = ConnectionPlan::new(&snapshot, denied_socket, Duration::from_secs(1), 1)
             .expect_err("address absent from snapshot must fail");
         assert!(denied.to_string().contains("not approved"));
@@ -750,7 +780,7 @@ mod tests {
         let mapped = Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0x7f00, 1);
         let noncanonical = ConnectionPlan::new(
             &snapshot,
-            SocketAddr::new(IpAddr::V6(mapped), 443),
+            SocketAddr::new(IpAddr::V6(mapped), 80),
             Duration::from_secs(1),
             1,
         )
@@ -759,7 +789,7 @@ mod tests {
         assert!(noncanonical.source().is_none());
         assert_eq!(noncanonical.attempt_count(), None);
 
-        let ipv6_snapshot = ipv6_loopback_snapshot();
+        let ipv6_snapshot = ipv6_loopback_snapshot(443);
         let canonical_ipv6_socket =
             SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 443, 0, 0));
         assert!(
@@ -815,8 +845,9 @@ mod tests {
             stream.write_all(b"ok").expect("server response must write");
         });
 
-        let origin = Origin::parse("http://localhost").expect("loopback origin");
-        let snapshot = loopback_snapshot();
+        let origin =
+            Origin::parse(&format!("http://localhost:{}", socket.port())).expect("loopback origin");
+        let snapshot = loopback_snapshot(socket.port());
         let connection = ConnectionPlan::new(&snapshot, socket, Duration::from_secs(1), 1)
             .expect("plan must validate")
             .connect()
@@ -853,10 +884,15 @@ mod tests {
         let socket = listener.local_addr().expect("reserved address");
         drop(listener);
 
-        let error = ConnectionPlan::new(&loopback_snapshot(), socket, Duration::from_secs(1), 3)
-            .expect("plan must validate")
-            .connect()
-            .expect_err("closed loopback port must fail");
+        let error = ConnectionPlan::new(
+            &loopback_snapshot(socket.port()),
+            socket,
+            Duration::from_secs(1),
+            3,
+        )
+        .expect("plan must validate")
+        .connect()
+        .expect_err("closed loopback port must fail");
 
         assert_eq!(error.attempt_count(), Some(3));
         assert!(error.source().is_some());
