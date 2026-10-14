@@ -21,6 +21,8 @@ OriginWeave may run Chromium rendering, capture, local inference, remote-model o
 
 The resource governor is a Rust control-plane authority. Browser and model runtimes report telemetry but cannot self-grant additional budget. A task's resource budget is separate from its action capabilities and cannot be enlarged by webpage content or model output.
 
+For Linux browser-task RSS, the resource boundary accepts measurements supplied by a trusted platform adapter and can read exactly one `/proc/<pid>/status` for an explicitly supplied nonzero PID. The caller or trusted browser/process adapter owns proof that the PID belongs to the governed browser task; `originweave-resource` does not discover Chromium processes, aggregate children, inspect cgroups, measure GPU/heap state, or provide cross-platform sampling. Linux documents `VmRSS` as process resident-memory information and also warns that RSS accounting may be asynchronous and imprecise, so this measurement is operational pressure telemetry rather than exact billing, forensic attribution, or process-ownership proof (Linux Kernel Documentation, n.d.).
+
 ## Options considered
 
 1. Let the OS scheduler arbitrate all contention: rejected because it cannot express product priority or task budgets.
@@ -66,6 +68,8 @@ Supersede only if another scheduler demonstrates equivalent fail-closed resource
 Chromium. (n.d.). *MemoryInfra*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src/+/HEAD/docs/memory-infra/README.md
 
 Chromium. (n.d.). *Key concepts in Chrome memory*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src.git/+/HEAD/docs/memory/key_concepts.md
+
+Linux Kernel Documentation. (n.d.). *The /proc filesystem*. Retrieved August 15, 2026, from https://www.kernel.org/doc/html/latest/filesystems/proc.html
 
 V8 Project Authors. (2018, June 11). *Concurrent marking in V8*. https://v8.dev/blog/concurrent-marking
 
