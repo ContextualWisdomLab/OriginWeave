@@ -7,6 +7,9 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+/// Fail-closed identity binding for release artifacts.
+pub mod release_manifest;
+
 use std::collections::BTreeSet;
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
