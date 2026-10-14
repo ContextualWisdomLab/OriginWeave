@@ -10,7 +10,7 @@ A PR is mergeable only when all apply:
 - required PR checks explicitly check out the pull request head SHA; GitHub synthetic merge-ref evidence is supplemental and cannot substitute for exact-head evidence;
 - production function, line, region, and branch coverage each at 100%;
 - all public Rust APIs documented and rustdoc warnings denied;
-- format, check, test, Clippy, and documentation jobs pass;
+- format, test, Clippy, and documentation jobs pass; Clippy is the workspace compile/check gate because CI lints every target, so a separate `cargo check` invocation is not required;
 - dependency and GitHub Action references are locked or commit-pinned;
 - generated build outputs are ignored and absent from `git ls-files`;
 - review threads are resolved with code or evidence;
