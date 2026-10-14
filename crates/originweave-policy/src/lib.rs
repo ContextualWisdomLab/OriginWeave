@@ -18,9 +18,9 @@ pub use robots::{
 };
 
 pub use sensitive_data::{
-    DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
-    SensitiveDataAuthority, SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure,
-    evaluate_handle_use,
+    DataClassification, DisclosureDecision, DisclosureScope, HandleRevocationReason,
+    HandleUseDecision, SensitiveDataAuthority, SensitiveDataRequest, SensitiveHandleUseState,
+    SensitiveValueHandleScope, evaluate_disclosure,
 };
 
 use originweave_core::mcp::ValidatedMcpToolCall;
