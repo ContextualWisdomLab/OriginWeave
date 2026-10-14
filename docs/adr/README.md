@@ -28,6 +28,8 @@ An Accepted ADR is **design authority, not implementation evidence**. Protected-
 | [0008](0008-leaf-validity-horizon.md) | Delegated-task TLS leaf-validity horizon | Accepted | minimum certificate-validity horizon for bounded delegated tasks |
 | [0010](0010-session-context-bound-node-authority.md) | Session/context-bound node authority | Accepted | browser-session, browsing-context, origin, document-epoch and stale-node authority |
 
+ADR 0004 and ADR 0006 now carry APA 7th locators for the IANA special-purpose registries, RFC 6890, RFC 9110, RFC 5280, RFC 9846, and RFC 9525 already named in those decisions.
+
 ## Proposed architecture decisions
 
 Proposed ADR files are reviewable target architecture without becoming Accepted or shipped behavior. The provenance subsections distinguish files already present in the protected-main baseline from decisions introduced by this documentation reconciliation. Provenance never changes lifecycle: file presence on an active branch is not protected-main truth, and later integration does not itself promote a Proposed ADR to Accepted.

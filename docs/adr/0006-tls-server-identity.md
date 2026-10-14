@@ -229,6 +229,12 @@ The merge gate requires:
 - complete public rustdoc;
 - current-head CI, Security Scan, Semgrep, and independent review success.
 
-## Standards
+## References
 
-RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 9846 defines TLS 1.3 and obsoletes RFC 8446. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance. The implementation uses the pinned rustls 0.23.42 API and rcgen 0.14.8 only for deterministic test certificates. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md`.
+RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 9846 defines TLS 1.3 and obsoletes RFC 8446. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance. The implementation uses the pinned rustls 0.23.42 API and rcgen 0.14.8 only for deterministic test certificates. The evidence-to-decision trace remains in `docs/doctoring.md`.
+
+Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). RFC Editor. https://doi.org/10.17487/RFC5280 https://www.rfc-editor.org/rfc/rfc5280
+
+Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). RFC Editor. https://doi.org/10.17487/RFC9846 https://www.rfc-editor.org/rfc/rfc9846
+
+Saint-Andre, P., & Salz, R. (2023). *Service identity in TLS* (RFC 9525). RFC Editor. https://doi.org/10.17487/RFC9525 https://www.rfc-editor.org/rfc/rfc9525

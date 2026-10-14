@@ -135,3 +135,13 @@ Separate ADRs are required before implementing:
 - MIME and observed-content validation;
 - Chromium/BiDi/CDP integration;
 - persistent connection and redirect provenance.
+
+## References
+
+Cotton, M., Vegoda, L., Bonica, R. (Ed.), & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). RFC Editor. https://doi.org/10.17487/RFC6890 https://www.rfc-editor.org/rfc/rfc6890
+
+Internet Assigned Numbers Authority. (n.d.). *IANA IPv4 Special-Purpose Address Registry*. Retrieved August 25, 2026, from https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
+
+Internet Assigned Numbers Authority. (n.d.). *IANA IPv6 Special-Purpose Address Registry*. Retrieved August 25, 2026, from https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
+
+Fielding, R. (Ed.), Nottingham, M. (Ed.), & Reschke, J. (Ed.). (2022). *HTTP semantics* (RFC 9110). RFC Editor. https://doi.org/10.17487/RFC9110 https://www.rfc-editor.org/rfc/rfc9110
