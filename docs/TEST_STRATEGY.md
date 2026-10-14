@@ -78,6 +78,45 @@ session creation
 -> task close/recovery
 ```
 
+Draft PR #288 carries the current controlled Agent Task fixture lane on pinned
+Chrome for Testing without owning the workflow that activates Chromium. The lane
+uses browser-computed role/name evidence, real WebDriver clear/type/click,
+browser-observed input state, URL-stability observation, exact synthetic echo and
+profile cleanup. The controlled input deliberately starts with a non-empty
+synthetic value, so the lane requires Element Clear to be followed by a browser
+Get Element Property observation proving `value == ""` before Send Keys. It then
+requires a second Get Element Property observation proving the synthetic typed
+value after Send Keys and before click. A successful command acknowledgement for
+either input action is insufficient.
+
+The lane also requires a browser-observed `#task-result` baseline
+(`data-state=idle` and rendered `idle`) before clear/type, and observes the same
+idle result baseline again after typing and submit-target semantic verification,
+immediately before the native click. Successful evidence therefore carries
+`pre_action_baseline_verified`, `clear_value_verified`, `input_value_verified`,
+and `pre_click_baseline_verified`; all four are mandatory in repeatability surface
+completeness. This prevents a pre-fired fixture, a no-op or incomplete clear, a
+failed/partial send-keys operation accepted only from command ACK, or a regression
+that pre-satisfies the post-condition during typing from being accepted as
+click-caused success.
+
+URL stability is sampled immediately after the native click and again only after
+the submitted-state and exact synthetic-echo post-condition has been observed.
+The trial may emit `url_unchanged: true` only when both observations equal the
+original controlled fixture URL. This keeps a delayed navigation from escaping
+the accepted outcome boundary merely because an earlier post-click URL sample
+was still unchanged.
+
+The two idle baselines, browser-observed clear/typed input values, post-condition
+and URL observations are compared locally and unexpected page-controlled values
+are not echoed into CI diagnostics. The lane remains active-PR fixture evidence,
+not a shipped OriginWeave browser adapter. CSS locators are harness selectors; the
+work does not establish OriginWeave semantic node authority, policy-authorized
+production dispatch, WebDriver BiDi/CDP authority translation, or protected-main
+runtime acceptance. Workflow/sandbox activation remains #212 authority and
+ChromeDriver process/protocol diagnostics remain #148 authority.
+Draft-policy-skipped CI/MV3 runs are not browser GREEN.
+
 ### 3.5 Buyer acceptance
 
 Versioned task packs measure repeatable product outcomes rather than one lucky agent run. The benchmark artifact records browser build, OriginWeave version, model/provider/reasoning configuration, seed where supported, policy profile, hardware profile and source fixtures.
