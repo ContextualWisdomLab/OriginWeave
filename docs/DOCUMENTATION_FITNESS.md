@@ -1,7 +1,7 @@
 # OriginWeave Documentation Fitness Assessment
 
 - **Assessment date:** 2026-08-11
-- **Assessment scope:** protected `main`, every current OriginWeave implementation lane relevant to canonical product truth, and durable product decisions that must be reconstructable without chat history
+- **Assessment scope:** protected `main`, the implementation lanes observed on the assessment date, and durable product decisions reconstructable without chat history; live GitHub PR/issue state supersedes every numbered active-PR example below, which is dated evidence rather than a current inventory
 - **Assessment type:** semantic fitness, not file-presence inventory
 - **Current verdict:** **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**
 

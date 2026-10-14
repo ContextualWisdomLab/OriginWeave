@@ -58,6 +58,14 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", added)
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", added)
 
+    def test_changed_changelog_entries_use_single_list_markers(self) -> None:
+        """Keep Changed entries as one-level Keep a Changelog bullets."""
+        changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
+        self.assertFalse(
+            any(line.startswith("- - ") for line in changed.splitlines()),
+            "Changed entries must not contain nested list markers",
+        )
+
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
         for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66):
