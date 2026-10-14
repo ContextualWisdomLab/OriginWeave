@@ -8,6 +8,7 @@ members = [
     "crates/originweave-destination",
     "crates/originweave-network",
     "crates/originweave-tls",
+    "crates/originweave-release",
 ]
 resolver = "3"
 

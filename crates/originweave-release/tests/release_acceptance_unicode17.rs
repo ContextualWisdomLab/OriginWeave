@@ -1,4 +1,4 @@
-use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
+use originweave_release::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
 
 const UNICODE_17_DEFAULT_IGNORABLE_CODE_POINT_COUNT: usize = 4_174;
 

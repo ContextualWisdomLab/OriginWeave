@@ -304,6 +304,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "originweave-release"
+version = "0.1.0"
+dependencies = [
+ "unicode-normalization",
+]
+
+[[package]]
 name = "originweave-resource"
 version = "0.1.0"
 
