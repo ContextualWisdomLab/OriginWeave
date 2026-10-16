@@ -33,7 +33,7 @@ Adapters: HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 The repository is organized as independently consumable Rust crates:
 
 - `originweave-core`: normalized origins, immutable action-intent digests, session modes, typed actions, capabilities, approvals, and policy contexts.
-- `originweave-policy`: deterministic fail-closed action evaluation.
+- `originweave-policy`: deterministic fail-closed action evaluation. This branch adds a candidate, not-yet-shipped RFC 9309 body evaluator; it does not fetch or cache robots files.
 - `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-network`: direct-only, single-use TCP connection plans that bind an approved canonical address to the exact operating-system peer and emit credential-free evidence.
 - `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
@@ -67,6 +67,23 @@ Successful TLS authentication emits immutable evidence for the canonical origin,
 Safe Chromium navigation still requires adapters that prove the browser's real socket consumes these contracts, define proxy and PAC authority, apply HTTP connection and response budgets, validate downloads and observed MIME, and record complete transport evidence. A syntactically valid origin is never treated as an SSRF decision, resolver approval is not a connection, TCP peer equality is not TLS identity, and authenticated TLS is not an HTTP resource-budget decision.
 
 Generic network evidence retains bounded field names but no header or query values. Every value is replaced before the record leaves the trusted boundary, and malformed, ambiguous, or excessive paths and metadata fail closed. Any future typed response value or body requires a separate schema-specific capture policy.
+
+## Offline robots evaluation example (candidate)
+
+This branch provides a local `robots_offline` example for the candidate evaluator in PR #351. It calls the real robots and action-policy libraries, not a second parser. It is not yet shipped on protected main.
+
+From the repository root, supply a local regular file, an explicit crawler product token, and the serialized request target (path plus query):
+
+```bash
+cargo +1.97.1 run --locked -p originweave-policy --example robots_offline -- \
+  --body-file ./robots.txt \
+  --crawler-token OriginWeaveBot \
+  --request-target '/public?q=1'
+```
+
+The example prints only decision fields, rule kind/line number when applicable, truncation state, and a synthetic policy result. Exit codes are 0 for fixture-policy Allow, 1 for policy refusal, and 2 for local input/output errors. Invalid options, missing files and special files are input errors, not unavailable-robots allowances. At most 512,001 file bytes are read; the overflow byte remains present so oversized bodies retain the evaluator's Unknown result (except the existing implicit `/robots.txt` allowance).
+
+`fixture_policy_decision` uses a fixed `https://example.com` origin, Observe capability, public-crawl purpose, no write grant, no secrets, no approval, and a synthetic intent digest. The user-provided body is not verified as that origin's robots file; `Success` is only the library's supplied-body input variant, not observed HTTP success. The core request does not bind the request-target to an executable intent. Even an Allow result grants **no network or browser authority**. The tool does not fetch, cache, crawl, resolve DNS, navigate, mutate state or persist evidence. The pathname/handle checks reject static symlinks and special files but are not an adversarial filesystem sandbox or a race-free blocking-I/O guarantee. Raw file paths, tokens, request targets, body values and operating-system error text are not printed.
 
 ## Development
 

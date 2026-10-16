@@ -7,7 +7,15 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod robots;
 mod sensitive_data;
+
+pub use robots::{
+    MAX_ROBOTS_BODY_BYTES, MAX_ROBOTS_PATH_BYTES, MAX_ROBOTS_PRODUCT_TOKEN_BYTES, MAX_ROBOTS_RULES,
+    RobotsBasis, RobotsEvaluation, RobotsFetchOutcome, RobotsMatchedRule, RobotsPathError,
+    RobotsProductToken, RobotsProductTokenError, RobotsRuleKind, RobotsRules,
+    UnavailableRobotsPolicy, evaluate_robots,
+};
 
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
